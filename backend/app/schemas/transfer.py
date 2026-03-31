@@ -1,0 +1,29 @@
+from datetime import date
+from decimal import Decimal
+
+from pydantic import BaseModel, Field
+
+
+class TransferBase(BaseModel):
+    source_account_id: str
+    destination_account_id: str
+    transfer_date: date
+    amount: Decimal = Field(gt=0)
+    status: str = Field(default="planned", max_length=20)
+    description: str | None = None
+    notes: str | None = None
+
+
+class TransferCreate(TransferBase):
+    pass
+
+
+class TransferRead(TransferBase):
+    id: str
+    company_id: str
+    source_entry_id: str | None = None
+    destination_entry_id: str | None = None
+    source_account_name: str | None = None
+    destination_account_name: str | None = None
+
+    model_config = {"from_attributes": True}

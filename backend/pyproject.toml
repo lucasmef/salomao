@@ -1,0 +1,32 @@
+[project]
+name = "gestor-financeiro-backend"
+version = "0.1.0"
+description = "Backend do gestor financeiro offline"
+requires-python = ">=3.12"
+dependencies = [
+  "alembic>=1.14.0,<2.0.0",
+  "cryptography>=44.0.0,<46.0.0",
+  "fastapi>=0.115.0,<1.0.0",
+  "psycopg[binary]>=3.2.0,<4.0.0",
+  "uvicorn[standard]>=0.30.0,<1.0.0",
+  "sqlalchemy>=2.0.0,<3.0.0",
+  "pydantic-settings>=2.6.0,<3.0.0",
+  "python-multipart>=0.0.20,<1.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0,<9.0.0",
+  "httpx>=0.27.0,<1.0.0",
+  "ruff>=0.7.0,<1.0.0"
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
