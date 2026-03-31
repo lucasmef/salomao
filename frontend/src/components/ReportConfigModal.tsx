@@ -1,0 +1,674 @@
+import { useEffect, useMemo, useState } from "react";
+import Select, { type MultiValue, type SingleValue } from "react-select";
+
+import { parseApiError } from "../lib/format";
+import type { ReportConfig, ReportConfigLine } from "../types";
+
+type Props = {
+  config: ReportConfig | null;
+  kind: "dre" | "dro";
+  loading: boolean;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (payload: { lines: ReportConfigLine[] }) => Promise<ReportConfig>;
+};
+
+type SelectOption = {
+  value: string;
+  label: string;
+};
+
+function newLineId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `line-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function makeEmptyLine(): ReportConfigLine {
+  return {
+    id: newLineId(),
+    name: "Nova linha",
+    order: 0,
+    line_type: "source",
+    operation: "add",
+    special_source: null,
+    category_groups: [],
+    formula: [],
+    show_on_dashboard: false,
+    show_percent: true,
+    percent_mode: "grouped_children",
+    percent_reference_line_id: null,
+    is_active: true,
+    is_hidden: false,
+    summary_binding: null,
+  };
+}
+
+function moveItem<T>(items: T[], fromIndex: number, toIndex: number) {
+  const next = [...items];
+  const [item] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, item);
+  return next;
+}
+
+function normalizeOrders(lines: ReportConfigLine[]) {
+  return lines.map((line, index) => ({ ...line, order: index + 1 }));
+}
+
+function asMultiValue(options: MultiValue<SelectOption>) {
+  return options.map((option) => option.value);
+}
+
+function asSingleValue(option: SingleValue<SelectOption>) {
+  return option?.value ?? "";
+}
+
+export function ReportConfigModal({ config, kind, loading, saving, onClose, onSave }: Props) {
+  const [draft, setDraft] = useState<ReportConfig | null>(config);
+  const [error, setError] = useState("");
+  const [draggedLineId, setDraggedLineId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraft(
+      config
+        ? {
+            ...config,
+            lines: config.lines.map((line) => ({
+              ...line,
+              category_groups: [...line.category_groups],
+              formula: [...line.formula],
+            })),
+          }
+        : null,
+    );
+    setError("");
+  }, [config]);
+
+  const lineOptions = useMemo<SelectOption[]>(
+    () =>
+      (draft?.lines ?? []).map((line, index) => ({
+        value: line.id,
+        label: `${index + 1}. ${line.name || "Linha sem nome"}`,
+      })),
+    [draft],
+  );
+
+  const groupOptions = useMemo<SelectOption[]>(
+    () =>
+      (draft?.available_groups ?? []).map((group) => ({
+        value: group.value,
+        label: `${group.scope === "group" ? "Grupo" : "Subgrupo"}: ${group.name} (${group.entry_kind})`,
+      })),
+    [draft],
+  );
+
+  const specialSourceOptions = useMemo<SelectOption[]>(
+    () => (draft?.special_source_options ?? []).map((option) => ({ value: option.value, label: option.label })),
+    [draft],
+  );
+
+  const unmappedGroups = useMemo(() => Array.from(new Set(draft?.unmapped_groups ?? [])), [draft]);
+
+  if (!config || !draft) {
+    return null;
+  }
+
+  function setLines(updater: (lines: ReportConfigLine[]) => ReportConfigLine[]) {
+    setDraft((current) => (current ? { ...current, lines: normalizeOrders(updater(current.lines)) } : current));
+  }
+
+  function updateLine(lineId: string, updater: (line: ReportConfigLine) => ReportConfigLine) {
+    setLines((lines) => lines.map((line) => (line.id === lineId ? updater(line) : line)));
+  }
+
+  function removeLine(lineId: string) {
+    setLines((lines) => lines.filter((line) => line.id !== lineId));
+  }
+
+  function addLine() {
+    setLines((lines) => [...lines, makeEmptyLine()]);
+  }
+
+  function addLineRelative(targetLineId: string, position: "before" | "after") {
+    setLines((lines) => {
+      const targetIndex = lines.findIndex((line) => line.id === targetLineId);
+      if (targetIndex < 0) {
+        return lines;
+      }
+      const insertionIndex = position === "before" ? targetIndex : targetIndex + 1;
+      const next = [...lines];
+      next.splice(insertionIndex, 0, makeEmptyLine());
+      return next;
+    });
+  }
+
+  function moveLine(lineId: string, direction: "up" | "down") {
+    setLines((lines) => {
+      const currentIndex = lines.findIndex((line) => line.id === lineId);
+      if (currentIndex < 0) {
+        return lines;
+      }
+      const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+      if (nextIndex < 0 || nextIndex >= lines.length) {
+        return lines;
+      }
+      return moveItem(lines, currentIndex, nextIndex);
+    });
+  }
+
+  function handleDrop(targetLineId: string) {
+    if (!draggedLineId || draggedLineId === targetLineId) {
+      return;
+    }
+    setLines((lines) => {
+      const fromIndex = lines.findIndex((line) => line.id === draggedLineId);
+      const toIndex = lines.findIndex((line) => line.id === targetLineId);
+      if (fromIndex === -1 || toIndex === -1) {
+        return lines;
+      }
+      return moveItem(lines, fromIndex, toIndex);
+    });
+    setDraggedLineId(null);
+  }
+
+  function validateDraft() {
+    if (!draft) {
+      return "Configuracao indisponivel.";
+    }
+    const lines = draft.lines;
+    const groupOwners = new Map<string, string>();
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      if (!line.name.trim()) {
+        return "Todas as linhas precisam de nome.";
+      }
+      if (line.show_percent && line.percent_mode === "reference_line") {
+        if (!line.percent_reference_line_id) {
+          return `A linha "${line.name}" precisa ter uma referencia para o percentual.`;
+        }
+        const percentReferenceIndex = lines.findIndex((candidate) => candidate.id === line.percent_reference_line_id);
+        if (percentReferenceIndex < 0) {
+          return `A linha "${line.name}" referencia uma linha invalida para percentual.`;
+        }
+        if (percentReferenceIndex >= index) {
+          return `A linha "${line.name}" so pode usar uma linha anterior como referencia do percentual.`;
+        }
+      }
+      if (line.line_type === "source") {
+        if (!line.special_source && line.category_groups.length === 0) {
+          return `A linha "${line.name}" precisa ter grupos ou uma fonte especial.`;
+        }
+        for (const groupName of line.category_groups) {
+          const key = groupName.toLocaleLowerCase();
+          if (groupOwners.has(key)) {
+            return `O grupo "${groupName}" esta repetido em mais de uma linha.`;
+          }
+          groupOwners.set(key, line.id);
+        }
+      } else {
+        if (line.formula.length === 0) {
+          return `A linha totalizadora "${line.name}" precisa ter formula.`;
+        }
+        for (const formulaItem of line.formula) {
+          const referencedIndex = lines.findIndex((candidate) => candidate.id === formulaItem.referenced_line_id);
+          if (referencedIndex < 0) {
+            return `A linha "${line.name}" referencia uma linha inexistente.`;
+          }
+          if (referencedIndex >= index) {
+            return `A linha "${line.name}" so pode depender de linhas anteriores.`;
+          }
+        }
+      }
+    }
+    return "";
+  }
+
+  async function handleSave() {
+    if (!draft) {
+      setError("Configuracao indisponivel.");
+      return;
+    }
+    const validationError = validateDraft();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError("");
+    try {
+      const response = await onSave({
+        lines: normalizeOrders(draft.lines),
+      });
+      setDraft(response);
+      onClose();
+    } catch (saveError) {
+      setError(parseApiError(saveError));
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <div className="modal-card report-config-modal-card">
+        <div className="report-config-modal-header">
+          <div>
+            <h3>Configurar {kind.toUpperCase()}</h3>
+            <p>Defina a ordem das linhas, escolha grupos com busca e monte os subtotais com referencias entre linhas anteriores.</p>
+          </div>
+          <button className="ghost-button" onClick={onClose} type="button">
+            Fechar
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="empty-panel">
+            <p className="empty-state">Carregando configuracao...</p>
+          </div>
+        ) : (
+          <>
+            {unmappedGroups.length > 0 && (
+              <div className="report-config-warning">
+                <strong>Grupos ainda nao mapeados</strong>
+                <div className="report-config-chip-list">
+                  {unmappedGroups.map((group) => (
+                    <span className="report-config-chip" key={group}>
+                      {group}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {error && <div className="report-config-error">{error}</div>}
+
+            <div className="report-config-lines-header">
+              <div>
+                <strong>{draft.lines.length} linhas configuradas</strong>
+                <p>Use linhas agrupadoras para juntar grupos e faturamento. Use linhas totalizadoras para montar subtotais com linhas anteriores.</p>
+              </div>
+              <button className="secondary-button" onClick={addLine} type="button">
+                Adicionar linha no fim
+              </button>
+            </div>
+
+            <div className="report-config-lines">
+              {draft.lines.map((line, index) => {
+                const referenceOptions = draft.lines
+                  .slice(0, index)
+                  .map((candidate, sourceIndex) => ({
+                    value: candidate.id,
+                    label: `${sourceIndex + 1}. ${candidate.name || "Linha sem nome"}`,
+                  }));
+                const selectedGroupOptions = groupOptions.filter((option) => line.category_groups.includes(option.value));
+                const selectedSpecialSourceOption = specialSourceOptions.find((option) => option.value === line.special_source) ?? null;
+                const selectedPercentReferenceOption =
+                  referenceOptions.find((option) => option.value === line.percent_reference_line_id) ?? null;
+                const formulaPreview = line.formula
+                  .map((formulaItem) => {
+                    const referenced = lineOptions.find((option) => option.value === formulaItem.referenced_line_id);
+                    if (!referenced) {
+                      return null;
+                    }
+                    return `${formulaItem.operation === "add" ? "+" : "-"} ${referenced.label}`;
+                  })
+                  .filter(Boolean)
+                  .join(" ");
+
+                return (
+                  <article
+                    key={line.id}
+                    className="report-config-line-card"
+                    draggable
+                    onDragOver={(event) => event.preventDefault()}
+                    onDragStart={() => setDraggedLineId(line.id)}
+                    onDrop={() => handleDrop(line.id)}
+                  >
+                    <div className="report-config-line-topbar">
+                      <div className="report-config-line-title">
+                        <span className="report-config-drag-handle" title="Arraste para reordenar">
+                          ::
+                        </span>
+                        <div className="report-config-line-title-copy">
+                          <strong>{line.name || `Linha ${index + 1}`}</strong>
+                          <span>Linha {index + 1}</span>
+                        </div>
+                      </div>
+                      <div className="report-config-line-actions">
+                        <span className="report-config-line-badge">{line.line_type === "source" ? "Linha agrupadora" : "Linha totalizadora"}</span>
+                        {!line.is_active && <span className="report-config-line-badge muted">Inativa</span>}
+                        {line.is_hidden && <span className="report-config-line-badge muted">Oculta</span>}
+                        <button className="secondary-button compact-inline-button" disabled={index === 0} onClick={() => moveLine(line.id, "up")} type="button">
+                          Subir
+                        </button>
+                        <button
+                          className="secondary-button compact-inline-button"
+                          disabled={index === draft.lines.length - 1}
+                          onClick={() => moveLine(line.id, "down")}
+                          type="button"
+                        >
+                          Descer
+                        </button>
+                        <button className="secondary-button compact-inline-button" onClick={() => addLineRelative(line.id, "before")} type="button">
+                          + Antes
+                        </button>
+                        <button className="secondary-button compact-inline-button" onClick={() => addLineRelative(line.id, "after")} type="button">
+                          + Depois
+                        </button>
+                        <button className="ghost-button danger-text-action" onClick={() => removeLine(line.id)} type="button">
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
+
+                    {line.line_type === "totalizer" && (
+                      <div className="report-config-dependency-summary">
+                        <strong>Formula da totalizadora</strong>
+                        <span>{formulaPreview || "Escolha abaixo quais linhas anteriores entram no subtotal."}</span>
+                      </div>
+                    )}
+
+                    <div className="report-config-section-grid">
+                      <section className="report-config-section">
+                        <div className="report-config-section-heading">
+                          <strong>Identificacao</strong>
+                          <span>Nome da linha, tipo e exibicao no dashboard e na tabela.</span>
+                        </div>
+                        <div className="form-grid wide report-config-form-grid">
+                          <label className="span-two">
+                            Nome da linha
+                            <input value={line.name} onChange={(event) => updateLine(line.id, (current) => ({ ...current, name: event.target.value }))} />
+                          </label>
+
+                          <label>
+                            Tipo da linha
+                            <select
+                              value={line.line_type}
+                              onChange={(event) =>
+                                updateLine(line.id, (current) => ({
+                                  ...current,
+                                  line_type: event.target.value as "source" | "totalizer",
+                                  special_source: event.target.value === "totalizer" ? null : current.special_source,
+                                  category_groups: event.target.value === "totalizer" ? [] : current.category_groups,
+                                  formula: event.target.value === "totalizer" ? current.formula : [],
+                                }))
+                              }
+                            >
+                              <option value="source">Linha agrupadora</option>
+                              <option value="totalizer">Linha totalizadora</option>
+                            </select>
+                          </label>
+
+                          <div className="report-config-toggle-grid">
+                            <label className="report-config-inline-toggle">
+                              <input
+                                checked={line.is_active}
+                                onChange={(event) => updateLine(line.id, (current) => ({ ...current, is_active: event.target.checked }))}
+                                type="checkbox"
+                              />
+                              <span>Linha ativa</span>
+                            </label>
+
+                            <label className="report-config-inline-toggle">
+                              <input
+                                checked={line.show_on_dashboard}
+                                onChange={(event) => updateLine(line.id, (current) => ({ ...current, show_on_dashboard: event.target.checked }))}
+                                type="checkbox"
+                              />
+                              <span>Mostrar no dashboard</span>
+                            </label>
+
+                            <label className="report-config-inline-toggle">
+                              <input
+                                checked={line.show_percent}
+                                onChange={(event) =>
+                                  updateLine(line.id, (current) => ({
+                                    ...current,
+                                    show_percent: event.target.checked,
+                                    percent_reference_line_id: event.target.checked
+                                      ? current.percent_mode === "reference_line"
+                                        ? current.percent_reference_line_id
+                                        : null
+                                      : null,
+                                  }))
+                                }
+                                type="checkbox"
+                              />
+                              <span>Mostrar percentual</span>
+                            </label>
+
+                            <label className="report-config-inline-toggle">
+                              <input
+                                checked={line.is_hidden}
+                                onChange={(event) => updateLine(line.id, (current) => ({ ...current, is_hidden: event.target.checked }))}
+                                type="checkbox"
+                              />
+                              <span>Ocultar na tabela</span>
+                            </label>
+                          </div>
+
+                          {line.show_percent && (
+                            <>
+                              <label>
+                                Percentual relativo a
+                                <select
+                                  value={line.percent_mode}
+                                  onChange={(event) =>
+                                    updateLine(line.id, (current) => ({
+                                      ...current,
+                                      percent_mode: event.target.value as "reference_line" | "grouped_children",
+                                      percent_reference_line_id:
+                                        event.target.value === "reference_line"
+                                          ? current.percent_reference_line_id ?? referenceOptions[0]?.value ?? null
+                                          : null,
+                                    }))
+                                  }
+                                >
+                                  <option value="reference_line">Outra linha anterior</option>
+                                  <option value="grouped_children">Lancamentos agrupados da propria linha</option>
+                                </select>
+                              </label>
+
+                              {line.percent_mode === "reference_line" && (
+                                <label className="span-two">
+                                  Linha de referencia
+                                  <Select
+                                    classNamePrefix="report-config-select"
+                                    isClearable={false}
+                                    isSearchable
+                                    onChange={(option) =>
+                                      updateLine(line.id, (current) => ({
+                                        ...current,
+                                        percent_reference_line_id: asSingleValue(option),
+                                      }))
+                                    }
+                                    options={referenceOptions}
+                                    placeholder="Escolha uma linha anterior"
+                                    value={selectedPercentReferenceOption}
+                                  />
+                                </label>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </section>
+
+                      <section className="report-config-section report-config-section--wide">
+                        <div className="report-config-section-heading">
+                          <strong>{line.line_type === "source" ? "Composicao da linha" : "Formula da linha"}</strong>
+                          <span>
+                            {line.line_type === "source"
+                              ? "Junte grupos/subgrupos e, se precisar, um componente do faturamento na mesma linha."
+                              : "Cada linha totalizadora soma ou diminui linhas anteriores."}
+                          </span>
+                        </div>
+
+                        {line.line_type === "source" ? (
+                          <div className="form-grid wide report-config-form-grid">
+                            <label>
+                              Operacao na tabela
+                              <select
+                                value={line.operation}
+                                onChange={(event) => updateLine(line.id, (current) => ({ ...current, operation: event.target.value as "add" | "subtract" }))}
+                              >
+                                <option value="add">Soma</option>
+                                <option value="subtract">Diminui</option>
+                              </select>
+                            </label>
+
+                            {specialSourceOptions.length > 0 && (
+                              <label className="span-two">
+                                Componente do faturamento
+                                <Select
+                                  classNamePrefix="report-config-select"
+                                  isClearable
+                                  isSearchable
+                                  onChange={(option) =>
+                                    updateLine(line.id, (current) => ({
+                                      ...current,
+                                      special_source: asSingleValue(option) || null,
+                                    }))
+                                  }
+                                  options={specialSourceOptions}
+                                  placeholder="Opcional. Use junto com grupos se precisar"
+                                  value={selectedSpecialSourceOption}
+                                />
+                              </label>
+                            )}
+
+                            <label className="span-three">
+                              Grupos e subgrupos
+                              <Select<SelectOption, true>
+                                classNamePrefix="report-config-select"
+                                closeMenuOnSelect={false}
+                                isMulti
+                                isSearchable
+                                onChange={(options) =>
+                                  updateLine(line.id, (current) => ({
+                                    ...current,
+                                    category_groups: asMultiValue(options),
+                                  }))
+                                }
+                                options={groupOptions}
+                                placeholder="Busque e selecione grupos ou subgrupos"
+                                value={selectedGroupOptions}
+                              />
+                              <small className="report-config-field-help">
+                                Use a busca para encontrar grupos e subgrupos rapidamente. Voce pode combinar isso com o faturamento.
+                              </small>
+                            </label>
+                          </div>
+                        ) : (
+                          <div className="report-config-formula-builder">
+                            <div className="report-config-formula-header">
+                              <div>
+                                <strong>Linhas anteriores que entram no subtotal</strong>
+                                <p className="report-config-inline-copy">A totalizadora pode usar linhas agrupadoras e totalizadoras anteriores.</p>
+                              </div>
+                              <button
+                                className="secondary-button"
+                                disabled={referenceOptions.length === 0}
+                                onClick={() =>
+                                  updateLine(line.id, (current) => ({
+                                    ...current,
+                                    formula: [...current.formula, { operation: "add", referenced_line_id: referenceOptions[0]?.value ?? "" }],
+                                  }))
+                                }
+                                type="button"
+                              >
+                                Adicionar linha
+                              </button>
+                            </div>
+
+                            {line.formula.length === 0 ? (
+                              <p className="empty-state">Nenhuma linha vinculada ainda.</p>
+                            ) : (
+                              <div className="report-config-formula-list">
+                                {line.formula.map((formulaItem, formulaIndex) => {
+                                  const selectedReferenceOption = referenceOptions.find((option) => option.value === formulaItem.referenced_line_id) ?? null;
+                                  return (
+                                    <div className="report-config-formula-row" key={`${line.id}-${formulaIndex}`}>
+                                      <label>
+                                        Operacao
+                                        <select
+                                          value={formulaItem.operation}
+                                          onChange={(event) =>
+                                            updateLine(line.id, (current) => ({
+                                              ...current,
+                                              formula: current.formula.map((item, currentIndex) =>
+                                                currentIndex === formulaIndex ? { ...item, operation: event.target.value as "add" | "subtract" } : item,
+                                              ),
+                                            }))
+                                          }
+                                        >
+                                          <option value="add">Somar</option>
+                                          <option value="subtract">Diminuir</option>
+                                        </select>
+                                      </label>
+
+                                      <label>
+                                        Linha anterior
+                                        <Select
+                                          classNamePrefix="report-config-select"
+                                          isClearable={false}
+                                          isSearchable
+                                          onChange={(option) =>
+                                            updateLine(line.id, (current) => ({
+                                              ...current,
+                                              formula: current.formula.map((item, currentIndex) =>
+                                                currentIndex === formulaIndex ? { ...item, referenced_line_id: asSingleValue(option) } : item,
+                                              ),
+                                            }))
+                                          }
+                                          options={referenceOptions}
+                                          placeholder="Escolha uma linha anterior"
+                                          value={selectedReferenceOption}
+                                        />
+                                      </label>
+
+                                      <button
+                                        className="ghost-button danger-text-action"
+                                        onClick={() =>
+                                          updateLine(line.id, (current) => ({
+                                            ...current,
+                                            formula: current.formula.filter((_, currentIndex) => currentIndex !== formulaIndex),
+                                          }))
+                                        }
+                                        type="button"
+                                      >
+                                        Remover
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </section>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="report-config-modal-footer">
+              <div className="report-config-footer-meta">
+                <strong>{draft.lines.length} linhas</strong>
+                <span>Voce pode arrastar, subir/descer ou inserir linha antes/depois.</span>
+              </div>
+              <div className="action-row">
+                <button className="secondary-button" onClick={addLine} type="button">
+                  Adicionar linha no fim
+                </button>
+                <button className="ghost-button" onClick={onClose} type="button">
+                  Cancelar
+                </button>
+                <button className="primary-button" disabled={saving} onClick={() => void handleSave()} type="button">
+                  {saving ? "Salvando..." : "Salvar configuracao"}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,117 @@
+from io import BytesIO
+
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
+
+from app.api.deps import DbSession
+from app.schemas.boletos import (
+    BoletoClientConfigBulkUpdate,
+    BoletoDashboardRead,
+    BoletoMissingExportRequest,
+)
+from app.schemas.imports import ImportResult
+from app.services.boletos import (
+    build_boleto_dashboard,
+    build_missing_boletos_export,
+    import_boleto_customer_data,
+    import_boleto_report,
+    update_boleto_configs,
+)
+from app.services.company_context import get_current_company
+
+router = APIRouter()
+
+
+@router.get("/dashboard", response_model=BoletoDashboardRead)
+def get_boleto_dashboard(
+    db: DbSession,
+    include_all_monthly_missing: bool = Query(default=False),
+) -> BoletoDashboardRead:
+    company = get_current_company(db)
+    return build_boleto_dashboard(db, company, include_all_monthly_missing=include_all_monthly_missing)
+
+
+@router.post("/missing/export")
+def export_missing_boletos(
+    payload: BoletoMissingExportRequest,
+    db: DbSession,
+) -> StreamingResponse:
+    company = get_current_company(db)
+    try:
+        content, filename = build_missing_boletos_export(db, company, payload.selection_keys)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/clients", status_code=status.HTTP_204_NO_CONTENT)
+def save_boleto_clients(
+    payload: BoletoClientConfigBulkUpdate,
+    db: DbSession,
+) -> None:
+    company = get_current_company(db)
+    update_boleto_configs(db, company, payload)
+
+
+@router.post("/import/inter", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+async def upload_inter_boletos(
+    db: DbSession,
+    file: UploadFile = File(...),
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        content = await file.read()
+        return import_boleto_report(
+            db,
+            company,
+            bank="INTER",
+            filename=file.filename or "relatorio-inter.xlsx",
+            content=content,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/import/c6", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+async def upload_c6_boletos(
+    db: DbSession,
+    file: UploadFile = File(...),
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        content = await file.read()
+        return import_boleto_report(
+            db,
+            company,
+            bank="C6",
+            filename=file.filename or "relatorio-c6.csv",
+            content=content,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/import/customer-data", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+async def upload_customer_data(
+    db: DbSession,
+    file: UploadFile = File(...),
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        content = await file.read()
+        return import_boleto_customer_data(
+            db,
+            company,
+            filename=file.filename or "etiquetas.txt",
+            content=content,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
