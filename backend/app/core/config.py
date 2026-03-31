@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     app_mode: str = "desktop"
     database_url: str = "sqlite:///./gestor_financeiro.db"
+    bootstrap_admin_email: str | None = None
+    bootstrap_admin_password: str | None = None
     session_secret: str = "dev-session-secret-change-me"
     field_encryption_key: str = "dev-field-encryption-key-change-me"
     mfa_issuer: str = "Gestor Financeiro"
@@ -63,6 +65,17 @@ class Settings(BaseSettings):
     def validate_security_requirements(self) -> "Settings":
         if self.app_mode not in {"desktop", "server"}:
             raise ValueError("APP_MODE deve ser 'desktop' ou 'server'")
+        bootstrap_fields = {
+            "BOOTSTRAP_ADMIN_EMAIL": self.bootstrap_admin_email,
+            "BOOTSTRAP_ADMIN_PASSWORD": self.bootstrap_admin_password,
+        }
+        provided_bootstrap_fields = {
+            name: value for name, value in bootstrap_fields.items() if value not in {None, ""}
+        }
+        if provided_bootstrap_fields and len(provided_bootstrap_fields) != len(bootstrap_fields):
+            raise ValueError(
+                "BOOTSTRAP_ADMIN_EMAIL e BOOTSTRAP_ADMIN_PASSWORD devem ser informados juntos"
+            )
         if self.app_mode == "server":
             insecure_secrets = {
                 "dev-session-secret-change-me",
@@ -73,6 +86,10 @@ class Settings(BaseSettings):
             if self.field_encryption_key in insecure_secrets:
                 raise ValueError("FIELD_ENCRYPTION_KEY deve ser configurado para APP_MODE=server")
         return self
+
+    @property
+    def has_bootstrap_admin_credentials(self) -> bool:
+        return bool(self.bootstrap_admin_email and self.bootstrap_admin_password)
 
     @property
     def is_server_mode(self) -> bool:

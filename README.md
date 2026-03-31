@@ -208,10 +208,14 @@ O backend possui testes cobrindo pontos relevantes para producao, incluindo:
 ```env
 APP_MODE=server
 DATABASE_URL=postgresql+psycopg://...
+BOOTSTRAP_ADMIN_EMAIL=admin@example.invalid
+BOOTSTRAP_ADMIN_PASSWORD=...
 SESSION_SECRET=...
 FIELD_ENCRYPTION_KEY=...
 PUBLIC_ORIGIN=https://salomao.example.invalid
 ```
+
+Na primeira inicializacao com banco vazio, defina `BOOTSTRAP_ADMIN_EMAIL` e `BOOTSTRAP_ADMIN_PASSWORD` para criar o administrador inicial. Depois do bootstrap, troque a senha pela interface e remova a senha inicial do arquivo de ambiente.
 
 ## Resumo final
 

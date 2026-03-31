@@ -8,8 +8,6 @@ from datetime import datetime, timedelta, timezone
 
 
 PBKDF2_ITERATIONS = 120_000
-DEFAULT_ADMIN_EMAIL = "lucasmef@gmail.com"
-DEFAULT_ADMIN_PASSWORD = "admin123"
 TOTP_PERIOD_SECONDS = 30
 TOTP_DIGITS = 6
 
