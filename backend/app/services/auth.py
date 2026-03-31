@@ -9,8 +9,6 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.crypto import decrypt_text, encrypt_text
 from app.core.security import (
-    DEFAULT_ADMIN_EMAIL,
-    DEFAULT_ADMIN_PASSWORD,
     build_totp_uri,
     generate_mfa_secret,
     generate_session_token,
@@ -53,12 +51,18 @@ def ensure_default_admin(db: Session, company: Company) -> User:
     user = db.scalar(select(User).where(User.company_id == company.id).order_by(User.created_at.asc()))
     if user:
         return user
+    settings = get_settings()
+    if not settings.has_bootstrap_admin_credentials:
+        raise RuntimeError(
+            "Primeiro administrador nao configurado. Defina BOOTSTRAP_ADMIN_EMAIL e "
+            "BOOTSTRAP_ADMIN_PASSWORD antes de iniciar com banco vazio."
+        )
 
     user = User(
         company_id=company.id,
         full_name="Administrador Local",
-        email=DEFAULT_ADMIN_EMAIL,
-        password_hash=hash_password(DEFAULT_ADMIN_PASSWORD),
+        email=settings.bootstrap_admin_email.strip().lower(),
+        password_hash=hash_password(settings.bootstrap_admin_password),
         role="admin",
         is_active=True,
     )
