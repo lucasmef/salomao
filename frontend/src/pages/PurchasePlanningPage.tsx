@@ -179,14 +179,17 @@ const SEASON_PHASE_OPTIONS = [
   { value: "main", label: "Principal" },
   { value: "high", label: "Alto" },
 ] as const;
-const PURCHASE_RETURN_STATUS_OPTIONS = [
+const PURCHASE_RETURN_STATUS_OPTIONS: SelectOption[] = [
   { value: "request_open", label: "Abrir solicitacao" },
   { value: "factory_pending", label: "Aguardando fabrica" },
   { value: "send", label: "Envia" },
   { value: "sent_waiting_analysis", label: "Enviado/Aguardando Analise" },
   { value: "refund_approved", label: "Reembolso aprovado" },
   { value: "refunded", label: "Reembolsado" },
-] as const;
+] ;
+const DEFAULT_VISIBLE_PURCHASE_RETURN_STATUSES = PURCHASE_RETURN_STATUS_OPTIONS.filter(
+  (option) => option.value !== "refunded",
+).map((option) => option.value);
 const PURCHASE_RETURN_STATUS_LABELS = Object.fromEntries(
   PURCHASE_RETURN_STATUS_OPTIONS.map((option) => [option.value, option.label]),
 ) as Record<string, string>;
@@ -438,6 +441,11 @@ export function PurchasePlanningPage({
   const [collectionModal, setCollectionModal] = useState<CollectionModalState>(emptyCollectionModal());
   const [purchaseReturnModal, setPurchaseReturnModal] = useState<PurchaseReturnModalState>(emptyPurchaseReturnModal(today));
   const [purchaseReturnFilter, setPurchaseReturnFilter] = useState("");
+  const [purchaseReturnDateFrom, setPurchaseReturnDateFrom] = useState("");
+  const [purchaseReturnDateTo, setPurchaseReturnDateTo] = useState("");
+  const [purchaseReturnVisibleStatuses, setPurchaseReturnVisibleStatuses] = useState<string[]>(
+    DEFAULT_VISIBLE_PURCHASE_RETURN_STATUSES,
+  );
   const [planningCollectionId, setPlanningCollectionId] = useState("");
   const [compareCollectionIds, setCompareCollectionIds] = useState<string[]>([]);
   const [inlinePlanEdit, setInlinePlanEdit] = useState<PlanningInlineEditState | null>(null);
@@ -595,12 +603,24 @@ export function PurchasePlanningPage({
   const selectedSupplierTermOption = paymentTermOptions.find((option) => option.value === supplierModal.default_payment_term) ?? null;
   const selectedPurchaseReturnSupplierOption = supplierOptions.find((option) => option.value === purchaseReturnModal.supplier_id) ?? null;
   const purchaseReturnStatusOptions = getPurchaseReturnStatusOptions(purchaseReturnModal.id ? purchaseReturnModal.status : null);
+  const selectedPurchaseReturnVisibleStatusOptions = PURCHASE_RETURN_STATUS_OPTIONS.filter((option) =>
+    purchaseReturnVisibleStatuses.includes(option.value),
+  );
   const filteredPurchaseReturns = useMemo(() => {
     const normalizedFilter = normalizeDisplayText(purchaseReturnFilter);
-    if (!normalizedFilter) {
-      return purchaseReturns;
-    }
     return purchaseReturns.filter((purchaseReturn) => {
+      if (!purchaseReturnVisibleStatuses.includes(purchaseReturn.status)) {
+        return false;
+      }
+      if (purchaseReturnDateFrom && purchaseReturn.return_date < purchaseReturnDateFrom) {
+        return false;
+      }
+      if (purchaseReturnDateTo && purchaseReturn.return_date > purchaseReturnDateTo) {
+        return false;
+      }
+      if (!normalizedFilter) {
+        return true;
+      }
       const formattedDate = formatDate(purchaseReturn.return_date);
       const formattedAmount = formatMoney(purchaseReturn.amount);
       const haystack = normalizeDisplayText(
@@ -617,7 +637,7 @@ export function PurchasePlanningPage({
       );
       return haystack.includes(normalizedFilter);
     });
-  }, [purchaseReturnFilter, purchaseReturns]);
+  }, [purchaseReturnDateFrom, purchaseReturnDateTo, purchaseReturnFilter, purchaseReturnVisibleStatuses, purchaseReturns]);
   const purchaseReturnsTotal = useMemo(
     () => filteredPurchaseReturns.reduce((sum, purchaseReturn) => sum + Number(purchaseReturn.amount), 0),
     [filteredPurchaseReturns],
@@ -2105,6 +2125,28 @@ export function PurchasePlanningPage({
                 placeholder="Buscar por data, fornecedor, NF, status, observacao ou valor"
               />
             </label>
+            <label className="purchase-return-filter-field">
+              Data inicial
+              <input type="date" value={purchaseReturnDateFrom} onChange={(event) => setPurchaseReturnDateFrom(event.target.value)} />
+            </label>
+            <label className="purchase-return-filter-field">
+              Data final
+              <input type="date" value={purchaseReturnDateTo} onChange={(event) => setPurchaseReturnDateTo(event.target.value)} />
+            </label>
+            <label className="purchase-return-filter-field">
+              Status
+              <Select
+                options={PURCHASE_RETURN_STATUS_OPTIONS}
+                value={selectedPurchaseReturnVisibleStatusOptions}
+                onChange={(options) => setPurchaseReturnVisibleStatuses(asMultiValue(options))}
+                isMulti
+                closeMenuOnSelect={false}
+                hideSelectedOptions={false}
+                placeholder="Selecione os status"
+                styles={purchaseSelectStyles}
+                menuPortalTarget={portalTarget}
+              />
+            </label>
             <div className="action-row">
               <button className="secondary-button" type="button" onClick={() => openPurchaseReturnModal()}>
                 Nova devolucao
@@ -2130,7 +2172,6 @@ export function PurchasePlanningPage({
                   <th>Fornecedor</th>
                   <th>Nota fiscal</th>
                   <th>Status</th>
-                  <th>Observacao</th>
                   <th className="numeric-cell">Valor</th>
                   <th>Acoes</th>
                 </tr>
@@ -2143,7 +2184,6 @@ export function PurchasePlanningPage({
                       <td>{purchaseReturn.supplier_name || "-"}</td>
                       <td>{purchaseReturn.invoice_number || "-"}</td>
                       <td>{labelizePurchaseReturnStatus(purchaseReturn.status)}</td>
-                      <td title={purchaseReturn.notes || ""}>{purchaseReturn.notes || "-"}</td>
                       <td className="numeric-cell">{formatMoney(purchaseReturn.amount)}</td>
                       <td>
                         <div className="action-row">
@@ -2171,7 +2211,7 @@ export function PurchasePlanningPage({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7}>Nenhuma devolucao de compra encontrada.</td>
+                    <td colSpan={6}>Nenhuma devolucao de compra encontrada.</td>
                   </tr>
                 )}
               </tbody>
