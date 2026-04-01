@@ -168,6 +168,8 @@ class PurchaseReturnBase(BaseModel):
     supplier_id: str
     return_date: date
     amount: Decimal
+    invoice_number: str | None = None
+    status: str = "request_open"
     notes: str | None = None
 
 
@@ -182,6 +184,7 @@ class PurchaseReturnUpdate(PurchaseReturnBase):
 class PurchaseReturnRead(PurchaseReturnBase):
     id: str
     supplier_name: str | None = None
+    refund_entry_id: str | None = None
 
     model_config = {"from_attributes": True}
 

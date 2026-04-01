@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 import app.services.purchase_planning as purchase_planning_service
@@ -232,6 +232,8 @@ def test_purchase_return_crud_flow(db_session: Session) -> None:
             supplier_id=supplier.id,
             return_date=date(2026, 3, 31),
             amount=Decimal("245.90"),
+            invoice_number="NF-100",
+            status="request_open",
             notes="Devolucao parcial",
         ),
         user,
@@ -240,6 +242,8 @@ def test_purchase_return_crud_flow(db_session: Session) -> None:
 
     assert created.supplier_id == supplier.id
     assert created.amount == Decimal("245.90")
+    assert created.invoice_number == "NF-100"
+    assert created.status == "request_open"
 
     listed = list_purchase_returns(db_session, company, year=2026, limit=20)
     assert len(listed) == 1
@@ -253,6 +257,8 @@ def test_purchase_return_crud_flow(db_session: Session) -> None:
             supplier_id=supplier.id,
             return_date=date(2026, 4, 1),
             amount=Decimal("300.00"),
+            invoice_number="NF-101",
+            status="factory_pending",
             notes="Devolucao ajustada",
         ),
         user,
@@ -261,11 +267,115 @@ def test_purchase_return_crud_flow(db_session: Session) -> None:
 
     assert updated.return_date == date(2026, 4, 1)
     assert updated.amount == Decimal("300.00")
+    assert updated.invoice_number == "NF-101"
+    assert updated.status == "factory_pending"
 
     delete_purchase_return(db_session, company, created.id, user)
     db_session.commit()
 
     assert list_purchase_returns(db_session, company, year=2026, limit=20) == []
+
+
+def test_purchase_return_workflow_generates_single_refund_entry_on_approval(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(purchase_planning_service, "_today", lambda: date(2026, 4, 15))
+    company, user = create_company_context(db_session)
+    supplier = create_supplier(db_session, company.id, "Fornecedor Workflow")
+
+    created = create_purchase_return(
+        db_session,
+        company,
+        PurchaseReturnCreate(
+            supplier_id=supplier.id,
+            return_date=date(2026, 4, 1),
+            amount=Decimal("180.50"),
+            invoice_number="NF-200",
+            status="request_open",
+            notes="Aguardando retorno da fabrica",
+        ),
+        user,
+    )
+    db_session.flush()
+
+    with pytest.raises(HTTPException) as exc_info:
+        update_purchase_return(
+            db_session,
+            company,
+            created.id,
+            PurchaseReturnUpdate(
+                supplier_id=supplier.id,
+                return_date=date(2026, 4, 1),
+                amount=Decimal("180.50"),
+                invoice_number="NF-200",
+                status="refund_approved",
+                notes="Tentativa pulando etapas",
+            ),
+            user,
+        )
+
+    assert exc_info.value.status_code == 400
+    assert "Fluxo de devolucao" in str(exc_info.value.detail)
+
+    for status_value in ("factory_pending", "send", "sent_waiting_analysis", "refund_approved"):
+        update_purchase_return(
+            db_session,
+            company,
+            created.id,
+            PurchaseReturnUpdate(
+                supplier_id=supplier.id,
+                return_date=date(2026, 4, 1),
+                amount=Decimal("180.50"),
+                invoice_number="NF-200",
+                status=status_value,
+                notes="Fluxo em andamento",
+            ),
+            user,
+        )
+        db_session.flush()
+
+    purchase_return = db_session.get(purchasing_models.PurchaseReturn, created.id)
+    assert purchase_return is not None
+    assert purchase_return.refund_entry_id is not None
+
+    refund_entry = db_session.get(finance_models.FinancialEntry, purchase_return.refund_entry_id)
+    assert refund_entry is not None
+    assert refund_entry.entry_type == "historical_purchase_return"
+    assert refund_entry.status == "planned"
+    assert refund_entry.supplier_id == supplier.id
+    assert refund_entry.document_number == "NF-200"
+    assert refund_entry.due_date == date(2026, 4, 15)
+    assert refund_entry.issue_date == date(2026, 4, 15)
+    assert refund_entry.total_amount == Decimal("180.50")
+
+    update_purchase_return(
+        db_session,
+        company,
+        created.id,
+        PurchaseReturnUpdate(
+            supplier_id=supplier.id,
+            return_date=date(2026, 4, 1),
+            amount=Decimal("180.50"),
+            invoice_number="NF-200",
+            status="refunded",
+            notes="Recebivel ja gerado",
+        ),
+        user,
+    )
+    db_session.flush()
+
+    active_refund_entries = list(
+        db_session.scalars(
+            select(finance_models.FinancialEntry).where(
+                finance_models.FinancialEntry.company_id == company.id,
+                finance_models.FinancialEntry.source_system == "purchase_return_workflow",
+                finance_models.FinancialEntry.is_deleted.is_(False),
+            )
+        )
+    )
+    assert len(active_refund_entries) == 1
+    assert active_refund_entries[0].id == purchase_return.refund_entry_id
 
 
 def test_delete_purchase_plan_removes_unlinked_plan(db_session: Session) -> None:

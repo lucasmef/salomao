@@ -176,6 +176,10 @@ class PurchaseReturn(Base, IdMixin, TimestampMixin):
     supplier_id: Mapped[str] = mapped_column(ForeignKey("suppliers.id"), index=True)
     return_date: Mapped[date] = mapped_column(Date, index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
+    invoice_number: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="request_open")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    refund_entry_id: Mapped[str | None] = mapped_column(ForeignKey("financial_entries.id"), nullable=True, index=True)
 
     supplier = relationship("Supplier")
+    refund_entry = relationship("FinancialEntry")

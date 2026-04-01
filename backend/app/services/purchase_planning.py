@@ -25,6 +25,7 @@ from app.db.models.purchasing import (
     Supplier,
 )
 from app.db.models.security import Company, User
+from app.schemas.financial_entry import FinancialEntryCreate
 from app.schemas.purchase_planning import (
     CollectionSeasonCreate,
     CollectionSeasonRead,
@@ -54,6 +55,7 @@ from app.schemas.purchase_planning import (
     SupplierUpdate,
 )
 from app.services.audit import write_audit_log
+from app.services.category_catalog import ensure_category_catalog
 from app.services.import_parsers import normalize_label, parse_date_br, parse_decimal_pt_br
 
 TWO_PLACES = Decimal("0.01")
@@ -66,6 +68,37 @@ SEASON_PHASE_LABELS = {
     "main": "Principal",
     "high": "Alto",
 }
+PURCHASE_RETURN_STATUS_FLOW = (
+    "request_open",
+    "factory_pending",
+    "send",
+    "sent_waiting_analysis",
+    "refund_approved",
+    "refunded",
+)
+PURCHASE_RETURN_STATUS_LABELS = {
+    "request_open": "Abrir solicitacao",
+    "factory_pending": "Aguardando fabrica",
+    "send": "Envia",
+    "sent_waiting_analysis": "Enviado/Aguardando Analise",
+    "refund_approved": "Reembolso aprovado",
+    "refunded": "Reembolsado",
+}
+PURCHASE_RETURN_STATUS_ALIASES = {
+    "requestopen": "request_open",
+    "abrirsolicitacao": "request_open",
+    "factorypending": "factory_pending",
+    "aguardandofabrica": "factory_pending",
+    "send": "send",
+    "envia": "send",
+    "sentwaitinganalysis": "sent_waiting_analysis",
+    "enviadoaguardandoanalise": "sent_waiting_analysis",
+    "refundapproved": "refund_approved",
+    "reembolsoaprovado": "refund_approved",
+    "refunded": "refunded",
+    "reembolsado": "refunded",
+}
+PURCHASE_RETURN_APPROVAL_STATUS = "refund_approved"
 
 
 @dataclass(slots=True)
@@ -84,6 +117,48 @@ def _money(value: Decimal | int | float | None) -> Decimal:
 
 def _today() -> date:
     return date.today()
+
+
+def _normalize_purchase_return_status(value: str | None) -> str:
+    normalized_value = normalize_label(value or "")
+    resolved = PURCHASE_RETURN_STATUS_ALIASES.get(normalized_value)
+    if resolved is None:
+        raise HTTPException(status_code=400, detail="Status da devolucao invalido")
+    return resolved
+
+
+def _purchase_return_status_label(status_value: str) -> str:
+    return PURCHASE_RETURN_STATUS_LABELS.get(status_value, status_value)
+
+
+def _purchase_return_status_index(status_value: str) -> int:
+    return PURCHASE_RETURN_STATUS_FLOW.index(status_value)
+
+
+def _validate_purchase_return_status_transition(current_status: str | None, next_status: str) -> str:
+    normalized_next_status = _normalize_purchase_return_status(next_status)
+    if current_status is None:
+        if normalized_next_status != PURCHASE_RETURN_STATUS_FLOW[0]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"A nova devolucao deve iniciar em {_purchase_return_status_label(PURCHASE_RETURN_STATUS_FLOW[0])}",
+            )
+        return normalized_next_status
+
+    normalized_current_status = _normalize_purchase_return_status(current_status)
+    current_index = _purchase_return_status_index(normalized_current_status)
+    next_index = _purchase_return_status_index(normalized_next_status)
+    if next_index < current_index or next_index > current_index + 1:
+        allowed_labels = [
+            _purchase_return_status_label(PURCHASE_RETURN_STATUS_FLOW[current_index]),
+        ]
+        if current_index + 1 < len(PURCHASE_RETURN_STATUS_FLOW):
+            allowed_labels.append(_purchase_return_status_label(PURCHASE_RETURN_STATUS_FLOW[current_index + 1]))
+        raise HTTPException(
+            status_code=400,
+            detail=f"Fluxo de devolucao permite apenas: {', '.join(allowed_labels)}",
+        )
+    return normalized_next_status
 
 
 def _normalize_season_type(value: str | None) -> str | None:
@@ -781,8 +856,96 @@ def _serialize_purchase_return(purchase_return: PurchaseReturn) -> PurchaseRetur
         supplier_name=purchase_return.supplier.name if purchase_return.supplier else None,
         return_date=purchase_return.return_date,
         amount=_money(purchase_return.amount),
+        invoice_number=purchase_return.invoice_number,
+        status=_normalize_purchase_return_status(purchase_return.status),
         notes=purchase_return.notes,
+        refund_entry_id=purchase_return.refund_entry_id,
     )
+
+
+def _purchase_return_refund_category_id(db: Session, company_id: str) -> str:
+    return ensure_category_catalog(db, company_id)["Devolucoes de Compra"].id
+
+
+def _purchase_return_refund_title(purchase_return: PurchaseReturn, supplier_name: str | None) -> str:
+    base_title = f"Reembolso devolucao compra - {supplier_name or 'Fornecedor'}"
+    if purchase_return.invoice_number:
+        return f"{base_title} NF {purchase_return.invoice_number}"
+    return base_title
+
+
+def _sync_purchase_return_refund_entry(
+    db: Session,
+    company: Company,
+    purchase_return: PurchaseReturn,
+    *,
+    supplier_name: str | None,
+) -> None:
+    if not purchase_return.refund_entry_id:
+        return
+    entry = db.get(FinancialEntry, purchase_return.refund_entry_id)
+    if entry is None or entry.company_id != company.id or entry.is_deleted:
+        purchase_return.refund_entry_id = None
+        return
+    if entry.status != "planned":
+        return
+    entry.category_id = _purchase_return_refund_category_id(db, company.id)
+    entry.supplier_id = purchase_return.supplier_id
+    entry.title = _purchase_return_refund_title(purchase_return, supplier_name)
+    entry.description = "Recebivel gerado automaticamente ao aprovar devolucao de compra"
+    entry.notes = purchase_return.notes
+    entry.counterparty_name = supplier_name
+    entry.document_number = purchase_return.invoice_number
+    entry.principal_amount = _money(purchase_return.amount)
+    entry.total_amount = _money(purchase_return.amount)
+    entry.source_system = "purchase_return_workflow"
+    entry.source_reference = purchase_return.id
+
+
+def _ensure_purchase_return_refund_entry(
+    db: Session,
+    company: Company,
+    purchase_return: PurchaseReturn,
+    actor_user: User,
+    *,
+    supplier_name: str | None,
+) -> None:
+    from app.services.finance_ops import create_entry
+
+    _sync_purchase_return_refund_entry(
+        db,
+        company,
+        purchase_return,
+        supplier_name=supplier_name,
+    )
+    if purchase_return.refund_entry_id:
+        return
+
+    today = _today()
+    entry = create_entry(
+        db,
+        company,
+        FinancialEntryCreate(
+            category_id=_purchase_return_refund_category_id(db, company.id),
+            supplier_id=purchase_return.supplier_id,
+            entry_type="historical_purchase_return",
+            status="planned",
+            title=_purchase_return_refund_title(purchase_return, supplier_name),
+            description="Recebivel gerado automaticamente ao aprovar devolucao de compra",
+            notes=purchase_return.notes,
+            counterparty_name=supplier_name,
+            document_number=purchase_return.invoice_number,
+            issue_date=today,
+            competence_date=today,
+            due_date=today,
+            principal_amount=_money(purchase_return.amount),
+            total_amount=_money(purchase_return.amount),
+            source_system="purchase_return_workflow",
+            source_reference=purchase_return.id,
+        ),
+        actor_user,
+    )
+    purchase_return.refund_entry_id = entry.id
 
 
 def list_suppliers(db: Session, company: Company) -> list[SupplierRead]:
@@ -1467,16 +1630,29 @@ def create_purchase_return(
     supplier = _validate_supplier(db, company.id, payload.supplier_id)
     if supplier is None:
         raise HTTPException(status_code=422, detail="Fornecedor obrigatorio")
+    normalized_status = _validate_purchase_return_status_transition(None, payload.status)
+    invoice_number = payload.invoice_number.strip() if payload.invoice_number else None
 
     purchase_return = PurchaseReturn(
         company_id=company.id,
         supplier_id=supplier.id,
         return_date=payload.return_date,
         amount=_money(payload.amount),
+        invoice_number=invoice_number or None,
+        status=normalized_status,
         notes=payload.notes,
     )
     db.add(purchase_return)
     db.flush()
+    if _purchase_return_status_index(normalized_status) >= _purchase_return_status_index(PURCHASE_RETURN_APPROVAL_STATUS):
+        _ensure_purchase_return_refund_entry(
+            db,
+            company,
+            purchase_return,
+            actor_user,
+            supplier_name=supplier.name,
+        )
+        db.flush()
     purchase_return = db.scalar(
         select(PurchaseReturn)
         .where(PurchaseReturn.id == purchase_return.id)
@@ -1494,6 +1670,8 @@ def create_purchase_return(
             "supplier_id": purchase_return.supplier_id,
             "return_date": purchase_return.return_date.isoformat(),
             "amount": f"{purchase_return.amount:.2f}",
+            "invoice_number": purchase_return.invoice_number,
+            "status": purchase_return.status,
         },
     )
     return _serialize_purchase_return(purchase_return)
@@ -1519,11 +1697,29 @@ def update_purchase_return(
         raise HTTPException(status_code=422, detail="Fornecedor obrigatorio")
 
     before_state = _serialize_purchase_return(purchase_return).model_dump(mode="json")
+    next_status = _validate_purchase_return_status_transition(purchase_return.status, payload.status)
     purchase_return.supplier_id = supplier.id
     purchase_return.supplier = supplier
     purchase_return.return_date = payload.return_date
     purchase_return.amount = _money(payload.amount)
+    purchase_return.invoice_number = payload.invoice_number.strip() if payload.invoice_number else None
+    purchase_return.status = next_status
     purchase_return.notes = payload.notes
+    if _purchase_return_status_index(next_status) >= _purchase_return_status_index(PURCHASE_RETURN_APPROVAL_STATUS):
+        _ensure_purchase_return_refund_entry(
+            db,
+            company,
+            purchase_return,
+            actor_user,
+            supplier_name=supplier.name,
+        )
+    else:
+        _sync_purchase_return_refund_entry(
+            db,
+            company,
+            purchase_return,
+            supplier_name=supplier.name,
+        )
     db.flush()
     write_audit_log(
         db,
@@ -1544,6 +1740,8 @@ def delete_purchase_return(
     purchase_return_id: str,
     actor_user: User,
 ) -> None:
+    from app.services.finance_ops import delete_entry
+
     purchase_return = db.scalar(
         select(PurchaseReturn)
         .where(PurchaseReturn.id == purchase_return_id, PurchaseReturn.company_id == company.id)
@@ -1553,6 +1751,10 @@ def delete_purchase_return(
         raise HTTPException(status_code=404, detail="Devolucao de compra nao encontrada")
 
     before_state = _serialize_purchase_return(purchase_return).model_dump(mode="json")
+    if purchase_return.refund_entry_id:
+        refund_entry = db.get(FinancialEntry, purchase_return.refund_entry_id)
+        if refund_entry is not None and refund_entry.company_id == company.id and not refund_entry.is_deleted:
+            delete_entry(db, company, refund_entry.id, actor_user)
     db.delete(purchase_return)
     db.flush()
     write_audit_log(
