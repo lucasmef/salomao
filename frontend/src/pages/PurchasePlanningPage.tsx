@@ -310,7 +310,9 @@ function getPurchaseReturnStatusOptions(currentStatus: string | null) {
   if (currentIndex < 0) {
     return PURCHASE_RETURN_STATUS_OPTIONS.slice(0, 1);
   }
-  return PURCHASE_RETURN_STATUS_OPTIONS.slice(currentIndex, Math.min(currentIndex + 2, PURCHASE_RETURN_STATUS_OPTIONS.length));
+  const startIndex = Math.max(currentIndex - 1, 0);
+  const endIndex = Math.min(currentIndex + 2, PURCHASE_RETURN_STATUS_OPTIONS.length);
+  return PURCHASE_RETURN_STATUS_OPTIONS.slice(startIndex, endIndex);
 }
 
 function parseInstallmentsCount(paymentTerm: string | null | undefined) {

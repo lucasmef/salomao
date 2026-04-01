@@ -148,15 +148,18 @@ def _validate_purchase_return_status_transition(current_status: str | None, next
     normalized_current_status = _normalize_purchase_return_status(current_status)
     current_index = _purchase_return_status_index(normalized_current_status)
     next_index = _purchase_return_status_index(normalized_next_status)
-    if next_index < current_index or next_index > current_index + 1:
+    if next_index < current_index - 1 or next_index > current_index + 1:
         allowed_labels = [
+            _purchase_return_status_label(PURCHASE_RETURN_STATUS_FLOW[current_index - 1])
+            if current_index > 0
+            else None,
             _purchase_return_status_label(PURCHASE_RETURN_STATUS_FLOW[current_index]),
         ]
         if current_index + 1 < len(PURCHASE_RETURN_STATUS_FLOW):
             allowed_labels.append(_purchase_return_status_label(PURCHASE_RETURN_STATUS_FLOW[current_index + 1]))
         raise HTTPException(
             status_code=400,
-            detail=f"Fluxo de devolucao permite apenas: {', '.join(allowed_labels)}",
+            detail=f"Fluxo de devolucao permite apenas: {', '.join(label for label in allowed_labels if label)}",
         )
     return normalized_next_status
 
@@ -948,6 +951,29 @@ def _ensure_purchase_return_refund_entry(
     purchase_return.refund_entry_id = entry.id
 
 
+def _remove_purchase_return_refund_entry(
+    db: Session,
+    company: Company,
+    purchase_return: PurchaseReturn,
+    actor_user: User,
+) -> None:
+    from app.services.finance_ops import delete_entry
+
+    if not purchase_return.refund_entry_id:
+        return
+    refund_entry = db.get(FinancialEntry, purchase_return.refund_entry_id)
+    if refund_entry is None or refund_entry.company_id != company.id or refund_entry.is_deleted:
+        purchase_return.refund_entry_id = None
+        return
+    if refund_entry.status not in {"planned", "cancelled"} or Decimal(refund_entry.paid_amount or 0) > Decimal("0.00"):
+        raise HTTPException(
+            status_code=400,
+            detail="Nao e possivel voltar o status enquanto a fatura de reembolso ja possui movimentacao",
+        )
+    delete_entry(db, company, refund_entry.id, actor_user)
+    purchase_return.refund_entry_id = None
+
+
 def list_suppliers(db: Session, company: Company) -> list[SupplierRead]:
     suppliers = list(
         db.scalars(
@@ -1714,11 +1740,11 @@ def update_purchase_return(
             supplier_name=supplier.name,
         )
     else:
-        _sync_purchase_return_refund_entry(
+        _remove_purchase_return_refund_entry(
             db,
             company,
             purchase_return,
-            supplier_name=supplier.name,
+            actor_user,
         )
     db.flush()
     write_audit_log(

@@ -365,6 +365,42 @@ def test_purchase_return_workflow_generates_single_refund_entry_on_approval(
     )
     db_session.flush()
 
+    update_purchase_return(
+        db_session,
+        company,
+        created.id,
+        PurchaseReturnUpdate(
+            supplier_id=supplier.id,
+            return_date=date(2026, 4, 1),
+            amount=Decimal("180.50"),
+            invoice_number="NF-200",
+            status="refund_approved",
+            notes="Volta um passo",
+        ),
+        user,
+    )
+    db_session.flush()
+
+    update_purchase_return(
+        db_session,
+        company,
+        created.id,
+        PurchaseReturnUpdate(
+            supplier_id=supplier.id,
+            return_date=date(2026, 4, 1),
+            amount=Decimal("180.50"),
+            invoice_number="NF-200",
+            status="sent_waiting_analysis",
+            notes="Retrocesso permitido",
+        ),
+        user,
+    )
+    db_session.flush()
+
+    purchase_return = db_session.get(purchasing_models.PurchaseReturn, created.id)
+    assert purchase_return is not None
+    assert purchase_return.refund_entry_id is None
+
     active_refund_entries = list(
         db_session.scalars(
             select(finance_models.FinancialEntry).where(
@@ -374,8 +410,7 @@ def test_purchase_return_workflow_generates_single_refund_entry_on_approval(
             )
         )
     )
-    assert len(active_refund_entries) == 1
-    assert active_refund_entries[0].id == purchase_return.refund_entry_id
+    assert active_refund_entries == []
 
 
 def test_delete_purchase_plan_removes_unlinked_plan(db_session: Session) -> None:
