@@ -148,18 +148,15 @@ def _validate_purchase_return_status_transition(current_status: str | None, next
     normalized_current_status = _normalize_purchase_return_status(current_status)
     current_index = _purchase_return_status_index(normalized_current_status)
     next_index = _purchase_return_status_index(normalized_next_status)
-    if next_index < current_index - 1 or next_index > current_index + 1:
+    if next_index > current_index + 1:
         allowed_labels = [
-            _purchase_return_status_label(PURCHASE_RETURN_STATUS_FLOW[current_index - 1])
-            if current_index > 0
-            else None,
-            _purchase_return_status_label(PURCHASE_RETURN_STATUS_FLOW[current_index]),
+            *[_purchase_return_status_label(status_value) for status_value in PURCHASE_RETURN_STATUS_FLOW[: current_index + 1]],
         ]
         if current_index + 1 < len(PURCHASE_RETURN_STATUS_FLOW):
             allowed_labels.append(_purchase_return_status_label(PURCHASE_RETURN_STATUS_FLOW[current_index + 1]))
         raise HTTPException(
             status_code=400,
-            detail=f"Fluxo de devolucao permite apenas: {', '.join(label for label in allowed_labels if label)}",
+            detail=f"Fluxo de devolucao permite apenas: {', '.join(allowed_labels)}",
         )
     return normalized_next_status
 
