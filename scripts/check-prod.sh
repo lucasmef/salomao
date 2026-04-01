@@ -269,9 +269,10 @@ check_nginx_and_tls() {
 check_firewall_and_bans() {
   section "Firewall e bans"
 
-  local ufw_status fail2ban_status
+  local ufw_status fail2ban_status ssh_rules
   ufw_status="$(sudo ufw status 2>/dev/null || true)"
   fail2ban_status="$(sudo fail2ban-client status 2>/dev/null || true)"
+  ssh_rules="$(grep -E '(OpenSSH|22/tcp)' <<<"$ufw_status" || true)"
 
   if grep -q "Status: active" <<<"$ufw_status"; then
     pass "UFW ativo"
@@ -279,19 +280,21 @@ check_firewall_and_bans() {
     fail "UFW inativo"
   fi
 
-  if grep -Eq '(^|[[:space:]])22(/tcp)?[[:space:]]+ALLOW' <<<"$ufw_status"; then
+  if [[ -n "$ssh_rules" ]]; then
     pass "UFW libera SSH"
   else
     fail "UFW nao mostra regra para SSH"
   fi
 
-  if grep -Eq '(OpenSSH|22/tcp)[[:space:]]+ALLOW([[:space:]]+IN)?[[:space:]]+Anywhere([[:space:]]|\(|$)' <<<"$ufw_status"; then
-    fail "UFW expõe SSH para Anywhere"
-  elif grep -Eq '(OpenSSH|22/tcp)[[:space:]]+ALLOW([[:space:]]+IN)?[[:space:]]+Anywhere \(v6\)' <<<"$ufw_status"; then
-    fail "UFW expõe SSH para Anywhere (v6)"
-  elif grep -Eq '(OpenSSH|22/tcp)[[:space:]]+ALLOW([[:space:]]+IN)?[[:space:]]+([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?([[:space:]]+#.*)?$' <<<"$ufw_status"; then
+  if grep -Eq '(OpenSSH|22/tcp)( \([Vv]6\))?[[:space:]]+on[[:space:]]+tailscale0[[:space:]]+ALLOW([[:space:]]+IN)?[[:space:]]+Anywhere' <<<"$ssh_rules"; then
+    pass "UFW restringe SSH a interface tailscale0"
+  elif grep -Eq '(OpenSSH|22/tcp)[[:space:]]+ALLOW([[:space:]]+IN)?[[:space:]]+Anywhere([[:space:]]|\(|$)' <<<"$ssh_rules"; then
+    fail "UFW expoe SSH para Anywhere"
+  elif grep -Eq '(OpenSSH|22/tcp)[[:space:]]+ALLOW([[:space:]]+IN)?[[:space:]]+Anywhere \(v6\)' <<<"$ssh_rules"; then
+    fail "UFW expoe SSH para Anywhere (v6)"
+  elif grep -Eq '(OpenSSH|22/tcp)[[:space:]]+ALLOW([[:space:]]+IN)?[[:space:]]+([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?([[:space:]]+#.*)?$' <<<"$ssh_rules"; then
     pass "UFW restringe SSH por IPv4 de origem"
-  elif grep -Eq '(OpenSSH|22/tcp)[[:space:]]+ALLOW([[:space:]]+IN)?[[:space:]]+[0-9a-fA-F:]+(/[0-9]{1,3})?([[:space:]]+#.*)?$' <<<"$ufw_status"; then
+  elif grep -Eq '(OpenSSH|22/tcp)[[:space:]]+ALLOW([[:space:]]+IN)?[[:space:]]+[0-9a-fA-F:]+(/[0-9]{1,3})?([[:space:]]+#.*)?$' <<<"$ssh_rules"; then
     pass "UFW restringe SSH por IPv6 de origem"
   else
     warn "Nao foi possivel confirmar se o SSH esta restrito por IP"

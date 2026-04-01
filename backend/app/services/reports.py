@@ -445,9 +445,12 @@ def _build_group_items(
             if use_paid_amount and entry.entry_type in PURCHASE_RETURN_ENTRY_TYPES:
                 item["amount"] = -Decimal(item["amount"])
             group_token = _group_token("group", str(item.get("report_group") or "Sem Grupo"))
+            subgroup_group_token = _group_token("group", str(item.get("subgroup_label") or "Sem Grupo"))
             subgroup_token = _group_token("subgroup", str(item.get("subgroup_label") or "Sem Grupo"))
             if group_token:
                 grouped[group_token].append(item)
+            if subgroup_group_token and subgroup_group_token != group_token:
+                grouped[subgroup_group_token].append(item)
             if subgroup_token:
                 grouped[subgroup_token].append(item)
     return grouped

@@ -9,6 +9,11 @@ Nao existe mais deploy local, empacotamento desktop ou fluxo operacional via exe
 - `dev`: homologacao no VPS
 - `prod`: producao no VPS
 
+## Branches oficiais
+
+- branch `dev` publica no ambiente `dev`
+- branch `main` publica no ambiente `prod`
+
 Checkouts esperados no servidor:
 
 - `/srv/salomao/dev/app`
@@ -54,6 +59,9 @@ PUBLIC_ORIGIN=https://salomao.example.invalid
 No checkout `/srv/salomao/dev/app`:
 
 ```bash
+git fetch --all --prune
+git checkout dev
+git pull --ff-only origin dev
 ./scripts/deploy-dev.sh
 ```
 
@@ -73,6 +81,9 @@ O script:
 No checkout `/srv/salomao/prod/app`:
 
 ```bash
+git fetch --all --prune
+git checkout main
+git pull --ff-only origin main
 ./scripts/deploy-prod.sh
 ```
 
@@ -117,3 +128,11 @@ Os arquivos que devem orientar qualquer automacao ou processo futuro sao:
 - `scripts/deploy-dev.sh`
 - `scripts/deploy-prod.sh`
 - `scripts/check-prod.sh`
+
+Historico operacional atual do acesso:
+
+- host: `203.0.113.10`
+- hostname: `salomao.example.invalid`
+- usuario: `salomao`
+
+Se o SSH em `22` estiver com timeout, o deploy nao deve ser considerado concluido. Nesse caso, primeiro e preciso restabelecer o acesso ao VPS pela rede ou pelo console da KingHost.

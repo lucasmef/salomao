@@ -1,0 +1,57 @@
+{
+  // Politica sugerida para o tailnet do Gestor Financeiro.
+  // Objetivo:
+  // - Permitir apenas SSH ao VPS pela tailnet
+  // - Bloquear root via Tailscale SSH
+  // - Usar um tag de servidor para o VPS
+  //
+  // Depois de salvar esta policy no admin do Tailscale,
+  // rode no VPS:
+  //   sudo tailscale up --ssh --hostname salomao-vps --advertise-tags=tag:server --accept-risk=lose-ssh
+
+  "hosts": {
+    "salomao-vps": "100.81.12.64",
+    "pclucas": "100.127.107.90",
+    "iphone-13-pro-max": "100.123.246.7",
+  },
+
+  "tagOwners": {
+    "tag:server": ["lucasmef@gmail.com"],
+  },
+
+  "grants": [
+    {
+      "src": ["lucasmef@gmail.com"],
+      "dst": ["tag:server"],
+      "ip": ["tcp:22"],
+    },
+  ],
+
+  "ssh": [
+    {
+      "action": "check",
+      "src": ["lucasmef@gmail.com"],
+      "dst": ["tag:server"],
+      "users": ["salomao"],
+      "checkPeriod": "12h",
+    },
+  ],
+
+  "tests": [
+    {
+      "src": "lucasmef@gmail.com",
+      "proto": "tcp",
+      "accept": ["tag:server:22"],
+      "deny": ["salomao-vps:80", "salomao-vps:443", "pclucas:22"],
+    },
+  ],
+
+  "sshTests": [
+    {
+      "src": "lucasmef@gmail.com",
+      "dst": ["tag:server"],
+      "check": ["salomao"],
+      "deny": ["root"],
+    },
+  ],
+}
