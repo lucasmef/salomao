@@ -997,7 +997,7 @@ textarea {
 }
 
 .purchase-return-filter-bar {
-  grid-template-columns: minmax(280px, 1fr) auto;
+  grid-template-columns: minmax(240px, 1.2fr) minmax(150px, 0.7fr) minmax(150px, 0.7fr) minmax(240px, 1fr) auto;
 }
 
 .purchase-return-filter-field {
