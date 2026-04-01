@@ -18,9 +18,9 @@ export type MainNavItem = {
 export const mainNavigation: MainNavItem[] = [
   {
     key: "overview",
-    label: "Visao geral",
+    label: "Visão Geral",
     path: "/overview/resumo",
-    title: "Visao geral",
+    title: "Visão Geral",
     description: "Leitura gerencial consolidada do periodo com indicadores e saldos.",
     children: [
       {
@@ -94,9 +94,9 @@ export const mainNavigation: MainNavItem[] = [
   },
   {
     key: "caixa-resultados",
-    label: "Caixa e resultados",
+    label: "Resultados",
     path: "/caixa-resultados/fluxo-caixa",
-    title: "Caixa e resultados",
+    title: "Resultados",
     description: "Fluxo de caixa, demonstrativos e comparativos de desempenho.",
     children: [
       {

@@ -56,10 +56,52 @@ type PendingAuthState = {
   mfaSetup: MfaSetup | null;
 };
 
-const today = new Date();
-const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
-const cashflowDefaultEnd = new Date(today.getFullYear(), today.getMonth() + 6, 0).toISOString().slice(0, 10);
+function toDateInput(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+function getCurrentMonthRange() {
+  const today = new Date();
+  return {
+    start: toDateInput(new Date(today.getFullYear(), today.getMonth(), 1)),
+    end: toDateInput(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
+  };
+}
+
+function getDefaultEntryFilters(): Record<string, string | boolean> {
+  const { start, end } = getCurrentMonthRange();
+  return {
+    page: "1",
+    page_size: "50",
+    status: "",
+    statuses: "",
+    entry_type: "",
+    entry_types: "",
+    reconciled: false,
+    account_id: "",
+    category_id: "",
+    report_group: "",
+    source_system: "",
+    counterparty_name: "",
+    document_number: "",
+    search: "",
+    date_field: "due_date",
+    date_from: start,
+    date_to: end,
+    include_legacy: false,
+  };
+}
+
+function getDefaultCashflowFilters() {
+  const { start, end } = getCurrentMonthRange();
+  return {
+    start,
+    end,
+    account_id: "",
+    include_purchase_planning: true,
+    include_crediario_receivables: true,
+  };
+}
 
 const emptyImportSummary: ImportSummary = {
   import_batches: [],
@@ -411,46 +453,20 @@ function AppRuntime() {
   const [activeMfaSetup, setActiveMfaSetup] = useState<MfaSetup | null>(null);
   const [purchasePlanningLoadedMode, setPurchasePlanningLoadedMode] = useState<"summary" | "planning" | "returns" | null>(null);
 
-  const [overviewFilters, setOverviewFilters] = useState({ start: monthStart, end: monthEnd });
-  const [entryFilters, setEntryFilters] = useState<Record<string, string | boolean>>({
-    page: "1",
-    page_size: "50",
-    status: "",
-    statuses: "",
-    entry_type: "",
-    entry_types: "",
-    reconciled: false,
-    account_id: "",
-    category_id: "",
-    report_group: "",
-    source_system: "",
-    counterparty_name: "",
-    document_number: "",
-    search: "",
-    date_field: "due_date",
-    date_from: monthStart,
-    date_to: monthEnd,
-    include_legacy: false,
-  });
-  const [cashflowFilters, setCashflowFilters] = useState({
-    start: monthStart,
-    end: cashflowDefaultEnd,
-    account_id: "",
-    include_purchase_planning: true,
-    include_crediario_receivables: true,
-  });
+  const [overviewFilters, setOverviewFilters] = useState(() => getCurrentMonthRange());
+  const [entryFilters, setEntryFilters] = useState<Record<string, string | boolean>>(() => getDefaultEntryFilters());
+  const [cashflowFilters, setCashflowFilters] = useState(() => getDefaultCashflowFilters());
   const [purchasePlanningFilters, setPurchasePlanningFilters] = useState({
-    year: String(today.getFullYear()),
+    year: String(new Date().getFullYear()),
     brand_id: "",
     supplier_id: "",
     collection_id: "",
     status: "",
   });
-  const [reportFilters, setReportFilters] = useState({ start: monthStart, end: monthEnd });
+  const [reportFilters, setReportFilters] = useState(() => getCurrentMonthRange());
   const [reconciliationFilters, setReconciliationFilters] = useState({
     account_id: "",
-    start: monthStart,
-    end: monthEnd,
+    ...getCurrentMonthRange(),
   });
 
   useEffect(() => {
@@ -592,20 +608,29 @@ function AppRuntime() {
     if (!options?.force && loadedSections[targetSection]) {
       return;
     }
+    const isInitialSectionLoad = !loadedSections[targetSection];
     setLoading(true);
     try {
       switch (targetSection) {
         case "overview": {
+          const effectiveOverviewFilters = isInitialSectionLoad ? getCurrentMonthRange() : overviewFilters;
+          if (isInitialSectionLoad) {
+            setOverviewFilters(effectiveOverviewFilters);
+          }
           const dashboardData = await fetchJson<DashboardOverview>(
-            `/dashboard/overview?${buildQuery(overviewFilters)}`,
+            `/dashboard/overview?${buildQuery(effectiveOverviewFilters)}`,
             { token: activeSession.token },
           );
           setDashboard(dashboardData);
           break;
         }
         case "lancamentos": {
+          const effectiveEntryFilters = isInitialSectionLoad ? getDefaultEntryFilters() : entryFilters;
+          if (isInitialSectionLoad) {
+            setEntryFilters(effectiveEntryFilters);
+          }
           const [entryData, payableData, receivableData] = await Promise.all([
-            fetchJson<FinancialEntryListResponse>(`/entries?${buildQuery(entryFilters)}`, { token: activeSession.token }),
+            fetchJson<FinancialEntryListResponse>(`/entries?${buildQuery(effectiveEntryFilters)}`, { token: activeSession.token }),
             fetchJson<FinancialEntryListResponse>("/entries/payables?page=1&page_size=100", { token: activeSession.token }),
             fetchJson<FinancialEntryListResponse>("/entries/receivables?page=1&page_size=100", { token: activeSession.token }),
           ]);
@@ -655,24 +680,38 @@ function AppRuntime() {
           break;
         }
         case "conciliacao": {
+          const effectiveReconciliationFilters = isInitialSectionLoad
+            ? { ...reconciliationFilters, ...getCurrentMonthRange() }
+            : reconciliationFilters;
+          if (isInitialSectionLoad) {
+            setReconciliationFilters(effectiveReconciliationFilters);
+          }
           const reconciliationData = await fetchJson<ReconciliationWorklist>(
-            `/reconciliation/worklist?${buildQuery({ ...reconciliationFilters, page: "1", limit: "2000" })}`,
+            `/reconciliation/worklist?${buildQuery({ ...effectiveReconciliationFilters, page: "1", limit: "2000" })}`,
             { token: activeSession.token },
           );
           setReconciliation(reconciliationData);
           break;
         }
         case "caixa": {
+          const effectiveCashflowFilters = isInitialSectionLoad ? getDefaultCashflowFilters() : cashflowFilters;
+          if (isInitialSectionLoad) {
+            setCashflowFilters(effectiveCashflowFilters);
+          }
           const cashflowData = await fetchJson<CashflowOverview>(
-            `/cashflow/overview?${buildCashflowQuery(cashflowFilters)}`,
+            `/cashflow/overview?${buildCashflowQuery(effectiveCashflowFilters)}`,
             { token: activeSession.token },
           );
           setCashflow(cashflowData);
           break;
         }
         case "relatorios": {
+          const effectiveReportFilters = isInitialSectionLoad ? getCurrentMonthRange() : reportFilters;
+          if (isInitialSectionLoad) {
+            setReportFilters(effectiveReportFilters);
+          }
           const reportsData = await fetchJson<ReportsOverview>(
-            `/reports/overview?${buildQuery(reportFilters)}`,
+            `/reports/overview?${buildQuery(effectiveReportFilters)}`,
             { token: activeSession.token },
           );
           setReports(reportsData);
@@ -1942,7 +1981,7 @@ function AppRuntime() {
           element={
             <SectionChrome
               description={resultsNavigation.children[0].description}
-              sectionLabel="Caixa e resultados"
+              sectionLabel="Resultados"
               tabLabel={resultsNavigation.children[0].label}
               tabs={resultsNavigation.children}
               title={resultsNavigation.children[0].title}
@@ -1964,7 +2003,7 @@ function AppRuntime() {
           element={
             <SectionChrome
               description={resultsNavigation.children[1].description}
-              sectionLabel="Caixa e resultados"
+              sectionLabel="Resultados"
               tabLabel={resultsNavigation.children[1].label}
               tabs={resultsNavigation.children}
               title={resultsNavigation.children[1].title}
@@ -1991,7 +2030,7 @@ function AppRuntime() {
           element={
             <SectionChrome
               description={resultsNavigation.children[2].description}
-              sectionLabel="Caixa e resultados"
+              sectionLabel="Resultados"
               tabLabel={resultsNavigation.children[2].label}
               tabs={resultsNavigation.children}
               title={resultsNavigation.children[2].title}
@@ -2018,7 +2057,7 @@ function AppRuntime() {
           element={
             <SectionChrome
               description={resultsNavigation.children[3].description}
-              sectionLabel="Caixa e resultados"
+              sectionLabel="Resultados"
               tabLabel={resultsNavigation.children[3].label}
               tabs={resultsNavigation.children}
               title={resultsNavigation.children[3].title}

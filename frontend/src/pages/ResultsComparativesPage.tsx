@@ -14,7 +14,7 @@ export function ResultsComparativesPage({ tabs, dashboard }: Props) {
 
   return (
     <SectionChrome
-      sectionLabel="Caixa e resultados"
+      sectionLabel="Resultados"
       tabLabel={currentTab.label}
       title={currentTab.title}
       description={currentTab.description}

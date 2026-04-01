@@ -50,7 +50,7 @@ export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onA
   return (
     <div className="page-layout">
       <PageHeader
-        eyebrow="Visao geral"
+        eyebrow="Visão Geral"
         title="Dashboard do DRE"
         description="Exibe somente os indicadores do DRE marcados para aparecer no dashboard."
         actions={

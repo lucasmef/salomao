@@ -64,7 +64,7 @@ export function OverviewSectionPage({
 
   return (
     <SectionChrome
-      sectionLabel="Visao geral"
+      sectionLabel="Visão Geral"
       tabLabel={currentTab.label}
       title={currentTab.title}
       description={currentTab.description}
