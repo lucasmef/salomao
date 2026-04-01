@@ -299,41 +299,21 @@ def test_purchase_return_workflow_generates_single_refund_entry_on_approval(
     )
     db_session.flush()
 
-    with pytest.raises(HTTPException) as exc_info:
-        update_purchase_return(
-            db_session,
-            company,
-            created.id,
-            PurchaseReturnUpdate(
-                supplier_id=supplier.id,
-                return_date=date(2026, 4, 1),
-                amount=Decimal("180.50"),
-                invoice_number="NF-200",
-                status="refund_approved",
-                notes="Tentativa pulando etapas",
-            ),
-            user,
-        )
-
-    assert exc_info.value.status_code == 400
-    assert "Fluxo de devolucao" in str(exc_info.value.detail)
-
-    for status_value in ("factory_pending", "send", "sent_waiting_analysis", "refund_approved"):
-        update_purchase_return(
-            db_session,
-            company,
-            created.id,
-            PurchaseReturnUpdate(
-                supplier_id=supplier.id,
-                return_date=date(2026, 4, 1),
-                amount=Decimal("180.50"),
-                invoice_number="NF-200",
-                status=status_value,
-                notes="Fluxo em andamento",
-            ),
-            user,
-        )
-        db_session.flush()
+    update_purchase_return(
+        db_session,
+        company,
+        created.id,
+        PurchaseReturnUpdate(
+            supplier_id=supplier.id,
+            return_date=date(2026, 4, 1),
+            amount=Decimal("180.50"),
+            invoice_number="NF-200",
+            status="refund_approved",
+            notes="Salto direto permitido",
+        ),
+        user,
+    )
+    db_session.flush()
 
     purchase_return = db_session.get(purchasing_models.PurchaseReturn, created.id)
     assert purchase_return is not None

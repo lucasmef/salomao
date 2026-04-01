@@ -182,7 +182,7 @@ const SEASON_PHASE_OPTIONS = [
 const PURCHASE_RETURN_STATUS_OPTIONS: SelectOption[] = [
   { value: "request_open", label: "Abrir solicitacao" },
   { value: "factory_pending", label: "Aguardando fabrica" },
-  { value: "send", label: "Envia" },
+  { value: "send", label: "Enviar" },
   { value: "sent_waiting_analysis", label: "Enviado/Aguardando Analise" },
   { value: "refund_approved", label: "Reembolso aprovado" },
   { value: "refunded", label: "Reembolsado" },
@@ -303,16 +303,7 @@ function labelizePurchaseReturnStatus(value: string | null | undefined) {
 }
 
 function getPurchaseReturnStatusOptions(currentStatus: string | null) {
-  if (!currentStatus) {
-    return PURCHASE_RETURN_STATUS_OPTIONS.slice(0, 1);
-  }
-  const currentIndex = PURCHASE_RETURN_STATUS_OPTIONS.findIndex((option) => option.value === currentStatus);
-  if (currentIndex < 0) {
-    return PURCHASE_RETURN_STATUS_OPTIONS.slice(0, 1);
-  }
-  const startIndex = 0;
-  const endIndex = Math.min(currentIndex + 2, PURCHASE_RETURN_STATUS_OPTIONS.length);
-  return PURCHASE_RETURN_STATUS_OPTIONS.slice(startIndex, endIndex);
+  return PURCHASE_RETURN_STATUS_OPTIONS;
 }
 
 function parseInstallmentsCount(paymentTerm: string | null | undefined) {
