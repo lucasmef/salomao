@@ -390,8 +390,8 @@ def test_purchase_return_workflow_generates_single_refund_entry_on_approval(
             return_date=date(2026, 4, 1),
             amount=Decimal("180.50"),
             invoice_number="NF-200",
-            status="sent_waiting_analysis",
-            notes="Retrocesso permitido",
+            status="factory_pending",
+            notes="Retrocesso livre permitido",
         ),
         user,
     )
