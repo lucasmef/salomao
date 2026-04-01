@@ -26,37 +26,6 @@ def _normalize_payload(payload: CategoryCreate) -> CategoryCreate:
     return payload.model_copy(update={"report_group": report_group, "report_subgroup": report_subgroup})
 
 
-def _validate_hierarchy_consistency(
-    db: DbSession,
-    *,
-    company_id: str,
-    payload: CategoryCreate,
-    category_id: str | None = None,
-) -> None:
-    normalized_payload = _normalize_payload(payload)
-    if not normalized_payload.report_group:
-        return
-
-    filters = [
-        Category.company_id == company_id,
-        Category.report_group == normalized_payload.report_group,
-    ]
-    if category_id:
-        filters.append(Category.id != category_id)
-
-    existing_categories = list(
-        db.scalars(
-            select(Category).where(*filters)
-        )
-    )
-    group_kinds = {category.entry_kind for category in existing_categories}
-    if group_kinds and normalized_payload.entry_kind not in group_kinds:
-        raise HTTPException(
-            status_code=400,
-            detail="Este grupo ja existe com outra natureza. Use apenas categorias da mesma natureza dentro do grupo.",
-        )
-
-
 @router.get("/lookups", response_model=CategoryLookups)
 def get_category_lookups(db: DbSession) -> CategoryLookups:
     company = get_current_company(db)
@@ -142,7 +111,6 @@ def list_categories(db: DbSession) -> list[CategoryRead]:
 def create_category(payload: CategoryCreate, db: DbSession, current_user: CurrentUser) -> Category:
     company = get_current_company(db)
     normalized_payload = _normalize_payload(payload)
-    _validate_hierarchy_consistency(db, company_id=company.id, payload=normalized_payload)
     category = Category(
         company_id=company.id,
         **normalized_payload.model_dump(),
@@ -179,7 +147,6 @@ def update_category(
     if not category or category.company_id != company.id:
         raise HTTPException(status_code=404, detail="Categoria nao encontrada")
     normalized_payload = _normalize_payload(payload)
-    _validate_hierarchy_consistency(db, company_id=company.id, payload=normalized_payload, category_id=category.id)
     before_state = {
         "name": category.name,
         "report_group": category.report_group,
