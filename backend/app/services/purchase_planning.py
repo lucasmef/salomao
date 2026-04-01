@@ -79,7 +79,7 @@ PURCHASE_RETURN_STATUS_FLOW = (
 PURCHASE_RETURN_STATUS_LABELS = {
     "request_open": "Abrir solicitacao",
     "factory_pending": "Aguardando fabrica",
-    "send": "Envia",
+    "send": "Enviar",
     "sent_waiting_analysis": "Enviado/Aguardando Analise",
     "refund_approved": "Reembolso aprovado",
     "refunded": "Reembolsado",
@@ -137,27 +137,6 @@ def _purchase_return_status_index(status_value: str) -> int:
 
 def _validate_purchase_return_status_transition(current_status: str | None, next_status: str) -> str:
     normalized_next_status = _normalize_purchase_return_status(next_status)
-    if current_status is None:
-        if normalized_next_status != PURCHASE_RETURN_STATUS_FLOW[0]:
-            raise HTTPException(
-                status_code=400,
-                detail=f"A nova devolucao deve iniciar em {_purchase_return_status_label(PURCHASE_RETURN_STATUS_FLOW[0])}",
-            )
-        return normalized_next_status
-
-    normalized_current_status = _normalize_purchase_return_status(current_status)
-    current_index = _purchase_return_status_index(normalized_current_status)
-    next_index = _purchase_return_status_index(normalized_next_status)
-    if next_index > current_index + 1:
-        allowed_labels = [
-            *[_purchase_return_status_label(status_value) for status_value in PURCHASE_RETURN_STATUS_FLOW[: current_index + 1]],
-        ]
-        if current_index + 1 < len(PURCHASE_RETURN_STATUS_FLOW):
-            allowed_labels.append(_purchase_return_status_label(PURCHASE_RETURN_STATUS_FLOW[current_index + 1]))
-        raise HTTPException(
-            status_code=400,
-            detail=f"Fluxo de devolucao permite apenas: {', '.join(allowed_labels)}",
-        )
     return normalized_next_status
 
 
