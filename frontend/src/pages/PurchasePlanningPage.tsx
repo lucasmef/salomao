@@ -94,6 +94,9 @@ type PurchaseReturnModalState = {
   supplier_id: string;
   return_date: string;
   amount: string;
+  invoice_number: string;
+  status: string;
+  notes: string;
 };
 
 type PlanningInlineEditState = {
@@ -176,6 +179,17 @@ const SEASON_PHASE_OPTIONS = [
   { value: "main", label: "Principal" },
   { value: "high", label: "Alto" },
 ] as const;
+const PURCHASE_RETURN_STATUS_OPTIONS = [
+  { value: "request_open", label: "Abrir solicitacao" },
+  { value: "factory_pending", label: "Aguardando fabrica" },
+  { value: "send", label: "Envia" },
+  { value: "sent_waiting_analysis", label: "Enviado/Aguardando Analise" },
+  { value: "refund_approved", label: "Reembolso aprovado" },
+  { value: "refunded", label: "Reembolsado" },
+] as const;
+const PURCHASE_RETURN_STATUS_LABELS = Object.fromEntries(
+  PURCHASE_RETURN_STATUS_OPTIONS.map((option) => [option.value, option.label]),
+) as Record<string, string>;
 
 const emptySupplierModal = (): SupplierModalState => ({
   id: null,
@@ -209,6 +223,9 @@ const emptyPurchaseReturnModal = (today: string): PurchaseReturnModalState => ({
   supplier_id: "",
   return_date: today,
   amount: zeroMoneyInput,
+  invoice_number: "",
+  status: "request_open",
+  notes: "",
 });
 
 const emptyInvoiceDraft = (): PurchaseInvoiceDraft => ({
@@ -275,6 +292,22 @@ function labelizeStatus(value: string | null | undefined) {
     imported: "Importada",
   };
   return labels[normalized] ?? formatEntryStatus(value);
+}
+
+function labelizePurchaseReturnStatus(value: string | null | undefined) {
+  if (!value) return "-";
+  return PURCHASE_RETURN_STATUS_LABELS[value] ?? value;
+}
+
+function getPurchaseReturnStatusOptions(currentStatus: string | null) {
+  if (!currentStatus) {
+    return PURCHASE_RETURN_STATUS_OPTIONS.slice(0, 1);
+  }
+  const currentIndex = PURCHASE_RETURN_STATUS_OPTIONS.findIndex((option) => option.value === currentStatus);
+  if (currentIndex < 0) {
+    return PURCHASE_RETURN_STATUS_OPTIONS.slice(0, 1);
+  }
+  return PURCHASE_RETURN_STATUS_OPTIONS.slice(currentIndex, Math.min(currentIndex + 2, PURCHASE_RETURN_STATUS_OPTIONS.length));
 }
 
 function parseInstallmentsCount(paymentTerm: string | null | undefined) {
@@ -561,6 +594,7 @@ export function PurchasePlanningPage({
   const selectedBrandTermOption = paymentTermOptions.find((option) => option.value === brandModal.default_payment_term) ?? null;
   const selectedSupplierTermOption = paymentTermOptions.find((option) => option.value === supplierModal.default_payment_term) ?? null;
   const selectedPurchaseReturnSupplierOption = supplierOptions.find((option) => option.value === purchaseReturnModal.supplier_id) ?? null;
+  const purchaseReturnStatusOptions = getPurchaseReturnStatusOptions(purchaseReturnModal.id ? purchaseReturnModal.status : null);
   const filteredPurchaseReturns = useMemo(() => {
     const normalizedFilter = normalizeDisplayText(purchaseReturnFilter);
     if (!normalizedFilter) {
@@ -570,7 +604,16 @@ export function PurchasePlanningPage({
       const formattedDate = formatDate(purchaseReturn.return_date);
       const formattedAmount = formatMoney(purchaseReturn.amount);
       const haystack = normalizeDisplayText(
-        [purchaseReturn.supplier_name, formattedDate, formattedAmount, purchaseReturn.notes].filter(Boolean).join(" "),
+        [
+          purchaseReturn.supplier_name,
+          formattedDate,
+          formattedAmount,
+          purchaseReturn.invoice_number,
+          labelizePurchaseReturnStatus(purchaseReturn.status),
+          purchaseReturn.notes,
+        ]
+          .filter(Boolean)
+          .join(" "),
       );
       return haystack.includes(normalizedFilter);
     });
@@ -980,6 +1023,9 @@ export function PurchasePlanningPage({
             supplier_id: purchaseReturn.supplier_id,
             return_date: purchaseReturn.return_date,
             amount: toInputAmount(purchaseReturn.amount),
+            invoice_number: purchaseReturn.invoice_number ?? "",
+            status: purchaseReturn.status,
+            notes: purchaseReturn.notes ?? "",
           }
         : emptyPurchaseReturnModal(today),
     );
@@ -1128,6 +1174,9 @@ export function PurchasePlanningPage({
       supplier_id: purchaseReturnModal.supplier_id,
       return_date: purchaseReturnModal.return_date,
       amount: normalizePtBrMoneyInput(purchaseReturnModal.amount),
+      invoice_number: purchaseReturnModal.invoice_number.trim() || null,
+      status: purchaseReturnModal.status,
+      notes: purchaseReturnModal.notes.trim() || null,
     };
     if (purchaseReturnModal.id) {
       await onUpdatePurchaseReturn(purchaseReturnModal.id, payload);
@@ -2053,7 +2102,7 @@ export function PurchasePlanningPage({
               <input
                 value={purchaseReturnFilter}
                 onChange={(event) => setPurchaseReturnFilter(event.target.value)}
-                placeholder="Buscar por data, fornecedor ou valor"
+                placeholder="Buscar por data, fornecedor, NF, status, observacao ou valor"
               />
             </label>
             <div className="action-row">
@@ -2079,6 +2128,9 @@ export function PurchasePlanningPage({
                 <tr>
                   <th>Data</th>
                   <th>Fornecedor</th>
+                  <th>Nota fiscal</th>
+                  <th>Status</th>
+                  <th>Observacao</th>
                   <th className="numeric-cell">Valor</th>
                   <th>Acoes</th>
                 </tr>
@@ -2089,6 +2141,9 @@ export function PurchasePlanningPage({
                     <tr key={purchaseReturn.id}>
                       <td>{formatDate(purchaseReturn.return_date)}</td>
                       <td>{purchaseReturn.supplier_name || "-"}</td>
+                      <td>{purchaseReturn.invoice_number || "-"}</td>
+                      <td>{labelizePurchaseReturnStatus(purchaseReturn.status)}</td>
+                      <td title={purchaseReturn.notes || ""}>{purchaseReturn.notes || "-"}</td>
                       <td className="numeric-cell">{formatMoney(purchaseReturn.amount)}</td>
                       <td>
                         <div className="action-row">
@@ -2116,7 +2171,7 @@ export function PurchasePlanningPage({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4}>Nenhuma devolucao de compra encontrada.</td>
+                    <td colSpan={7}>Nenhuma devolucao de compra encontrada.</td>
                   </tr>
                 )}
               </tbody>
@@ -2731,11 +2786,40 @@ export function PurchasePlanningPage({
                 menuPortalTarget={portalTarget}
               />
             </label>
+            <label>
+              Nota fiscal
+              <input
+                value={purchaseReturnModal.invoice_number}
+                onChange={(event) => setPurchaseReturnModal((current) => ({ ...current, invoice_number: event.target.value }))}
+                placeholder="Numero da nota fiscal"
+              />
+            </label>
+            <label>
+              Status
+              <select
+                value={purchaseReturnModal.status}
+                onChange={(event) => setPurchaseReturnModal((current) => ({ ...current, status: event.target.value }))}
+              >
+                {purchaseReturnStatusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="full-width">
               Valor
               <MoneyInput
                 value={purchaseReturnModal.amount}
                 onValueChange={(value) => setPurchaseReturnModal((current) => ({ ...current, amount: value }))}
+              />
+            </label>
+            <label className="full-width">
+              Observacao
+              <textarea
+                rows={3}
+                value={purchaseReturnModal.notes}
+                onChange={(event) => setPurchaseReturnModal((current) => ({ ...current, notes: event.target.value }))}
               />
             </label>
           </div>

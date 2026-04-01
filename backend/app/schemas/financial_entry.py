@@ -15,7 +15,7 @@ class FinancialEntryBase(BaseModel):
     collection_id: str | None = None
     purchase_invoice_id: str | None = None
     purchase_installment_id: str | None = None
-    entry_type: str = Field(max_length=20)
+    entry_type: str = Field(max_length=40)
     status: str = Field(default="planned", max_length=20)
     title: str = Field(min_length=2, max_length=160)
     description: str | None = None

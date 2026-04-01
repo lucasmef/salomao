@@ -589,7 +589,10 @@ export type PurchaseReturn = {
   supplier_name: string | null;
   return_date: string;
   amount: string;
+  invoice_number: string | null;
+  status: string;
   notes: string | null;
+  refund_entry_id: string | null;
 };
 
 export type PurchasePlanningRow = {
