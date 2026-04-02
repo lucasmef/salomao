@@ -157,6 +157,7 @@ def test_issue_inter_charges_creates_boleto_from_missing_item() -> None:
         assert result.batch.records_valid == 1
         assert result.batch.source_type == "inter_charge_issue"
         assert issued.document_id == "12345"
+        assert issued.inter_account_id == account.id
         assert issued.inter_codigo_solicitacao == "SOL-NEW-1"
         assert issued.status == "A receber"
         assert issued.linha_digitavel == "11122.233344 4555"

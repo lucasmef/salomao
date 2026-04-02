@@ -21,6 +21,10 @@ class BoletoMissingExportRequest(BaseModel):
     selection_keys: list[str] = Field(default_factory=list)
 
 
+class BoletoPdfBatchRequest(BaseModel):
+    boleto_ids: list[str] = Field(default_factory=list)
+
+
 class BoletoFileRead(BaseModel):
     source_type: str
     name: str
@@ -81,6 +85,7 @@ class BoletoReceivableRead(BaseModel):
 
 
 class BoletoRecordRead(BaseModel):
+    id: str
     bank: str
     client_name: str
     document_id: str
@@ -90,6 +95,11 @@ class BoletoRecordRead(BaseModel):
     paid_amount: Decimal
     status: str
     barcode: str | None = None
+    linha_digitavel: str | None = None
+    pix_copia_e_cola: str | None = None
+    inter_codigo_solicitacao: str | None = None
+    inter_account_id: str | None = None
+    pdf_available: bool = False
 
 
 class BoletoMatchItem(BaseModel):
@@ -124,6 +134,7 @@ class BoletoDashboardRead(BaseModel):
     summary: BoletoSummaryRead
     clients: list[BoletoClientRead]
     receivables: list[BoletoReceivableRead]
+    open_boletos: list[BoletoRecordRead]
     overdue_boletos: list[BoletoMatchItem]
     overdue_invoices: list[BoletoOverdueInvoiceSummaryRead]
     paid_pending: list[BoletoMatchItem]

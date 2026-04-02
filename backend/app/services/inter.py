@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
+import io
 import json
 import os
+import re
 import tempfile
+import zipfile
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -152,6 +157,11 @@ def _map_charge_status(status: str | None) -> str:
     if normalized in {"A_RECEBER", "ATRASADO", "EM_PROCESSAMENTO", "PROTESTO"}:
         return "A receber"
     return status or ""
+
+
+def _sanitize_pdf_filename_fragment(value: str | None, *, fallback: str) -> str:
+    normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", (value or "").strip()).strip("-._")
+    return normalized or fallback
 
 
 def _start_sync_batch(
@@ -338,6 +348,16 @@ class InterApiClient:
             return payload
         return {"cobranca": payload}
 
+    def get_charge_pdf(self, codigo_solicitacao: str) -> bytes:
+        payload = self.request("GET", f"/cobranca/v3/cobrancas/{codigo_solicitacao}/pdf")
+        encoded_pdf = str(payload.get("pdf") or "").strip()
+        if not encoded_pdf:
+            raise ValueError("Banco Inter nao retornou o PDF da cobranca")
+        try:
+            return base64.b64decode(encoded_pdf, validate=True)
+        except (ValueError, binascii.Error) as error:
+            raise ValueError("Banco Inter retornou um PDF invalido para a cobranca") from error
+
     def create_charge(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self.request("POST", "/cobranca/v3/cobrancas", json=payload)
 
@@ -372,6 +392,7 @@ def _upsert_boleto_record(
     *,
     company_id: str,
     batch_id: str,
+    account_id: str,
     detail_payload: dict[str, Any],
 ) -> tuple[BoletoRecord, bool]:
     cobranca = detail_payload.get("cobranca") or {}
@@ -402,6 +423,7 @@ def _upsert_boleto_record(
 
     record.source_batch_id = batch_id
     record.bank = "INTER"
+    record.inter_account_id = account_id
     record.client_name = client_name
     record.client_key = normalize_text(client_name)
     record.document_id = seu_numero or codigo_solicitacao or record.document_id
@@ -494,7 +516,13 @@ def sync_inter_charges(
         for summary in summaries:
             codigo_solicitacao = _normalize_optional_text(str(summary.get("codigoSolicitacao") or ""))
             detail = client.get_charge_detail(codigo_solicitacao) if codigo_solicitacao else {"cobranca": summary}
-            _, created = _upsert_boleto_record(db, company_id=company.id, batch_id=batch.id, detail_payload=detail)
+            _, created = _upsert_boleto_record(
+                db,
+                company_id=company.id,
+                batch_id=batch.id,
+                account_id=account_id,
+                detail_payload=detail,
+            )
             if created:
                 created_count += 1
             else:
@@ -619,7 +647,13 @@ def issue_inter_charges(
                 if codigo_solicitacao
                 else created_payload
             )
-            _upsert_boleto_record(db, company_id=company.id, batch_id=batch.id, detail_payload=detail)
+            _upsert_boleto_record(
+                db,
+                company_id=company.id,
+                batch_id=batch.id,
+                account_id=account_id,
+                detail_payload=detail,
+            )
     finally:
         client.close()
 
@@ -630,3 +664,89 @@ def issue_inter_charges(
     db.commit()
     db.refresh(batch)
     return ImportResult(batch=batch, message="Boletos emitidos no Inter com sucesso.")
+
+
+def _resolve_pdf_download_account(db: Session, company: Company, boleto: BoletoRecord) -> tuple[Account, InterAccountConfig]:
+    if boleto.inter_account_id:
+        return _get_inter_account(db, company, boleto.inter_account_id)
+
+    fallback_accounts = list(
+        db.scalars(
+            select(Account).where(
+                Account.company_id == company.id,
+                Account.inter_api_enabled.is_(True),
+            )
+        )
+    )
+    if not fallback_accounts:
+        raise ValueError("Nenhuma conta Inter habilitada foi encontrada para este boleto.")
+    if len(fallback_accounts) > 1:
+        raise ValueError("Este boleto nao informa a conta Inter de origem. Sincronize novamente para habilitar o PDF.")
+    account = fallback_accounts[0]
+    return account, _load_inter_account_config(account)
+
+
+def _load_inter_boleto_for_pdf(db: Session, company: Company, boleto_id: str) -> BoletoRecord:
+    boleto = db.scalar(
+        select(BoletoRecord).where(
+            BoletoRecord.id == boleto_id,
+            BoletoRecord.company_id == company.id,
+            BoletoRecord.bank == "INTER",
+        )
+    )
+    if not boleto:
+        raise ValueError("Boleto Inter nao encontrado.")
+    if not boleto.inter_codigo_solicitacao:
+        raise ValueError("Este boleto nao possui codigo de solicitacao do Inter para gerar o PDF.")
+    return boleto
+
+
+def download_inter_charge_pdf(
+    db: Session,
+    company: Company,
+    *,
+    boleto_id: str,
+    transport: httpx.BaseTransport | None = None,
+) -> tuple[bytes, str]:
+    boleto = _load_inter_boleto_for_pdf(db, company, boleto_id)
+    _account, config = _resolve_pdf_download_account(db, company, boleto)
+    client = InterApiClient(config, transport=transport)
+    try:
+        pdf_bytes = client.get_charge_pdf(str(boleto.inter_codigo_solicitacao))
+    finally:
+        client.close()
+
+    filename = _sanitize_pdf_filename_fragment(
+        f"{boleto.client_name}-{boleto.document_id or boleto.inter_codigo_solicitacao}",
+        fallback=f"boleto-inter-{boleto.id}",
+    )
+    return pdf_bytes, f"{filename}.pdf"
+
+
+def download_inter_charge_pdfs_zip(
+    db: Session,
+    company: Company,
+    *,
+    boleto_ids: list[str],
+    transport: httpx.BaseTransport | None = None,
+) -> tuple[bytes, str]:
+    normalized_ids = [item.strip() for item in boleto_ids if item and item.strip()]
+    if not normalized_ids:
+        raise ValueError("Selecione ao menos um boleto para baixar.")
+
+    output = io.BytesIO()
+    used_names: set[str] = set()
+    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for boleto_id in normalized_ids:
+            pdf_bytes, filename = download_inter_charge_pdf(db, company, boleto_id=boleto_id, transport=transport)
+            stem = filename[:-4] if filename.lower().endswith(".pdf") else filename
+            candidate = filename
+            suffix = 2
+            while candidate in used_names:
+                candidate = f"{stem}-{suffix}.pdf"
+                suffix += 1
+            used_names.add(candidate)
+            archive.writestr(candidate, pdf_bytes)
+
+    generated_at = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return output.getvalue(), f"boletos-inter-{generated_at}.zip"

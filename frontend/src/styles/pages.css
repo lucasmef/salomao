@@ -1406,6 +1406,65 @@ textarea {
   margin-bottom: 12px;
 }
 
+.billing-open-boletos-actions {
+  align-items: end;
+}
+
+.billing-search-field {
+  display: grid;
+  gap: 6px;
+  min-width: min(340px, 100%);
+}
+
+.billing-search-field span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-text);
+}
+
+.billing-search-field input {
+  min-width: 0;
+}
+
+.billing-boleto-list {
+  display: grid;
+  gap: 6px;
+}
+
+.billing-boleto-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.billing-boleto-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.billing-boleto-main-cell {
+  display: grid;
+  gap: 4px;
+}
+
+.icon-only-button {
+  min-width: 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+
+.icon-only-button .button-icon {
+  width: 16px;
+  height: 16px;
+}
+
+
 @media (max-width: 1100px) {
   .page-layout {
     padding: 0 10px 14px;

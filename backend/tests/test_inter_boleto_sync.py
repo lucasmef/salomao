@@ -149,12 +149,14 @@ def test_sync_inter_charges_updates_existing_record_and_creates_new_one() -> Non
 
         assert updated.status == "Recebido por boleto"
         assert updated.paid_amount == Decimal("250.00")
+        assert updated.inter_account_id == account.id
         assert updated.inter_codigo_solicitacao == "SOL-001"
         assert updated.linha_digitavel == "111.222.333"
         assert updated.pix_copia_e_cola == "PIX-COLA-1"
 
         assert created.status == "A receber"
         assert created.amount == Decimal("199.90")
+        assert created.inter_account_id == account.id
         assert created.barcode == "999888777"
         assert created.inter_nosso_numero == "NOSSO-2"
     finally:

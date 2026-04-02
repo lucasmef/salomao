@@ -241,6 +241,7 @@ const emptyBoletoDashboard: BoletoDashboard = {
   },
   clients: [],
   receivables: [],
+  open_boletos: [],
   overdue_boletos: [],
   overdue_invoices: [],
   paid_pending: [],
@@ -1284,6 +1285,40 @@ function AppRuntime() {
     }, "Boletos emitidos no Inter.", { sections: ["boletos", "importacoes"] });
   }
 
+  async function downloadInterBoletoPdf(boletoId: string) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await downloadFile(`/boletos/inter/${boletoId}/pdf`, {
+        token: session.token,
+        filename: `boleto-inter-${boletoId}.pdf`,
+      });
+      setFeedback({ tone: "success", message: "PDF do boleto baixado." });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function downloadInterBoletoPdfBatch(boletoIds: string[]) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await downloadFile("/boletos/inter/pdf-batch", {
+        method: "POST",
+        token: session.token,
+        filename: "boletos-inter.zip",
+        body: JSON.stringify({ boleto_ids: boletoIds }),
+      });
+      setFeedback({ tone: "success", message: "PDFs dos boletos baixados." });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function importPurchaseInvoiceText(rawText: string) {
     if (!session) {
       return null as never;
@@ -1943,6 +1978,8 @@ function AppRuntime() {
               <BoletosPage
                 accounts={accounts}
                 dashboard={boletoDashboard}
+                onDownloadInterBoletoPdf={downloadInterBoletoPdf}
+                onDownloadInterBoletoPdfBatch={downloadInterBoletoPdfBatch}
                 onExportMissingBoletos={exportMissingBoletos}
                 onIssueInterCharges={issueInterCharges}
                 onSaveClients={saveBoletoClients}
