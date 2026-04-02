@@ -9,6 +9,7 @@ from app.schemas.boletos import (
     BoletoDashboardRead,
     BoletoMissingExportRequest,
 )
+from app.schemas.inter import InterChargeIssueRequest, InterChargeSyncRequest
 from app.schemas.imports import ImportResult
 from app.services.boletos import (
     build_boleto_dashboard,
@@ -18,6 +19,7 @@ from app.services.boletos import (
     update_boleto_configs,
 )
 from app.services.company_context import get_current_company
+from app.services.inter import issue_inter_charges, sync_inter_charges
 
 router = APIRouter()
 
@@ -111,6 +113,43 @@ async def upload_customer_data(
             company,
             filename=file.filename or "etiquetas.txt",
             content=content,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/inter/sync", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+def trigger_inter_charge_sync(
+    payload: InterChargeSyncRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        return sync_inter_charges(
+            db,
+            company,
+            account_id=payload.account_id,
+            start_date=payload.start_date,
+            end_date=payload.end_date,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/inter/issue", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+def trigger_inter_issue(
+    payload: InterChargeIssueRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        return issue_inter_charges(
+            db,
+            company,
+            account_id=payload.account_id,
+            selection_keys=payload.selection_keys,
         )
     except ValueError as error:
         db.rollback()

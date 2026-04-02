@@ -19,6 +19,14 @@ class Account(Base, IdMixin, TimestampMixin):
     opening_balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     import_ofx_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    inter_api_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    inter_environment: Mapped[str] = mapped_column(String(20), default="production")
+    inter_api_base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    inter_api_key: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    inter_account_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    inter_client_secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    inter_certificate_pem_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    inter_private_key_pem_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class Category(Base, IdMixin, TimestampMixin):

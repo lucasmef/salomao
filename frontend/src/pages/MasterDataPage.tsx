@@ -30,6 +30,14 @@ const emptyAccount = {
   opening_balance: "0.00",
   is_active: true,
   import_ofx_enabled: true,
+  inter_api_enabled: false,
+  inter_environment: "production",
+  inter_api_base_url: "",
+  inter_api_key: "",
+  inter_account_number: "",
+  inter_client_secret: "",
+  inter_certificate_pem: "",
+  inter_private_key_pem: "",
 };
 
 const emptyCategory = {
@@ -178,6 +186,12 @@ export function MasterDataPage({
       bank_code: accountForm.bank_code || null,
       branch_number: accountForm.branch_number || null,
       account_number: accountForm.account_number || null,
+      inter_api_base_url: accountForm.inter_api_base_url || null,
+      inter_api_key: accountForm.inter_api_key || null,
+      inter_account_number: accountForm.inter_account_number || null,
+      inter_client_secret: accountForm.inter_client_secret || null,
+      inter_certificate_pem: accountForm.inter_certificate_pem || null,
+      inter_private_key_pem: accountForm.inter_private_key_pem || null,
     };
     if (editingAccountId) {
       await onUpdateAccount(editingAccountId, payload);
@@ -301,6 +315,85 @@ export function MasterDataPage({
                   }
                 />
                 Importa OFX
+              </label>
+              <label className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={accountForm.inter_api_enabled}
+                  onChange={(event) =>
+                    setAccountForm({ ...accountForm, inter_api_enabled: event.target.checked })
+                  }
+                />
+                API Banco Inter
+              </label>
+              <label>
+                Ambiente Inter
+                <select
+                  value={accountForm.inter_environment}
+                  onChange={(event) => setAccountForm({ ...accountForm, inter_environment: event.target.value })}
+                >
+                  <option value="production">Producao</option>
+                  <option value="sandbox">Sandbox</option>
+                </select>
+              </label>
+              <label>
+                Chave API / Client ID
+                <input
+                  value={accountForm.inter_api_key}
+                  onChange={(event) => setAccountForm({ ...accountForm, inter_api_key: event.target.value })}
+                  placeholder="Client ID da integracao Inter"
+                />
+              </label>
+              <label>
+                Conta corrente Inter
+                <input
+                  value={accountForm.inter_account_number}
+                  onChange={(event) =>
+                    setAccountForm({ ...accountForm, inter_account_number: event.target.value })
+                  }
+                  placeholder="Numero da conta para API"
+                />
+              </label>
+              <label>
+                URL base Inter
+                <input
+                  value={accountForm.inter_api_base_url}
+                  onChange={(event) => setAccountForm({ ...accountForm, inter_api_base_url: event.target.value })}
+                  placeholder="Opcional. Preencha so se precisar sobrescrever"
+                />
+              </label>
+              <label className="full-width">
+                Client secret Inter
+                <textarea
+                  rows={3}
+                  value={accountForm.inter_client_secret}
+                  onChange={(event) =>
+                    setAccountForm({ ...accountForm, inter_client_secret: event.target.value })
+                  }
+                  placeholder="Deixe em branco para manter o secret ja salvo"
+                />
+              </label>
+              <label className="full-width">
+                Certificado PEM
+                <textarea
+                  rows={4}
+                  value={accountForm.inter_certificate_pem}
+                  onChange={(event) =>
+                    setAccountForm({ ...accountForm, inter_certificate_pem: event.target.value })
+                  }
+                  placeholder="Cole o certificado da integracao Inter"
+                />
+              </label>
+              <label className="full-width">
+                Chave privada PEM
+                <textarea
+                  rows={4}
+                  value={accountForm.inter_private_key_pem}
+                  onChange={(event) =>
+                    setAccountForm({ ...accountForm, inter_private_key_pem: event.target.value })
+                  }
+                  placeholder="Cole a chave privada da integracao Inter"
+                />
               </label>
               <div className="action-row">
                 <button className="primary-button" disabled={submitting} type="submit">
@@ -453,6 +546,7 @@ export function MasterDataPage({
                   <th>Tipo</th>
                   <th>Saldo inicial</th>
                   <th>OFX</th>
+                  <th>Inter</th>
                   <th>Status</th>
                   <th></th>
                 </tr>
@@ -464,6 +558,13 @@ export function MasterDataPage({
                     <td>{account.account_type}</td>
                     <td>{formatMoney(account.opening_balance)}</td>
                     <td>{account.import_ofx_enabled ? "Habilitado" : "Bloqueado"}</td>
+                    <td>
+                      {account.inter_api_enabled
+                        ? account.has_inter_client_secret && account.has_inter_certificate && account.has_inter_private_key
+                          ? "Configurado"
+                          : "Pendente"
+                        : "Desligado"}
+                    </td>
                     <td>{account.is_active ? "Ativa" : "Inativa"}</td>
                     <td className="row-actions">
                       <button
@@ -480,6 +581,14 @@ export function MasterDataPage({
                             opening_balance: account.opening_balance,
                             is_active: account.is_active ?? true,
                             import_ofx_enabled: account.import_ofx_enabled ?? false,
+                            inter_api_enabled: account.inter_api_enabled ?? false,
+                            inter_environment: account.inter_environment ?? "production",
+                            inter_api_base_url: account.inter_api_base_url ?? "",
+                            inter_api_key: account.inter_api_key ?? "",
+                            inter_account_number: account.inter_account_number ?? "",
+                            inter_client_secret: "",
+                            inter_certificate_pem: "",
+                            inter_private_key_pem: "",
                           });
                         }}
                       >

@@ -341,7 +341,19 @@ def ensure_schema_updates(engine: Engine) -> None:
             """,
         )
 
-        _add_column_if_missing(connection, "accounts", "import_ofx_enabled", "BOOLEAN DEFAULT 0")
+        account_columns = {
+            "import_ofx_enabled": "BOOLEAN DEFAULT 0",
+            "inter_api_enabled": "BOOLEAN DEFAULT 0",
+            "inter_environment": "VARCHAR(20) DEFAULT 'production'",
+            "inter_api_base_url": "VARCHAR(255)",
+            "inter_api_key": "VARCHAR(160)",
+            "inter_account_number": "VARCHAR(30)",
+            "inter_client_secret_encrypted": "TEXT",
+            "inter_certificate_pem_encrypted": "TEXT",
+            "inter_private_key_pem_encrypted": "TEXT",
+        }
+        for column_name, sql_type in account_columns.items():
+            _add_column_if_missing(connection, "accounts", column_name, sql_type)
         _add_column_if_missing(connection, "purchase_brands", "default_payment_term", "VARCHAR(120)")
         _add_column_if_missing(connection, "report_layout_lines", "show_on_dashboard", "BOOLEAN DEFAULT 0")
         _add_column_if_missing(connection, "report_layout_lines", "show_percent", "BOOLEAN DEFAULT 1")
@@ -454,6 +466,17 @@ def ensure_schema_updates(engine: Engine) -> None:
         }
         for column_name, sql_type in boleto_customer_columns.items():
             _add_column_if_missing(connection, "boleto_customer_configs", column_name, sql_type)
+
+        boleto_record_columns = {
+            "inter_codigo_solicitacao": "VARCHAR(80)",
+            "inter_seu_numero": "VARCHAR(80)",
+            "inter_nosso_numero": "VARCHAR(80)",
+            "linha_digitavel": "VARCHAR(255)",
+            "pix_copia_e_cola": "TEXT",
+            "inter_txid": "VARCHAR(120)",
+        }
+        for column_name, sql_type in boleto_record_columns.items():
+            _add_column_if_missing(connection, "boleto_records", column_name, sql_type)
 
         indexes = {
             "idx_financial_entries_company_status_due": ("financial_entries", (
