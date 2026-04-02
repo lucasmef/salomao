@@ -69,11 +69,23 @@ cd "$FRONTEND_DIR"
 npm ci
 npm run build
 
-echo "==> Migrações Alembic ($TARGET)"
+echo "==> Sincronizando dependencias Python ($TARGET)"
+cd "$BACKEND_DIR"
+"$PYTHON_BIN" - <<'PY'
+from pathlib import Path
+import subprocess
+import sys
+import tomllib
+
+dependencies = tomllib.loads(Path("pyproject.toml").read_text())["project"]["dependencies"]
+subprocess.run([sys.executable, "-m", "pip", "install", *dependencies], check=True)
+PY
+
+echo "==> Migracoes Alembic ($TARGET)"
 cd "$BACKEND_DIR"
 "$PYTHON_BIN" -m alembic upgrade head
 
-echo "==> Reiniciando serviço $SERVICE_NAME"
+echo "==> Reiniciando servico $SERVICE_NAME"
 sudo systemctl restart "$SERVICE_NAME"
 
 echo "==> Validando healthcheck"
@@ -81,5 +93,5 @@ sleep 2
 curl --fail --silent --show-error "$HEALTHCHECK_URL"
 echo
 
-echo "==> Status do serviço"
+echo "==> Status do servico"
 sudo systemctl status "$SERVICE_NAME" --no-pager
