@@ -58,6 +58,17 @@ def _apply_account_payload(account: Account, payload: AccountCreate, *, preserve
         account.inter_private_key_pem_encrypted = encrypt_text(private_key_value)
 
 
+def _ensure_single_inter_account(db: DbSession, company_id: str, active_account_id: str) -> None:
+    for account in db.scalars(
+        select(Account).where(
+            Account.company_id == company_id,
+            Account.id != active_account_id,
+            Account.inter_api_enabled.is_(True),
+        )
+    ):
+        account.inter_api_enabled = False
+
+
 @router.get("", response_model=list[AccountRead])
 def list_accounts(db: DbSession) -> list[AccountRead]:
     company = get_current_company(db)
@@ -78,6 +89,8 @@ def create_account(payload: AccountCreate, db: DbSession, current_user: CurrentU
     _apply_account_payload(account, payload, preserve_inter_secrets=False)
     db.add(account)
     db.flush()
+    if account.inter_api_enabled:
+        _ensure_single_inter_account(db, company.id, account.id)
     write_audit_log(
         db,
         action="create_account",
@@ -115,6 +128,8 @@ def update_account(
     }
     _apply_account_payload(account, payload, preserve_inter_secrets=True)
     db.flush()
+    if account.inter_api_enabled:
+        _ensure_single_inter_account(db, company.id, account.id)
     write_audit_log(
         db,
         action="update_account",

@@ -11,7 +11,7 @@ type Props = {
   importSummary: ImportSummary;
   submitting: boolean;
   onUploadHistorical: (file: File) => Promise<void>;
-  onSyncInterStatement: (accountId: string) => Promise<void>;
+  onSyncInterStatement: () => Promise<void>;
 };
 
 function latestBatchFor(importSummary: ImportSummary, sourceType: string) {
@@ -32,14 +32,13 @@ export function SystemImportsGeneralPage({
 }: Props) {
   const currentTab = tabs.find((item) => item.key === "importacoes-gerais") ?? tabs[0];
   const [historicalFile, setHistoricalFile] = useState<File | null>(null);
-  const [interAccountId, setInterAccountId] = useState("");
-  const interAccounts = useMemo(
-    () => accounts.filter((account) => account.is_active && account.inter_api_enabled),
+  const hasInterAccount = useMemo(
+    () => accounts.some((account) => account.is_active && account.inter_api_enabled),
     [accounts],
   );
   const latestHistoricalImport = useMemo(() => latestBatchFor(importSummary, "historical_cashbook"), [importSummary]);
   const latestInterStatementImport = useMemo(
-    () => latestBatchFor(importSummary, "inter_statement:"),
+    () => latestBatchFor(importSummary, "inter_statement"),
     [importSummary],
   );
 
@@ -76,18 +75,10 @@ export function SystemImportsGeneralPage({
         <article className="panel compact-import-panel">
           <div className="panel-heading compact-panel-heading">
             <p className="eyebrow">Banco Inter</p>
-            <h3>Sincronizar extrato</h3>
+            <h3>Extrato</h3>
           </div>
           <div className="compact-upload-box">
-            <select value={interAccountId} onChange={(event) => setInterAccountId(event.target.value)}>
-              <option value="">Selecionar conta</option>
-              {interAccounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
-            {!interAccounts.length && (
+            {!hasInterAccount && (
               <div className="import-last-meta">Nenhuma conta com API Inter habilitada.</div>
             )}
             <div className="import-last-meta">
@@ -97,11 +88,11 @@ export function SystemImportsGeneralPage({
             </div>
             <button
               className="primary-button compact-action-button"
-              disabled={submitting || !interAccountId}
-              onClick={() => void onSyncInterStatement(interAccountId)}
+              disabled={submitting || !hasInterAccount}
+              onClick={() => void onSyncInterStatement()}
               type="button"
             >
-              Sincronizar
+              Atualizar
             </button>
           </div>
         </article>

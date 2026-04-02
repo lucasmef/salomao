@@ -65,12 +65,14 @@ def _create_receivable_batch(session: Session, company: Company) -> ImportBatch:
 
 def test_issue_inter_charges_creates_boleto_from_missing_item() -> None:
     session = _build_session()
+    created_payloads: list[bytes] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/oauth/v2/token":
             return httpx.Response(200, json={"access_token": "token-123"})
         if request.url.path == "/cobranca/v3/cobrancas" and request.method == "POST":
             payload = request.content
+            created_payloads.append(payload)
             assert b"12345" in payload
             return httpx.Response(200, json={"codigoSolicitacao": "SOL-NEW-1"})
         if request.url.path == "/cobranca/v3/cobrancas/SOL-NEW-1":
@@ -156,6 +158,8 @@ def test_issue_inter_charges_creates_boleto_from_missing_item() -> None:
         assert result.message == "Boletos emitidos no Inter com sucesso."
         assert result.batch.records_valid == 1
         assert result.batch.source_type == "inter_charge_issue"
+        assert created_payloads
+        assert b'"formasRecebimento":["BOLETO"]' in created_payloads[0]
         assert issued.document_id == "12345"
         assert issued.inter_account_id == account.id
         assert issued.inter_codigo_solicitacao == "SOL-NEW-1"

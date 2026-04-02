@@ -6,6 +6,8 @@ from fastapi.responses import StreamingResponse
 from app.api.deps import DbSession
 from app.schemas.boletos import (
     BoletoClientConfigBulkUpdate,
+    BoletoInterCancelRequest,
+    BoletoInterReceiveRequest,
     BoletoDashboardRead,
     BoletoMissingExportRequest,
     BoletoPdfBatchRequest,
@@ -21,9 +23,11 @@ from app.services.boletos import (
 )
 from app.services.company_context import get_current_company
 from app.services.inter import (
+    cancel_inter_charge,
     download_inter_charge_pdf,
     download_inter_charge_pdfs_zip,
     issue_inter_charges,
+    receive_inter_charge,
     sync_inter_charges,
 )
 
@@ -196,3 +200,41 @@ def download_inter_boleto_pdf_batch(
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post("/inter/{boleto_id}/cancel", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+def cancel_inter_boleto(
+    boleto_id: str,
+    payload: BoletoInterCancelRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        return cancel_inter_charge(
+            db,
+            company,
+            boleto_id=boleto_id,
+            motivo_cancelamento=payload.motivo_cancelamento,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/inter/{boleto_id}/receive", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+def receive_inter_boleto(
+    boleto_id: str,
+    payload: BoletoInterReceiveRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        return receive_inter_charge(
+            db,
+            company,
+            boleto_id=boleto_id,
+            pagar_com=payload.pagar_com,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error

@@ -1428,8 +1428,18 @@ textarea {
   min-width: 0;
 }
 
+.billing-search-field--compact {
+  min-width: 150px;
+}
+
 .billing-boleto-list {
   display: grid;
+  gap: 6px;
+}
+
+.billing-boleto-row-actions {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
 }
 

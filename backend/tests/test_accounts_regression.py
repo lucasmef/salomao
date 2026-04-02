@@ -188,3 +188,47 @@ def test_update_account_preserves_inter_secret_material_when_form_is_resubmitted
         assert updated.has_inter_private_key is True
     finally:
         session.close()
+
+
+def test_enabling_inter_api_disables_other_accounts_from_same_company() -> None:
+    session = _build_session()
+    try:
+        _company, user = _build_company_and_user(session)
+        first = create_account(
+            AccountCreate(
+                name="Conta Inter 1",
+                account_type="checking",
+                inter_api_enabled=True,
+                inter_api_key="client-1",
+                inter_account_number="111",
+                inter_client_secret="secret-1",
+                inter_certificate_pem="---CERT-1---",
+                inter_private_key_pem="---KEY-1---",
+            ),
+            db=session,
+            current_user=user,
+        )
+        second = create_account(
+            AccountCreate(
+                name="Conta Inter 2",
+                account_type="checking",
+                inter_api_enabled=True,
+                inter_api_key="client-2",
+                inter_account_number="222",
+                inter_client_secret="secret-2",
+                inter_certificate_pem="---CERT-2---",
+                inter_private_key_pem="---KEY-2---",
+            ),
+            db=session,
+            current_user=user,
+        )
+
+        persisted_first = session.get(Account, first.id)
+        persisted_second = session.get(Account, second.id)
+
+        assert persisted_first is not None
+        assert persisted_second is not None
+        assert persisted_first.inter_api_enabled is False
+        assert persisted_second.inter_api_enabled is True
+    finally:
+        session.close()

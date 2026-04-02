@@ -32,6 +32,7 @@ type Props = {
   onChangeFilters: (filters: ReconciliationFilters) => void;
   onApplyFilters: (filters?: ReconciliationFilters) => Promise<void>;
   onUploadOfx: (file: File, accountId: string) => Promise<void>;
+  onSyncInterStatement: () => Promise<void>;
   onReconcile: (
     bankTransactionIds: string[],
     financialEntryIds: string[],
@@ -200,6 +201,14 @@ function SelectionClearIcon() {
   );
 }
 
+function RefreshIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M13 5.25V2.75m0 0h-2.5m2.5 0-2.1 2.1a4.75 4.75 0 1 0 1.2 4.75" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
 function inferSupplierIdFromTexts(suppliers: Supplier[], texts: Array<string | null | undefined>) {
   const normalizedTexts = texts
     .map((value) =>
@@ -259,6 +268,7 @@ export function ReconciliationPage({
   onChangeFilters,
   onApplyFilters,
   onUploadOfx,
+  onSyncInterStatement,
   onReconcile,
   onUnreconcile,
   onQuickAction,
@@ -333,6 +343,10 @@ export function ReconciliationPage({
   const latestOfxBatch = useMemo(
     () => importSummary.import_batches.find((batch) => batch.source_type.startsWith("ofx:")) ?? null,
     [importSummary.import_batches],
+  );
+  const hasInterApiAccount = useMemo(
+    () => accounts.some((account) => account.is_active && account.inter_api_enabled),
+    [accounts],
   );
   const ofxAccounts = useMemo(
     () => accounts.filter((account) => account.is_active && account.import_ofx_enabled),
@@ -966,7 +980,16 @@ export function ReconciliationPage({
                 <span>Ocultar conciliados</span>
               </label>
               <button className="secondary-button reconciliation-import-button" type="button" onClick={() => setOfxModalOpen(true)}>
-                Importar OFX
+                OFX
+              </button>
+              <button
+                className="secondary-button icon-button reconciliation-import-button"
+                disabled={submitting || !hasInterApiAccount}
+                onClick={() => void onSyncInterStatement()}
+                title="Atualizar extrato do Inter"
+                type="button"
+              >
+                <RefreshIcon />
               </button>
             </div>
           </div>
@@ -1406,7 +1429,7 @@ export function ReconciliationPage({
         <div className="modal-backdrop" role="presentation">
           <div className="modal-card purchase-modal-card">
             <div className="panel-title">
-              <h3>Importar OFX</h3>
+              <h3>OFX</h3>
               <button className="ghost-button" type="button" onClick={() => setOfxModalOpen(false)}>
                 Fechar
               </button>
@@ -1439,7 +1462,7 @@ export function ReconciliationPage({
                 onClick={() => void handleOfxImport()}
                 type="button"
               >
-                Importar OFX
+                OFX
               </button>
             </div>
           </div>
