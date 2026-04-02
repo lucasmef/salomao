@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
+from app.core.crypto import encrypt_text
 from app.db.models.finance import Account
 from app.schemas.account import AccountCreate, AccountRead
 from app.services.audit import write_audit_log
@@ -10,22 +11,71 @@ from app.services.company_context import get_current_company
 router = APIRouter()
 
 
+def _serialize_account(account: Account) -> AccountRead:
+    return AccountRead(
+        id=account.id,
+        company_id=account.company_id,
+        name=account.name,
+        account_type=account.account_type,
+        bank_code=account.bank_code,
+        branch_number=account.branch_number,
+        account_number=account.account_number,
+        opening_balance=account.opening_balance,
+        is_active=account.is_active,
+        import_ofx_enabled=account.import_ofx_enabled,
+        inter_api_enabled=account.inter_api_enabled,
+        inter_environment=account.inter_environment,
+        inter_api_base_url=account.inter_api_base_url,
+        inter_api_key=account.inter_api_key,
+        inter_account_number=account.inter_account_number,
+        has_inter_client_secret=bool(account.inter_client_secret_encrypted),
+        has_inter_certificate=bool(account.inter_certificate_pem_encrypted),
+        has_inter_private_key=bool(account.inter_private_key_pem_encrypted),
+    )
+
+
+def _normalize_optional_text(value: str | None) -> str | None:
+    text = (value or "").strip()
+    return text or None
+
+
+def _apply_account_payload(account: Account, payload: AccountCreate, *, preserve_inter_secrets: bool) -> None:
+    data = payload.model_dump(
+        exclude={"inter_client_secret", "inter_certificate_pem", "inter_private_key_pem"}
+    )
+    for field_name, value in data.items():
+        setattr(account, field_name, value)
+
+    secret_value = _normalize_optional_text(payload.inter_client_secret)
+    certificate_value = _normalize_optional_text(payload.inter_certificate_pem)
+    private_key_value = _normalize_optional_text(payload.inter_private_key_pem)
+
+    if not preserve_inter_secrets or secret_value is not None:
+        account.inter_client_secret_encrypted = encrypt_text(secret_value)
+    if not preserve_inter_secrets or certificate_value is not None:
+        account.inter_certificate_pem_encrypted = encrypt_text(certificate_value)
+    if not preserve_inter_secrets or private_key_value is not None:
+        account.inter_private_key_pem_encrypted = encrypt_text(private_key_value)
+
+
 @router.get("", response_model=list[AccountRead])
-def list_accounts(db: DbSession) -> list[Account]:
+def list_accounts(db: DbSession) -> list[AccountRead]:
     company = get_current_company(db)
-    return list(
+    accounts = list(
         db.scalars(
             select(Account)
             .where(Account.company_id == company.id)
             .order_by(Account.name.asc())
         )
     )
+    return [_serialize_account(account) for account in accounts]
 
 
 @router.post("", response_model=AccountRead, status_code=status.HTTP_201_CREATED)
-def create_account(payload: AccountCreate, db: DbSession, current_user: CurrentUser) -> Account:
+def create_account(payload: AccountCreate, db: DbSession, current_user: CurrentUser) -> AccountRead:
     company = get_current_company(db)
-    account = Account(company_id=company.id, **payload.model_dump())
+    account = Account(company_id=company.id)
+    _apply_account_payload(account, payload, preserve_inter_secrets=False)
     db.add(account)
     db.flush()
     write_audit_log(
@@ -43,7 +93,7 @@ def create_account(payload: AccountCreate, db: DbSession, current_user: CurrentU
     )
     db.commit()
     db.refresh(account)
-    return account
+    return _serialize_account(account)
 
 
 @router.put("/{account_id}", response_model=AccountRead)
@@ -52,7 +102,7 @@ def update_account(
     payload: AccountCreate,
     db: DbSession,
     current_user: CurrentUser,
-) -> Account:
+) -> AccountRead:
     company = get_current_company(db)
     account = db.get(Account, account_id)
     if not account or account.company_id != company.id:
@@ -63,8 +113,7 @@ def update_account(
         "is_active": account.is_active,
         "import_ofx_enabled": account.import_ofx_enabled,
     }
-    for field_name, value in payload.model_dump().items():
-        setattr(account, field_name, value)
+    _apply_account_payload(account, payload, preserve_inter_secrets=True)
     db.flush()
     write_audit_log(
         db,
@@ -83,4 +132,4 @@ def update_account(
     )
     db.commit()
     db.refresh(account)
-    return account
+    return _serialize_account(account)

@@ -2,13 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
-import type { BoletoAlertItem, BoletoClient, BoletoDashboard } from "../types";
+import type { Account, BoletoAlertItem, BoletoClient, BoletoDashboard } from "../types";
 
 type Props = {
+  accounts: Account[];
   dashboard: BoletoDashboard;
   showAllMonthlyMissingBoletos: boolean;
   submitting: boolean;
   onExportMissingBoletos: (selectionKeys: string[]) => Promise<void>;
+  onIssueInterCharges: (accountId: string, selectionKeys: string[]) => Promise<void>;
+  onSyncInterCharges: (accountId: string) => Promise<void>;
   onToggleAllMonthlyMissingBoletos: (showAll: boolean) => Promise<void>;
   onUploadReceivables: (file: File) => Promise<void>;
   onUploadBoletoInter: (file: File) => Promise<void>;
@@ -120,10 +123,13 @@ function UploadCard({ id, title, accept, selectedFile, submitting, onChange, onS
 }
 
 export function BoletosPage({
+  accounts,
   dashboard,
   showAllMonthlyMissingBoletos,
   submitting,
   onExportMissingBoletos,
+  onIssueInterCharges,
+  onSyncInterCharges,
   onToggleAllMonthlyMissingBoletos,
   onUploadReceivables,
   onUploadBoletoInter,
@@ -140,6 +146,7 @@ export function BoletosPage({
   const [customerDataModalOpen, setCustomerDataModalOpen] = useState(false);
   const [clients, setClients] = useState<EditableClient[]>([]);
   const [selectedMissingKeys, setSelectedMissingKeys] = useState<string[]>([]);
+  const [interAccountId, setInterAccountId] = useState("");
 
   useEffect(() => {
     setClients(dashboard.clients.map((item) => ({ ...item, dirty: false })));
@@ -149,6 +156,18 @@ export function BoletosPage({
     const visibleKeys = new Set(dashboard.missing_boletos.map((item) => item.selection_key));
     setSelectedMissingKeys((current) => current.filter((item) => visibleKeys.has(item)));
   }, [dashboard.missing_boletos]);
+
+  useEffect(() => {
+    const activeInterAccounts = accounts.filter((account) => account.is_active && account.inter_api_enabled);
+    if (!activeInterAccounts.length) {
+      setInterAccountId("");
+      return;
+    }
+    if (activeInterAccounts.some((account) => account.id === interAccountId)) {
+      return;
+    }
+    setInterAccountId(activeInterAccounts[0].id);
+  }, [accounts, interAccountId]);
 
   const topClients = useMemo(
     () => [...dashboard.clients].sort((left, right) => Number(right.total_amount) - Number(left.total_amount)).slice(0, 8),
@@ -165,9 +184,15 @@ export function BoletosPage({
         .sort((left, right) => String(left.due_date ?? "").localeCompare(String(right.due_date ?? ""))),
     [dashboard.receivables],
   );
+  const interAccounts = useMemo(
+    () => accounts.filter((account) => account.is_active && account.inter_api_enabled),
+    [accounts],
+  );
 
   function renderFileMeta(sourceType: string) {
-    const file = filesBySource[sourceType];
+    const file =
+      filesBySource[sourceType] ??
+      dashboard.files.find((item) => sourceType.endsWith(":") && item.source_type.startsWith(sourceType));
     if (!file) {
       return <small className="compact-muted">Nenhuma carga ainda.</small>;
     }
@@ -474,13 +499,29 @@ export function BoletosPage({
               />
               <span>Exibe todos boletos de clientes mensal</span>
             </label>
+            <select value={interAccountId} onChange={(event) => setInterAccountId(event.target.value)}>
+              <option value="">Conta Inter</option>
+              {interAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
             <button
               className="primary-button"
               disabled={submitting || !selectedMissingKeys.length}
               onClick={() => void onExportMissingBoletos(selectedMissingKeys)}
               type="button"
             >
-              Gerar boletos
+              Gerar XLSX
+            </button>
+            <button
+              className="secondary-button"
+              disabled={submitting || !selectedMissingKeys.length || !interAccountId}
+              onClick={() => void onIssueInterCharges(interAccountId, selectedMissingKeys)}
+              type="button"
+            >
+              Emitir no Inter
             </button>
             <span>{dashboard.missing_boletos.length}</span>
           </div>
@@ -600,6 +641,36 @@ export function BoletosPage({
                   onSubmit={() => c6File && void onUploadBoletoC6(c6File)}
                   meta={renderFileMeta("boletos:c6")}
                 />
+                <div className="compact-import-card billing-import-card">
+                  <div className="billing-import-header">
+                    <strong>API Inter</strong>
+                    <button
+                      className="primary-button icon-button"
+                      disabled={submitting || !interAccountId}
+                      onClick={() => void onSyncInterCharges(interAccountId)}
+                      title="Sincronizar cobrancas no Inter"
+                      type="button"
+                    >
+                      <UploadIcon />
+                    </button>
+                  </div>
+                  <div className="billing-file-picker-row">
+                    <select value={interAccountId} onChange={(event) => setInterAccountId(event.target.value)}>
+                      <option value="">Selecionar conta</option>
+                      {interAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="billing-import-meta">
+                    {renderFileMeta("boletos:inter:sync:")}
+                    {!interAccounts.length && (
+                      <small className="compact-muted">Cadastre a chave da API do Inter na conta para habilitar.</small>
+                    )}
+                  </div>
+                </div>
               </div>
             </article>
           </section>

@@ -97,6 +97,14 @@ export type Account = {
   opening_balance: string;
   is_active?: boolean;
   import_ofx_enabled?: boolean;
+  inter_api_enabled?: boolean;
+  inter_environment?: string;
+  inter_api_base_url?: string | null;
+  inter_api_key?: string | null;
+  inter_account_number?: string | null;
+  has_inter_client_secret?: boolean;
+  has_inter_certificate?: boolean;
+  has_inter_private_key?: boolean;
 };
 
 export type Category = {

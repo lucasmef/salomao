@@ -1,6 +1,7 @@
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
 from app.api.deps import DbSession
+from app.schemas.inter import InterStatementSyncRequest
 from app.schemas.imports import ImportResult, ImportSummary
 from app.services.backup import ensure_pre_import_backup
 from app.services.company_context import get_current_company
@@ -11,6 +12,7 @@ from app.services.imports import (
     import_linx_sales,
     import_ofx,
 )
+from app.services.inter import sync_inter_statement
 
 router = APIRouter()
 
@@ -85,6 +87,25 @@ async def upload_historical_cashbook(
             company,
             file.filename or "livro-caixa-historico.xlsx",
             content,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/inter/statement-sync", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+def trigger_inter_statement_sync(
+    payload: InterStatementSyncRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        return sync_inter_statement(
+            db,
+            company,
+            account_id=payload.account_id,
+            start_date=payload.start_date,
+            end_date=payload.end_date,
         )
     except ValueError as error:
         db.rollback()

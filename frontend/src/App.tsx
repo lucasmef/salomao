@@ -1239,6 +1239,17 @@ function AppRuntime() {
     await uploadManagedFile("/imports/historical-cashbook", file, ["importacoes", "lancamentos", "caixa", "overview", "relatorios"]);
   }
 
+  async function syncInterStatementImport(accountId: string) {
+    if (!session) return;
+    await runMutation(async () => {
+      await fetchJson<ImportResult>("/imports/inter/statement-sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({ account_id: accountId }),
+      });
+    }, "Extrato do Inter sincronizado.", { sections: ["importacoes", "conciliacao", "caixa", "overview"] });
+  }
+
   async function uploadBoletoInterImport(file: File) {
     await uploadManagedFile("/boletos/import/inter", file, ["boletos", "importacoes"]);
   }
@@ -1249,6 +1260,28 @@ function AppRuntime() {
 
   async function uploadBoletoCustomerDataImport(file: File) {
     await uploadManagedFile("/boletos/import/customer-data", file, ["boletos", "importacoes"]);
+  }
+
+  async function syncInterChargesImport(accountId: string) {
+    if (!session) return;
+    await runMutation(async () => {
+      await fetchJson<ImportResult>("/boletos/inter/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({ account_id: accountId }),
+      });
+    }, "Cobrancas do Inter sincronizadas.", { sections: ["boletos", "importacoes"] });
+  }
+
+  async function issueInterCharges(accountId: string, selectionKeys: string[]) {
+    if (!session) return;
+    await runMutation(async () => {
+      await fetchJson<ImportResult>("/boletos/inter/issue", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({ account_id: accountId, selection_keys: selectionKeys }),
+      });
+    }, "Boletos emitidos no Inter.", { sections: ["boletos", "importacoes"] });
   }
 
   async function importPurchaseInvoiceText(rawText: string) {
@@ -1908,9 +1941,12 @@ function AppRuntime() {
               title={financeNavigation.children[2].title}
             >
               <BoletosPage
+                accounts={accounts}
                 dashboard={boletoDashboard}
                 onExportMissingBoletos={exportMissingBoletos}
+                onIssueInterCharges={issueInterCharges}
                 onSaveClients={saveBoletoClients}
+                onSyncInterCharges={syncInterChargesImport}
                 onToggleAllMonthlyMissingBoletos={toggleAllMonthlyMissingBoletos}
                 onUploadBoletoC6={uploadBoletoC6Import}
                 onUploadClientData={uploadBoletoCustomerDataImport}
@@ -2262,7 +2298,9 @@ function AppRuntime() {
         <Route
           element={
             <SystemImportsGeneralPage
+              accounts={accounts}
               importSummary={importSummary}
+              onSyncInterStatement={syncInterStatementImport}
               onUploadHistorical={uploadHistoricalCashbookImport}
               submitting={submitting}
               tabs={systemNavigation.children}
