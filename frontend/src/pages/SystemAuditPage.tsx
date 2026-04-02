@@ -24,16 +24,16 @@ export function SystemAuditPage({ tabs, importSummary, backups }: Props) {
       <section className="section-toolbar-panel">
         <div className="section-toolbar-content compact-filter-layout">
           <label>
-            Periodo
+            Período
             <input type="date" />
           </label>
           <label>
-            Usuario
+            Usuário
             <input placeholder="Todos" />
           </label>
           <label>
             Evento
-            <input placeholder="Importacao, backup..." />
+            <input placeholder="Importação, backup..." />
           </label>
           <button className="primary-button" type="button">
             Atualizar
@@ -42,8 +42,8 @@ export function SystemAuditPage({ tabs, importSummary, backups }: Props) {
       </section>
 
       <section className="kpi-grid compact-kpis-four">
-        <article className="kpi-card"><span>Eventos do periodo</span><strong>{eventCount}</strong></article>
-        <article className="kpi-card"><span>Importacoes</span><strong>{importSummary.import_batches.length}</strong></article>
+        <article className="kpi-card"><span>Eventos do período</span><strong>{eventCount}</strong></article>
+        <article className="kpi-card"><span>Importações</span><strong>{importSummary.import_batches.length}</strong></article>
         <article className="kpi-card"><span>Backups</span><strong>{backups.length}</strong></article>
         <article className="kpi-card"><span>Restauros</span><strong>0</strong></article>
       </section>
@@ -51,13 +51,13 @@ export function SystemAuditPage({ tabs, importSummary, backups }: Props) {
       <section className="panel">
         <div className="table-shell">
           <table className="erp-table">
-            <thead><tr><th>Data/Hora</th><th>Usuario</th><th>Evento</th><th>Detalhe</th></tr></thead>
+            <thead><tr><th>Data/Hora</th><th>Usuário</th><th>Evento</th><th>Detalhe</th></tr></thead>
             <tbody>
               {importSummary.import_batches.slice(0, 8).map((batch) => (
                 <tr key={batch.id}>
                   <td>{formatDate(batch.created_at)}</td>
                   <td>Sistema</td>
-                  <td>Importacao concluida</td>
+                  <td>Importação concluída</td>
                   <td>{batch.filename}</td>
                 </tr>
               ))}

@@ -51,11 +51,11 @@ export function LoginPage({ loading, challenge, onLogin, onVerifyMfa, onConfirmM
     <div className="login-shell">
       <section className="login-card">
         <img alt="Salomao" className="login-brand-logo" src={salomaoLogo} />
-        <p className="eyebrow">Salomao</p>
-        <h1>Operacao financeira com transicao segura entre desktop local e ambiente online</h1>
+        <p className="eyebrow">Salomão</p>
+        <h1>Operação financeira com transição segura entre desktop local e ambiente online</h1>
         <p className="supporting">
-          Entre com o usuario local para acessar importacoes, lancamentos, fluxo de caixa, DRE, DRO e trilha de
-          seguranca.
+          Entre com o usuário local para acessar importações, lançamentos, fluxo de caixa, DRE, DRO e trilha de
+          segurança.
         </p>
 
         {!challenge && (
@@ -96,16 +96,16 @@ export function LoginPage({ loading, challenge, onLogin, onVerifyMfa, onConfirmM
           <form className="form-grid single" onSubmit={handleMfaSubmit}>
             <div className="panel-card">
               <div className="panel-heading">
-                <p className="eyebrow">Seguranca adicional</p>
+                <p className="eyebrow">Segurança adicional</p>
                 <h3>{challenge.status === "mfa_setup_required" ? "Configurar MFA TOTP" : "Validar MFA TOTP"}</h3>
               </div>
               <p className="supporting">
-                Usuario: <strong>{challenge.user.email}</strong>
+                Usuário: <strong>{challenge.user.email}</strong>
               </p>
               {challenge.status === "mfa_setup_required" && challenge.mfaSetup && (
                 <>
                   <p className="supporting">
-                    Cadastre a chave abaixo no app autenticador e depois informe o codigo gerado para concluir a entrada.
+                    Cadastre a chave abaixo no app autenticador e depois informe o código gerado para concluir a entrada.
                   </p>
                   <label>
                     Chave manual
@@ -118,7 +118,7 @@ export function LoginPage({ loading, challenge, onLogin, onVerifyMfa, onConfirmM
                 </>
               )}
               <label>
-                Codigo do autenticador
+                Código do autenticador
                 <input
                   autoComplete="one-time-code"
                   inputMode="numeric"
@@ -137,7 +137,7 @@ export function LoginPage({ loading, challenge, onLogin, onVerifyMfa, onConfirmM
                   onChange={(event) => setRememberDevice(event.target.checked)}
                   type="checkbox"
                 />
-                Nao pedir MFA novamente neste dispositivo por 15 dias
+                Não pedir MFA novamente neste dispositivo por 15 dias
               </label>
               <div className="action-row">
                 <button className="primary-button" disabled={loading} type="submit">

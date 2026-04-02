@@ -30,7 +30,7 @@ export function CadastrosClientsPage({ tabs, dashboard }: Props) {
             <select defaultValue="">
               <option value="">Todos</option>
               <option value="true">Sim</option>
-              <option value="false">Nao</option>
+              <option value="false">Não</option>
             </select>
           </label>
           <label>
@@ -50,7 +50,7 @@ export function CadastrosClientsPage({ tabs, dashboard }: Props) {
       <section className="kpi-grid compact-kpis-four">
         <article className="kpi-card"><span>Clientes cadastrados</span><strong>{dashboard.clients.length}</strong></article>
         <article className="kpi-card"><span>Usam boleto</span><strong>{dashboard.clients.filter((item) => item.uses_boleto).length}</strong></article>
-        <article className="kpi-card"><span>Com pendencia</span><strong>{dashboard.summary.overdue_invoice_client_count}</strong></article>
+        <article className="kpi-card"><span>Com pendência</span><strong>{dashboard.summary.overdue_invoice_client_count}</strong></article>
         <article className="kpi-card"><span>Baixas pendentes</span><strong>{dashboard.summary.paid_pending_count}</strong></article>
       </section>
 
@@ -74,7 +74,7 @@ export function CadastrosClientsPage({ tabs, dashboard }: Props) {
                   <td>{client.client_name}</td>
                   <td>{client.receivable_count}</td>
                   <td>{formatMoney(client.total_amount)}</td>
-                  <td>{client.uses_boleto ? "Sim" : "Nao"}</td>
+                  <td>{client.uses_boleto ? "Sim" : "Não"}</td>
                   <td>{client.mode}</td>
                   <td>{client.boleto_due_day ?? "-"}</td>
                   <td>{client.matched_paid_count}</td>

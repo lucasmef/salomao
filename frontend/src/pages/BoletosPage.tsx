@@ -498,7 +498,7 @@ export function BoletosPage({
               cidade, estado, CEP, CPF/CNPJ, IE e telefones dos clientes.
             </p>
             <p>
-              Os campos <strong>usa boleto</strong>, <strong>modo</strong>, <strong>dia</strong> e <strong>cobrar multa/juros</strong> nao sao alterados.
+              Os campos <strong>usa boleto</strong>, <strong>modo</strong>, <strong>dia</strong> e <strong>cobrar multa/juros</strong> não são alterados.
             </p>
             <small className="compact-muted">
               {customerDataImport
@@ -525,7 +525,7 @@ export function BoletosPage({
                 </span>
               ) : null}
             </div>
-            <small className="compact-muted">Esse arquivo sera a base fixa para a proxima etapa de emissao.</small>
+            <small className="compact-muted">Esse arquivo será a base fixa para a próxima etapa de emissão.</small>
           </div>
 
           <div className="action-row">
@@ -560,7 +560,7 @@ export function BoletosPage({
                 <tr>
                   <th>{renderSortButton("Vencimento", "due_date", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("due_date"))}</th>
                   <th>{renderSortButton("Cliente", "client_name", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("client_name"))}</th>
-                  <th>{renderSortButton("Titulo", "document", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("document"))}</th>
+                  <th>{renderSortButton("Título", "document", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("document"))}</th>
                   <th>{renderSortButton("Status", "status", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("status"))}</th>
                   <th className="numeric-cell">
                     {renderSortButton("Saldo", "amount", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("amount"), true)}
@@ -733,8 +733,8 @@ export function BoletosPage({
 
     if (invoiceFilter === "open-boletos") {
       return (
-        <section className="panel compact-panel-card">
-          <div className="panel-title compact-title-row">
+        <section className="panel compact-panel-card billing-open-boletos-panel">
+          <div className="panel-title compact-title-row billing-open-boletos-header">
             <div>
               <h3>Boletos em aberto</h3>
               <small className="compact-muted">
@@ -745,7 +745,7 @@ export function BoletosPage({
               <label className="billing-search-field">
                 <span>Buscar</span>
                 <input
-                  placeholder="Cliente, documento, linha digitavel..."
+                  placeholder="Cliente, documento, linha digitável..."
                   type="search"
                   value={openBoletoSearch}
                   onChange={(event) => setOpenBoletoSearch(event.target.value)}
@@ -770,11 +770,11 @@ export function BoletosPage({
               >
                 Baixar selecionados
               </button>
-              <span>{filteredOpenBoletos.length}</span>
+              <span className="billing-open-boletos-count">{filteredOpenBoletos.length}</span>
             </div>
           </div>
-          <div className="table-shell tall">
-            <table className="erp-table">
+          <div className="table-shell tall billing-open-boletos-table-shell">
+            <table className="erp-table billing-open-boletos-table">
               <thead>
                 <tr>
                   <th>
@@ -792,20 +792,20 @@ export function BoletosPage({
                   </th>
                   <th>{renderSortButton("Cliente", "client_name", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("client_name"))}</th>
                   <th>{renderSortButton("Documento", "document_id", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("document_id"))}</th>
-                  <th>{renderSortButton("Emissao", "issue_date", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("issue_date"))}</th>
+                  <th>{renderSortButton("Emissão", "issue_date", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("issue_date"))}</th>
                   <th>{renderSortButton("Vencimento", "due_date", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("due_date"))}</th>
                   <th className="numeric-cell">
                     {renderSortButton("Valor", "amount", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("amount"), true)}
                   </th>
                   <th>Status</th>
                   <th>{renderSortButton("Banco", "bank", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("bank"))}</th>
-                  <th>Acoes</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredOpenBoletos.map((item) => (
                   <tr key={item.id}>
-                    <td>
+                    <td className="billing-open-boletos-select-cell">
                       <input
                         checked={selectedOpenBoletoIds.includes(item.id)}
                         disabled={submitting || !item.pdf_available}
@@ -825,8 +825,8 @@ export function BoletosPage({
                     <td className="numeric-cell">{formatMoney(item.amount)}</td>
                     <td>{formatEntryStatus(item.status)}</td>
                     <td>{item.bank}</td>
-                    <td>
-                      <div className="billing-boleto-row-actions">
+                    <td className="billing-open-boletos-actions-cell">
+                      <div className="billing-boleto-row-actions billing-boleto-row-actions--compact">
                         {item.pdf_available ? (
                           <button
                             className="table-button icon-only-button"
@@ -861,7 +861,7 @@ export function BoletosPage({
                           </button>
                         ) : null}
                         {!item.pdf_available && !canReceiveInterBoleto(item) && !canCancelInterBoleto(item) ? (
-                          <small className="compact-muted">Nao disponivel</small>
+                          <small className="compact-muted">Não disponível</small>
                         ) : null}
                       </div>
                     </td>
@@ -997,7 +997,7 @@ export function BoletosPage({
           <section className="content-grid billing-summary-grid">
             <article className="panel-card compact-panel-card billing-summary-panel">
               <div className="panel-title compact-title-row">
-                <h3>Importacao rapida</h3>
+                <h3>Importação rápida</h3>
               </div>
               <div className="compact-import-grid billing-import-grid">
                 <UploadCard
@@ -1012,7 +1012,7 @@ export function BoletosPage({
                 />
                 <UploadCard
                   id="boletos-inter-file"
-                  title="Relatorio Inter"
+                  title="Relatório Inter"
                   accept=".zip"
                   selectedFile={interFile}
                   submitting={submitting}
@@ -1022,7 +1022,7 @@ export function BoletosPage({
                 />
                 <UploadCard
                   id="boletos-c6-file"
-                  title="Relatorio C6"
+                  title="Relatório C6"
                   accept=".csv"
                   selectedFile={c6File}
                   submitting={submitting}
@@ -1037,7 +1037,7 @@ export function BoletosPage({
                       className="primary-button icon-button"
                       disabled={submitting || !hasInterApiAccount}
                       onClick={() => void onSyncInterCharges()}
-                      title="Atualizar cobrancas do Inter"
+                      title="Atualizar cobranças do Inter"
                       type="button"
                     >
                       <RefreshIcon />
@@ -1131,7 +1131,7 @@ export function BoletosPage({
                 Atualizar dados dos clientes
               </button>
               <button className="primary-button" disabled={submitting} onClick={() => void handleSaveClients()} type="button">
-                Salvar configuracoes
+                Salvar configurações
               </button>
             </div>
           </div>
@@ -1147,7 +1147,7 @@ export function BoletosPage({
                   <th>Dia</th>
                   <th>Cobrar multa/juros</th>
                   <th>Baixas pendentes</th>
-                  <th>Observacoes</th>
+                  <th>Observações</th>
                 </tr>
               </thead>
               <tbody>

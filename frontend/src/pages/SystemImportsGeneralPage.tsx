@@ -53,13 +53,13 @@ export function SystemImportsGeneralPage({
       <section className="content-grid two-columns">
         <article className="panel compact-import-panel">
           <div className="panel-heading compact-panel-heading">
-            <p className="eyebrow">Historico</p>
+            <p className="eyebrow">Histórico</p>
             <h3>Livro caixa antigo</h3>
           </div>
           <div className="compact-upload-box">
             <input type="file" accept=".xlsx" onChange={(event) => setHistoricalFile(event.target.files?.[0] ?? null)} />
             <div className="import-last-meta">
-              {latestHistoricalImport ? `Ultima importacao: ${latestHistoricalImport.filename} em ${formatDate(latestHistoricalImport.created_at)}` : "Ultima importacao: nenhuma"}
+              {latestHistoricalImport ? `Última importação: ${latestHistoricalImport.filename} em ${formatDate(latestHistoricalImport.created_at)}` : "Última importação: nenhuma"}
             </div>
             <button
               className="primary-button compact-action-button"
@@ -83,8 +83,8 @@ export function SystemImportsGeneralPage({
             )}
             <div className="import-last-meta">
               {latestInterStatementImport
-                ? `Ultima sincronizacao: ${latestInterStatementImport.filename} em ${formatDate(latestInterStatementImport.created_at)}`
-                : "Ultima sincronizacao: nenhuma"}
+                ? `Última sincronização: ${latestInterStatementImport.filename} em ${formatDate(latestInterStatementImport.created_at)}`
+                : "Última sincronização: nenhuma"}
             </div>
             <button
               className="primary-button compact-action-button"
@@ -101,7 +101,7 @@ export function SystemImportsGeneralPage({
           <div className="panel-title"><h3>Base importada</h3></div>
           <div className="summary-list">
             <div className="summary-row"><span>Faturamento</span><strong>{importSummary.sales_snapshot_count}</strong></div>
-            <div className="summary-row"><span>Titulos a receber</span><strong>{importSummary.receivable_title_count}</strong></div>
+            <div className="summary-row"><span>Títulos a receber</span><strong>{importSummary.receivable_title_count}</strong></div>
             <div className="summary-row"><span>Movimentos OFX</span><strong>{importSummary.bank_transaction_count}</strong></div>
             <div className="summary-row"><span>Livro caixa</span><strong>{importSummary.historical_cashbook_count}</strong></div>
           </div>
@@ -109,10 +109,10 @@ export function SystemImportsGeneralPage({
       </section>
 
       <section className="panel">
-        <div className="panel-title"><h3>Historico de importacoes</h3></div>
+        <div className="panel-title"><h3>Histórico de importações</h3></div>
         <div className="table-shell">
           <table className="erp-table">
-            <thead><tr><th>Data</th><th>Arquivo</th><th>Tipo</th><th>Processo</th><th>Status</th><th>Observacao</th></tr></thead>
+            <thead><tr><th>Data</th><th>Arquivo</th><th>Tipo</th><th>Processo</th><th>Status</th><th>Observação</th></tr></thead>
             <tbody>
               {importSummary.import_batches.map((batch) => (
                 <tr key={batch.id}>
@@ -121,12 +121,12 @@ export function SystemImportsGeneralPage({
                   <td>{batch.source_type}</td>
                   <td>{batch.records_valid}/{batch.records_total}</td>
                   <td>{formatEntryStatus(batch.status)}</td>
-                  <td>{batch.error_summary ?? "Processado sem observacoes."}</td>
+                  <td>{batch.error_summary ?? "Processado sem observações."}</td>
                 </tr>
               ))}
               {!importSummary.import_batches.length && (
                 <tr>
-                  <td colSpan={6} className="empty-cell">Nenhuma importacao registrada ainda.</td>
+                  <td colSpan={6} className="empty-cell">Nenhuma importação registrada ainda.</td>
                 </tr>
               )}
             </tbody>

@@ -113,15 +113,15 @@ export function OperationsPage({
       {!embedded && (
         <PageHeader
           eyebrow="Financeiro"
-          title="Operacoes estruturais"
-          description="Recorrencias, contratos parcelados e historico das transferencias internas."
+          title="Operações estruturais"
+          description="Recorrências, contratos parcelados e histórico das transferências internas."
         />
       )}
       <section className="interactive-grid">
         <article className="panel-card">
           <div className="panel-heading">
-            <p className="eyebrow">Recorrencia</p>
-            <h3>Gerar previsoes futuras</h3>
+            <p className="eyebrow">Recorrência</p>
+            <h3>Gerar previsões futuras</h3>
           </div>
           <form className="form-grid" onSubmit={handleRecurrence}>
             <label>
@@ -129,7 +129,7 @@ export function OperationsPage({
               <input value={recurrenceForm.name} onChange={(event) => setRecurrenceForm({ ...recurrenceForm, name: event.target.value })} required />
             </label>
             <label>
-              Titulo gerado
+              Título gerado
               <input value={recurrenceForm.title_template} onChange={(event) => setRecurrenceForm({ ...recurrenceForm, title_template: event.target.value })} />
             </label>
             <label>
@@ -140,11 +140,11 @@ export function OperationsPage({
               </select>
             </label>
             <label>
-              Frequencia
+              Frequência
               <select value={recurrenceForm.frequency} onChange={(event) => setRecurrenceForm({ ...recurrenceForm, frequency: event.target.value })}>
                 <option value="monthly">Mensal</option>
                 <option value="weekly">Semanal</option>
-                <option value="daily">Diaria</option>
+                <option value="daily">Diária</option>
               </select>
             </label>
             <label>
@@ -152,7 +152,7 @@ export function OperationsPage({
               <input type="number" min="1" value={recurrenceForm.interval_value} onChange={(event) => setRecurrenceForm({ ...recurrenceForm, interval_value: event.target.value })} />
             </label>
             <label>
-              Dia do mes
+              Dia do mês
               <input type="number" min="1" max="31" value={recurrenceForm.day_of_month} onChange={(event) => setRecurrenceForm({ ...recurrenceForm, day_of_month: event.target.value })} />
             </label>
             <label>
@@ -196,13 +196,13 @@ export function OperationsPage({
               <MoneyInput value={recurrenceForm.interest_amount} onValueChange={(value) => setRecurrenceForm({ ...recurrenceForm, interest_amount: value })} />
             </label>
             <button className="primary-button" disabled={submitting} type="submit">
-              Salvar recorrencia
+              Salvar recorrência
             </button>
           </form>
           <div className="inline-tools">
             <input type="date" value={untilDate} onChange={(event) => setUntilDate(event.target.value)} />
             <button className="secondary-button" disabled={submitting || !untilDate} onClick={() => void onGenerateRecurrences(untilDate)} type="button">
-              Gerar ate a data
+              Gerar até a data
             </button>
           </div>
         </article>
@@ -211,12 +211,12 @@ export function OperationsPage({
       <section className="interactive-grid single-column">
         <article className="panel-card">
           <div className="panel-heading">
-            <p className="eyebrow">Emprestimos e financiamentos</p>
+            <p className="eyebrow">Empréstimos e financiamentos</p>
             <h3>Parcelas com principal e juros separados</h3>
           </div>
           <form className="form-grid wide" onSubmit={handleLoan}>
             <label>
-              Titulo
+              Título
               <input value={loanForm.title} onChange={(event) => setLoanForm({ ...loanForm, title: event.target.value })} required />
             </label>
             <label>

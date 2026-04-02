@@ -206,7 +206,7 @@ export function ReportsPage({
         <PageHeader
           eyebrow="Relatorios"
           title="DRE e DRO"
-          description="Demonstrativos separados, com filtros obrigatorios por periodo e leitura expansivel por nivel de detalhe."
+          description="Demonstrativos separados, com filtros obrigatórios por período e leitura expansível por nível de detalhe."
           actions={
             <div className="toolbar">
               <label>Inicio<input type="date" value={filters.start} onChange={(event) => onChangeFilters({ ...filters, start: event.target.value })} /></label>
@@ -240,7 +240,7 @@ export function ReportsPage({
           <div className="compact-upload-box">
             <input type="file" accept=".xls,.html" onChange={(event) => setSalesFile(event.target.files?.[0] ?? null)} />
             <div className="import-last-meta">
-              {latestSalesImport ? `Ultima importacao: ${latestSalesImport.filename} em ${formatDate(latestSalesImport.created_at)}` : "Ultima importacao: nenhuma"}
+              {latestSalesImport ? `Última importação: ${latestSalesImport.filename} em ${formatDate(latestSalesImport.created_at)}` : "Última importação: nenhuma"}
             </div>
             <button className="primary-button compact-action-button" disabled={loading || !salesFile} onClick={() => salesFile && void onUploadSales(salesFile)} type="button">
               Importar
@@ -253,7 +253,7 @@ export function ReportsPage({
           <div className="summary-list">
             <div className="summary-row"><span>Faturamento Linx</span><strong>{latestSalesImport ? formatDate(latestSalesImport.created_at) : "Sem carga"}</strong></div>
             <div className="summary-row"><span>Faturas a receber</span><strong>{latestReceivablesImport ? formatDate(latestReceivablesImport.created_at) : "Sem carga"}</strong></div>
-            <div className="summary-row"><span>Entrada de recebiveis</span><strong>Cobranca</strong></div>
+            <div className="summary-row"><span>Entrada de recebíveis</span><strong>Cobrança</strong></div>
           </div>
         </article>
       </section>
@@ -270,7 +270,7 @@ export function ReportsPage({
           <div className="page-layout">
             <div className="report-period-header">
               <div>
-                <p className="section-label">{activeTab === "dre" ? "Demonstracao do Resultado do Exercicio" : "Demonstrativo de Resultados Operacional"}</p>
+                <p className="section-label">{activeTab === "dre" ? "Demonstração do Resultado do Exercício" : "Demonstrativo de Resultados Operacionais"}</p>
                 <h3>{currentReport.period_label}</h3>
               </div>
               <div className="report-period-actions">
@@ -278,7 +278,7 @@ export function ReportsPage({
                   <span className="button-icon">⚙</span>
                 </button>
                 <button className="secondary-button" disabled={allExpandableKeys.length === 0} onClick={toggleAllNodes} type="button">
-                  {allExpanded ? "Fechar todos os lancamentos" : "Abrir todos os lancamentos"}
+                  {allExpanded ? "Fechar todos os lançamentos" : "Abrir todos os lançamentos"}
                 </button>
               </div>
             </div>
@@ -288,7 +288,7 @@ export function ReportsPage({
           </div>
         ) : (
           <div className="empty-panel">
-            <p className="empty-state">Sem dados para o periodo selecionado.</p>
+            <p className="empty-state">Sem dados para o período selecionado.</p>
           </div>
         )}
       </section>

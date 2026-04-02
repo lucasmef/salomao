@@ -86,17 +86,17 @@ export function SecurityPage({
     <div className="page-layout">
       {!embedded && (
         <PageHeader
-          eyebrow="Administracao"
-          title="Seguranca e continuidade"
-          description="Usuarios, MFA, backup local e operacao segura durante a transicao para o ambiente online."
+          eyebrow="Administração"
+          title="Segurança e continuidade"
+          description="Usuários, MFA, backup local e operação segura durante a transição para o ambiente online."
         />
       )}
       <section className="interactive-grid">
         {(view === "all" || view === "users") && (
           <article className="panel-card">
             <div className="panel-heading">
-              <p className="eyebrow">Sessao atual</p>
-              <h3>Usuario autenticado</h3>
+              <p className="eyebrow">Sessão atual</p>
+              <h3>Usuário autenticado</h3>
             </div>
             <div className="table-list">
               <div className="list-row">
@@ -145,7 +145,7 @@ export function SecurityPage({
           <article className="panel-card">
             <div className="panel-heading">
               <p className="eyebrow">Backup</p>
-              <h3>{isLocalBackupMode ? "Protecao da base local" : "Backups operacionais do servidor"}</h3>
+              <h3>{isLocalBackupMode ? "Proteção da base local" : "Backups operacionais do servidor"}</h3>
             </div>
             {isLocalBackupMode ? (
               <>
@@ -168,7 +168,7 @@ export function SecurityPage({
               </>
             ) : (
               <p className="empty-state">
-                No modo servidor, os backups do PostgreSQL sao operacionais e feitos pelos scripts dedicados, fora da UI.
+                No modo servidor, os backups do PostgreSQL são operacionais e feitos pelos scripts dedicados, fora da UI.
               </p>
             )}
           </article>
@@ -177,14 +177,14 @@ export function SecurityPage({
         {view === "security" && (
           <article className="panel-card">
             <div className="panel-heading">
-              <p className="eyebrow">Seguranca</p>
-              <h3>Politicas e endurecimento</h3>
+              <p className="eyebrow">Segurança</p>
+              <h3>Políticas e endurecimento</h3>
             </div>
             <div className="summary-list">
-              <div className="summary-row"><span>Modo da aplicacao</span><strong>{instanceInfo?.app_mode ?? "-"}</strong></div>
+              <div className="summary-row"><span>Modo da aplicação</span><strong>{instanceInfo?.app_mode ?? "-"}</strong></div>
               <div className="summary-row"><span>Banco ativo</span><strong>{instanceInfo?.database_backend ?? "-"}</strong></div>
-              <div className="summary-row"><span>MFA obrigatorio</span><strong>{mfaStatus?.required ? "sim" : "nao"}</strong></div>
-              <div className="summary-row"><span>MFA do usuario atual</span><strong>{mfaStatus?.enabled ? "ativo" : "inativo"}</strong></div>
+              <div className="summary-row"><span>MFA obrigatório</span><strong>{mfaStatus?.required ? "sim" : "não"}</strong></div>
+              <div className="summary-row"><span>MFA do usuário atual</span><strong>{mfaStatus?.enabled ? "ativo" : "inativo"}</strong></div>
             </div>
           </article>
         )}
@@ -195,13 +195,13 @@ export function SecurityPage({
           <article className="panel-card">
             <div className="panel-heading">
               <p className="eyebrow">MFA TOTP</p>
-              <h3>Autenticador do usuario atual</h3>
+              <h3>Autenticador do usuário atual</h3>
             </div>
             {!activeMfaSetup ? (
               <>
                 <p className="supporting">
                   {mfaStatus?.enabled
-                    ? "O MFA ja esta ativo para este usuario."
+                    ? "O MFA já está ativo para este usuário."
                     : "Ative o MFA agora para deixar a conta pronta para o ambiente online."}
                 </p>
                 <button className="primary-button" disabled={submitting} onClick={() => void onStartMfaEnrollment()} type="button">
@@ -245,8 +245,8 @@ export function SecurityPage({
         <section className="interactive-grid">
           <article className="panel-card">
             <div className="panel-heading">
-              <p className="eyebrow">Usuarios</p>
-              <h3>Novo usuario local</h3>
+              <p className="eyebrow">Usuários</p>
+              <h3>Novo usuário local</h3>
             </div>
             <form className="form-grid" onSubmit={handleCreateUser}>
               <label>

@@ -35,7 +35,7 @@ export function AppShell({
       <header className={`app-shell-header ${mobileMenuOpen ? "mobile-menu-open" : ""}`}>
         <div className="app-shell-brand">
           <NavLink
-            aria-label="Ir para Visao Geral"
+            aria-label="Ir para Visão Geral"
             className="app-shell-brand-home"
             onClick={() => setMobileMenuOpen(false)}
             to="/overview/resumo"
