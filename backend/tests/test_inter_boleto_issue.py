@@ -155,6 +155,7 @@ def test_issue_inter_charges_creates_boleto_from_missing_item() -> None:
         issued = session.query(BoletoRecord).one()
         assert result.message == "Boletos emitidos no Inter com sucesso."
         assert result.batch.records_valid == 1
+        assert result.batch.source_type == "inter_charge_issue"
         assert issued.document_id == "12345"
         assert issued.inter_codigo_solicitacao == "SOL-NEW-1"
         assert issued.status == "A receber"

@@ -117,6 +117,7 @@ def test_sync_inter_statement_imports_scroll_pages_and_deduplicates_reimport() -
         assert [item.fit_id for item in transactions] == ["INTER:trx-001", "INTER:trx-002"]
         assert first_result.batch.records_valid == 2
         assert first_result.message == "Extrato do Inter sincronizado com sucesso."
+        assert first_result.batch.source_type == "inter_statement"
         assert second_result.batch.records_valid == 0
         assert second_result.batch.records_invalid == 2
         assert "ja existiam" in (second_result.batch.error_summary or "")

@@ -34,6 +34,11 @@ INTER_PRODUCTION_BASE_URL = "https://cdpj.partners.bancointer.com.br"
 INTER_SANDBOX_BASE_URL = "https://cdpj-sandbox.partners.uatinter.co"
 INTER_BANK_CODE = "077"
 INTER_REQUIRED_SCOPES = "boleto-cobranca.read boleto-cobranca.write extrato.read"
+INTER_BATCH_SOURCE_TYPES = {
+    "statement": "inter_statement",
+    "charge_sync": "inter_charge_sync",
+    "charge_issue": "inter_charge_issue",
+}
 
 
 @dataclass
@@ -165,6 +170,13 @@ def _start_sync_batch(
     db.add(batch)
     db.flush()
     return batch
+
+
+def _resolve_batch_source_type(kind: str) -> str:
+    source_type = INTER_BATCH_SOURCE_TYPES.get(kind)
+    if not source_type:
+        raise ValueError(f"Tipo de lote do Inter nao suportado: {kind}")
+    return source_type
 
 
 def _load_inter_account_config(account: Account) -> InterAccountConfig:
@@ -422,7 +434,7 @@ def sync_inter_statement(
     batch = _start_sync_batch(
         db,
         company.id,
-        source_type=f"inter_statement:{account_id}",
+        source_type=_resolve_batch_source_type("statement"),
         filename=f"inter-extrato-{start_date.isoformat()}-{end_date.isoformat()}",
     )
     client = InterApiClient(config, transport=transport)
@@ -471,7 +483,7 @@ def sync_inter_charges(
     batch = _start_sync_batch(
         db,
         company.id,
-        source_type=f"boletos:inter:sync:{account_id}",
+        source_type=_resolve_batch_source_type("charge_sync"),
         filename=f"inter-cobrancas-{start_date.isoformat()}-{end_date.isoformat()}",
     )
     client = InterApiClient(config, transport=transport)
@@ -588,7 +600,7 @@ def issue_inter_charges(
     batch = _start_sync_batch(
         db,
         company.id,
-        source_type=f"boletos:inter:issue:{account_id}",
+        source_type=_resolve_batch_source_type("charge_issue"),
         filename=f"inter-emissao-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
     )
     client = InterApiClient(config, transport=transport)

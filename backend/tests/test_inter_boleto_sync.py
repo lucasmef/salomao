@@ -141,6 +141,7 @@ def test_sync_inter_charges_updates_existing_record_and_creates_new_one() -> Non
         assert len(records) == 2
         assert result.message == "Cobrancas do Inter sincronizadas com sucesso."
         assert result.batch.records_valid == 2
+        assert result.batch.source_type == "inter_charge_sync"
         assert "foram atualizadas" in (result.batch.error_summary or "")
 
         updated = next(item for item in records if item.document_id == "SEU-001")
