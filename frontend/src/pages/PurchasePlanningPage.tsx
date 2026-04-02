@@ -2517,57 +2517,7 @@ export function PurchasePlanningPage({
             <button className="primary-button" type="button" onClick={() => void handleSaveBrand()}>
               Salvar marca
             </button>
-            <button className="ghost-button" type="button" onClick={closeBrandModal}>
-              Cancelar
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  function renderCollectionObservationModal() {
-    if (!collectionObservationModal) return null;
-    const collection = collectionMap.get(collectionObservationModal.collectionId);
-
-    return (
-      <div className="modal-backdrop" role="presentation">
-        <div className="modal-card purchase-modal-card purchase-collection-note-modal">
-          <div className="purchase-panel-heading">
-            <h3>Observacao da colecao</h3>
-            <button className="ghost-button" type="button" onClick={closeCollectionObservationModal}>
-              Fechar
-            </button>
-          </div>
-          <div className="summary-list purchase-collection-note-summary">
-            <div className="summary-row">
-              <span>Colecao</span>
-              <strong>{collection?.season_label || collection?.name || "-"}</strong>
-            </div>
-          </div>
-          <label className="full-width">
-            Observacao
-            <textarea
-              value={collectionObservationModal.notes}
-              onChange={(event) =>
-                setCollectionObservationModal((current) =>
-                  current
-                    ? {
-                        ...current,
-                        notes: event.target.value,
-                      }
-                    : current,
-                )
-              }
-              placeholder="Digite uma observacao para esta colecao"
-              rows={5}
-            />
-          </label>
-          <div className="action-row">
-            <button className="primary-button" type="button" onClick={() => void handleSaveCollectionObservation()}>
-              Salvar observacao
-            </button>
-            <button className="ghost-button" type="button" onClick={closeCollectionObservationModal}>
+            <button className="ghost-button" type="button" onClick={() => setBrandModalOpen(false)}>
               Cancelar
             </button>
           </div>
