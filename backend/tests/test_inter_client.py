@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from datetime import date
 from decimal import Decimal
 
@@ -110,3 +111,18 @@ def test_map_charge_status_preserves_dashboard_buckets() -> None:
     assert _map_charge_status("ATRASADO") == "A receber"
     assert _map_charge_status("RECEBIDO") == "Recebido por boleto"
     assert _map_charge_status("CANCELADO") == "Cancelado"
+
+
+def test_get_charge_pdf_decodes_base64_payload() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            return httpx.Response(200, json={"access_token": "token-123"})
+        if request.url.path == "/cobranca/v3/cobrancas/SOL-001/pdf":
+            return httpx.Response(200, json={"pdf": base64.b64encode(b"%PDF-FAKE").decode("ascii")})
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    client = InterApiClient(_build_config(), transport=httpx.MockTransport(handler))
+    try:
+        assert client.get_charge_pdf("SOL-001") == b"%PDF-FAKE"
+    finally:
+        client.close()

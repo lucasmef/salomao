@@ -8,6 +8,7 @@ from app.schemas.boletos import (
     BoletoClientConfigBulkUpdate,
     BoletoDashboardRead,
     BoletoMissingExportRequest,
+    BoletoPdfBatchRequest,
 )
 from app.schemas.inter import InterChargeIssueRequest, InterChargeSyncRequest
 from app.schemas.imports import ImportResult
@@ -19,7 +20,12 @@ from app.services.boletos import (
     update_boleto_configs,
 )
 from app.services.company_context import get_current_company
-from app.services.inter import issue_inter_charges, sync_inter_charges
+from app.services.inter import (
+    download_inter_charge_pdf,
+    download_inter_charge_pdfs_zip,
+    issue_inter_charges,
+    sync_inter_charges,
+)
 
 router = APIRouter()
 
@@ -154,3 +160,39 @@ def trigger_inter_issue(
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.get("/inter/{boleto_id}/pdf")
+def download_inter_boleto_pdf(
+    boleto_id: str,
+    db: DbSession,
+) -> StreamingResponse:
+    company = get_current_company(db)
+    try:
+        content, filename = download_inter_charge_pdf(db, company, boleto_id=boleto_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/inter/pdf-batch")
+def download_inter_boleto_pdf_batch(
+    payload: BoletoPdfBatchRequest,
+    db: DbSession,
+) -> StreamingResponse:
+    company = get_current_company(db)
+    try:
+        content, filename = download_inter_charge_pdfs_zip(db, company, boleto_ids=payload.boleto_ids)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

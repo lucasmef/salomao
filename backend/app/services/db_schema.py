@@ -468,6 +468,7 @@ def ensure_schema_updates(engine: Engine) -> None:
             _add_column_if_missing(connection, "boleto_customer_configs", column_name, sql_type)
 
         boleto_record_columns = {
+            "inter_account_id": "VARCHAR(36)",
             "inter_codigo_solicitacao": "VARCHAR(80)",
             "inter_seu_numero": "VARCHAR(80)",
             "inter_nosso_numero": "VARCHAR(80)",

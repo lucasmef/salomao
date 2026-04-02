@@ -977,6 +977,7 @@ def _serialize_receivable(receivable: ReceivableItem) -> BoletoReceivableRead:
 
 def _serialize_boleto(boleto: BoletoRecord) -> BoletoRecordRead:
     return BoletoRecordRead(
+        id=boleto.id,
         bank=boleto.bank,
         client_name=boleto.client_name,
         document_id=boleto.document_id,
@@ -986,6 +987,11 @@ def _serialize_boleto(boleto: BoletoRecord) -> BoletoRecordRead:
         paid_amount=Decimal(boleto.paid_amount or 0),
         status=boleto.status,
         barcode=boleto.barcode,
+        linha_digitavel=boleto.linha_digitavel,
+        pix_copia_e_cola=boleto.pix_copia_e_cola,
+        inter_codigo_solicitacao=boleto.inter_codigo_solicitacao,
+        inter_account_id=boleto.inter_account_id,
+        pdf_available=bool(boleto.bank == "INTER" and boleto.inter_codigo_solicitacao),
     )
 
 
@@ -1219,6 +1225,10 @@ def build_boleto_dashboard(
     all_client_keys = sorted(set(receivables_by_client) | set(boletos_by_client) | set(config_map))
 
     clients: list[BoletoClientRead] = []
+    open_boletos = sorted(
+        [_serialize_boleto(item) for item in boleto_records if _boleto_status_bucket(item) == "active"],
+        key=lambda item: (item.due_date or date.max, item.client_name, item.document_id),
+    )
     overdue_boletos: list[BoletoMatchItem] = []
     overdue_invoices: list[BoletoOverdueInvoiceSummaryRead] = []
     paid_pending: list[BoletoMatchItem] = []
@@ -1518,6 +1528,7 @@ def build_boleto_dashboard(
             [_serialize_receivable(item) for item in receivables],
             key=lambda item: (item.due_date or date.max, item.client_name, item.invoice_number, item.installment),
         ),
+        open_boletos=open_boletos,
         overdue_boletos=sorted(overdue_boletos, key=lambda item: (item.due_date or date.max, item.client_name)),
         overdue_invoices=sorted(overdue_invoices, key=lambda item: (-item.days_overdue, -item.overdue_amount, item.client_name)),
         paid_pending=sorted(paid_pending, key=lambda item: (item.client_name, item.due_date or date.max, item.amount)),

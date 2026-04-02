@@ -9,6 +9,8 @@ type Props = {
   dashboard: BoletoDashboard;
   showAllMonthlyMissingBoletos: boolean;
   submitting: boolean;
+  onDownloadInterBoletoPdf: (boletoId: string) => Promise<void>;
+  onDownloadInterBoletoPdfBatch: (boletoIds: string[]) => Promise<void>;
   onExportMissingBoletos: (selectionKeys: string[]) => Promise<void>;
   onIssueInterCharges: (accountId: string, selectionKeys: string[]) => Promise<void>;
   onSyncInterCharges: (accountId: string) => Promise<void>;
@@ -31,7 +33,7 @@ type Props = {
 
 type EditableClient = BoletoClient & { dirty?: boolean };
 type TabId = "resumo" | "clientes" | "faturas";
-type InvoiceFilter = "open" | "overdue" | "paid-pending" | "missing" | "excess";
+type InvoiceFilter = "open" | "open-boletos" | "overdue" | "paid-pending" | "missing" | "excess";
 
 const tabItems: Array<{ id: TabId; label: string }> = [
   { id: "resumo", label: "Resumo" },
@@ -40,7 +42,8 @@ const tabItems: Array<{ id: TabId; label: string }> = [
 ];
 
 const invoiceFilters: Array<{ id: InvoiceFilter; label: string }> = [
-  { id: "open", label: "Em aberto" },
+  { id: "open", label: "Faturas em aberto" },
+  { id: "open-boletos", label: "Boletos em aberto" },
   { id: "overdue", label: "Atrasados" },
   { id: "paid-pending", label: "Pagas sem baixa" },
   { id: "missing", label: "Boletos faltando" },
@@ -63,6 +66,16 @@ function UploadIcon() {
       <path d="M10 13V4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M6.75 7.75 10 4.5l3.25 3.25" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M4 14.5v.75A1.75 1.75 0 0 0 5.75 17h8.5A1.75 1.75 0 0 0 16 15.25v-.75" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
+      <path d="M10 4.5v8.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6.75 10 10 13.25 13.25 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 15.25h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -122,11 +135,33 @@ function UploadCard({ id, title, accept, selectedFile, submitting, onChange, onS
   );
 }
 
+function boletoMatchesQuery(
+  boleto: BoletoDashboard["open_boletos"][number],
+  query: string,
+) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return true;
+  }
+  return [
+    boleto.client_name,
+    boleto.document_id,
+    boleto.inter_codigo_solicitacao,
+    boleto.linha_digitavel,
+    boleto.barcode,
+    boleto.status,
+  ]
+    .filter(Boolean)
+    .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+}
+
 export function BoletosPage({
   accounts,
   dashboard,
   showAllMonthlyMissingBoletos,
   submitting,
+  onDownloadInterBoletoPdf,
+  onDownloadInterBoletoPdfBatch,
   onExportMissingBoletos,
   onIssueInterCharges,
   onSyncInterCharges,
@@ -146,6 +181,8 @@ export function BoletosPage({
   const [customerDataModalOpen, setCustomerDataModalOpen] = useState(false);
   const [clients, setClients] = useState<EditableClient[]>([]);
   const [selectedMissingKeys, setSelectedMissingKeys] = useState<string[]>([]);
+  const [selectedOpenBoletoIds, setSelectedOpenBoletoIds] = useState<string[]>([]);
+  const [openBoletoSearch, setOpenBoletoSearch] = useState("");
   const [interAccountId, setInterAccountId] = useState("");
 
   useEffect(() => {
@@ -156,6 +193,11 @@ export function BoletosPage({
     const visibleKeys = new Set(dashboard.missing_boletos.map((item) => item.selection_key));
     setSelectedMissingKeys((current) => current.filter((item) => visibleKeys.has(item)));
   }, [dashboard.missing_boletos]);
+
+  useEffect(() => {
+    const visibleIds = new Set(dashboard.open_boletos.map((item) => item.id));
+    setSelectedOpenBoletoIds((current) => current.filter((item) => visibleIds.has(item)));
+  }, [dashboard.open_boletos]);
 
   useEffect(() => {
     const activeInterAccounts = accounts.filter((account) => account.is_active && account.inter_api_enabled);
@@ -188,6 +230,19 @@ export function BoletosPage({
     () => accounts.filter((account) => account.is_active && account.inter_api_enabled),
     [accounts],
   );
+  const filteredOpenBoletos = useMemo(
+    () => dashboard.open_boletos.filter((item) => boletoMatchesQuery(item, openBoletoSearch)),
+    [dashboard.open_boletos, openBoletoSearch],
+  );
+  const downloadableOpenBoletos = useMemo(
+    () => filteredOpenBoletos.filter((item) => item.pdf_available),
+    [filteredOpenBoletos],
+  );
+
+  useEffect(() => {
+    const visibleIds = new Set(filteredOpenBoletos.map((item) => item.id));
+    setSelectedOpenBoletoIds((current) => current.filter((item) => visibleIds.has(item)));
+  }, [filteredOpenBoletos]);
 
   function renderFileMeta(sourceType: string) {
     const file =
@@ -219,6 +274,40 @@ export function BoletosPage({
   function toggleMissingSelection(selectionKey: string) {
     setSelectedMissingKeys((current) =>
       current.includes(selectionKey) ? current.filter((item) => item !== selectionKey) : [...current, selectionKey],
+    );
+  }
+
+  function toggleOpenBoletoSelection(boletoId: string) {
+    setSelectedOpenBoletoIds((current) =>
+      current.includes(boletoId) ? current.filter((item) => item !== boletoId) : [...current, boletoId],
+    );
+  }
+
+  function renderBoletoActions(boletos: BoletoAlertItem["boletos"]) {
+    if (!boletos.length) {
+      return "-";
+    }
+    return (
+      <div className="billing-boleto-list">
+        {boletos.map((boleto) => (
+          <div key={boleto.id} className="billing-boleto-chip">
+            <span title={boleto.linha_digitavel || boleto.barcode || boleto.document_id}>
+              {`${boleto.bank} ${boleto.document_id || boleto.barcode || ""}`.trim()}
+            </span>
+            {boleto.pdf_available && (
+              <button
+                className="table-button icon-only-button"
+                disabled={submitting}
+                onClick={() => void onDownloadInterBoletoPdf(boleto.id)}
+                title="Baixar PDF do boleto"
+                type="button"
+              >
+                <DownloadIcon />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
     );
   }
 
@@ -361,6 +450,7 @@ export function BoletosPage({
                   <th className="numeric-cell">Valor</th>
                   <th>Status</th>
                   <th>Faturas</th>
+                  <th>Boleto</th>
                   <th>Motivo</th>
                 </tr>
               </thead>
@@ -375,12 +465,13 @@ export function BoletosPage({
                     <td className="numeric-cell">{formatMoney(item.amount)}</td>
                     <td>{formatEntryStatus(item.status)}</td>
                     <td>{renderReceivableDetails(item)}</td>
+                    <td>{renderBoletoActions(item.boletos)}</td>
                     <td>{item.reason}</td>
                   </tr>
                 ))}
                 {!dashboard.overdue_boletos.length && (
                   <tr>
-                    <td colSpan={9}>Nenhum boleto atrasado encontrado.</td>
+                    <td colSpan={10}>Nenhum boleto atrasado encontrado.</td>
                   </tr>
                 )}
               </tbody>
@@ -419,7 +510,7 @@ export function BoletosPage({
                     <td>{item.competence || "-"}</td>
                     <td className="numeric-cell">{formatMoney(item.amount)}</td>
                     <td>{renderReceivableDetails(item)}</td>
-                    <td>{item.boletos.map((boleto) => `${boleto.bank} ${boleto.document_id || boleto.barcode || ""}`.trim()).join(", ") || "-"}</td>
+                    <td>{renderBoletoActions(item.boletos)}</td>
                   </tr>
                 ))}
                 {!dashboard.paid_pending.length && (
@@ -466,13 +557,123 @@ export function BoletosPage({
                     <td>{formatDate(item.due_date)}</td>
                     <td className="numeric-cell">{formatMoney(item.amount)}</td>
                     <td>{formatEntryStatus(item.status)}</td>
-                    <td>{item.boletos.map((boleto) => `${boleto.bank} ${boleto.document_id || boleto.barcode || ""}`.trim()).join(", ") || "-"}</td>
+                    <td>{renderBoletoActions(item.boletos)}</td>
                     <td>{item.reason}</td>
                   </tr>
                 ))}
                 {!dashboard.excess_boletos.length && (
                   <tr>
                     <td colSpan={9}>Nenhum boleto em excesso encontrado.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      );
+    }
+
+    if (invoiceFilter === "open-boletos") {
+      return (
+        <section className="panel compact-panel-card">
+          <div className="panel-title compact-title-row">
+            <div>
+              <h3>Boletos em aberto</h3>
+              <small className="compact-muted">
+                {selectedOpenBoletoIds.length} selecionado(s) para download
+              </small>
+            </div>
+            <div className="action-row billing-open-boletos-actions">
+              <label className="billing-search-field">
+                <span>Buscar</span>
+                <input
+                  placeholder="Cliente, documento, linha digitavel..."
+                  type="search"
+                  value={openBoletoSearch}
+                  onChange={(event) => setOpenBoletoSearch(event.target.value)}
+                />
+              </label>
+              <button
+                className="secondary-button"
+                disabled={submitting || !selectedOpenBoletoIds.length}
+                onClick={() => void onDownloadInterBoletoPdfBatch(selectedOpenBoletoIds)}
+                type="button"
+              >
+                Baixar selecionados
+              </button>
+              <span>{filteredOpenBoletos.length}</span>
+            </div>
+          </div>
+          <div className="table-shell tall">
+            <table className="erp-table">
+              <thead>
+                <tr>
+                  <th>
+                    <input
+                      checked={
+                        !!downloadableOpenBoletos.length &&
+                        downloadableOpenBoletos.every((item) => selectedOpenBoletoIds.includes(item.id))
+                      }
+                      disabled={submitting || !downloadableOpenBoletos.length}
+                      onChange={(event) =>
+                        setSelectedOpenBoletoIds(event.target.checked ? downloadableOpenBoletos.map((item) => item.id) : [])
+                      }
+                      type="checkbox"
+                    />
+                  </th>
+                  <th>Cliente</th>
+                  <th>Documento</th>
+                  <th>Emissao</th>
+                  <th>Vencimento</th>
+                  <th className="numeric-cell">Valor</th>
+                  <th>Status</th>
+                  <th>Banco</th>
+                  <th>PDF</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOpenBoletos.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <input
+                        checked={selectedOpenBoletoIds.includes(item.id)}
+                        disabled={submitting || !item.pdf_available}
+                        onChange={() => toggleOpenBoletoSelection(item.id)}
+                        type="checkbox"
+                      />
+                    </td>
+                    <td>{item.client_name}</td>
+                    <td>
+                      <div className="billing-boleto-main-cell">
+                        <strong>{item.document_id}</strong>
+                        <small className="compact-muted">{item.linha_digitavel || item.barcode || "-"}</small>
+                      </div>
+                    </td>
+                    <td>{formatDate(item.issue_date)}</td>
+                    <td>{formatDate(item.due_date)}</td>
+                    <td className="numeric-cell">{formatMoney(item.amount)}</td>
+                    <td>{formatEntryStatus(item.status)}</td>
+                    <td>{item.bank}</td>
+                    <td>
+                      {item.pdf_available ? (
+                        <button
+                          className="table-button icon-only-button"
+                          disabled={submitting}
+                          onClick={() => void onDownloadInterBoletoPdf(item.id)}
+                          title="Baixar PDF do boleto"
+                          type="button"
+                        >
+                          <DownloadIcon />
+                        </button>
+                      ) : (
+                        <small className="compact-muted">Nao disponivel</small>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {!filteredOpenBoletos.length && (
+                  <tr>
+                    <td colSpan={9}>Nenhum boleto em aberto encontrado.</td>
                   </tr>
                 )}
               </tbody>

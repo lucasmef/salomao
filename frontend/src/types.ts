@@ -400,6 +400,7 @@ export type BoletoAlertItem = {
     status: string;
   }>;
   boletos: Array<{
+    id: string;
     bank: string;
     client_name: string;
     document_id: string;
@@ -409,6 +410,11 @@ export type BoletoAlertItem = {
     paid_amount: string;
     status: string;
     barcode: string | null;
+    linha_digitavel: string | null;
+    pix_copia_e_cola: string | null;
+    inter_codigo_solicitacao: string | null;
+    inter_account_id: string | null;
+    pdf_available: boolean;
   }>;
 };
 
@@ -442,6 +448,23 @@ export type BoletoDashboard = {
     corrected_amount: string;
     document: string;
     status: string;
+  }>;
+  open_boletos: Array<{
+    id: string;
+    bank: string;
+    client_name: string;
+    document_id: string;
+    issue_date: string | null;
+    due_date: string | null;
+    amount: string;
+    paid_amount: string;
+    status: string;
+    barcode: string | null;
+    linha_digitavel: string | null;
+    pix_copia_e_cola: string | null;
+    inter_codigo_solicitacao: string | null;
+    inter_account_id: string | null;
+    pdf_available: boolean;
   }>;
   overdue_boletos: BoletoAlertItem[];
   overdue_invoices: BoletoOverdueInvoiceItem[];

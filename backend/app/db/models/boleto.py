@@ -48,6 +48,7 @@ class BoletoRecord(Base, IdMixin, TimestampMixin):
     paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     status: Mapped[str] = mapped_column(String(60), default="")
     barcode: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    inter_account_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     inter_codigo_solicitacao: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     inter_seu_numero: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     inter_nosso_numero: Mapped[str | None] = mapped_column(String(80), nullable=True)

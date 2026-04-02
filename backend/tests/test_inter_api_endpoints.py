@@ -1,7 +1,8 @@
 from __future__ import annotations
-
 from datetime import date
 from decimal import Decimal
+from io import BytesIO
+import zipfile
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -71,6 +72,9 @@ class FakeInterApiClient:
                 "txid": "TXID-001",
             },
         }
+
+    def get_charge_pdf(self, codigo_solicitacao: str) -> bytes:
+        return f"%PDF-{codigo_solicitacao}".encode("ascii")
 
     def create_charge(self, payload: dict) -> dict:
         self.__class__.issued_payloads.append(payload)
@@ -226,6 +230,26 @@ def test_inter_endpoints_smoke(monkeypatch) -> None:
             json={"account_id": account.id},
         )
         assert sync_response.status_code == 201
+
+        dashboard = client.get("/api/v1/boletos/dashboard").json()
+        assert dashboard["open_boletos"]
+        boleto_id = dashboard["open_boletos"][0]["id"]
+        assert dashboard["open_boletos"][0]["pdf_available"] is True
+
+        pdf_response = client.get(f"/api/v1/boletos/inter/{boleto_id}/pdf")
+        assert pdf_response.status_code == 200
+        assert pdf_response.headers["content-type"].startswith("application/pdf")
+        assert pdf_response.content.startswith(b"%PDF-SOL-")
+
+        zip_response = client.post(
+            "/api/v1/boletos/inter/pdf-batch",
+            json={"boleto_ids": [boleto_id]},
+        )
+        assert zip_response.status_code == 200
+        with zipfile.ZipFile(BytesIO(zip_response.content)) as archive:
+            names = archive.namelist()
+            assert len(names) == 1
+            assert archive.read(names[0]).startswith(b"%PDF-SOL-")
     finally:
         client.close()
         session.close()
