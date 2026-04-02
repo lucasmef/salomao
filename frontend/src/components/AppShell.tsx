@@ -34,7 +34,14 @@ export function AppShell({
     <div className="app-shell">
       <header className={`app-shell-header ${mobileMenuOpen ? "mobile-menu-open" : ""}`}>
         <div className="app-shell-brand">
-          <img alt="Salomão" className="app-shell-brand-logo" src={salomaoLogo} />
+          <NavLink
+            aria-label="Ir para Visao Geral"
+            className="app-shell-brand-home"
+            onClick={() => setMobileMenuOpen(false)}
+            to="/overview/resumo"
+          >
+            <img alt="Salomao" className="app-shell-brand-logo" src={salomaoLogo} />
+          </NavLink>
           <button
             aria-controls="app-shell-primary-navigation"
             aria-expanded={mobileMenuOpen}
@@ -70,11 +77,6 @@ export function AppShell({
               <span>{busyLabel}</span>
             </div>
           ) : null}
-
-          <label className="app-shell-search">
-            <span className="sr-only">Busca global</span>
-            <input placeholder="Buscar..." type="search" />
-          </label>
 
           <div className="app-shell-user-actions">
             <button className="app-shell-user-action" onClick={onLogout} type="button">
