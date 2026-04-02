@@ -15,23 +15,24 @@ export type MainNavItem = {
   children: MainNavChild[];
 };
 
+export const overviewNavigationItem: MainNavItem = {
+  key: "overview",
+  label: "Visao Geral",
+  path: "/overview/resumo",
+  title: "Visao Geral",
+  description: "Leitura gerencial consolidada do periodo com indicadores e saldos.",
+  children: [
+    {
+      key: "resumo",
+      label: "Principal",
+      path: "/overview/resumo",
+      title: "Principal",
+      description: "KPIs principais, DRE resumido e saldos consolidados do periodo.",
+    },
+  ],
+};
+
 export const mainNavigation: MainNavItem[] = [
-  {
-    key: "overview",
-    label: "Visao Geral",
-    path: "/overview/resumo",
-    title: "Visao Geral",
-    description: "Leitura gerencial consolidada do periodo com indicadores e saldos.",
-    children: [
-      {
-        key: "resumo",
-        label: "Principal",
-        path: "/overview/resumo",
-        title: "Principal",
-        description: "KPIs principais, DRE resumido e saldos consolidados do periodo.",
-      },
-    ],
-  },
   {
     key: "lancamentos",
     label: "Lancamentos",
@@ -236,17 +237,26 @@ export const legacySectionPathMap: Record<string, string> = {
 };
 
 export function findMainNavItem(pathname: string) {
-  return (
+  const matchedItem =
     mainNavigation.find(
       (item) =>
         pathname === item.path ||
         pathname.startsWith(`${item.path}/`) ||
         item.children.some((child) => pathname === child.path || pathname.startsWith(`${child.path}/`)),
-    ) ?? mainNavigation[0]
-  );
+    ) ?? null;
+  if (matchedItem) {
+    return matchedItem;
+  }
+  if (pathname === overviewNavigationItem.path || pathname.startsWith(`${overviewNavigationItem.path}/`)) {
+    return null;
+  }
+  return mainNavigation[0] ?? null;
 }
 
 export function findChildNavItem(pathname: string) {
   const section = findMainNavItem(pathname);
+  if (!section) {
+    return overviewNavigationItem.children[0];
+  }
   return section.children.find((child) => pathname === child.path || pathname.startsWith(`${child.path}/`)) ?? section.children[0];
 }

@@ -61,7 +61,7 @@ export function AppShell({
           {mainNavigation.map((item) => (
             <NavLink
               key={item.key}
-              className={`app-shell-main-link ${activeMainItem.key === item.key ? "active" : ""}`}
+              className={`app-shell-main-link ${activeMainItem?.key === item.key ? "active" : ""}`}
               onClick={() => setMobileMenuOpen(false)}
               to={item.path}
             >
