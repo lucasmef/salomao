@@ -4,7 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-route
 import { AppShell } from "./components/AppShell";
 import { RouteLoadingFallback } from "./components/RouteLoadingFallback";
 import { SectionChrome } from "./components/SectionChrome";
-import { findChildNavItem, legacySectionPathMap, mainNavigation } from "./data/navigation";
+import { findChildNavItem, legacySectionPathMap, mainNavigation, overviewNavigationItem } from "./data/navigation";
 import { downloadFile, fetchJson } from "./lib/api";
 import { parseApiError } from "./lib/format";
 import { useNetworkActivityCount } from "./hooks/useNetworkActivityCount";
@@ -315,6 +315,9 @@ function buildCashflowQuery(params: {
 }
 
 function getNavigationSection(key: string) {
+  if (key === "overview") {
+    return overviewNavigationItem;
+  }
   return mainNavigation.find((item) => item.key === key) ?? mainNavigation[0];
 }
 
