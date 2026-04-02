@@ -223,6 +223,13 @@
   overflow: hidden;
 }
 
+.app-shell-brand-home {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  text-decoration: none;
+}
+
 .app-shell-brand-logo {
   display: block;
   width: 152px;
@@ -278,10 +285,10 @@
   display: inline-flex;
   align-items: center;
   min-height: 38px;
-  padding: 0 12px;
+  padding: 0 10px;
   color: #27364d;
   text-decoration: none;
-  font-size: 0.88rem;
+  font-size: 0.84rem;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -337,16 +344,6 @@
   background: #2f5be7;
   box-shadow: 0 0 0 0 rgba(47, 91, 231, 0.4);
   animation: app-shell-status-pulse 1.4s ease-out infinite;
-}
-
-.app-shell-search input {
-  width: 132px;
-  min-height: 32px;
-  padding: 6px 10px;
-  border: 1px solid #d3dceb;
-  border-radius: 8px;
-  background: #f7f9fd;
-  font-size: 0.8rem;
 }
 
 .app-shell-user {
@@ -639,15 +636,8 @@
   }
 
   .app-shell-search,
-  .app-shell-search input,
   .app-shell-user-action {
     width: 100%;
-  }
-
-  .app-shell-search input {
-    min-height: 40px;
-    padding: 8px 12px;
-    font-size: 16px;
   }
 
   .app-shell-user-action {
