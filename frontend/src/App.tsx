@@ -2034,46 +2034,20 @@ function AppRuntime() {
               tabs={purchaseNavigation.children}
               title={purchaseNavigation.children[0].title}
             >
-              <PurchasePlanningPage {...purchasePageProps} view="resumo" />
-            </SectionChrome>
-          }
-          path="/compras/resumo"
-        />
-        <Route
-          element={
-            <SectionChrome
-              description={purchaseNavigation.children[1].description}
-              sectionLabel="Compras"
-              tabLabel={purchaseNavigation.children[1].label}
-              tabs={purchaseNavigation.children}
-              title={purchaseNavigation.children[1].title}
-            >
               <PurchasePlanningPage {...purchasePageProps} view="planejamento" />
             </SectionChrome>
           }
           path="/compras/planejamento"
         />
-        <Route
-          element={
-            <SectionChrome
-              description={purchaseNavigation.children[2].description}
-              sectionLabel="Compras"
-              tabLabel={purchaseNavigation.children[2].label}
-              tabs={purchaseNavigation.children}
-              title={purchaseNavigation.children[2].title}
-            >
-              <PurchasePlanningPage {...purchasePageProps} view="devolucoes" />
-            </SectionChrome>
-          }
-          path="/compras/devolucoes"
-        />
+        <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/resumo" />
+        <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/devolucoes" />
         <Route
           element={<Navigate replace to="/compras/planejamento" />}
           path="/compras/cadastros"
         />
-        <Route element={<Navigate replace to="/compras/resumo" />} path="/compras/notas-fiscais" />
+        <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/notas-fiscais" />
         <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/posicoes-compra" />
-        <Route element={<Navigate replace to="/compras/resumo" />} path="/compras/parcelas-previstas" />
+        <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/parcelas-previstas" />
         <Route element={<Navigate replace to="/cadastros/fornecedores" />} path="/compras/fornecedores" />
         <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/colecoes" />
 
