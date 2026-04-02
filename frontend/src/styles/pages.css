@@ -1182,6 +1182,12 @@ textarea {
   width: min(980px, calc(100vw - 24px));
 }
 
+.purchase-returns-panel-modal {
+  width: min(1440px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+}
+
 .purchase-collections-table-shell {
   width: 100%;
   overflow-x: auto;

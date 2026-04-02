@@ -429,6 +429,7 @@ export function PurchasePlanningPage({
   const [supplierModalOpen, setSupplierModalOpen] = useState(false);
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const [purchaseReturnModalOpen, setPurchaseReturnModalOpen] = useState(false);
+  const [purchaseReturnsPanelOpen, setPurchaseReturnsPanelOpen] = useState(false);
   const [brandModal, setBrandModal] = useState<BrandModalState>(emptyBrandModal());
   const [supplierModal, setSupplierModal] = useState<SupplierModalState>(emptySupplierModal());
   const [collectionModal, setCollectionModal] = useState<CollectionModalState>(emptyCollectionModal());
@@ -1522,6 +1523,12 @@ export function PurchasePlanningPage({
             <div className="action-row">
               <button className="secondary-button" type="button" onClick={() => openBrandModal()}>
                 Nova marca
+              </button>
+              <button className="secondary-button" type="button" onClick={openInvoiceModal}>
+                Nova nota
+              </button>
+              <button className="secondary-button" type="button" onClick={() => setPurchaseReturnsPanelOpen(true)}>
+                Devolucoes
               </button>
           </div>
         </div>
@@ -2876,6 +2883,24 @@ export function PurchasePlanningPage({
     );
   }
 
+  function renderPurchaseReturnsPanelModal() {
+    if (!purchaseReturnsPanelOpen) return null;
+
+    return (
+      <div className="modal-backdrop" role="presentation">
+        <div className="modal-card purchase-modal-card purchase-returns-panel-modal">
+          <div className="purchase-panel-heading">
+            <h3>Devolucoes de compras</h3>
+            <button className="ghost-button" type="button" onClick={() => setPurchaseReturnsPanelOpen(false)}>
+              Fechar
+            </button>
+          </div>
+          {renderDevolucoes()}
+        </div>
+      </div>
+    );
+  }
+
   function renderCollectionModal() {
     if (!collectionModalOpen) return null;
 
@@ -2974,6 +2999,7 @@ export function PurchasePlanningPage({
       {renderUnassignedSuppliersModal()}
       {renderSupplierModal()}
       {renderPurchaseReturnModal()}
+      {renderPurchaseReturnsPanelModal()}
       {renderCollectionModal()}
     </>
   );
