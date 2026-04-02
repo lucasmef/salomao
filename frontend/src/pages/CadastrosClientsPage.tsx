@@ -13,7 +13,7 @@ export function CadastrosClientsPage({ tabs, dashboard }: Props) {
 
   return (
     <SectionChrome
-      sectionLabel="Cadastros"
+      sectionLabel="Sistema"
       tabLabel={currentTab.label}
       title={currentTab.title}
       description={currentTab.description}

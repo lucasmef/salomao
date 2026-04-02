@@ -1796,11 +1796,13 @@ function AppRuntime() {
 
   const activeChildSection = findChildNavItem(location.pathname);
   const overviewNavigation = getNavigationSection("overview");
-  const financeNavigation = getNavigationSection("financeiro");
+  const entriesNavigation = getNavigationSection("lancamentos");
+  const reconciliationNavigation = getNavigationSection("conciliacao");
+  const billingNavigation = getNavigationSection("cobranca");
   const purchaseNavigation = getNavigationSection("compras");
-  const resultsNavigation = getNavigationSection("caixa-resultados");
-  const masterDataNavigation = getNavigationSection("cadastros");
+  const resultsNavigation = getNavigationSection("resultados");
   const systemNavigation = getNavigationSection("sistema");
+  const systemTabs = systemNavigation.children;
   const purchasePageProps = {
     embedded: true,
     brands,
@@ -1919,11 +1921,11 @@ function AppRuntime() {
           <Route
             element={
               <SectionChrome
-                description={financeNavigation.children[0].description}
-                sectionLabel="Financeiro"
-                tabLabel={financeNavigation.children[0].label}
-                tabs={financeNavigation.children}
-                title={financeNavigation.children[0].title}
+                description={entriesNavigation.children[0].description}
+                sectionLabel="Lancamentos"
+                tabLabel={entriesNavigation.children[0].label}
+                tabs={entriesNavigation.children}
+                title={entriesNavigation.children[0].title}
               >
                 <EntriesPage
                   embedded
@@ -1958,11 +1960,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={financeNavigation.children[1].description}
-              sectionLabel="Financeiro"
-              tabLabel={financeNavigation.children[1].label}
-              tabs={financeNavigation.children}
-              title={financeNavigation.children[1].title}
+              description={reconciliationNavigation.children[0].description}
+              sectionLabel="Conciliacao"
+              tabLabel={reconciliationNavigation.children[0].label}
+              tabs={reconciliationNavigation.children}
+              title={reconciliationNavigation.children[0].title}
             >
               <ReconciliationPage
                 embedded
@@ -1992,11 +1994,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={financeNavigation.children[2].description}
-              sectionLabel="Financeiro"
-              tabLabel={financeNavigation.children[2].label}
-              tabs={financeNavigation.children}
-              title={financeNavigation.children[2].title}
+              description={billingNavigation.children[0].description}
+              sectionLabel="Cobranca"
+              tabLabel={billingNavigation.children[0].label}
+              tabs={billingNavigation.children}
+              title={billingNavigation.children[0].title}
             >
               <BoletosPage
                 accounts={accounts}
@@ -2189,11 +2191,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={masterDataNavigation.children[0].description}
-              sectionLabel="Cadastros"
-              tabLabel={masterDataNavigation.children[0].label}
-              tabs={masterDataNavigation.children}
-              title={masterDataNavigation.children[0].title}
+              description={systemTabs[0].description}
+              sectionLabel="Sistema"
+              tabLabel={systemTabs[0].label}
+              tabs={systemTabs}
+              title={systemTabs[0].title}
             >
               <MasterDataPage
                 embedded
@@ -2215,11 +2217,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={masterDataNavigation.children[1].description}
-              sectionLabel="Cadastros"
-              tabLabel={masterDataNavigation.children[1].label}
-              tabs={masterDataNavigation.children}
-              title={masterDataNavigation.children[1].title}
+              description={systemTabs[1].description}
+              sectionLabel="Sistema"
+              tabLabel={systemTabs[1].label}
+              tabs={systemTabs}
+              title={systemTabs[1].title}
             >
               <MasterDataPage
                 embedded
@@ -2239,21 +2241,21 @@ function AppRuntime() {
           path="/cadastros/categorias"
         />
         <Route
-          element={<CadastrosClientsPage dashboard={boletoDashboard} tabs={masterDataNavigation.children} />}
+          element={<CadastrosClientsPage dashboard={boletoDashboard} tabs={systemTabs} />}
           path="/cadastros/clientes"
         />
         <Route
-          element={<CadastrosRulesPage loans={loans} recurrences={recurrences} tabs={masterDataNavigation.children} />}
+          element={<CadastrosRulesPage loans={loans} recurrences={recurrences} tabs={systemTabs} />}
           path="/cadastros/regras"
         />
         <Route
           element={
             <SectionChrome
-              description={masterDataNavigation.children[4].description}
-              sectionLabel="Cadastros"
-              tabLabel={masterDataNavigation.children[4].label}
-              tabs={masterDataNavigation.children}
-              title={masterDataNavigation.children[4].title}
+              description={systemTabs[4].description}
+              sectionLabel="Sistema"
+              tabLabel={systemTabs[4].label}
+              tabs={systemTabs}
+              title={systemTabs[4].title}
             >
               <PurchasePlanningPage {...purchasePageProps} view="fornecedores" />
             </SectionChrome>
@@ -2264,11 +2266,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={systemNavigation.children[0].description}
+              description={systemTabs[5].description}
               sectionLabel="Sistema"
-              tabLabel={systemNavigation.children[0].label}
-              tabs={systemNavigation.children}
-              title={systemNavigation.children[0].title}
+              tabLabel={systemTabs[5].label}
+              tabs={systemTabs}
+              title={systemTabs[5].title}
             >
               <SecurityPage
                 embedded
@@ -2296,11 +2298,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={systemNavigation.children[1].description}
+              description={systemTabs[6].description}
               sectionLabel="Sistema"
-              tabLabel={systemNavigation.children[1].label}
-              tabs={systemNavigation.children}
-              title={systemNavigation.children[1].title}
+              tabLabel={systemTabs[6].label}
+              tabs={systemTabs}
+              title={systemTabs[6].title}
             >
               <SecurityPage
                 embedded
@@ -2328,11 +2330,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={systemNavigation.children[2].description}
+              description={systemTabs[7].description}
               sectionLabel="Sistema"
-              tabLabel={systemNavigation.children[2].label}
-              tabs={systemNavigation.children}
-              title={systemNavigation.children[2].title}
+              tabLabel={systemTabs[7].label}
+              tabs={systemTabs}
+              title={systemTabs[7].title}
             >
               <SecurityPage
                 embedded
@@ -2365,13 +2367,13 @@ function AppRuntime() {
               onSyncInterStatement={syncInterStatementImport}
               onUploadHistorical={uploadHistoricalCashbookImport}
               submitting={submitting}
-              tabs={systemNavigation.children}
+              tabs={systemTabs}
             />
           }
           path="/sistema/importacoes-gerais"
         />
         <Route
-          element={<SystemAuditPage backups={backups} importSummary={importSummary} tabs={systemNavigation.children} />}
+          element={<SystemAuditPage backups={backups} importSummary={importSummary} tabs={systemTabs} />}
           path="/sistema/auditoria"
         />
 

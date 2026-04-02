@@ -36,7 +36,9 @@ type Props = {
 type EditableClient = BoletoClient & { dirty?: boolean };
 type TabId = "resumo" | "clientes" | "faturas";
 type InvoiceFilter = "open" | "open-boletos" | "overdue" | "paid-pending" | "missing" | "excess";
+type OpenReceivableSort = "due_date" | "client_name" | "document" | "status" | "amount";
 type OpenBoletoSort = "due_date" | "issue_date" | "client_name" | "bank" | "amount" | "document_id";
+type SortDirection = "asc" | "desc";
 
 const tabItems: Array<{ id: TabId; label: string }> = [
   { id: "resumo", label: "Resumo" },
@@ -182,6 +184,14 @@ function boletoMatchesQuery(
     .some((value) => String(value).toLowerCase().includes(normalizedQuery));
 }
 
+function compareText(left: string | null | undefined, right: string | null | undefined) {
+  return String(left ?? "").localeCompare(String(right ?? ""), "pt-BR");
+}
+
+function compareNumber(left: string | number, right: string | number) {
+  return Number(left) - Number(right);
+}
+
 export function BoletosPage({
   accounts,
   onCancelInterBoleto,
@@ -213,7 +223,10 @@ export function BoletosPage({
   const [selectedOpenBoletoIds, setSelectedOpenBoletoIds] = useState<string[]>([]);
   const [openBoletoSearch, setOpenBoletoSearch] = useState("");
   const [openBoletoBankFilter, setOpenBoletoBankFilter] = useState("all");
+  const [openReceivableSort, setOpenReceivableSort] = useState<OpenReceivableSort>("due_date");
+  const [openReceivableSortDirection, setOpenReceivableSortDirection] = useState<SortDirection>("asc");
   const [openBoletoSort, setOpenBoletoSort] = useState<OpenBoletoSort>("due_date");
+  const [openBoletoSortDirection, setOpenBoletoSortDirection] = useState<SortDirection>("asc");
 
   useEffect(() => {
     setClients(dashboard.clients.map((item) => ({ ...item, dirty: false })));
@@ -241,8 +254,28 @@ export function BoletosPage({
     () =>
       [...dashboard.receivables]
         .filter((item) => Number(item.corrected_amount || item.amount) > 0)
-        .sort((left, right) => String(left.due_date ?? "").localeCompare(String(right.due_date ?? ""))),
-    [dashboard.receivables],
+        .sort((left, right) => {
+          const result = (() => {
+            switch (openReceivableSort) {
+              case "client_name":
+                return compareText(left.client_name, right.client_name);
+              case "document":
+                return compareText(
+                  `${left.invoice_number || "Sem numero"}/${left.installment || "-"}`,
+                  `${right.invoice_number || "Sem numero"}/${right.installment || "-"}`,
+                );
+              case "status":
+                return compareText(left.status, right.status);
+              case "amount":
+                return compareNumber(left.corrected_amount || left.amount, right.corrected_amount || right.amount);
+              case "due_date":
+              default:
+                return compareText(left.due_date, right.due_date);
+            }
+          })();
+          return openReceivableSortDirection === "asc" ? result : -result;
+        }),
+    [dashboard.receivables, openReceivableSort, openReceivableSortDirection],
   );
   const hasInterApiAccount = useMemo(
     () => accounts.some((account) => account.is_active && account.inter_api_enabled),
@@ -258,23 +291,26 @@ export function BoletosPage({
         .filter((item) => boletoMatchesQuery(item, openBoletoSearch))
         .filter((item) => openBoletoBankFilter === "all" || item.bank === openBoletoBankFilter)
         .sort((left, right) => {
-          switch (openBoletoSort) {
-            case "issue_date":
-              return String(left.issue_date ?? "").localeCompare(String(right.issue_date ?? ""));
-            case "client_name":
-              return left.client_name.localeCompare(right.client_name, "pt-BR");
-            case "bank":
-              return left.bank.localeCompare(right.bank, "pt-BR");
-            case "amount":
-              return Number(left.amount) - Number(right.amount);
-            case "document_id":
-              return String(left.document_id ?? "").localeCompare(String(right.document_id ?? ""), "pt-BR");
-            case "due_date":
-            default:
-              return String(left.due_date ?? "").localeCompare(String(right.due_date ?? ""));
-          }
+          const result = (() => {
+            switch (openBoletoSort) {
+              case "issue_date":
+                return compareText(left.issue_date, right.issue_date);
+              case "client_name":
+                return compareText(left.client_name, right.client_name);
+              case "bank":
+                return compareText(left.bank, right.bank);
+              case "amount":
+                return compareNumber(left.amount, right.amount);
+              case "document_id":
+                return compareText(left.document_id, right.document_id);
+              case "due_date":
+              default:
+                return compareText(left.due_date, right.due_date);
+            }
+          })();
+          return openBoletoSortDirection === "asc" ? result : -result;
         }),
-    [dashboard.open_boletos, openBoletoSearch, openBoletoBankFilter, openBoletoSort],
+    [dashboard.open_boletos, openBoletoSearch, openBoletoBankFilter, openBoletoSort, openBoletoSortDirection],
   );
   const downloadableOpenBoletos = useMemo(
     () => filteredOpenBoletos.filter((item) => item.pdf_available),
@@ -322,6 +358,41 @@ export function BoletosPage({
   function toggleOpenBoletoSelection(boletoId: string) {
     setSelectedOpenBoletoIds((current) =>
       current.includes(boletoId) ? current.filter((item) => item !== boletoId) : [...current, boletoId],
+    );
+  }
+
+  function toggleOpenReceivableSort(nextSort: OpenReceivableSort) {
+    if (openReceivableSort === nextSort) {
+      setOpenReceivableSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setOpenReceivableSort(nextSort);
+    setOpenReceivableSortDirection("asc");
+  }
+
+  function toggleOpenBoletoSort(nextSort: OpenBoletoSort) {
+    if (openBoletoSort === nextSort) {
+      setOpenBoletoSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setOpenBoletoSort(nextSort);
+    setOpenBoletoSortDirection("asc");
+  }
+
+  function renderSortButton(
+    label: string,
+    sortKey: string,
+    currentSort: string,
+    direction: SortDirection,
+    onClick: () => void,
+    numeric = false,
+  ) {
+    const indicator = currentSort === sortKey ? (direction === "asc" ? "^" : "v") : "";
+    return (
+      <button className={`table-sort-button ${numeric ? "numeric" : ""}`.trim()} onClick={onClick} type="button">
+        <strong>{label}</strong>
+        <span>{indicator}</span>
+      </button>
     );
   }
 
@@ -487,11 +558,13 @@ export function BoletosPage({
             <table className="erp-table">
               <thead>
                 <tr>
-                  <th>Vencimento</th>
-                  <th>Cliente</th>
-                  <th>Titulo</th>
-                  <th>Status</th>
-                  <th className="numeric-cell">Saldo</th>
+                  <th>{renderSortButton("Vencimento", "due_date", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("due_date"))}</th>
+                  <th>{renderSortButton("Cliente", "client_name", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("client_name"))}</th>
+                  <th>{renderSortButton("Titulo", "document", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("document"))}</th>
+                  <th>{renderSortButton("Status", "status", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("status"))}</th>
+                  <th className="numeric-cell">
+                    {renderSortButton("Saldo", "amount", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("amount"), true)}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -689,17 +762,6 @@ export function BoletosPage({
                   ))}
                 </select>
               </label>
-              <label className="billing-search-field billing-search-field--compact">
-                <span>Ordenar por</span>
-                <select value={openBoletoSort} onChange={(event) => setOpenBoletoSort(event.target.value as OpenBoletoSort)}>
-                  <option value="due_date">Vencimento</option>
-                  <option value="issue_date">Data de emissao</option>
-                  <option value="client_name">Cliente</option>
-                  <option value="bank">Banco</option>
-                  <option value="amount">Valor</option>
-                  <option value="document_id">Documento</option>
-                </select>
-              </label>
               <button
                 className="secondary-button"
                 disabled={submitting || !selectedOpenBoletoIds.length}
@@ -728,13 +790,15 @@ export function BoletosPage({
                       type="checkbox"
                     />
                   </th>
-                  <th>Cliente</th>
-                  <th>Documento</th>
-                  <th>Emissao</th>
-                  <th>Vencimento</th>
-                  <th className="numeric-cell">Valor</th>
+                  <th>{renderSortButton("Cliente", "client_name", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("client_name"))}</th>
+                  <th>{renderSortButton("Documento", "document_id", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("document_id"))}</th>
+                  <th>{renderSortButton("Emissao", "issue_date", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("issue_date"))}</th>
+                  <th>{renderSortButton("Vencimento", "due_date", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("due_date"))}</th>
+                  <th className="numeric-cell">
+                    {renderSortButton("Valor", "amount", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("amount"), true)}
+                  </th>
                   <th>Status</th>
-                  <th>Banco</th>
+                  <th>{renderSortButton("Banco", "bank", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("bank"))}</th>
                   <th>Acoes</th>
                 </tr>
               </thead>
