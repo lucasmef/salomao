@@ -43,6 +43,8 @@ INTER_BATCH_SOURCE_TYPES = {
     "statement": "inter_statement",
     "charge_sync": "inter_charge_sync",
     "charge_issue": "inter_charge_issue",
+    "charge_cancel": "inter_charge_cancel",
+    "charge_receive": "inter_charge_receive",
 }
 
 
@@ -229,6 +231,32 @@ def _get_inter_account(db: Session, company: Company, account_id: str) -> tuple[
     return account, _load_inter_account_config(account)
 
 
+def _resolve_inter_account(
+    db: Session,
+    company: Company,
+    account_id: str | None,
+) -> tuple[Account, InterAccountConfig]:
+    normalized_account_id = _normalize_optional_text(account_id)
+    if normalized_account_id:
+        return _get_inter_account(db, company, normalized_account_id)
+
+    enabled_accounts = list(
+        db.scalars(
+            select(Account).where(
+                Account.company_id == company.id,
+                Account.is_active.is_(True),
+                Account.inter_api_enabled.is_(True),
+            )
+        )
+    )
+    if not enabled_accounts:
+        raise ValueError("Nenhuma conta com API do Inter habilitada foi encontrada.")
+    if len(enabled_accounts) > 1:
+        raise ValueError("Existe mais de uma conta com API do Inter habilitada. Mantenha apenas uma ativa.")
+    account = enabled_accounts[0]
+    return account, _load_inter_account_config(account)
+
+
 class InterApiClient:
     def __init__(
         self,
@@ -306,6 +334,8 @@ class InterApiClient:
         with self._create_client() as client:
             response = client.request(method, path, headers=headers, **kwargs)
         response.raise_for_status()
+        if response.status_code == 204 or not response.content:
+            return {}
         return response.json()
 
     def get_complete_statement(self, start_date: date, end_date: date) -> list[dict[str, Any]]:
@@ -360,6 +390,20 @@ class InterApiClient:
 
     def create_charge(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self.request("POST", "/cobranca/v3/cobrancas", json=payload)
+
+    def cancel_charge(self, codigo_solicitacao: str, *, motivo_cancelamento: str) -> dict[str, Any]:
+        return self.request(
+            "POST",
+            f"/cobranca/v3/cobrancas/{codigo_solicitacao}/cancelar",
+            json={"motivoCancelamento": motivo_cancelamento},
+        )
+
+    def pay_charge(self, codigo_solicitacao: str, *, pagar_com: str = "BOLETO") -> dict[str, Any]:
+        return self.request(
+            "POST",
+            f"/cobranca/v3/cobrancas/{codigo_solicitacao}/pagar",
+            json={"pagarCom": pagar_com},
+        )
 
 
 def _find_existing_boleto_record(
@@ -447,12 +491,12 @@ def sync_inter_statement(
     db: Session,
     company: Company,
     *,
-    account_id: str,
+    account_id: str | None,
     start_date: date,
     end_date: date,
     transport: httpx.BaseTransport | None = None,
 ) -> ImportResult:
-    _account, config = _get_inter_account(db, company, account_id)
+    account, config = _resolve_inter_account(db, company, account_id)
     batch = _start_sync_batch(
         db,
         company.id,
@@ -468,10 +512,10 @@ def sync_inter_statement(
     inserted = 0
     duplicates = 0
     for transaction in transactions:
-        payload = _map_statement_to_transaction_payload(company.id, batch.id, account_id, transaction)
+        payload = _map_statement_to_transaction_payload(company.id, batch.id, account.id, transaction)
         existing = db.scalar(
             select(BankTransaction).where(
-                BankTransaction.account_id == account_id,
+                BankTransaction.account_id == account.id,
                 BankTransaction.fit_id == payload["fit_id"],
             )
         )
@@ -496,12 +540,12 @@ def sync_inter_charges(
     db: Session,
     company: Company,
     *,
-    account_id: str,
+    account_id: str | None,
     start_date: date,
     end_date: date,
     transport: httpx.BaseTransport | None = None,
 ) -> ImportResult:
-    _account, config = _get_inter_account(db, company, account_id)
+    account, config = _resolve_inter_account(db, company, account_id)
     batch = _start_sync_batch(
         db,
         company.id,
@@ -520,7 +564,7 @@ def sync_inter_charges(
                 db,
                 company_id=company.id,
                 batch_id=batch.id,
-                account_id=account_id,
+                account_id=account.id,
                 detail_payload=detail,
             )
             if created:
@@ -568,6 +612,7 @@ def _build_inter_charge_payload(item: Any, config: BoletoCustomerConfig, *, toda
         "valorNominal": format(Decimal(item.amount).quantize(Decimal("0.01")), "f"),
         "dataVencimento": due_date.isoformat(),
         "numDiasAgenda": 30,
+        "formasRecebimento": ["BOLETO"],
         "pagador": {
             "tipoPessoa": "FISICA" if len(tax_id) == 11 else "JURIDICA",
             "nome": _truncate_text(item.client_name, 100),
@@ -589,7 +634,7 @@ def issue_inter_charges(
     db: Session,
     company: Company,
     *,
-    account_id: str,
+    account_id: str | None,
     selection_keys: list[str],
     transport: httpx.BaseTransport | None = None,
 ) -> ImportResult:
@@ -597,7 +642,7 @@ def issue_inter_charges(
     if not normalized_selection_keys:
         raise ValueError("Selecione ao menos um boleto faltando para emitir no Inter.")
 
-    _account, config = _get_inter_account(db, company, account_id)
+    account, config = _resolve_inter_account(db, company, account_id)
     dashboard = build_boleto_dashboard(db, company, include_all_monthly_missing=True)
     selected_items = [
         item for item in dashboard.missing_boletos if item.selection_key in normalized_selection_keys
@@ -651,7 +696,7 @@ def issue_inter_charges(
                 db,
                 company_id=company.id,
                 batch_id=batch.id,
-                account_id=account_id,
+                account_id=account.id,
                 detail_payload=detail,
             )
     finally:
@@ -698,6 +743,21 @@ def _load_inter_boleto_for_pdf(db: Session, company: Company, boleto_id: str) ->
         raise ValueError("Boleto Inter nao encontrado.")
     if not boleto.inter_codigo_solicitacao:
         raise ValueError("Este boleto nao possui codigo de solicitacao do Inter para gerar o PDF.")
+    return boleto
+
+
+def _load_inter_boleto_for_action(db: Session, company: Company, boleto_id: str) -> BoletoRecord:
+    boleto = db.scalar(
+        select(BoletoRecord).where(
+            BoletoRecord.id == boleto_id,
+            BoletoRecord.company_id == company.id,
+            BoletoRecord.bank == "INTER",
+        )
+    )
+    if not boleto:
+        raise ValueError("Boleto Inter nao encontrado.")
+    if not boleto.inter_codigo_solicitacao:
+        raise ValueError("Este boleto nao possui codigo de solicitacao do Inter.")
     return boleto
 
 
@@ -750,3 +810,84 @@ def download_inter_charge_pdfs_zip(
 
     generated_at = datetime.now().strftime("%Y%m%d-%H%M%S")
     return output.getvalue(), f"boletos-inter-{generated_at}.zip"
+
+
+def cancel_inter_charge(
+    db: Session,
+    company: Company,
+    *,
+    boleto_id: str,
+    motivo_cancelamento: str,
+    transport: httpx.BaseTransport | None = None,
+) -> ImportResult:
+    boleto = _load_inter_boleto_for_action(db, company, boleto_id)
+    account, config = _resolve_pdf_download_account(db, company, boleto)
+    batch = _start_sync_batch(
+        db,
+        company.id,
+        source_type=_resolve_batch_source_type("charge_cancel"),
+        filename=f"inter-cancelamento-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+    )
+    client = InterApiClient(config, transport=transport)
+    try:
+        client.cancel_charge(str(boleto.inter_codigo_solicitacao), motivo_cancelamento=motivo_cancelamento.strip())
+        detail = client.get_charge_detail(str(boleto.inter_codigo_solicitacao))
+        _upsert_boleto_record(
+            db,
+            company_id=company.id,
+            batch_id=batch.id,
+            account_id=account.id,
+            detail_payload=detail,
+        )
+    finally:
+        client.close()
+
+    batch.records_total = 1
+    batch.records_valid = 1
+    batch.records_invalid = 0
+    batch.status = "processed"
+    db.commit()
+    db.refresh(batch)
+    return ImportResult(batch=batch, message="Boleto do Inter cancelado com sucesso.")
+
+
+def receive_inter_charge(
+    db: Session,
+    company: Company,
+    *,
+    boleto_id: str,
+    pagar_com: str = "BOLETO",
+    transport: httpx.BaseTransport | None = None,
+) -> ImportResult:
+    boleto = _load_inter_boleto_for_action(db, company, boleto_id)
+    account, config = _resolve_pdf_download_account(db, company, boleto)
+    if config.environment != "sandbox":
+        raise ValueError("A baixa manual via API do Inter esta disponivel apenas no sandbox.")
+
+    batch = _start_sync_batch(
+        db,
+        company.id,
+        source_type=_resolve_batch_source_type("charge_receive"),
+        filename=f"inter-baixa-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+    )
+    client = InterApiClient(config, transport=transport)
+    try:
+        client.pay_charge(str(boleto.inter_codigo_solicitacao), pagar_com=pagar_com.strip().upper() or "BOLETO")
+        detail = client.get_charge_detail(str(boleto.inter_codigo_solicitacao))
+        _upsert_boleto_record(
+            db,
+            company_id=company.id,
+            batch_id=batch.id,
+            account_id=account.id,
+            detail_payload=detail,
+        )
+    finally:
+        client.close()
+
+    batch.records_total = 1
+    batch.records_valid = 1
+    batch.records_invalid = 0
+    batch.status = "processed"
+    db.commit()
+    db.refresh(batch)
+    return ImportResult(batch=batch, message="Baixa do boleto do Inter concluida com sucesso.")

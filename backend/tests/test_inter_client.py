@@ -126,3 +126,18 @@ def test_get_charge_pdf_decodes_base64_payload() -> None:
         assert client.get_charge_pdf("SOL-001") == b"%PDF-FAKE"
     finally:
         client.close()
+
+
+def test_pay_charge_accepts_no_content_response() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            return httpx.Response(200, json={"access_token": "token-123"})
+        if request.url.path == "/cobranca/v3/cobrancas/SOL-001/pagar":
+            return httpx.Response(204)
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    client = InterApiClient(_build_config(), transport=httpx.MockTransport(handler))
+    try:
+        assert client.pay_charge("SOL-001", pagar_com="BOLETO") == {}
+    finally:
+        client.close()

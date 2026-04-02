@@ -12,7 +12,7 @@ def _default_charge_start() -> date:
 
 
 class InterStatementSyncRequest(BaseModel):
-    account_id: str = Field(min_length=1)
+    account_id: str | None = Field(default=None, min_length=1)
     start_date: date = Field(default_factory=_default_statement_start)
     end_date: date = Field(default_factory=date.today)
 
@@ -24,7 +24,7 @@ class InterStatementSyncRequest(BaseModel):
 
 
 class InterChargeSyncRequest(BaseModel):
-    account_id: str = Field(min_length=1)
+    account_id: str | None = Field(default=None, min_length=1)
     start_date: date = Field(default_factory=_default_charge_start)
     end_date: date = Field(default_factory=date.today)
 
@@ -36,5 +36,5 @@ class InterChargeSyncRequest(BaseModel):
 
 
 class InterChargeIssueRequest(BaseModel):
-    account_id: str = Field(min_length=1)
+    account_id: str | None = Field(default=None, min_length=1)
     selection_keys: list[str] = Field(default_factory=list)

@@ -6,14 +6,16 @@ import type { Account, BoletoAlertItem, BoletoClient, BoletoDashboard } from "..
 
 type Props = {
   accounts: Account[];
+  onCancelInterBoleto: (boletoId: string) => Promise<void>;
   dashboard: BoletoDashboard;
   showAllMonthlyMissingBoletos: boolean;
   submitting: boolean;
   onDownloadInterBoletoPdf: (boletoId: string) => Promise<void>;
   onDownloadInterBoletoPdfBatch: (boletoIds: string[]) => Promise<void>;
   onExportMissingBoletos: (selectionKeys: string[]) => Promise<void>;
-  onIssueInterCharges: (accountId: string, selectionKeys: string[]) => Promise<void>;
-  onSyncInterCharges: (accountId: string) => Promise<void>;
+  onIssueInterCharges: (selectionKeys: string[]) => Promise<void>;
+  onReceiveInterBoleto: (boletoId: string, payWith?: "BOLETO" | "PIX") => Promise<void>;
+  onSyncInterCharges: () => Promise<void>;
   onToggleAllMonthlyMissingBoletos: (showAll: boolean) => Promise<void>;
   onUploadReceivables: (file: File) => Promise<void>;
   onUploadBoletoInter: (file: File) => Promise<void>;
@@ -34,6 +36,7 @@ type Props = {
 type EditableClient = BoletoClient & { dirty?: boolean };
 type TabId = "resumo" | "clientes" | "faturas";
 type InvoiceFilter = "open" | "open-boletos" | "overdue" | "paid-pending" | "missing" | "excess";
+type OpenBoletoSort = "due_date" | "issue_date" | "client_name" | "bank" | "amount" | "document_id";
 
 const tabItems: Array<{ id: TabId; label: string }> = [
   { id: "resumo", label: "Resumo" },
@@ -76,6 +79,30 @@ function DownloadIcon() {
       <path d="M10 4.5v8.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M6.75 10 10 13.25 13.25 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M4 15.25h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
+      <path d="M14.75 6.25V3.75m0 0h-2.5m2.5 0L12.5 6A5.75 5.75 0 1 0 14 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CancelIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
+      <path d="m6 6 8 8M14 6l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
+      <path d="m5.5 10.5 3 3 6-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -157,6 +184,7 @@ function boletoMatchesQuery(
 
 export function BoletosPage({
   accounts,
+  onCancelInterBoleto,
   dashboard,
   showAllMonthlyMissingBoletos,
   submitting,
@@ -164,6 +192,7 @@ export function BoletosPage({
   onDownloadInterBoletoPdfBatch,
   onExportMissingBoletos,
   onIssueInterCharges,
+  onReceiveInterBoleto,
   onSyncInterCharges,
   onToggleAllMonthlyMissingBoletos,
   onUploadReceivables,
@@ -183,7 +212,8 @@ export function BoletosPage({
   const [selectedMissingKeys, setSelectedMissingKeys] = useState<string[]>([]);
   const [selectedOpenBoletoIds, setSelectedOpenBoletoIds] = useState<string[]>([]);
   const [openBoletoSearch, setOpenBoletoSearch] = useState("");
-  const [interAccountId, setInterAccountId] = useState("");
+  const [openBoletoBankFilter, setOpenBoletoBankFilter] = useState("all");
+  const [openBoletoSort, setOpenBoletoSort] = useState<OpenBoletoSort>("due_date");
 
   useEffect(() => {
     setClients(dashboard.clients.map((item) => ({ ...item, dirty: false })));
@@ -198,18 +228,6 @@ export function BoletosPage({
     const visibleIds = new Set(dashboard.open_boletos.map((item) => item.id));
     setSelectedOpenBoletoIds((current) => current.filter((item) => visibleIds.has(item)));
   }, [dashboard.open_boletos]);
-
-  useEffect(() => {
-    const activeInterAccounts = accounts.filter((account) => account.is_active && account.inter_api_enabled);
-    if (!activeInterAccounts.length) {
-      setInterAccountId("");
-      return;
-    }
-    if (activeInterAccounts.some((account) => account.id === interAccountId)) {
-      return;
-    }
-    setInterAccountId(activeInterAccounts[0].id);
-  }, [accounts, interAccountId]);
 
   const topClients = useMemo(
     () => [...dashboard.clients].sort((left, right) => Number(right.total_amount) - Number(left.total_amount)).slice(0, 8),
@@ -226,13 +244,37 @@ export function BoletosPage({
         .sort((left, right) => String(left.due_date ?? "").localeCompare(String(right.due_date ?? ""))),
     [dashboard.receivables],
   );
-  const interAccounts = useMemo(
-    () => accounts.filter((account) => account.is_active && account.inter_api_enabled),
+  const hasInterApiAccount = useMemo(
+    () => accounts.some((account) => account.is_active && account.inter_api_enabled),
     [accounts],
   );
+  const availableOpenBoletoBanks = useMemo(
+    () => [...new Set(dashboard.open_boletos.map((item) => item.bank).filter(Boolean))].sort((left, right) => left.localeCompare(right, "pt-BR")),
+    [dashboard.open_boletos],
+  );
   const filteredOpenBoletos = useMemo(
-    () => dashboard.open_boletos.filter((item) => boletoMatchesQuery(item, openBoletoSearch)),
-    [dashboard.open_boletos, openBoletoSearch],
+    () =>
+      dashboard.open_boletos
+        .filter((item) => boletoMatchesQuery(item, openBoletoSearch))
+        .filter((item) => openBoletoBankFilter === "all" || item.bank === openBoletoBankFilter)
+        .sort((left, right) => {
+          switch (openBoletoSort) {
+            case "issue_date":
+              return String(left.issue_date ?? "").localeCompare(String(right.issue_date ?? ""));
+            case "client_name":
+              return left.client_name.localeCompare(right.client_name, "pt-BR");
+            case "bank":
+              return left.bank.localeCompare(right.bank, "pt-BR");
+            case "amount":
+              return Number(left.amount) - Number(right.amount);
+            case "document_id":
+              return String(left.document_id ?? "").localeCompare(String(right.document_id ?? ""), "pt-BR");
+            case "due_date":
+            default:
+              return String(left.due_date ?? "").localeCompare(String(right.due_date ?? ""));
+          }
+        }),
+    [dashboard.open_boletos, openBoletoSearch, openBoletoBankFilter, openBoletoSort],
   );
   const downloadableOpenBoletos = useMemo(
     () => filteredOpenBoletos.filter((item) => item.pdf_available),
@@ -281,6 +323,49 @@ export function BoletosPage({
     setSelectedOpenBoletoIds((current) =>
       current.includes(boletoId) ? current.filter((item) => item !== boletoId) : [...current, boletoId],
     );
+  }
+
+  function resolveInterEnvironment(boleto: BoletoDashboard["open_boletos"][number]) {
+    const directAccount = boleto.inter_account_id
+      ? accounts.find((account) => account.id === boleto.inter_account_id)
+      : null;
+    if (directAccount?.inter_environment) {
+      return directAccount.inter_environment;
+    }
+    const fallbackInterAccount = accounts.find((account) => account.is_active && account.inter_api_enabled);
+    return fallbackInterAccount?.inter_environment ?? null;
+  }
+
+  function canCancelInterBoleto(boleto: BoletoDashboard["open_boletos"][number]) {
+    return Boolean(
+      boleto.bank === "INTER" &&
+      boleto.inter_codigo_solicitacao &&
+      !["Cancelado", "Recebido por boleto"].includes(boleto.status),
+    );
+  }
+
+  function canReceiveInterBoleto(boleto: BoletoDashboard["open_boletos"][number]) {
+    return Boolean(
+      boleto.bank === "INTER" &&
+      boleto.inter_codigo_solicitacao &&
+      resolveInterEnvironment(boleto) === "sandbox" &&
+      boleto.status !== "Recebido por boleto" &&
+      boleto.status !== "Cancelado",
+    );
+  }
+
+  function handleCancelInterBoleto(boleto: BoletoDashboard["open_boletos"][number]) {
+    if (!window.confirm(`Cancelar o boleto ${boleto.document_id || boleto.inter_codigo_solicitacao}?`)) {
+      return;
+    }
+    void onCancelInterBoleto(boleto.id);
+  }
+
+  function handleReceiveInterBoleto(boleto: BoletoDashboard["open_boletos"][number]) {
+    if (!window.confirm(`Baixar o boleto ${boleto.document_id || boleto.inter_codigo_solicitacao} no Inter sandbox?`)) {
+      return;
+    }
+    void onReceiveInterBoleto(boleto.id, "BOLETO");
   }
 
   function renderBoletoActions(boletos: BoletoAlertItem["boletos"]) {
@@ -593,6 +678,28 @@ export function BoletosPage({
                   onChange={(event) => setOpenBoletoSearch(event.target.value)}
                 />
               </label>
+              <label className="billing-search-field billing-search-field--compact">
+                <span>Banco</span>
+                <select value={openBoletoBankFilter} onChange={(event) => setOpenBoletoBankFilter(event.target.value)}>
+                  <option value="all">Todos</option>
+                  {availableOpenBoletoBanks.map((bank) => (
+                    <option key={bank} value={bank}>
+                      {bank}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="billing-search-field billing-search-field--compact">
+                <span>Ordenar por</span>
+                <select value={openBoletoSort} onChange={(event) => setOpenBoletoSort(event.target.value as OpenBoletoSort)}>
+                  <option value="due_date">Vencimento</option>
+                  <option value="issue_date">Data de emissao</option>
+                  <option value="client_name">Cliente</option>
+                  <option value="bank">Banco</option>
+                  <option value="amount">Valor</option>
+                  <option value="document_id">Documento</option>
+                </select>
+              </label>
               <button
                 className="secondary-button"
                 disabled={submitting || !selectedOpenBoletoIds.length}
@@ -628,7 +735,7 @@ export function BoletosPage({
                   <th className="numeric-cell">Valor</th>
                   <th>Status</th>
                   <th>Banco</th>
-                  <th>PDF</th>
+                  <th>Acoes</th>
                 </tr>
               </thead>
               <tbody>
@@ -655,19 +762,44 @@ export function BoletosPage({
                     <td>{formatEntryStatus(item.status)}</td>
                     <td>{item.bank}</td>
                     <td>
-                      {item.pdf_available ? (
-                        <button
-                          className="table-button icon-only-button"
-                          disabled={submitting}
-                          onClick={() => void onDownloadInterBoletoPdf(item.id)}
-                          title="Baixar PDF do boleto"
-                          type="button"
-                        >
-                          <DownloadIcon />
-                        </button>
-                      ) : (
-                        <small className="compact-muted">Nao disponivel</small>
-                      )}
+                      <div className="billing-boleto-row-actions">
+                        {item.pdf_available ? (
+                          <button
+                            className="table-button icon-only-button"
+                            disabled={submitting}
+                            onClick={() => void onDownloadInterBoletoPdf(item.id)}
+                            title="Baixar PDF do boleto"
+                            type="button"
+                          >
+                            <DownloadIcon />
+                          </button>
+                        ) : null}
+                        {canReceiveInterBoleto(item) ? (
+                          <button
+                            className="table-button icon-only-button"
+                            disabled={submitting}
+                            onClick={() => handleReceiveInterBoleto(item)}
+                            title="Baixar no sandbox"
+                            type="button"
+                          >
+                            <CheckIcon />
+                          </button>
+                        ) : null}
+                        {canCancelInterBoleto(item) ? (
+                          <button
+                            className="table-button icon-only-button"
+                            disabled={submitting}
+                            onClick={() => handleCancelInterBoleto(item)}
+                            title="Cancelar boleto no Inter"
+                            type="button"
+                          >
+                            <CancelIcon />
+                          </button>
+                        ) : null}
+                        {!item.pdf_available && !canReceiveInterBoleto(item) && !canCancelInterBoleto(item) ? (
+                          <small className="compact-muted">Nao disponivel</small>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -700,14 +832,6 @@ export function BoletosPage({
               />
               <span>Exibe todos boletos de clientes mensal</span>
             </label>
-            <select value={interAccountId} onChange={(event) => setInterAccountId(event.target.value)}>
-              <option value="">Conta Inter</option>
-              {interAccounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
             <button
               className="primary-button"
               disabled={submitting || !selectedMissingKeys.length}
@@ -718,8 +842,8 @@ export function BoletosPage({
             </button>
             <button
               className="secondary-button"
-              disabled={submitting || !selectedMissingKeys.length || !interAccountId}
-              onClick={() => void onIssueInterCharges(interAccountId, selectedMissingKeys)}
+              disabled={submitting || !selectedMissingKeys.length || !hasInterApiAccount}
+              onClick={() => void onIssueInterCharges(selectedMissingKeys)}
               type="button"
             >
               Emitir no Inter
@@ -844,30 +968,20 @@ export function BoletosPage({
                 />
                 <div className="compact-import-card billing-import-card">
                   <div className="billing-import-header">
-                    <strong>API Inter</strong>
+                    <strong>Inter</strong>
                     <button
                       className="primary-button icon-button"
-                      disabled={submitting || !interAccountId}
-                      onClick={() => void onSyncInterCharges(interAccountId)}
-                      title="Sincronizar cobrancas no Inter"
+                      disabled={submitting || !hasInterApiAccount}
+                      onClick={() => void onSyncInterCharges()}
+                      title="Atualizar cobrancas do Inter"
                       type="button"
                     >
-                      <UploadIcon />
+                      <RefreshIcon />
                     </button>
                   </div>
-                  <div className="billing-file-picker-row">
-                    <select value={interAccountId} onChange={(event) => setInterAccountId(event.target.value)}>
-                      <option value="">Selecionar conta</option>
-                      {interAccounts.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                   <div className="billing-import-meta">
-                    {renderFileMeta("boletos:inter:sync:")}
-                    {!interAccounts.length && (
+                    {renderFileMeta("inter_charge_sync")}
+                    {!hasInterApiAccount && (
                       <small className="compact-muted">Cadastre a chave da API do Inter na conta para habilitar.</small>
                     )}
                   </div>

@@ -24,6 +24,8 @@ from app.services.boletos import build_boleto_dashboard
 
 class FakeInterApiClient:
     issued_payloads: list[dict] = []
+    canceled_codes: list[str] = []
+    paid_codes: list[str] = []
 
     def __init__(self, config, *, transport=None) -> None:
         self.config = config
@@ -80,6 +82,14 @@ class FakeInterApiClient:
         self.__class__.issued_payloads.append(payload)
         return {"codigoSolicitacao": "SOL-NEW-1"}
 
+    def cancel_charge(self, codigo_solicitacao: str, *, motivo_cancelamento: str) -> dict:
+        self.__class__.canceled_codes.append(f"{codigo_solicitacao}:{motivo_cancelamento}")
+        return {}
+
+    def pay_charge(self, codigo_solicitacao: str, *, pagar_com: str = "BOLETO") -> dict:
+        self.__class__.paid_codes.append(f"{codigo_solicitacao}:{pagar_com}")
+        return {}
+
 
 def _build_test_session() -> tuple[Session, Company, User, Account]:
     engine = create_engine(
@@ -109,6 +119,7 @@ def _build_test_session() -> tuple[Session, Company, User, Account]:
         bank_code="077",
         account_number="123456",
         inter_api_enabled=True,
+        inter_environment="sandbox",
         inter_api_key="client-id",
         inter_account_number="123456",
         inter_client_secret_encrypted=encrypt_text("client-secret"),
@@ -175,6 +186,8 @@ def test_inter_endpoints_smoke(monkeypatch) -> None:
     session, company, user, account = _build_test_session()
     _create_receivable_seed(session, company)
     FakeInterApiClient.issued_payloads = []
+    FakeInterApiClient.canceled_codes = []
+    FakeInterApiClient.paid_codes = []
 
     monkeypatch.setattr("app.services.inter.InterApiClient", FakeInterApiClient)
 
@@ -211,7 +224,7 @@ def test_inter_endpoints_smoke(monkeypatch) -> None:
 
         statement_response = client.post(
             "/api/v1/imports/inter/statement-sync",
-            json={"account_id": account.id},
+            json={},
         )
         assert statement_response.status_code == 201
 
@@ -220,14 +233,14 @@ def test_inter_endpoints_smoke(monkeypatch) -> None:
 
         issue_response = client.post(
             "/api/v1/boletos/inter/issue",
-            json={"account_id": account.id, "selection_keys": [dashboard.missing_boletos[0].selection_key]},
+            json={"selection_keys": [dashboard.missing_boletos[0].selection_key]},
         )
         assert issue_response.status_code == 201
         assert FakeInterApiClient.issued_payloads
 
         sync_response = client.post(
             "/api/v1/boletos/inter/sync",
-            json={"account_id": account.id},
+            json={},
         )
         assert sync_response.status_code == 201
 
@@ -240,6 +253,20 @@ def test_inter_endpoints_smoke(monkeypatch) -> None:
         assert pdf_response.status_code == 200
         assert pdf_response.headers["content-type"].startswith("application/pdf")
         assert pdf_response.content.startswith(b"%PDF-SOL-")
+
+        cancel_response = client.post(
+            f"/api/v1/boletos/inter/{boleto_id}/cancel",
+            json={"motivo_cancelamento": "Teste automatizado"},
+        )
+        assert cancel_response.status_code == 201
+        assert FakeInterApiClient.canceled_codes
+
+        receive_response = client.post(
+            f"/api/v1/boletos/inter/{boleto_id}/receive",
+            json={"pagar_com": "BOLETO"},
+        )
+        assert receive_response.status_code == 201
+        assert FakeInterApiClient.paid_codes
 
         zip_response = client.post(
             "/api/v1/boletos/inter/pdf-batch",

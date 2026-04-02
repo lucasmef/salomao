@@ -25,6 +25,14 @@ class BoletoPdfBatchRequest(BaseModel):
     boleto_ids: list[str] = Field(default_factory=list)
 
 
+class BoletoInterCancelRequest(BaseModel):
+    motivo_cancelamento: str = Field(default="Cancelado pelo ERP", min_length=3, max_length=50)
+
+
+class BoletoInterReceiveRequest(BaseModel):
+    pagar_com: str = Field(default="BOLETO", pattern="^(BOLETO|PIX)$")
+
+
 class BoletoFileRead(BaseModel):
     source_type: str
     name: str

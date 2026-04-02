@@ -1240,13 +1240,13 @@ function AppRuntime() {
     await uploadManagedFile("/imports/historical-cashbook", file, ["importacoes", "lancamentos", "caixa", "overview", "relatorios"]);
   }
 
-  async function syncInterStatementImport(accountId: string) {
+  async function syncInterStatementImport() {
     if (!session) return;
     await runMutation(async () => {
       await fetchJson<ImportResult>("/imports/inter/statement-sync", {
         method: "POST",
         token: session.token,
-        body: JSON.stringify({ account_id: accountId }),
+        body: JSON.stringify({}),
       });
     }, "Extrato do Inter sincronizado.", { sections: ["importacoes", "conciliacao", "caixa", "overview"] });
   }
@@ -1263,24 +1263,24 @@ function AppRuntime() {
     await uploadManagedFile("/boletos/import/customer-data", file, ["boletos", "importacoes"]);
   }
 
-  async function syncInterChargesImport(accountId: string) {
+  async function syncInterChargesImport() {
     if (!session) return;
     await runMutation(async () => {
       await fetchJson<ImportResult>("/boletos/inter/sync", {
         method: "POST",
         token: session.token,
-        body: JSON.stringify({ account_id: accountId }),
+        body: JSON.stringify({}),
       });
     }, "Cobrancas do Inter sincronizadas.", { sections: ["boletos", "importacoes"] });
   }
 
-  async function issueInterCharges(accountId: string, selectionKeys: string[]) {
+  async function issueInterCharges(selectionKeys: string[]) {
     if (!session) return;
     await runMutation(async () => {
       await fetchJson<ImportResult>("/boletos/inter/issue", {
         method: "POST",
         token: session.token,
-        body: JSON.stringify({ account_id: accountId, selection_keys: selectionKeys }),
+        body: JSON.stringify({ selection_keys: selectionKeys }),
       });
     }, "Boletos emitidos no Inter.", { sections: ["boletos", "importacoes"] });
   }
@@ -1317,6 +1317,28 @@ function AppRuntime() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function cancelInterBoleto(boletoId: string) {
+    if (!session) return;
+    await runMutation(async () => {
+      await fetchJson<ImportResult>(`/boletos/inter/${boletoId}/cancel`, {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({ motivo_cancelamento: "Cancelado pelo ERP" }),
+      });
+    }, "Boleto do Inter cancelado.", { sections: ["boletos", "importacoes"] });
+  }
+
+  async function receiveInterBoleto(boletoId: string, payWith: "BOLETO" | "PIX" = "BOLETO") {
+    if (!session) return;
+    await runMutation(async () => {
+      await fetchJson<ImportResult>(`/boletos/inter/${boletoId}/receive`, {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({ pagar_com: payWith }),
+      });
+    }, "Baixa do boleto do Inter concluida.", { sections: ["boletos", "importacoes"] });
   }
 
   async function importPurchaseInvoiceText(rawText: string) {
@@ -1953,6 +1975,7 @@ function AppRuntime() {
                 loading={submitting}
                 onApplyFilters={applyReconciliationFilters}
                 onChangeFilters={setReconciliationFilters}
+                onSyncInterStatement={syncInterStatementImport}
                 onUploadOfx={uploadOfxImport}
                 onQuickAction={reconciliationAction}
                 onReconcile={reconcile}
@@ -1977,11 +2000,13 @@ function AppRuntime() {
             >
               <BoletosPage
                 accounts={accounts}
+                onCancelInterBoleto={cancelInterBoleto}
                 dashboard={boletoDashboard}
                 onDownloadInterBoletoPdf={downloadInterBoletoPdf}
                 onDownloadInterBoletoPdfBatch={downloadInterBoletoPdfBatch}
                 onExportMissingBoletos={exportMissingBoletos}
                 onIssueInterCharges={issueInterCharges}
+                onReceiveInterBoleto={receiveInterBoleto}
                 onSaveClients={saveBoletoClients}
                 onSyncInterCharges={syncInterChargesImport}
                 onToggleAllMonthlyMissingBoletos={toggleAllMonthlyMissingBoletos}

@@ -326,6 +326,10 @@ export function MasterDataPage({
                 />
                 API Banco Inter
               </label>
+              <small className="compact-muted full-width">
+                Apenas uma conta pode ficar com a API do Inter habilitada. Ao salvar esta conta como ativa para o Inter,
+                o sistema desabilita essa opcao nas demais.
+              </small>
               <label>
                 Ambiente Inter
                 <select
