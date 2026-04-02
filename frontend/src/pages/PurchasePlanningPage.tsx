@@ -99,6 +99,12 @@ type PurchaseReturnModalState = {
   notes: string;
 };
 
+type CollectionObservationModalState = {
+  brandKey: string;
+  collectionId: string;
+  notes: string;
+};
+
 type PlanningInlineEditState = {
   brand_key: string;
   collection_id: string;
@@ -172,7 +178,7 @@ const PLAN_STATUS_FALLBACK = [
   { value: "confirmed", label: "Confirmado" },
 ];
 const SEASON_TYPE_OPTIONS = [
-  { value: "summer", label: "Verao" },
+  { value: "summer", label: "Verão" },
   { value: "winter", label: "Inverno" },
 ] as const;
 const SEASON_PHASE_OPTIONS = [
@@ -180,10 +186,10 @@ const SEASON_PHASE_OPTIONS = [
   { value: "high", label: "Alto" },
 ] as const;
 const PURCHASE_RETURN_STATUS_OPTIONS: SelectOption[] = [
-  { value: "request_open", label: "Abrir solicitacao" },
-  { value: "factory_pending", label: "Aguardando fabrica" },
+  { value: "request_open", label: "Abrir solicitação" },
+  { value: "factory_pending", label: "Aguardando fábrica" },
   { value: "send", label: "Enviar" },
-  { value: "sent_waiting_analysis", label: "Enviado/Aguardando Analise" },
+  { value: "sent_waiting_analysis", label: "Enviado/Aguardando Análise" },
   { value: "refund_approved", label: "Reembolso aprovado" },
   { value: "refunded", label: "Reembolsado" },
 ] ;
@@ -328,7 +334,7 @@ function getYearFromDate(value: string | null | undefined) {
 }
 
 function buildSeasonLabel(seasonType: "summer" | "winter" | string | null | undefined, seasonYear: string | number | null | undefined) {
-  const seasonName = seasonType === "winter" ? "Inverno" : seasonType === "summer" ? "Verao" : "";
+  const seasonName = seasonType === "winter" ? "Inverno" : seasonType === "summer" ? "Verão" : "";
   return seasonName && seasonYear ? `${seasonName} ${seasonYear}` : "";
 }
 
@@ -362,7 +368,7 @@ function EditIcon() {
 
 function ConfirmIcon({ confirmed }: { confirmed: boolean }) {
   return (
-    <span aria-label={confirmed ? "Confirmado" : "Nao confirmado"} className={`planning-confirm-icon${confirmed ? " is-confirmed" : ""}`}>
+    <span aria-label={confirmed ? "Confirmado" : "Não confirmado"} className={`planning-confirm-icon${confirmed ? " is-confirmed" : ""}`}>
       {confirmed ? "✓" : "−"}
     </span>
   );
@@ -378,6 +384,21 @@ function DeleteIcon() {
         strokeLinejoin="round"
         strokeWidth="1.2"
       />
+    </svg>
+  );
+}
+
+function ObservationIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon collection-observation-icon" fill="none" viewBox="0 0 16 16">
+      <path
+        d="M4.25 3.25h7.5A1.75 1.75 0 0 1 13.5 5v4a1.75 1.75 0 0 1-1.75 1.75H8.4L5.6 12.9a.75.75 0 0 1-1.2-.6v-1.55H4.25A1.75 1.75 0 0 1 2.5 9V5a1.75 1.75 0 0 1 1.75-1.75Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+      <path d="M5.5 6.25h5M5.5 8.5h3.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.2" />
     </svg>
   );
 }
@@ -433,6 +454,7 @@ export function PurchasePlanningPage({
   const [brandModal, setBrandModal] = useState<BrandModalState>(emptyBrandModal());
   const [supplierModal, setSupplierModal] = useState<SupplierModalState>(emptySupplierModal());
   const [collectionModal, setCollectionModal] = useState<CollectionModalState>(emptyCollectionModal());
+  const [collectionObservationModal, setCollectionObservationModal] = useState<CollectionObservationModalState | null>(null);
   const [purchaseReturnModal, setPurchaseReturnModal] = useState<PurchaseReturnModalState>(emptyPurchaseReturnModal(today));
   const [purchaseReturnFilter, setPurchaseReturnFilter] = useState("");
   const [purchaseReturnDateFrom, setPurchaseReturnDateFrom] = useState("");
@@ -682,6 +704,21 @@ export function PurchasePlanningPage({
 
   function isCollectionConfirmationEditable(collection: CollectionSeason) {
     return !isPastCollection(collection);
+  }
+
+  function hasCollectionConfirmableOrder(collectionSnapshot: PlanningCollectionSnapshot | null | undefined) {
+    return (collectionSnapshot?.plans ?? []).some((plan) => toCents(plan.purchased_amount) > 0);
+  }
+
+  function getCollectionObservationText(collectionSnapshot: PlanningCollectionSnapshot | null | undefined) {
+    const uniqueNotes = Array.from(
+      new Set(
+        (collectionSnapshot?.plans ?? [])
+          .map((plan) => normalizeDisplayText(plan.notes).trim())
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    return uniqueNotes.join(" | ");
   }
 
   function getCollectionConfirmedState(
@@ -970,7 +1007,17 @@ export function PurchasePlanningPage({
     setInvoiceDraft(emptyInvoiceDraft());
   }
 
+  function closeBrandModal() {
+    setBrandModalOpen(false);
+    setCollectionObservationModal(null);
+  }
+
+  function closeCollectionObservationModal() {
+    setCollectionObservationModal(null);
+  }
+
   function openBrandModal(brand?: PurchaseBrand) {
+    setCollectionObservationModal(null);
     setBrandModal(
       brand
         ? {
@@ -984,6 +1031,15 @@ export function PurchasePlanningPage({
         : emptyBrandModal(),
     );
     setBrandModalOpen(true);
+  }
+
+  function openCollectionObservationModal(snapshot: PlanningBrandSnapshot, collection: CollectionSeason) {
+    const collectionSnapshot = snapshot.collections.get(collection.id);
+    setCollectionObservationModal({
+      brandKey: snapshot.key,
+      collectionId: collection.id,
+      notes: getCollectionObservationText(collectionSnapshot),
+    });
   }
 
   function openInactiveBrandsModal() {
@@ -1142,7 +1198,7 @@ export function PurchasePlanningPage({
     } else {
       await onCreateBrand(payload);
     }
-    setBrandModalOpen(false);
+    closeBrandModal();
     setBrandModal(emptyBrandModal());
   }
 
@@ -1212,12 +1268,12 @@ export function PurchasePlanningPage({
   }
 
   async function handleDeleteCollection(collectionId: string) {
-    if (!window.confirm("Excluir esta colecao?")) return;
+    if (!window.confirm("Excluir esta coleção?")) return;
     await onDeleteCollection(collectionId);
   }
 
   async function handleDeletePurchaseReturn(purchaseReturnId: string) {
-    if (!window.confirm("Excluir esta devolucao de compra?")) return;
+    if (!window.confirm("Excluir esta devolução de compra?")) return;
     await onDeletePurchaseReturn(purchaseReturnId);
   }
 
@@ -1331,6 +1387,34 @@ export function PurchasePlanningPage({
     setInlinePlanEdit(null);
   }
 
+  function buildNewCollectionPlanPayload(
+    snapshot: PlanningBrandSnapshot,
+    collection: CollectionSeason,
+    overrides?: Partial<Record<string, unknown>>,
+  ) {
+    const supplierIds = snapshot.supplierIds;
+    const brand = snapshot.brandId ? brandMap.get(snapshot.brandId) : undefined;
+    const paymentTerm =
+      brand?.default_payment_term ??
+      supplierIds.map((supplierId) => supplierMap.get(supplierId)?.default_payment_term).find(Boolean) ??
+      null;
+    return {
+      brand_id: snapshot.brandId,
+      supplier_id: supplierIds[0] ?? null,
+      supplier_ids: supplierIds,
+      collection_id: collection.id,
+      season_phase: "main",
+      title: snapshot.brandName,
+      order_date: today,
+      expected_delivery_date: collection.end_date,
+      purchased_amount: "0.00",
+      payment_term: paymentTerm,
+      status: "planned",
+      notes: null,
+      ...overrides,
+    };
+  }
+
   function buildCollectionPlanPayload(
     snapshot: PlanningBrandSnapshot,
     collection: CollectionSeason,
@@ -1361,9 +1445,47 @@ export function PurchasePlanningPage({
     };
   }
 
+  async function handleSaveCollectionObservation() {
+    if (!collectionObservationModal) {
+      return;
+    }
+    const snapshot = planningBrands.find((item) => item.key === collectionObservationModal.brandKey);
+    const collection = collectionMap.get(collectionObservationModal.collectionId);
+    if (!snapshot || !collection) {
+      closeCollectionObservationModal();
+      return;
+    }
+    const collectionSnapshot = snapshot.collections.get(collection.id);
+    const notes = normalizeDisplayText(collectionObservationModal.notes).trim() || null;
+
+    if (!collectionSnapshot?.plans.length) {
+      if (!notes) {
+        closeCollectionObservationModal();
+        return;
+      }
+      await onCreatePlan(
+        buildNewCollectionPlanPayload(snapshot, collection, {
+          notes,
+        }),
+      );
+      closeCollectionObservationModal();
+      return;
+    }
+
+    for (const plan of collectionSnapshot.plans) {
+      await onUpdatePlan(
+        plan.id,
+        buildCollectionPlanPayload(snapshot, collection, plan, {
+          notes,
+        }),
+      );
+    }
+    closeCollectionObservationModal();
+  }
+
   async function handleToggleCollectionConfirmation(snapshot: PlanningBrandSnapshot, collection: CollectionSeason) {
     const collectionSnapshot = snapshot.collections.get(collection.id);
-    if (!isCollectionConfirmationEditable(collection) || !collectionSnapshot?.plans.length) {
+    if (!collectionSnapshot || !isCollectionConfirmationEditable(collection) || !hasCollectionConfirmableOrder(collectionSnapshot)) {
       return;
     }
     const nextStatus = getCollectionConfirmedState(collection, collectionSnapshot) ? "planned" : "confirmed";
@@ -1445,7 +1567,7 @@ export function PurchasePlanningPage({
             />
           </label>
           <label>
-            Colecao
+            Coleção
             <Select
               options={collectionOptions}
               value={selectedCollectionOption}
@@ -1464,9 +1586,6 @@ export function PurchasePlanningPage({
             />
           </label>
           <div className="action-row">
-            <button className="secondary-button" type="button" onClick={openInvoiceModal}>
-              Nova nota
-            </button>
           </div>
         </div>
       </section>
@@ -1478,18 +1597,18 @@ export function PurchasePlanningPage({
       <section className="panel">
         <div className="purchase-filter-bar">
           <label>
-            Colecao em destaque
+            Coleção em destaque
             <Select
               options={planningCollectionOptions}
               value={planningCollectionOptions.find((option) => option.value === (planningCollection?.id ?? "")) ?? null}
               onChange={(option) => setPlanningCollectionId(asSingleValue(option) || currentCollection?.id || "")}
-              placeholder="Selecione a colecao"
+              placeholder="Selecione a coleção"
               styles={purchaseSelectStyles}
               menuPortalTarget={portalTarget}
             />
           </label>
           <label>
-            Comparar colecoes
+            Comparar coleções
             <Select<SelectOption, true>
               options={comparisonCollectionOptions}
               value={selectedComparisonCollectionOptions}
@@ -1503,13 +1622,13 @@ export function PurchasePlanningPage({
               }}
               isMulti
               closeMenuOnSelect={false}
-              placeholder="Selecione as colecoes"
+              placeholder="Selecione as coleções"
               styles={purchaseSelectStyles}
               menuPortalTarget={portalTarget}
             />
           </label>
           <label>
-            Status do plano da colecao
+            Status do plano da coleção
             <Select
               options={planningStatusOptions}
               value={selectedPlanningStatusOption}
@@ -1528,7 +1647,7 @@ export function PurchasePlanningPage({
                 Nova nota
               </button>
               <button className="secondary-button" type="button" onClick={() => setPurchaseReturnsPanelOpen(true)}>
-                Devolucoes
+                Devoluções
               </button>
           </div>
         </div>
@@ -1541,11 +1660,11 @@ export function PurchasePlanningPage({
       <section className="panel">
         <div className="purchase-filter-bar purchase-filter-bar--compact">
           <label>
-            Colecao atual
+            Coleção atual
             <input value={currentCollection?.season_label || "-"} disabled />
           </label>
           <label>
-            Colecoes cadastradas
+            Coleções cadastradas
             <input value={String(collections.length)} disabled />
           </label>
           <div className="action-row">
@@ -1556,7 +1675,7 @@ export function PurchasePlanningPage({
               Novo fornecedor
             </button>
             <button className="secondary-button" type="button" onClick={() => openCollectionModal()}>
-              Nova colecao
+              Nova coleção
             </button>
           </div>
         </div>
@@ -1708,7 +1827,7 @@ export function PurchasePlanningPage({
                 <strong>{suppliers.filter((supplier) => supplier.is_active).length}</strong>
               </div>
               <div className="summary-row">
-                <span>Colecoes ativas</span>
+                <span>Coleções ativas</span>
                 <strong>{collections.filter((collection) => collection.is_active).length}</strong>
               </div>
             </div>
@@ -1725,9 +1844,9 @@ export function PurchasePlanningPage({
                 <thead>
                   <tr>
                     <th>Fornecedor</th>
-                    <th>Colecao</th>
+                    <th>Coleção</th>
                     <th>Nota</th>
-                    <th>Emissao</th>
+                    <th>Emissão</th>
                     <th className="numeric-cell">Valor</th>
                     <th>Status</th>
                   </tr>
@@ -1768,7 +1887,7 @@ export function PurchasePlanningPage({
                     <th>Vencimento</th>
                     <th className="numeric-cell">Valor</th>
                     <th>Status</th>
-                    <th>Vinculo</th>
+                    <th>Vínculo</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1828,7 +1947,7 @@ export function PurchasePlanningPage({
                   <th className="numeric-cell">Valor a receber</th>
                   {showConfirmationColumn ? <th>Confirmado</th> : null}
                   <th className="planning-payment-column">Parcelamento</th>
-                  <th>Acoes</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -1838,9 +1957,12 @@ export function PurchasePlanningPage({
                     const currentConfirmed = planningCollection
                       ? getCollectionConfirmedState(planningCollection, currentSnapshot)
                       : false;
+                    const hasCurrentOrderToConfirm = planningCollection
+                      ? hasCollectionConfirmableOrder(currentSnapshot)
+                      : false;
                     const canToggleCurrentConfirmation = Boolean(
                       planningCollection &&
-                        currentSnapshot?.plans.length &&
+                        hasCurrentOrderToConfirm &&
                         !snapshot.isInactiveGroup &&
                         snapshot.brandId &&
                         isCollectionConfirmationEditable(planningCollection),
@@ -1887,10 +2009,10 @@ export function PurchasePlanningPage({
                                 }
                                 disabled={!canToggleCurrentConfirmation}
                                 title={
-                                  !currentSnapshot?.plans.length
-                                    ? "Cadastre o pedido desta colecao para confirmar"
+                                  !hasCurrentOrderToConfirm
+                                    ? "Cadastre o pedido desta coleção para confirmar"
                                     : currentConfirmed
-                                      ? "Marcar como nao confirmado"
+                                      ? "Marcar como não confirmado"
                                       : "Marcar como confirmado"
                                 }
                               >
@@ -1974,22 +2096,22 @@ export function PurchasePlanningPage({
         <section className="purchase-full-width-section">
           <article className="panel-card">
             <div className="purchase-panel-heading">
-              <h3>Colecoes</h3>
+              <h3>Coleções</h3>
               <button className="secondary-button" type="button" onClick={() => openCollectionModal()}>
-                Nova colecao
+                Nova coleção
               </button>
             </div>
             <div className="table-shell purchase-collections-table-shell">
               <table className="erp-table purchase-collections-table">
                 <thead>
                   <tr>
-                    <th>Colecao</th>
+                    <th>Coleção</th>
                     <th>Ano</th>
                     <th>Inicio</th>
                     <th>Fim / prazo faturamento</th>
                     <th className="numeric-cell">Pedidos totais</th>
                     <th>Status</th>
-                    <th>Acoes</th>
+                    <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2016,7 +2138,7 @@ export function PurchasePlanningPage({
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={7}>Nenhuma colecao encontrada.</td>
+                      <td colSpan={7}>Nenhuma coleção encontrada.</td>
                     </tr>
                   )}
                 </tbody>
@@ -2075,9 +2197,9 @@ export function PurchasePlanningPage({
               <thead>
                 <tr>
                   <th>Fornecedor</th>
-                  <th>Prazo padrao</th>
+                  <th>Prazo padrão</th>
                   <th>Status</th>
-                  <th>Acoes</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -2122,7 +2244,7 @@ export function PurchasePlanningPage({
               <input
                 value={purchaseReturnFilter}
                 onChange={(event) => setPurchaseReturnFilter(event.target.value)}
-                placeholder="Buscar por data, fornecedor, NF, status, observacao ou valor"
+                placeholder="Buscar por data, fornecedor, NF, status, observação ou valor"
               />
             </label>
             <label className="purchase-return-filter-field">
@@ -2149,7 +2271,7 @@ export function PurchasePlanningPage({
             </label>
             <div className="action-row">
               <button className="secondary-button" type="button" onClick={() => openPurchaseReturnModal()}>
-                Nova devolucao
+                Nova devolução
               </button>
             </div>
           </div>
@@ -2162,7 +2284,7 @@ export function PurchasePlanningPage({
 
         <article className="panel-card">
           <div className="purchase-panel-heading">
-            <h3>Devolucao de compras</h3>
+            <h3>Devolução de compras</h3>
           </div>
           <div className="table-shell tall">
             <table className="erp-table">
@@ -2173,7 +2295,7 @@ export function PurchasePlanningPage({
                   <th>Nota fiscal</th>
                   <th>Status</th>
                   <th className="numeric-cell">Valor</th>
-                  <th>Acoes</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -2188,18 +2310,18 @@ export function PurchasePlanningPage({
                       <td>
                         <div className="action-row">
                           <button
-                            aria-label={`Editar devolucao de ${purchaseReturn.supplier_name || "fornecedor"}`}
+                            aria-label={`Editar devolução de ${purchaseReturn.supplier_name || "fornecedor"}`}
                             className="table-button icon-button"
-                            title="Editar devolucao"
+                            title="Editar devolução"
                             type="button"
                             onClick={() => openPurchaseReturnModal(purchaseReturn)}
                           >
                             <EditIcon />
                           </button>
                           <button
-                            aria-label={`Excluir devolucao de ${purchaseReturn.supplier_name || "fornecedor"}`}
+                            aria-label={`Excluir devolução de ${purchaseReturn.supplier_name || "fornecedor"}`}
                             className="ghost-button icon-button danger-text-action"
-                            title="Excluir devolucao"
+                            title="Excluir devolução"
                             type="button"
                             onClick={() => void handleDeletePurchaseReturn(purchaseReturn.id)}
                           >
@@ -2211,7 +2333,7 @@ export function PurchasePlanningPage({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6}>Nenhuma devolucao de compra encontrada.</td>
+                    <td colSpan={6}>Nenhuma devolução de compra encontrada.</td>
                   </tr>
                 )}
               </tbody>
@@ -2286,7 +2408,7 @@ export function PurchasePlanningPage({
                   />
                 </label>
                 <label>
-                  Colecao
+                  Coleção
                   <Select
                     options={collectionOptions}
                     value={selectedInvoiceCollectionOption}
@@ -2308,11 +2430,11 @@ export function PurchasePlanningPage({
                   />
                 </label>
                 <label>
-                  Numero da nota
+                  Número da nota
                   <input value={invoiceDraft.invoice_number ?? ""} onChange={(event) => updateInvoiceDraftField("invoice_number", event.target.value)} />
                 </label>
                 <label>
-                  Emissao
+                  Emissão
                   <input type="date" value={invoiceDraft.issue_date ?? ""} onChange={(event) => updateInvoiceDraftField("issue_date", event.target.value)} />
                 </label>
                 <label>
@@ -2336,7 +2458,7 @@ export function PurchasePlanningPage({
                   />
                 </label>
                 <label className="full-width">
-                  Observacoes
+                  Observações
                   <textarea value={invoiceDraft.notes ?? ""} onChange={(event) => updateInvoiceDraftField("notes", event.target.value)} />
                 </label>
               </div>
@@ -2401,7 +2523,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card purchase-brand-modal-card">
           <div className="purchase-panel-heading">
             <h3>{brandModal.id ? "Editar marca" : "Nova marca"}</h3>
-            <button className="ghost-button" type="button" onClick={() => setBrandModalOpen(false)}>
+            <button className="ghost-button" type="button" onClick={closeBrandModal}>
               Fechar
             </button>
           </div>
@@ -2436,7 +2558,7 @@ export function PurchasePlanningPage({
               />
             </label>
             <label className="full-width">
-              Observacoes
+              Observações
               <textarea value={brandModal.notes} onChange={(event) => setBrandModal((current) => ({ ...current, notes: event.target.value }))} />
             </label>
           </div>
@@ -2451,7 +2573,7 @@ export function PurchasePlanningPage({
                 <span>Marca ativa</span>
               </label>
               <div className="purchase-panel-heading">
-                <h3>Colecoes e pedidos</h3>
+                <h3>Coleções e pedidos</h3>
               </div>
               <div className="table-shell brand-collection-table-shell">
                 <table className="erp-table brand-collection-table">
@@ -2459,12 +2581,14 @@ export function PurchasePlanningPage({
                     <col className="brand-collection-col-name" />
                     <col className="brand-collection-col-amount" />
                     <col className="brand-collection-col-check" />
+                    <col className="brand-collection-col-note" />
                   </colgroup>
                   <thead>
                     <tr>
-                      <th>Colecao</th>
+                      <th>Coleção</th>
                       <th className="numeric-cell">Valor do pedido</th>
                       <th className="centered-cell">Confirmado</th>
+                      <th className="centered-cell">Observação</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2473,39 +2597,54 @@ export function PurchasePlanningPage({
                         const collectionSnapshot = currentBrandSnapshot?.collections.get(collection.id) ?? null;
                         const isEditable = isCollectionConfirmationEditable(collection);
                         const isConfirmed = getCollectionConfirmedState(collection, collectionSnapshot);
+                        const hasConfirmableOrder = hasCollectionConfirmableOrder(collectionSnapshot);
+                        const observationText = getCollectionObservationText(collectionSnapshot);
+                        const hasObservation = Boolean(observationText);
                         return (
-                        <tr key={`${brandModal.id ?? brandModal.name}-${collection.id}`}>
-                          <td>{collection.season_label || collection.name}</td>
-                          <td className="numeric-cell">
-                            {currentBrandSnapshot ? renderInlinePlannedAmount(currentBrandSnapshot, collection, { compact: true }) : formatMoney("0.00")}
-                          </td>
-                          <td className="centered-cell">
-                            {isEditable ? (
+                          <tr key={`${brandModal.id ?? brandModal.name}-${collection.id}`}>
+                            <td>{collection.season_label || collection.name}</td>
+                            <td className="numeric-cell">
+                              {currentBrandSnapshot ? renderInlinePlannedAmount(currentBrandSnapshot, collection, { compact: true }) : formatMoney("0.00")}
+                            </td>
+                            <td className="centered-cell">
+                              {isEditable ? (
+                                <button
+                                  className={`table-button icon-button confirm-toggle-button${isConfirmed ? " is-confirmed" : ""}`}
+                                  type="button"
+                                  onClick={() => currentBrandSnapshot ? void handleToggleCollectionConfirmation(currentBrandSnapshot, collection) : undefined}
+                                  disabled={!currentBrandSnapshot || !hasConfirmableOrder}
+                                  title={
+                                    !hasConfirmableOrder
+                                      ? "Cadastre o pedido desta coleção para confirmar"
+                                      : isConfirmed
+                                        ? "Marcar como não confirmado"
+                                        : "Marcar como confirmado"
+                                  }
+                                >
+                                  <ConfirmIcon confirmed={isConfirmed} />
+                                </button>
+                              ) : (
+                                <span>-</span>
+                              )}
+                            </td>
+                            <td className="centered-cell">
                               <button
-                                className={`table-button icon-button confirm-toggle-button${isConfirmed ? " is-confirmed" : ""}`}
+                                aria-label={`${hasObservation ? "Editar" : "Adicionar"} observação da coleção ${collection.season_label || collection.name}`}
+                                className={`table-button icon-button collection-observation-button${hasObservation ? " has-observation" : ""}`}
                                 type="button"
-                                onClick={() => currentBrandSnapshot ? void handleToggleCollectionConfirmation(currentBrandSnapshot, collection) : undefined}
-                                disabled={!currentBrandSnapshot || !collectionSnapshot?.plans.length}
-                                title={
-                                  !collectionSnapshot?.plans.length
-                                    ? "Cadastre o pedido desta colecao para confirmar"
-                                    : isConfirmed
-                                      ? "Marcar como nao confirmado"
-                                      : "Marcar como confirmado"
-                                }
+                                onClick={() => currentBrandSnapshot ? openCollectionObservationModal(currentBrandSnapshot, collection) : undefined}
+                                disabled={!currentBrandSnapshot}
+                                title={observationText ? `Observação: ${observationText}` : "Adicionar observação"}
                               >
-                                <ConfirmIcon confirmed={isConfirmed} />
+                                <ObservationIcon />
                               </button>
-                            ) : (
-                              <span>-</span>
-                            )}
-                          </td>
-                        </tr>
+                            </td>
+                          </tr>
                       );
                     })
                     ) : (
                       <tr>
-                        <td colSpan={3}>Nenhuma colecao cadastrada.</td>
+                        <td colSpan={4}>Nenhuma coleção cadastrada.</td>
                       </tr>
                     )}
                   </tbody>
@@ -2517,7 +2656,57 @@ export function PurchasePlanningPage({
             <button className="primary-button" type="button" onClick={() => void handleSaveBrand()}>
               Salvar marca
             </button>
-            <button className="ghost-button" type="button" onClick={() => setBrandModalOpen(false)}>
+            <button className="ghost-button" type="button" onClick={closeBrandModal}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderCollectionObservationModal() {
+    if (!collectionObservationModal) return null;
+    const collection = collectionMap.get(collectionObservationModal.collectionId);
+
+    return (
+      <div className="modal-backdrop" role="presentation">
+        <div className="modal-card purchase-modal-card purchase-collection-note-modal">
+          <div className="purchase-panel-heading">
+            <h3>Observação da coleção</h3>
+            <button className="ghost-button" type="button" onClick={closeCollectionObservationModal}>
+              Fechar
+            </button>
+          </div>
+          <div className="summary-list purchase-collection-note-summary">
+            <div className="summary-row">
+              <span>Coleção</span>
+              <strong>{collection?.season_label || collection?.name || "-"}</strong>
+            </div>
+          </div>
+          <label className="full-width">
+            Observação
+            <textarea
+              value={collectionObservationModal.notes}
+              onChange={(event) =>
+                setCollectionObservationModal((current) =>
+                  current
+                    ? {
+                        ...current,
+                        notes: event.target.value,
+                      }
+                    : current,
+                )
+              }
+              placeholder="Digite uma observação para esta coleção"
+              rows={5}
+            />
+          </label>
+          <div className="action-row">
+            <button className="primary-button" type="button" onClick={() => void handleSaveCollectionObservation()}>
+              Salvar observação
+            </button>
+            <button className="ghost-button" type="button" onClick={closeCollectionObservationModal}>
               Cancelar
             </button>
           </div>
@@ -2551,7 +2740,7 @@ export function PurchasePlanningPage({
                   <th>Marca</th>
                   <th>Fornecedores</th>
                   <th>Forma de pagamento</th>
-                  <th>Acoes</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -2649,7 +2838,7 @@ export function PurchasePlanningPage({
                   <th className="centered-cell">Selecionar</th>
                   <th>Fornecedor</th>
                   <th>Agregar a marca</th>
-                  <th>Acoes</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -2744,7 +2933,7 @@ export function PurchasePlanningPage({
               <input value={supplierModal.name} onChange={(event) => setSupplierModal((current) => ({ ...current, name: event.target.value }))} />
             </label>
             <label>
-              Prazo padrao
+              Prazo padrão
               <Select
                 options={paymentTermOptions}
                 value={selectedSupplierTermOption}
@@ -2756,7 +2945,7 @@ export function PurchasePlanningPage({
               />
             </label>
             <label className="full-width">
-              Observacoes
+              Observações
               <textarea value={supplierModal.notes} onChange={(event) => setSupplierModal((current) => ({ ...current, notes: event.target.value }))} />
             </label>
             <label className="checkbox-line full-width">
@@ -2785,10 +2974,10 @@ export function PurchasePlanningPage({
     if (!purchaseReturnModalOpen) return null;
 
     return (
-      <div className="modal-backdrop" role="presentation">
+      <div className="modal-backdrop" role="presentation" style={{ zIndex: 1200 }}>
         <div className="modal-card purchase-modal-card">
           <div className="purchase-panel-heading">
-            <h3>{purchaseReturnModal.id ? "Editar devolucao de compra" : "Nova devolucao de compra"}</h3>
+            <h3>{purchaseReturnModal.id ? "Editar devolução de compra" : "Nova devolução de compra"}</h3>
             <button
               className="ghost-button"
               type="button"
@@ -2831,7 +3020,7 @@ export function PurchasePlanningPage({
               <input
                 value={purchaseReturnModal.invoice_number}
                 onChange={(event) => setPurchaseReturnModal((current) => ({ ...current, invoice_number: event.target.value }))}
-                placeholder="Numero da nota fiscal"
+                placeholder="Número da nota fiscal"
               />
             </label>
             <label>
@@ -2855,7 +3044,7 @@ export function PurchasePlanningPage({
               />
             </label>
             <label className="full-width">
-              Observacao
+              Observação
               <textarea
                 rows={3}
                 value={purchaseReturnModal.notes}
@@ -2865,7 +3054,7 @@ export function PurchasePlanningPage({
           </div>
           <div className="action-row">
             <button className="primary-button" type="button" onClick={() => void handleSavePurchaseReturn()}>
-              Salvar devolucao
+              Salvar devolução
             </button>
             <button
               className="ghost-button"
@@ -2890,7 +3079,7 @@ export function PurchasePlanningPage({
       <div className="modal-backdrop" role="presentation">
         <div className="modal-card purchase-modal-card purchase-returns-panel-modal">
           <div className="purchase-panel-heading">
-            <h3>Devolucoes de compras</h3>
+            <h3>Devoluções de compras</h3>
             <button className="ghost-button" type="button" onClick={() => setPurchaseReturnsPanelOpen(false)}>
               Fechar
             </button>
@@ -2908,7 +3097,7 @@ export function PurchasePlanningPage({
       <div className="modal-backdrop" role="presentation">
         <div className="modal-card purchase-modal-card">
           <div className="purchase-panel-heading">
-            <h3>{collectionModal.id ? "Editar colecao" : "Nova colecao"}</h3>
+            <h3>{collectionModal.id ? "Editar coleção" : "Nova coleção"}</h3>
             <button className="ghost-button" type="button" onClick={() => setCollectionModalOpen(false)}>
               Fechar
             </button>
@@ -2925,7 +3114,7 @@ export function PurchasePlanningPage({
               />
             </label>
             <label>
-              Estacao
+              Estação
               <Select
                 options={SEASON_TYPE_OPTIONS as unknown as SelectOption[]}
                 value={selectedCollectionSeasonTypeOption as unknown as SelectOption}
@@ -2956,7 +3145,7 @@ export function PurchasePlanningPage({
               />
             </label>
             <label className="full-width">
-              Observacoes
+              Observações
               <textarea value={collectionModal.notes} onChange={(event) => setCollectionModal((current) => ({ ...current, notes: event.target.value }))} />
             </label>
             <label className="checkbox-line full-width">
@@ -2965,12 +3154,12 @@ export function PurchasePlanningPage({
                 checked={collectionModal.is_active}
                 onChange={(event) => setCollectionModal((current) => ({ ...current, is_active: event.target.checked }))}
               />
-              <span>{`${buildSeasonLabel(collectionModal.season_type, collectionModal.season_year) || "Colecao"} ativa`}</span>
+              <span>{`${buildSeasonLabel(collectionModal.season_type, collectionModal.season_year) || "Coleção"} ativa`}</span>
             </label>
           </div>
           <div className="action-row">
             <button className="primary-button" type="button" onClick={() => void handleSaveCollection()}>
-              Salvar colecao
+              Salvar coleção
             </button>
             <button className="ghost-button" type="button" onClick={() => setCollectionModalOpen(false)}>
               Cancelar
@@ -2986,20 +3175,19 @@ export function PurchasePlanningPage({
       ? renderPlanejamento()
       : view === "fornecedores"
         ? renderFornecedores()
-        : view === "devolucoes"
-          ? renderDevolucoes()
-          : renderResumo();
+        : renderResumo();
 
   return (
     <>
       {content}
       {renderInvoiceModal()}
       {renderBrandModal()}
+      {renderCollectionObservationModal()}
       {renderInactiveBrandsModal()}
       {renderUnassignedSuppliersModal()}
       {renderSupplierModal()}
-      {renderPurchaseReturnModal()}
       {renderPurchaseReturnsPanelModal()}
+      {renderPurchaseReturnModal()}
       {renderCollectionModal()}
     </>
   );

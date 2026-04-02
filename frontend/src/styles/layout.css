@@ -209,7 +209,7 @@
   grid-template-columns: 178px minmax(0, 1fr) auto;
   align-items: center;
   gap: 18px;
-  padding: 8px 18px;
+  padding: 8px 24px;
   background: rgba(255, 255, 255, 0.96);
   border-bottom: 1px solid #dbe4f1;
   backdrop-filter: blur(12px);
@@ -398,9 +398,9 @@
 }
 
 .app-shell-content {
-  width: min(1680px, calc(100% - 20px));
+  width: min(1360px, calc(100% - 72px));
   margin: 0 auto;
-  padding: 10px 0 28px;
+  padding: 14px 0 34px;
 }
 
 .app-shell-progress {
@@ -529,12 +529,18 @@
   }
 
   .app-shell-content {
-    width: min(100%, calc(100% - 16px));
+    width: min(100%, calc(100% - 28px));
     padding-top: 14px;
   }
 
   .app-shell-progress {
     top: 105px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .app-shell-content {
+    width: min(1280px, calc(100% - 96px));
   }
 }
 

@@ -1,31 +1,32 @@
 .page-header {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
   align-items: flex-start;
-  padding: 10px 12px;
+  padding: 9px 12px;
 }
 
 .page-header-copy {
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 .page-header h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.94rem;
 }
 
 .page-description {
   margin: 0;
   max-width: 760px;
   color: #536277;
-  font-size: 0.76rem;
+  font-size: 0.74rem;
 }
 
 .page-header-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
 }
 
 .toolbar {
@@ -171,7 +172,7 @@
 .section-page-copy h1 {
   margin: 0;
   color: #18253a;
-  font-size: 0.98rem;
+  font-size: 0.92rem;
   line-height: 1.15;
 }
 
@@ -179,7 +180,7 @@
   margin: 4px 0 0;
   max-width: 720px;
   color: #61728a;
-  font-size: 0.76rem;
+  font-size: 0.74rem;
 }
 
 .section-tabs {

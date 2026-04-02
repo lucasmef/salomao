@@ -244,7 +244,7 @@ export async function fetchJson<T>(path: string, init?: RequestOptions): Promise
 
       if (lastError instanceof TypeError) {
         throw new Error(
-          `Nao foi possivel conectar com a API local. Tente abrir o backend em http://127.0.0.1:8000/docs ou reiniciar pelo iniciar-sistema.bat.`,
+          `Não foi possível conectar com a API local. Tente abrir o backend em http://127.0.0.1:8000/docs ou reiniciar pelo iniciar-sistema.bat.`,
         );
       }
       throw lastError;
@@ -329,7 +329,7 @@ export async function downloadFile(
         }
         await reportClientError({
           source: "frontend.download",
-          message: "Falha de conexao com a API local ao baixar arquivo",
+          message: "Falha de conexão com a API local ao baixar arquivo",
           path,
           method,
           request_url: `${candidate}${path}`,
@@ -340,7 +340,7 @@ export async function downloadFile(
     }
 
     if (lastError instanceof TypeError) {
-      throw new Error("Nao foi possivel conectar com a API local para gerar o arquivo.");
+      throw new Error("Não foi possível conectar com a API local para gerar o arquivo.");
     }
     throw lastError;
   } finally {

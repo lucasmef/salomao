@@ -23,7 +23,7 @@ export function ResultsComparativesPage({ tabs, dashboard }: Props) {
       <section className="section-toolbar-panel">
         <div className="section-toolbar-content compact-filter-layout">
           <label>
-            Visao
+            Visão
             <select defaultValue="mensal">
               <option value="mensal">Mensal</option>
               <option value="anual">Anual</option>
@@ -54,11 +54,11 @@ export function ResultsComparativesPage({ tabs, dashboard }: Props) {
 
       <section className="content-grid three-columns">
         <article className="panel">
-          <div className="panel-title"><h3>Visoes rapidas</h3></div>
+          <div className="panel-title"><h3>Visões rápidas</h3></div>
           <div className="summary-list">
             <div className="summary-row"><span>Faturamento x ano anterior</span><strong>+14,8%</strong></div>
             <div className="summary-row"><span>Despesa operacional</span><strong>+3,2%</strong></div>
-            <div className="summary-row"><span>Margem liquida</span><strong>+1,9 p.p.</strong></div>
+            <div className="summary-row"><span>Margem líquida</span><strong>+1,9 p.p.</strong></div>
           </div>
         </article>
         <article className="panel">
@@ -66,14 +66,14 @@ export function ResultsComparativesPage({ tabs, dashboard }: Props) {
           <div className="summary-list">
             <div className="summary-row"><span>Recebimento Vendas</span><strong>{formatMoney(dashboard?.kpis.net_revenue)}</strong></div>
             <div className="summary-row"><span>CMV</span><strong>{formatMoney(dashboard?.kpis.cmv)}</strong></div>
-            <div className="summary-row"><span>Assessoria Contabil</span><strong>{formatMoney(dashboard?.kpis.financial_expenses)}</strong></div>
+            <div className="summary-row"><span>Assessoria Contábil</span><strong>{formatMoney(dashboard?.kpis.financial_expenses)}</strong></div>
           </div>
         </article>
         <article className="panel">
           <div className="panel-title"><h3>Comparativo mensal</h3></div>
           <div className="table-shell">
             <table className="erp-table">
-              <thead><tr><th>Mes</th><th>Atual</th><th>Ano anterior</th></tr></thead>
+              <thead><tr><th>Mês</th><th>Atual</th><th>Ano anterior</th></tr></thead>
               <tbody>
                 {(dashboard?.revenue_comparison ?? []).slice(0, 6).map((item) => (
                   <tr key={item.label}>

@@ -396,10 +396,10 @@ export function ReconciliationPage({
       return "Os movimentos selecionados resultam em valor liquido zero.";
     }
     if (selectedBankAccountCount > 1) {
-      return "Selecione apenas movimentos da mesma conta para criar um lancamento consolidado.";
+      return "Selecione apenas movimentos da mesma conta para criar um lançamento consolidado.";
     }
     if (selectedBankDirectionCount > 1) {
-      return "Selecione apenas entradas ou apenas saidas para criar um lancamento consolidado.";
+      return "Selecione apenas entradas ou apenas saídas para criar um lançamento consolidado.";
     }
     return "";
   }, [selectedBankAccountCount, selectedBankDirectionCount, selectedBankItems, selectedBankNetAmount]);
@@ -665,7 +665,7 @@ export function ReconciliationPage({
     const needsDeleteConfirmation = undoMode === "delete_entry" || undoMode === "mixed";
     if (needsDeleteConfirmation) {
       const confirmed = window.confirm(
-        "Esta desconciliacao vai excluir o lancamento criado na conciliacao e reabrir as faturas vinculadas. Deseja continuar?",
+        "Esta desconciliação vai excluir o lançamento criado na conciliação e reabrir as faturas vinculadas. Deseja continuar?",
       );
       if (!confirmed) {
         return;
@@ -849,7 +849,7 @@ export function ReconciliationPage({
   function openTransferModal() {
     setCreateDraft((current) => ({
       ...current,
-      title: buildGroupedEntryTitle(selectedBankItems, selectedBankNetAmount) || "Transferencia entre contas",
+      title: buildGroupedEntryTitle(selectedBankItems, selectedBankNetAmount) || "Transferência entre contas",
       notes: buildGroupedEntryNotes(selectedBankItems),
       destination_account_id: "",
     }));
@@ -897,7 +897,7 @@ export function ReconciliationPage({
             <strong>{overallPendingCount}</strong>
           </div>
           <span className="reconciliation-import-meta">
-            Ultimo lancamento importado: {importSummary.latest_ofx_transaction_date ? formatDate(importSummary.latest_ofx_transaction_date) : "nenhum"}
+            Último lançamento importado: {importSummary.latest_ofx_transaction_date ? formatDate(importSummary.latest_ofx_transaction_date) : "nenhum"}
           </span>
         </div>
       </div>
@@ -909,8 +909,8 @@ export function ReconciliationPage({
       {!embedded && (
         <section className="page-header">
           <div>
-            <p className="section-label">Conciliacao</p>
-            <h2>Extrato bancario x lancamentos do sistema</h2>
+            <p className="section-label">Conciliação</p>
+            <h2>Extrato bancário x lançamentos do sistema</h2>
           </div>
           {reconciliationFiltersContent}
         </section>
@@ -925,7 +925,7 @@ export function ReconciliationPage({
       <section className="reconciliation-erp-grid">
         <article className="panel reconciliation-panel">
           <div className="panel-title">
-            <h3>Extrato bancario</h3>
+            <h3>Extrato bancário</h3>
             <div className="panel-mini-actions">
               <button
                 aria-label="Selecionar filtrados"
@@ -938,20 +938,20 @@ export function ReconciliationPage({
                 <SelectionIcon />
               </button>
               <button
-                aria-label="Limpar selecao"
+                aria-label="Limpar seleção"
                 className="ghost-button reconciliation-icon-button"
                 disabled={!selectedBankIds.length}
                 onClick={clearBankSelection}
-                title="Limpar selecao"
+                title="Limpar seleção"
                 type="button"
               >
                 <SelectionClearIcon />
               </button>
               <button className="secondary-button" type="button" disabled={!selectedBankIds.length} onClick={openTransferModal}>
-                Transferencia
+                Transferência
               </button>
               <button className="secondary-button" type="button" disabled={!selectedBankIds.length} onClick={openCreateModal}>
-                Efetuar lancamento
+                Efetuar lançamento
               </button>
             </div>
           </div>
@@ -965,7 +965,7 @@ export function ReconciliationPage({
               <select value={bankDirectionFilter} onChange={(event) => setBankDirectionFilter(event.target.value)}>
                 <option value="all">Todos</option>
                 <option value="in">Entradas</option>
-                <option value="out">Saidas</option>
+                <option value="out">Saídas</option>
               </select>
             </label>
             <div className="reconciliation-panel-toolbar-actions">
@@ -1000,7 +1000,7 @@ export function ReconciliationPage({
                 <tr>
                   <th></th>
                   <th>Data</th>
-                  <th>Historico</th>
+                  <th>Histórico</th>
                   <th>Conta</th>
                   <th className="numeric-cell">Valor</th>
                   <th>Situacao</th>
@@ -1069,7 +1069,7 @@ export function ReconciliationPage({
 
         <article className="panel reconciliation-panel">
           <div className="panel-title">
-            <h3>Lancamentos do sistema</h3>
+            <h3>Lançamentos do sistema</h3>
             <div className="panel-mini-actions">
               <button
                 className={finderModeActive ? "primary-button" : "secondary-button"}
@@ -1090,7 +1090,7 @@ export function ReconciliationPage({
           </div>
           <div className="section-toolbar-content reconciliation-entry-toolbar">
             <label>
-              Buscar lancamentos
+              Buscar lançamentos
               <input value={entrySearch} onChange={(event) => setEntrySearch(event.target.value)} />
             </label>
         <label>
@@ -1111,7 +1111,7 @@ export function ReconciliationPage({
                   <span className="compact-muted">
                     Extrato {formatMoney(Math.abs(Number(selectedReconciliationTransaction.amount)))} | Valor atual{" "}
                       {formatMoney(Number(selectedReconciliationEntry.total_amount))}
-                      {" "} | Total apos ajuste {formatMoney(adjustmentPreviewTotal)}
+                      {" "} | Total após ajuste {formatMoney(adjustmentPreviewTotal)}
                   </span>
                   <button className="secondary-button compact-inline-button" type="button" onClick={useBankAmountAsPrincipal}>
                     Usar valor do extrato
@@ -1124,16 +1124,16 @@ export function ReconciliationPage({
                   <strong>{formatMoney(selectedBankTotal)}</strong>
                 </div>
                 <div className="inline-adjustment-metric">
-                  <span>Lancamentos selecionados</span>
+                  <span>Lançamentos selecionados</span>
                   <strong>{formatMoney(selectedEntryTotal)}</strong>
                 </div>
               </div>
               <div className="inline-adjustment-difference">
                 <span>
-                  Diferenca atual: <strong>{formatMoney(currentReconciliationDifference)}</strong>
+                  Diferença atual: <strong>{formatMoney(currentReconciliationDifference)}</strong>
                 </span>
                 <span>
-                  Diferenca apos ajuste: <strong>{formatMoney(adjustedReconciliationDifference)}</strong>
+                  Diferença após ajuste: <strong>{formatMoney(adjustedReconciliationDifference)}</strong>
                 </span>
               </div>
               <div className="inline-adjustment-grid">
@@ -1175,7 +1175,7 @@ export function ReconciliationPage({
                 <tr>
                   <th></th>
                   <th>Vencimento</th>
-                  <th>Fatura/Lancamento</th>
+                  <th>Fatura/Lançamento</th>
                   <th>Cliente/Fornecedor</th>
                   <th className="numeric-cell">Valor</th>
                   <th>Status</th>
@@ -1209,7 +1209,7 @@ export function ReconciliationPage({
                 {!entryRows.length && (
                   <tr>
                     <td colSpan={6} className="empty-cell">
-                      {entryLoading ? "Carregando..." : "Nenhum lancamento encontrado."}
+                      {entryLoading ? "Carregando..." : "Nenhum lançamento encontrado."}
                     </td>
                   </tr>
                 )}
@@ -1219,7 +1219,7 @@ export function ReconciliationPage({
           <div className="table-footer reconciliation-table-footer reconciliation-table-footer-simple">
             <div className="table-footer-meta">
               <span>
-                {entryRows.length} de {entryTotal} lancamento(s) carregados
+                {entryRows.length} de {entryTotal} lançamento(s) carregados
                 {entryTotal > RECONCILIATION_ENTRY_FETCH_LIMIT ? ` (limite ${RECONCILIATION_ENTRY_FETCH_LIMIT})` : ""}
               </span>
             </div>
@@ -1231,7 +1231,7 @@ export function ReconciliationPage({
         <div className="modal-backdrop" role="presentation">
           <div className="modal-card">
             <div className="panel-title">
-              <h3>Efetuar lancamento a partir do extrato</h3>
+              <h3>Efetuar lançamento a partir do extrato</h3>
               <button className="ghost-button" type="button" onClick={() => setModal(null)}>
                 Fechar
               </button>
@@ -1298,7 +1298,7 @@ export function ReconciliationPage({
                 disabled={!canCreateConsolidatedEntry}
                 onClick={() => void handleCreateEntry()}
               >
-                Criar lancamento consolidado
+                Criar lançamento consolidado
               </button>
             </div>
           </div>
@@ -1309,7 +1309,7 @@ export function ReconciliationPage({
         <div className="modal-backdrop" role="presentation">
           <div className="modal-card">
             <div className="panel-title">
-              <h3>Lancar transferencia entre contas</h3>
+              <h3>Lançar transferência entre contas</h3>
               <button className="ghost-button" type="button" onClick={() => setModal(null)}>
                 Fechar
               </button>
@@ -1355,7 +1355,7 @@ export function ReconciliationPage({
                 disabled={!createDraft.destination_account_id || !selectedBankIds.length}
                 onClick={() => void handleCreateTransfer()}
               >
-                Criar transferencia
+                Criar transferência
               </button>
             </div>
           </div>

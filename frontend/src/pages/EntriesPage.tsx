@@ -495,7 +495,7 @@ export function EntriesPage({
     if (!selectedDeletableEntries.length || selectedNonDeletableCount > 0) {
       return;
     }
-    const confirmMessage = `Excluir ${selectedDeletableEntries.length} lancamento(s) selecionado(s)? Essa acao nao remove lancamentos com baixa, conciliacao ou vinculo com outros processos.`;
+    const confirmMessage = `Excluir ${selectedDeletableEntries.length} lançamento(s) selecionado(s)? Essa ação não remove lançamentos com baixa, conciliação ou vínculo com outros processos.`;
     if (!window.confirm(confirmMessage)) {
       return;
     }
@@ -509,8 +509,8 @@ export function EntriesPage({
       {!embedded && (
         <PageHeader
           eyebrow="Financeiro"
-          title="Lancamentos"
-          description="Pagar, receber e consulta financeira do periodo."
+          title="Lançamentos"
+          description="Pagar, receber e consulta financeira do período."
           actions={
             <div className="toolbar entries-toolbar-compact">
               <label>
@@ -522,7 +522,7 @@ export function EntriesPage({
                 />
               </label>
               <label>
-                Ate
+                Até
                 <input
                   type="date"
                   value={String(filters.date_to ?? "")}
@@ -532,7 +532,7 @@ export function EntriesPage({
               <label>
                 Busca textual
                 <input
-                  placeholder="Titulo, documento ou contraparte"
+                  placeholder="Título, documento ou contraparte"
                   value={String(filters.search ?? "")}
                   onChange={(event) => onChangeFilters({ ...filters, search: event.target.value, page: "1" })}
                 />
@@ -560,7 +560,7 @@ export function EntriesPage({
                 }}
                 type="button"
               >
-                Novo lancamento
+                Novo lançamento
               </button>
             </div>
           }
@@ -579,7 +579,7 @@ export function EntriesPage({
               />
             </label>
             <label>
-              Ate
+              Até
               <input
                 type="date"
                 value={String(filters.date_to ?? "")}
@@ -589,7 +589,7 @@ export function EntriesPage({
             <label>
               Busca textual
                 <input
-                  placeholder="Titulo, documento ou contraparte"
+                  placeholder="Título, documento ou contraparte"
                   value={String(filters.search ?? "")}
                   onChange={(event) => onChangeFilters({ ...filters, search: event.target.value, page: "1" })}
                 />
@@ -617,7 +617,7 @@ export function EntriesPage({
               }}
               type="button"
             >
-              Novo lancamento
+              Novo lançamento
             </button>
           </div>
         </section>
@@ -655,23 +655,23 @@ export function EntriesPage({
               <select value={String(filters.source_system ?? "")} onChange={(event) => onChangeFilters({ ...filters, source_system: event.target.value, page: "1" })}>
                 <option value="">Todas</option>
                 <option value="manual">Manual</option>
-                <option value="historical_cashbook">Historico</option>
-                <option value="loan">Emprestimo</option>
-                <option value="recurrence">Recorrencia</option>
+                <option value="historical_cashbook">Histórico</option>
+                <option value="loan">Empréstimo</option>
+                <option value="recurrence">Recorrência</option>
               </select>
             </label>
             <label>
               Considerar data por
               <select value={String(filters.date_field ?? "due_date")} onChange={(event) => onChangeFilters({ ...filters, date_field: event.target.value, page: "1" })}>
                 <option value="due_date">Vencimento</option>
-                <option value="issue_date">Emissao</option>
+                <option value="issue_date">Emissão</option>
               </select>
             </label>
             <label>De<input type="date" value={String(filters.date_from ?? "")} onChange={(event) => onChangeFilters({ ...filters, date_from: event.target.value, page: "1" })} /></label>
             <label>Ate<input type="date" value={String(filters.date_to ?? "")} onChange={(event) => onChangeFilters({ ...filters, date_to: event.target.value, page: "1" })} /></label>
             <label className="checkbox-line">
               <input type="checkbox" checked={Boolean(filters.include_legacy)} onChange={(event) => onChangeFilters({ ...filters, include_legacy: event.target.checked, page: "1" })} />
-              Mostrar historico antigo
+              Mostrar histórico antigo
             </label>
             <div className="action-row">
               <button className="primary-button" disabled={submitting} type="submit">Aplicar filtros</button>
@@ -729,7 +729,7 @@ export function EntriesPage({
       <section className="panel compact-panel-card">
         <div className="panel-title is-column-mobile compact-title-row">
           <div>
-            <h3>Lancamentos</h3>
+            <h3>Lançamentos</h3>
             <p className="panel-subtitle">Consulta paginada conforme os chips e filtros selecionados.</p>
           </div>
           <TablePagination
@@ -749,7 +749,7 @@ export function EntriesPage({
             Selecionar todos desta pagina
           </label>
           <span className="bulk-entry-count">
-            {selectedEntryIds.length ? `${selectedEntryIds.length} selecionado(s)` : "Nenhum lancamento selecionado"}
+            {selectedEntryIds.length ? `${selectedEntryIds.length} selecionado(s)` : "Nenhum lançamento selecionado"}
           </span>
           <label className="bulk-entry-category">
             Categoria em massa
@@ -758,7 +758,7 @@ export function EntriesPage({
               value={bulkCategoryId}
               onChange={(event) => setBulkCategoryId(event.target.value)}
             >
-              <option value="">{selectedEntryIds.length ? "Selecionar categoria" : "Selecione lancamentos"}</option>
+              <option value="">{selectedEntryIds.length ? "Selecionar categoria" : "Selecione lançamentos"}</option>
               {bulkCategoryOptions.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
@@ -796,12 +796,12 @@ export function EntriesPage({
         </div>
         {selectedEntryIds.length > 0 && !selectedEntryKind && (
           <p className="bulk-entry-warning">
-            Selecione apenas lancamentos da mesma natureza. Transferencias e combinacoes de receita/despesa nao entram na alteracao em massa.
+            Selecione apenas lançamentos da mesma natureza. Transferências e combinações de receita/despesa não entram na alteração em massa.
           </p>
         )}
         {selectedNonDeletableCount > 0 && (
           <p className="bulk-entry-warning">
-            {selectedNonDeletableCount} item(ns) selecionado(s) nao podem ser excluidos em lote porque ja foram baixados, conciliados ou estao vinculados a outro processo.
+            {selectedNonDeletableCount} item(ns) selecionado(s) não podem ser excluídos em lote porque já foram baixados, conciliados ou estão vinculados a outro processo.
           </p>
         )}
         <div className="table-shell tall">
@@ -809,7 +809,7 @@ export function EntriesPage({
             <thead>
               <tr>
                 <th className="checkbox-cell">Sel.</th>
-                <th>Titulo</th>
+                <th>Título</th>
                 <th>Fluxo</th>
                 <th>Conta</th>
                 <th>Categoria</th>
@@ -875,7 +875,7 @@ export function EntriesPage({
                   </td>
                 </tr>
               ))}
-              {!entryList.items.length && <tr><td colSpan={9} className="empty-cell">Nenhum lancamento encontrado para os filtros atuais.</td></tr>}
+              {!entryList.items.length && <tr><td colSpan={9} className="empty-cell">Nenhum lançamento encontrado para os filtros atuais.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -885,7 +885,7 @@ export function EntriesPage({
         <div className="modal-backdrop">
           <div className="modal-card compact-entry-modal">
             <div className="panel-title compact-title-row">
-              <h3>{editingId ? "Editar lancamento" : "Novo lancamento"}</h3>
+              <h3>{editingId ? "Editar lançamento" : "Novo lançamento"}</h3>
               <button
                 className="ghost-button"
                 onClick={() => {
@@ -900,7 +900,7 @@ export function EntriesPage({
               </button>
             </div>
             <form className="form-grid dense wide" onSubmit={handleSubmit}>
-              <label>Titulo<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required /></label>
+              <label>Título<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required /></label>
               <label>
                 Tipo
                 <select value={form.entry_type} onChange={(event) => setForm({ ...form, entry_type: event.target.value, category_id: "" })}>
@@ -962,17 +962,17 @@ export function EntriesPage({
               </label>
               <label>Contraparte<input value={form.counterparty_name} onChange={(event) => setForm({ ...form, counterparty_name: event.target.value })} /></label>
               <label>Documento<input value={form.document_number} onChange={(event) => setForm({ ...form, document_number: event.target.value })} /></label>
-              <label>Emissao<input type="date" value={form.issue_date} onChange={(event) => setForm({ ...form, issue_date: event.target.value })} /></label>
-              <label>Competencia<input type="date" value={form.competence_date} onChange={(event) => setForm({ ...form, competence_date: event.target.value })} /></label>
+              <label>Emissão<input type="date" value={form.issue_date} onChange={(event) => setForm({ ...form, issue_date: event.target.value })} /></label>
+              <label>Competência<input type="date" value={form.competence_date} onChange={(event) => setForm({ ...form, competence_date: event.target.value })} /></label>
               <label>Vencimento<input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} /></label>
               <label className="span-two amount-primary-field">Principal<MoneyInput value={form.principal_amount} onValueChange={(value) => setForm({ ...form, principal_amount: value })} /></label>
               <label>Juros<MoneyInput value={form.interest_amount} onValueChange={(value) => setForm({ ...form, interest_amount: value })} /></label>
               <label>Desconto<MoneyInput value={form.discount_amount} onValueChange={(value) => setForm({ ...form, discount_amount: value })} /></label>
               <label>Multa<MoneyInput value={form.penalty_amount} onValueChange={(value) => setForm({ ...form, penalty_amount: value })} /></label>
-              <label className="span-three">Descricao<textarea rows={3} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label>
+              <label className="span-three">Descrição<textarea rows={3} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label>
               <label className="span-three">Notas<textarea rows={3} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
               <div className="action-row">
-                <button className="primary-button" disabled={submitting} type="submit">{editingId ? "Salvar alteracoes" : "Criar lancamento"}</button>
+                <button className="primary-button" disabled={submitting} type="submit">{editingId ? "Salvar alterações" : "Criar lançamento"}</button>
                 <button
                   className="ghost-button"
                   onClick={() => {

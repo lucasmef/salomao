@@ -174,7 +174,7 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
 
   function validateDraft() {
     if (!draft) {
-      return "Configuracao indisponivel.";
+      return "Configuração indisponível.";
     }
     const lines = draft.lines;
     const groupOwners = new Map<string, string>();
@@ -226,7 +226,7 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
 
   async function handleSave() {
     if (!draft) {
-      setError("Configuracao indisponivel.");
+      setError("Configuração indisponível.");
       return;
     }
     const validationError = validateDraft();
@@ -462,7 +462,7 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
                                   }
                                 >
                                   <option value="reference_line">Outra linha anterior</option>
-                                  <option value="grouped_children">Lancamentos agrupados da propria linha</option>
+                                  <option value="grouped_children">Lançamentos agrupados da própria linha</option>
                                 </select>
                               </label>
 

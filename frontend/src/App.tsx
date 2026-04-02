@@ -1169,7 +1169,7 @@ function AppRuntime() {
     if (!session) return;
     await runMutation(async () => {
       await fetchJson("/transfers", { method: "POST", token: session.token, body: JSON.stringify(payload) });
-    }, "Transferencia criada.", { sections: ["lancamentos", "caixa", "operacoes", "overview"] });
+    }, "Transferência criada.", { sections: ["lancamentos", "caixa", "operacoes", "overview"] });
   }
 
   async function createRecurrence(payload: Record<string, unknown>) {
@@ -1222,7 +1222,7 @@ function AppRuntime() {
       Object.entries(fields ?? {}).forEach(([key, value]) => formData.append(key, value));
       const result = await fetchJson<ImportResult>(path, { method: "POST", token: session.token, body: formData });
       setFeedback({ tone: "success", message: result.message });
-    }, "Importacao concluida.", { sections });
+    }, "Importação concluída.", { sections });
   }
 
   async function uploadSalesImport(file: File) {
@@ -1274,7 +1274,7 @@ function AppRuntime() {
         token: session.token,
         body: JSON.stringify({}),
       });
-    }, "Cobrancas do Inter sincronizadas.", { sections: ["boletos", "importacoes"] });
+    }, "Cobranças do Inter sincronizadas.", { sections: ["boletos", "importacoes"] });
   }
 
   async function issueInterCharges(selectionKeys: string[]) {
@@ -1341,7 +1341,7 @@ function AppRuntime() {
         token: session.token,
         body: JSON.stringify({ pagar_com: payWith }),
       });
-    }, "Baixa do boleto do Inter concluida.", { sections: ["boletos", "importacoes"] });
+    }, "Baixa do boleto do Inter concluída.", { sections: ["boletos", "importacoes"] });
   }
 
   async function importPurchaseInvoiceText(rawText: string) {
@@ -1525,21 +1525,21 @@ function AppRuntime() {
     if (!session) return;
     await runMutation(async () => {
       await fetchJson("/collections", { method: "POST", token: session.token, body: JSON.stringify(collectionPayload) });
-    }, "Colecao criada.", { refreshBase: true, sections: ["planejamento"] });
+    }, "Coleção criada.", { refreshBase: true, sections: ["planejamento"] });
   }
 
   async function updateCollection(collectionId: string, payload: Record<string, unknown>) {
     if (!session) return;
     await runMutation(async () => {
       await fetchJson(`/collections/${collectionId}`, { method: "PUT", token: session.token, body: JSON.stringify(payload) });
-    }, "Colecao atualizada.", { refreshBase: true, sections: ["planejamento"] });
+    }, "Coleção atualizada.", { refreshBase: true, sections: ["planejamento"] });
   }
 
   async function deleteCollection(collectionId: string) {
     if (!session) return;
     await runMutation(async () => {
       await fetchJson(`/collections/${collectionId}`, { method: "DELETE", token: session.token });
-    }, "Colecao excluida.", { refreshBase: true, sections: ["planejamento"] });
+    }, "Coleção excluída.", { refreshBase: true, sections: ["planejamento"] });
   }
 
   async function createPurchasePlan(payload: Record<string, unknown>) {
@@ -1571,7 +1571,7 @@ function AppRuntime() {
         token: session.token,
         body: JSON.stringify(payload),
       });
-    }, "Devolucao de compra criada.", { sections: ["planejamento"] });
+    }, "Devolução de compra criada.", { sections: ["planejamento"] });
   }
 
   async function updatePurchaseReturn(purchaseReturnId: string, payload: Record<string, unknown>) {
@@ -1582,7 +1582,7 @@ function AppRuntime() {
         token: session.token,
         body: JSON.stringify(payload),
       });
-    }, "Devolucao de compra atualizada.", { sections: ["planejamento"] });
+    }, "Devolução de compra atualizada.", { sections: ["planejamento"] });
   }
 
   async function deletePurchaseReturn(purchaseReturnId: string) {
@@ -1592,7 +1592,7 @@ function AppRuntime() {
         method: "DELETE",
         token: session.token,
       });
-    }, "Devolucao de compra excluida.", { sections: ["planejamento"] });
+    }, "Devolução de compra excluída.", { sections: ["planejamento"] });
   }
 
   async function linkPurchaseInstallment(installmentId: string, financialEntryId: string | null) {
@@ -1603,7 +1603,7 @@ function AppRuntime() {
         token: session.token,
         body: JSON.stringify({ financial_entry_id: financialEntryId }),
       });
-    }, "Vinculo da parcela atualizado.", { sections: ["planejamento", "caixa", "lancamentos"] });
+    }, "Vínculo da parcela atualizado.", { sections: ["planejamento", "caixa", "lancamentos"] });
   }
 
   async function reconcile(
@@ -1644,7 +1644,7 @@ function AppRuntime() {
           delete_generated_entries: deleteGeneratedEntries,
         }),
       });
-    }, "Conciliacao desfeita.", { sections: ["conciliacao", "lancamentos", "caixa"] });
+    }, "Conciliação desfeita.", { sections: ["conciliacao", "lancamentos", "caixa"] });
   }
 
   async function exportReport(kind: "dre" | "dro", format: "pdf" | "csv" | "xls") {
@@ -1761,7 +1761,7 @@ function AppRuntime() {
     if (!session) return;
     await runMutation(async () => {
       await fetchJson("/boletos/clients", { method: "POST", token: session.token, body: JSON.stringify(payload) });
-    }, "Configuracoes de boletos salvas.", { sections: ["boletos"] });
+    }, "Configurações de boletos salvas.", { sections: ["boletos"] });
   }
 
   async function exportMissingBoletos(selectionKeys: string[]) {
@@ -1925,7 +1925,7 @@ function AppRuntime() {
             element={
               <SectionChrome
                 description={entriesNavigation.children[0].description}
-                sectionLabel="Lancamentos"
+                sectionLabel="Lançamentos"
                 tabLabel={entriesNavigation.children[0].label}
                 tabs={entriesNavigation.children}
                 title={entriesNavigation.children[0].title}
@@ -1964,7 +1964,7 @@ function AppRuntime() {
           element={
             <SectionChrome
               description={reconciliationNavigation.children[0].description}
-              sectionLabel="Conciliacao"
+              sectionLabel="Conciliação"
               tabLabel={reconciliationNavigation.children[0].label}
               tabs={reconciliationNavigation.children}
               title={reconciliationNavigation.children[0].title}
@@ -1998,7 +1998,7 @@ function AppRuntime() {
           element={
             <SectionChrome
               description={billingNavigation.children[0].description}
-              sectionLabel="Cobranca"
+              sectionLabel="Cobrança"
               tabLabel={billingNavigation.children[0].label}
               tabs={billingNavigation.children}
               title={billingNavigation.children[0].title}
