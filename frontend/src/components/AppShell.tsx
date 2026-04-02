@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import salomaoLogo from "../assets/salomao-logo.png";
-import type { MainNavItem } from "../data/navigation";
+import { findMainNavItem, type MainNavItem } from "../data/navigation";
 import type { AuthUser } from "../types";
 
 type Props = {
@@ -24,6 +24,7 @@ export function AppShell({
 }: Props) {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const activeMainItem = findMainNavItem(location.pathname);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -53,9 +54,7 @@ export function AppShell({
           {mainNavigation.map((item) => (
             <NavLink
               key={item.key}
-              className={`app-shell-main-link ${
-                location.pathname.startsWith(item.path.replace(/\/[^/]+$/, "")) ? "active" : ""
-              }`}
+              className={`app-shell-main-link ${activeMainItem.key === item.key ? "active" : ""}`}
               onClick={() => setMobileMenuOpen(false)}
               to={item.path}
             >

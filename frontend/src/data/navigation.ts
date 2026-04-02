@@ -18,9 +18,9 @@ export type MainNavItem = {
 export const mainNavigation: MainNavItem[] = [
   {
     key: "overview",
-    label: "Visão Geral",
+    label: "Visao Geral",
     path: "/overview/resumo",
-    title: "Visão Geral",
+    title: "Visao Geral",
     description: "Leitura gerencial consolidada do periodo com indicadores e saldos.",
     children: [
       {
@@ -33,11 +33,11 @@ export const mainNavigation: MainNavItem[] = [
     ],
   },
   {
-    key: "financeiro",
-    label: "Financeiro",
+    key: "lancamentos",
+    label: "Lancamentos",
     path: "/financeiro/lancamentos",
-    title: "Financeiro",
-    description: "Operacao financeira do dia a dia: lancamentos, conciliacao bancaria e cobranca.",
+    title: "Lancamentos",
+    description: "Consulta principal, filtros, baixas e titulos em aberto em uma unica tela.",
     children: [
       {
         key: "lancamentos",
@@ -46,6 +46,15 @@ export const mainNavigation: MainNavItem[] = [
         title: "Lancamentos",
         description: "Consulta principal, filtros, baixas e titulos em aberto em uma unica tela.",
       },
+    ],
+  },
+  {
+    key: "conciliacao",
+    label: "Conciliacao",
+    path: "/financeiro/conciliacao",
+    title: "Conciliacao",
+    description: "Extrato bancario, importacao OFX e conciliacao com o sistema financeiro.",
+    children: [
       {
         key: "conciliacao",
         label: "Conciliacao",
@@ -53,6 +62,15 @@ export const mainNavigation: MainNavItem[] = [
         title: "Conciliacao",
         description: "Extrato bancario, importacao OFX e conciliacao com o sistema financeiro.",
       },
+    ],
+  },
+  {
+    key: "cobranca",
+    label: "Cobranca",
+    path: "/financeiro/cobranca",
+    title: "Cobranca",
+    description: "Resumo, clientes e faturas com filtros de cobranca e importacao de recebiveis.",
+    children: [
       {
         key: "cobranca",
         label: "Cobranca",
@@ -93,7 +111,7 @@ export const mainNavigation: MainNavItem[] = [
     ],
   },
   {
-    key: "caixa-resultados",
+    key: "resultados",
     label: "Resultados",
     path: "/caixa-resultados/fluxo-caixa",
     title: "Resultados",
@@ -137,11 +155,11 @@ export const mainNavigation: MainNavItem[] = [
     ],
   },
   {
-    key: "cadastros",
-    label: "Cadastros",
+    key: "sistema",
+    label: "Sistema",
     path: "/cadastros/contas",
-    title: "Cadastros",
-    description: "Estruturas base do sistema: contas, categorias, clientes e regras.",
+    title: "Sistema",
+    description: "Administracao, cadastros base, backup, seguranca, importacoes tecnicas e auditoria.",
     children: [
       {
         key: "contas",
@@ -178,15 +196,6 @@ export const mainNavigation: MainNavItem[] = [
         title: "Fornecedores",
         description: "Cadastro dos fornecedores usados no modulo de compras.",
       },
-    ],
-  },
-  {
-    key: "sistema",
-    label: "Sistema",
-    path: "/sistema/usuarios",
-    title: "Sistema",
-    description: "Administracao, backup, seguranca, importacoes tecnicas e auditoria.",
-    children: [
       {
         key: "usuarios",
         label: "Usuarios",
@@ -242,12 +251,16 @@ export const legacySectionPathMap: Record<string, string> = {
 
 export function findMainNavItem(pathname: string) {
   return (
-    mainNavigation.find((item) => pathname.startsWith(item.path.replace(/\/[^/]+$/, ""))) ??
-    mainNavigation[0]
+    mainNavigation.find(
+      (item) =>
+        pathname === item.path ||
+        pathname.startsWith(`${item.path}/`) ||
+        item.children.some((child) => pathname === child.path || pathname.startsWith(`${child.path}/`)),
+    ) ?? mainNavigation[0]
   );
 }
 
 export function findChildNavItem(pathname: string) {
   const section = findMainNavItem(pathname);
-  return section.children.find((child) => pathname.startsWith(child.path)) ?? section.children[0];
+  return section.children.find((child) => pathname === child.path || pathname.startsWith(`${child.path}/`)) ?? section.children[0];
 }
