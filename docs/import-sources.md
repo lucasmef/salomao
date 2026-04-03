@@ -13,6 +13,13 @@ Campos ja identificados no modelo atual:
 - `MEMO`
 - `NAME`
 
+## Template de cobrancas Inter
+
+O template de cobrancas do Banco Inter deve ser baixado diretamente do portal oficial quando necessario.
+
+- nao versionar a planilha baixada no repositorio
+- usar apenas copias locais temporarias para validacao de layout e preenchimento
+
 ## Faturamento Linx
 
 O arquivo atual e HTML exportado com extensao `.xls`.
