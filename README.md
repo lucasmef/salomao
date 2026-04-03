@@ -29,6 +29,7 @@ Do ponto de vista de portfolio, ele mostra capacidade de entregar produto, backe
 - Aplicacao web full stack para gestao financeira, cobranca, conciliacao, compras e leitura gerencial.
 - Backend em `FastAPI + SQLAlchemy`, frontend em `React + TypeScript + Vite`.
 - Banco oficial em `PostgreSQL`, com migracoes versionadas via `Alembic`.
+- Integracao nativa com a `API do Banco Inter` para extrato, cobrancas e operacao de boletos.
 - Deploy oficial em `VPS KingHost`, com `Nginx`, `systemd`, `UFW`, `fail2ban` e healthchecks.
 - Seguranca reforcada com `MFA obrigatorio`, `cookies HttpOnly`, `rate limit`, `criptografia de campos`, `auditoria` e `alertas`.
 - Scripts operacionais para deploy, validacao de ambiente, migracao e backup.
@@ -46,13 +47,28 @@ Do ponto de vista de portfolio, ele mostra capacidade de entregar produto, backe
 
 - Visao geral com KPIs e leitura consolidada do periodo.
 - Lancamentos financeiros e titulos em aberto.
-- Conciliacao bancaria com importacao OFX.
-- Cobranca, clientes e recebiveis.
+- Conciliacao bancaria com importacao OFX e sincronizacao de extrato via `API do Inter`.
+- Cobranca, clientes e recebiveis com emissao e sincronizacao de boletos pelo `Banco Inter`.
 - Compras e planejamento operacional.
 - Fluxo de caixa, DRE, DRO, projecoes e comparativos.
-- Cadastros de contas, categorias, clientes e regras.
+- Cadastros de contas, categorias, clientes e regras, incluindo configuracao segura da conta `Inter`.
 - Administracao de usuarios, backup, seguranca e auditoria.
 - Importacoes tecnicas e historicas.
+
+## Integracao com a API do Inter
+
+O projeto agora possui integracao direta com a API do Banco Inter para reduzir trabalho manual em conciliacao e cobranca.
+
+- Sincronizacao de extrato bancario com deduplicacao por transacao.
+- Sincronizacao de cobrancas emitidas no Inter para atualizar status, linha digitavel, codigo de barras, nosso numero, `pix copia e cola` e valores recebidos.
+- Emissao de boletos no Inter a partir da lista de `boletos faltando` do proprio sistema.
+- Download de PDF individual ou em lote (`.zip`) para os boletos emitidos pelo Inter.
+- Cancelamento de cobrancas pela API.
+- Baixa manual pela API em ambiente `sandbox`, util para homologacao do fluxo ponta a ponta.
+- Suporte a `production` e `sandbox`, com sobrescrita opcional de `base URL` para testes.
+- Garantia de que apenas uma conta ativa fique com a API do Inter habilitada por vez.
+
+Para a emissao funcionar, o cadastro do cliente precisa estar completo com documento, endereco, CEP, cidade, UF e telefone.
 
 ## Arquitetura
 
@@ -66,6 +82,7 @@ flowchart LR
     B --> P["PostgreSQL"]
     B --> A["Auditoria e Alertas"]
     B --> S["Autenticacao, MFA e Sessao"]
+    B --> I["Banco Inter API"]
     O["systemd + UFW + fail2ban"] --> B
 ```
 
@@ -82,7 +99,7 @@ Topologia oficial no VPS:
 | Camada | Tecnologias | Papel no projeto |
 | --- | --- | --- |
 | Frontend | `React 18`, `TypeScript`, `Vite`, `React Router`, `react-select` | Interface, roteamento e experiencia web |
-| Backend | `FastAPI`, `SQLAlchemy 2`, `Pydantic Settings`, `psycopg`, `cryptography` | API, modelagem, configuracao, persistencia e seguranca |
+| Backend | `FastAPI`, `SQLAlchemy 2`, `Pydantic Settings`, `psycopg`, `httpx`, `cryptography` | API, integracoes externas, modelagem, configuracao, persistencia e seguranca |
 | Banco e schema | `PostgreSQL`, `Alembic` | Banco oficial e migracoes versionadas |
 | Infraestrutura | `Nginx`, `systemd`, `UFW`, `fail2ban` | Proxy reverso, processo, firewall e protecao de borda |
 | Qualidade | `pytest`, `ruff` | Testes automatizados e padrao de codigo |
@@ -101,6 +118,8 @@ Um dos diferenciais mais fortes do projeto esta na camada de seguranca, principa
 - `Cookie secure e SameSite`.
 - `Rate limit para login e MFA`.
 - `State tokens assinados para desafios de autenticacao`.
+- `Credenciais sensiveis da integracao Inter criptografadas`, incluindo `client secret`, certificado PEM e chave privada PEM.
+- `Integracao com certificado cliente (mTLS)` para autenticacao na API do Inter.
 - `Logs de auditoria` para login, logout, MFA e gestao de usuarios.
 - `Alertas de seguranca` para tentativas suspeitas, abuso de rate limit e acesso fora do pais permitido.
 - `Headers defensivos`: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` e `Cache-Control`.
@@ -175,6 +194,9 @@ O backend possui testes cobrindo pontos relevantes para producao, incluindo:
 - importacoes historicas
 - layouts e regras de relatorios
 - modulos de boletos e planejamento
+- cliente HTTP da `API do Inter`
+- sincronizacao de extrato do Inter com paginacao e deduplicacao
+- emissao, sincronizacao, cancelamento, baixa em sandbox e download de PDF de boletos do Inter
 
 ## Estrutura do repositorio
 
@@ -199,6 +221,9 @@ O backend possui testes cobrindo pontos relevantes para producao, incluindo:
 - [backend/.env.example](backend/.env.example)
 - [backend/.env.dev.example](backend/.env.dev.example)
 - [backend/.env.prod.example](backend/.env.prod.example)
+- [backend/app/services/inter.py](backend/app/services/inter.py)
+- [backend/app/schemas/inter.py](backend/app/schemas/inter.py)
+- [backend/tests/test_inter_api_endpoints.py](backend/tests/test_inter_api_endpoints.py)
 - [scripts/deploy-dev.sh](scripts/deploy-dev.sh)
 - [scripts/deploy-prod.sh](scripts/deploy-prod.sh)
 - [scripts/check-prod.sh](scripts/check-prod.sh)
@@ -217,8 +242,24 @@ PUBLIC_ORIGIN=https://salomao.example.invalid
 
 Na primeira inicializacao com banco vazio, defina `BOOTSTRAP_ADMIN_EMAIL` e `BOOTSTRAP_ADMIN_PASSWORD` para criar o administrador inicial. Depois do bootstrap, troque a senha pela interface e remova a senha inicial do arquivo de ambiente.
 
+## Como habilitar a API do Inter
+
+1. Acesse `Cadastros > Contas e categorias`.
+2. Edite ou crie a conta bancaria do Inter.
+3. Ative `API Banco Inter`.
+4. Informe `Ambiente`, `Client ID`, `Conta corrente Inter`, `Client secret`, `Certificado PEM` e `Chave privada PEM`.
+5. Salve a conta. Se outra conta ja estiver com a API do Inter habilitada, o sistema desabilita a anterior automaticamente.
+
+Com a conta configurada, o sistema libera:
+
+- sincronizacao de extrato em `Importacoes` e `Conciliacao`
+- sincronizacao de cobrancas na tela de `Boletos`
+- emissao de boletos faltando direto no Inter
+- download de PDFs individuais ou em lote
+- cancelamento de boletos e baixa manual em `sandbox`
+
 ## Resumo final
 
-Este projeto se destaca por mostrar uma visao completa de engenharia: produto financeiro, frontend moderno, backend estruturado, persistencia relacional, seguranca de autenticacao, observabilidade operacional e deploy disciplinado em servidor Linux.
+Este projeto se destaca por mostrar uma visao completa de engenharia: produto financeiro, frontend moderno, backend estruturado, persistencia relacional, integracao bancaria real com o Banco Inter, seguranca de autenticacao, observabilidade operacional e deploy disciplinado em servidor Linux.
 
 Para um perfil GitHub, ele comunica bem capacidade de construir e sustentar uma aplicacao real, com preocupacoes de entrega, confiabilidade e seguranca.
