@@ -11,7 +11,7 @@ Nao existe mais deploy local, empacotamento desktop ou fluxo operacional via exe
 
 ## Branches oficiais
 
-- branch `dev` publica no ambiente `dev`
+- branch `main` publica no ambiente `dev`
 - branch `main` publica no ambiente `prod`
 
 Checkouts esperados no servidor:
@@ -60,8 +60,8 @@ No checkout `/srv/salomao/dev/app`:
 
 ```bash
 git fetch --all --prune
-git checkout dev
-git pull --ff-only origin dev
+git checkout main
+git pull --ff-only origin main
 ./scripts/deploy-dev.sh
 ```
 

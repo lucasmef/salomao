@@ -20,7 +20,7 @@
 
 ## Sobre o projeto
 
-Este projeto foi estruturado para ir alem de um CRUD web tradicional. Ele combina frontend em `React`, API em `FastAPI`, persistencia em `PostgreSQL`, autenticacao com `MFA`, trilha de auditoria e uma rotina operacional pensada para ambiente de servidor com `dev` e `prod`.
+Este projeto foi estruturado para ir alem de um CRUD web tradicional. Ele combina frontend em `React`, API em `FastAPI`, persistencia em `PostgreSQL`, autenticacao com `MFA`, trilha de auditoria e uma rotina operacional pensada para ambiente de servidor com `dev` e `prod`, ambos derivados do mesmo branch oficial.
 
 Do ponto de vista de portfolio, ele mostra capacidade de entregar produto, backend, frontend, banco e operacao com foco em confiabilidade e seguranca.
 
@@ -40,7 +40,7 @@ Do ponto de vista de portfolio, ele mostra capacidade de entregar produto, backe
 - Visao full stack de ponta a ponta, sem separar produto e infraestrutura.
 - Preocupacao com ambiente real de operacao, e nao apenas desenvolvimento local.
 - Implementacao de seguranca em camadas, tanto no codigo quanto na borda do servidor.
-- Organizacao de deploy com homologacao e producao separadas.
+- Organizacao de deploy com homologacao e producao separadas a partir de um branch unico.
 - Capacidade de sustentar uma aplicacao apos a entrega inicial.
 
 ## Modulos do sistema
@@ -88,7 +88,7 @@ flowchart LR
 
 Topologia oficial no VPS:
 
-- branch `dev` -> ambiente `dev`
+- branch `main` -> ambiente `dev`
 - branch `main` -> ambiente `prod`
 - checkout `dev`: `/srv/salomao/dev/app`
 - checkout `prod`: `/srv/salomao/prod/app`
@@ -139,6 +139,8 @@ Um dos diferenciais mais fortes do projeto esta na camada de seguranca, principa
 ## Fluxo de deploy
 
 O projeto e `vps-first`: a publicacao oficial acontece somente no VPS da KingHost.
+
+O branch oficial unico e `main`. Os ambientes `dev` e `prod` usam checkouts separados no VPS, mas ambos acompanham `origin/main`.
 
 Scripts padronizados:
 
