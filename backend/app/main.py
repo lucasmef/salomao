@@ -51,12 +51,14 @@ def create_app() -> FastAPI:
     cors_origins = list(settings.cors_origins)
     if settings.public_origin and settings.public_origin not in cors_origins:
         cors_origins.append(settings.public_origin)
+    docs_enabled = settings.resolved_api_docs_enabled
 
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
-        docs_url="/docs",
-        redoc_url="/redoc",
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
     )
 
     app.add_middleware(
