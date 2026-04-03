@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from app.core.config import Settings, get_settings
 
@@ -44,3 +46,19 @@ def test_server_mode_disables_api_docs_by_default(monkeypatch) -> None:
     assert app.openapi_url is None
 
     get_settings.cache_clear()
+
+
+def test_frontend_catch_all_blocks_reserved_api_doc_paths() -> None:
+    import app.main as app_main
+
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    app_main.configure_frontend_routes(app, blocked_paths=app_main.RESERVED_API_DOC_PATHS)
+
+    client = TestClient(app)
+
+    try:
+        for path in ("/docs", "/redoc", "/openapi.json"):
+            response = client.get(path)
+            assert response.status_code == 404
+    finally:
+        client.close()
