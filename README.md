@@ -43,6 +43,35 @@ Do ponto de vista de portfolio, ele mostra capacidade de entregar produto, backe
 - Organizacao de deploy com homologacao e producao separadas a partir de um branch unico.
 - Capacidade de sustentar uma aplicacao apos a entrega inicial.
 
+## Minha atuacao neste projeto
+
+Este projeto foi conduzido por mim de ponta a ponta, incluindo decisao tecnica, criterio de produto e responsabilidade operacional.
+
+- Planejamento da estrutura do sistema, definicao dos modulos e priorizacao das entregas.
+- Desenho da arquitetura `vps-first`, com separacao de ambientes, estrategia de deploy e padrao operacional.
+- Modelagem de banco, organizacao de migracoes e evolucao do schema conforme as necessidades do negocio.
+- Implementacao e integracao entre frontend, backend, banco de dados, importacoes e relatorios.
+- Endurecimento de seguranca com `MFA`, criptografia, cookies seguros, rate limit, trilha de auditoria e alertas.
+- Implantacao e validacao de infraestrutura com `Nginx`, `systemd`, `UFW`, `fail2ban`, `PostgreSQL` e `HTTPS`.
+- Criacao de scripts de deploy, healthcheck, auditoria operacional, backup e rotinas de continuidade.
+- Homologacao de fluxos sensiveis, inclusive cobranca, conciliacao, autenticacao e operacao em servidor real.
+- Documentacao de arquitetura, deploy, checklist de corte para PostgreSQL e padroes de operacao.
+
+Em outras palavras: nao foi apenas um exercicio de codigo. Houve trabalho real de planejamento, construcao, auditoria, validacao e sustentacao do sistema.
+
+## Como o Codex foi utilizado
+
+O desenvolvimento contou com apoio do `Codex` como acelerador de engenharia, principalmente para iterar mais rapido em implementacao, refino, testes e documentacao.
+
+- Apoio na exploracao do codigo e na abertura de frentes de trabalho com mais velocidade.
+- Aceleracao de implementacoes, refatoracoes e ajustes pontuais em backend, frontend, scripts e README.
+- Suporte para gerar ou expandir testes, revisar fluxos e reduzir trabalho repetitivo.
+- Ajuda na organizacao de documentacao tecnica e na consolidacao de mudancas do projeto.
+
+O direcionamento continuou sendo meu: escopo, arquitetura, escolhas de seguranca, fluxo operacional, revisao tecnica, auditoria do ambiente, aprovacao final das mudancas e responsabilidade pelo resultado.
+
+Por isso, o uso de `Codex` aqui deve ser entendido como `AI-assisted development` com autoria, curadoria tecnica e decisao humana sobre o projeto.
+
 ## Modulos do sistema
 
 - Visao geral com KPIs e leitura consolidada do periodo.
