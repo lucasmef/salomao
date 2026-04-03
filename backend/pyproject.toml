@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "pygments>=2.20.0,<3.0.0",
   "pytest>=8.0.0,<9.0.0",
   "ruff>=0.7.0,<1.0.0"
 ]
