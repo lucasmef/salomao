@@ -5,7 +5,7 @@
 <h1 align="center">Gestor Financeiro</h1>
 
 <p align="center">
-  Sistema financeiro full stack com foco em operacao real, seguranca de acesso e deploy controlado em VPS.
+  Sistema financeiro full stack com foco em operação real, segurança, auditoria e deploy controlado em VPS.
 </p>
 
 <p align="center">
@@ -20,97 +20,97 @@
 
 ## Sobre o projeto
 
-Este projeto foi estruturado para ir alem de um CRUD web tradicional. Ele combina frontend em `React`, API em `FastAPI`, persistencia em `PostgreSQL`, autenticacao com `MFA`, trilha de auditoria e uma rotina operacional pensada para ambiente de servidor com `dev` e `prod`, ambos derivados do mesmo branch oficial.
+O Gestor Financeiro foi estruturado para ir além de um CRUD web tradicional. O projeto combina frontend em `React`, API em `FastAPI`, persistência em `PostgreSQL`, autenticação com `MFA`, trilha de auditoria e uma rotina operacional desenhada para rodar em servidor real, com ambientes separados de homologação e produção.
 
-Do ponto de vista de portfolio, ele mostra capacidade de entregar produto, backend, frontend, banco e operacao com foco em confiabilidade e seguranca.
+O resultado é um sistema que não se limita à interface ou ao backend isoladamente: ele cobre produto, regras de negócio, banco de dados, segurança, deploy, observabilidade e continuidade operacional.
 
-## Highlights
+## Destaques
 
-- Aplicacao web full stack para gestao financeira, cobranca, conciliacao, compras e leitura gerencial.
-- Backend em `FastAPI + SQLAlchemy`, frontend em `React + TypeScript + Vite`.
-- Banco oficial em `PostgreSQL`, com migracoes versionadas via `Alembic`.
-- Integracao nativa com a `API do Banco Inter` para extrato, cobrancas e operacao de boletos.
+- Aplicação web full stack para gestão financeira, cobrança, conciliação, compras e leitura gerencial.
+- Backend em `FastAPI + SQLAlchemy` e frontend em `React + TypeScript + Vite`.
+- Banco oficial em `PostgreSQL`, com migrações versionadas via `Alembic`.
+- Integração nativa com a `API do Banco Inter` para extrato, cobranças e operação de boletos.
 - Deploy oficial em `VPS KingHost`, com `Nginx`, `systemd`, `UFW`, `fail2ban` e healthchecks.
-- Seguranca reforcada com `MFA obrigatorio`, `cookies HttpOnly`, `rate limit`, `criptografia de campos`, `auditoria` e `alertas`.
-- Scripts operacionais para deploy, validacao de ambiente, migracao e backup.
-- Testes automatizados cobrindo seguranca, autenticacao e regras de negocio.
+- Segurança reforçada com `MFA obrigatório`, `cookies HttpOnly`, `rate limit`, criptografia de campos, auditoria e alertas.
+- Scripts operacionais para deploy, validação de ambiente, migração, backup e auditoria rápida de produção.
+- Testes automatizados cobrindo segurança, autenticação e regras críticas de negócio.
 
-## O que este projeto comunica para recrutadores
+## O que este projeto evidencia
 
-- Visao full stack de ponta a ponta, sem separar produto e infraestrutura.
-- Preocupacao com ambiente real de operacao, e nao apenas desenvolvimento local.
-- Implementacao de seguranca em camadas, tanto no codigo quanto na borda do servidor.
-- Organizacao de deploy com homologacao e producao separadas a partir de um branch unico.
-- Capacidade de sustentar uma aplicacao apos a entrega inicial.
+- Visão full stack de ponta a ponta, sem separar produto, backend, frontend e infraestrutura.
+- Preocupação com operação real, e não apenas com execução local de desenvolvimento.
+- Implementação de segurança em camadas, tanto na aplicação quanto na borda do servidor.
+- Organização de deploy com fluxo controlado, validações pré-publicação e auditoria pós-deploy.
+- Capacidade de sustentar, evoluir e operar uma aplicação além da entrega inicial.
 
-## Minha atuacao neste projeto
+## Condução e responsabilidade técnica
 
-Este projeto foi conduzido por mim de ponta a ponta, incluindo decisao tecnica, criterio de produto e responsabilidade operacional.
+A condução deste projeto envolveu responsabilidade direta sobre arquitetura, execução e operação do sistema.
 
-- Planejamento da estrutura do sistema, definicao dos modulos e priorizacao das entregas.
-- Desenho da arquitetura `vps-first`, com separacao de ambientes, estrategia de deploy e padrao operacional.
-- Modelagem de banco, organizacao de migracoes e evolucao do schema conforme as necessidades do negocio.
-- Implementacao e integracao entre frontend, backend, banco de dados, importacoes e relatorios.
-- Endurecimento de seguranca com `MFA`, criptografia, cookies seguros, rate limit, trilha de auditoria e alertas.
-- Implantacao e validacao de infraestrutura com `Nginx`, `systemd`, `UFW`, `fail2ban`, `PostgreSQL` e `HTTPS`.
-- Criacao de scripts de deploy, healthcheck, auditoria operacional, backup e rotinas de continuidade.
-- Homologacao de fluxos sensiveis, inclusive cobranca, conciliacao, autenticacao e operacao em servidor real.
-- Documentacao de arquitetura, deploy, checklist de corte para PostgreSQL e padroes de operacao.
+- Planejamento da estrutura da aplicação, definição dos módulos e priorização das entregas.
+- Desenho da arquitetura `vps-first`, com separação de ambientes, estratégia de deploy e padrão operacional.
+- Modelagem de banco, organização de migrações e evolução do schema conforme as necessidades do negócio.
+- Implementação e integração entre frontend, backend, banco de dados, importações, relatórios e segurança.
+- Endurecimento da aplicação com `MFA`, criptografia, cookies seguros, rate limit, trilha de auditoria e alertas.
+- Implantação e validação da infraestrutura com `Nginx`, `systemd`, `UFW`, `fail2ban`, `PostgreSQL` e `HTTPS`.
+- Criação de scripts de deploy, healthcheck, auditoria operacional, backup e rotinas de continuidade.
+- Homologação de fluxos sensíveis, incluindo cobrança, conciliação, autenticação e operação em servidor real.
+- Documentação de arquitetura, deploy, checklist de corte para PostgreSQL e padrões de operação.
 
-Em outras palavras: nao foi apenas um exercicio de codigo. Houve trabalho real de planejamento, construcao, auditoria, validacao e sustentacao do sistema.
+Em síntese, trata-se de um projeto conduzido com preocupação real de engenharia: planejamento, construção, validação, auditoria e sustentação.
 
-## Como o Codex foi utilizado
+## Desenvolvimento assistido por IA
 
-O desenvolvimento contou com apoio do `Codex` como acelerador de engenharia, principalmente para iterar mais rapido em implementacao, refino, testes e documentacao.
+O projeto contou com apoio do `Codex` como acelerador de engenharia, principalmente para aumentar velocidade de implementação, revisão, documentação e refinamento técnico.
 
-- Apoio na exploracao do codigo e na abertura de frentes de trabalho com mais velocidade.
-- Aceleracao de implementacoes, refatoracoes e ajustes pontuais em backend, frontend, scripts e README.
-- Suporte para gerar ou expandir testes, revisar fluxos e reduzir trabalho repetitivo.
-- Ajuda na organizacao de documentacao tecnica e na consolidacao de mudancas do projeto.
+- Apoio na exploração do código e na abertura de frentes de trabalho com mais rapidez.
+- Aceleração de implementações, refatorações e ajustes pontuais em backend, frontend, scripts e documentação.
+- Suporte para expandir testes, revisar fluxos e reduzir trabalho repetitivo.
+- Ajuda na organização e consolidação da documentação técnica.
 
-O direcionamento continuou sendo meu: escopo, arquitetura, escolhas de seguranca, fluxo operacional, revisao tecnica, auditoria do ambiente, aprovacao final das mudancas e responsabilidade pelo resultado.
+O direcionamento permaneceu humano: escopo, arquitetura, decisões de segurança, fluxo operacional, auditoria do ambiente, revisão técnica e aprovação final das mudanças.
 
-Por isso, o uso de `Codex` aqui deve ser entendido como `AI-assisted development` com autoria, curadoria tecnica e decisao humana sobre o projeto.
+Em outras palavras, o uso de `Codex` aqui se encaixa em um fluxo de `AI-assisted development`, com autoria, curadoria técnica e responsabilidade final sobre o resultado.
 
-## Modulos do sistema
+## Módulos do sistema
 
-- Visao geral com KPIs e leitura consolidada do periodo.
-- Lancamentos financeiros e titulos em aberto.
-- Conciliacao bancaria com importacao OFX e sincronizacao de extrato via `API do Inter`.
-- Cobranca, clientes e recebiveis com emissao e sincronizacao de boletos pelo `Banco Inter`.
+- Visão geral com KPIs e leitura consolidada do período.
+- Lançamentos financeiros e títulos em aberto.
+- Conciliação bancária com importação OFX e sincronização de extrato via `API do Inter`.
+- Cobrança, clientes e recebíveis com emissão e sincronização de boletos pelo `Banco Inter`.
 - Compras e planejamento operacional.
-- Fluxo de caixa, DRE, DRO, projecoes e comparativos.
-- Cadastros de contas, categorias, clientes e regras, incluindo configuracao segura da conta `Inter`.
-- Administracao de usuarios, backup, seguranca e auditoria.
-- Importacoes tecnicas e historicas.
+- Fluxo de caixa, DRE, DRO, projeções e comparativos.
+- Cadastros de contas, categorias, clientes e regras, incluindo configuração segura da conta `Inter`.
+- Administração de usuários, backup, segurança e auditoria.
+- Importações técnicas e históricas.
 
-## Integracao com a API do Inter
+## Integração com a API do Inter
 
-O projeto agora possui integracao direta com a API do Banco Inter para reduzir trabalho manual em conciliacao e cobranca.
+O sistema possui integração direta com a API do Banco Inter para reduzir trabalho manual em conciliação e cobrança.
 
-- Sincronizacao de extrato bancario com deduplicacao por transacao.
-- Sincronizacao de cobrancas emitidas no Inter para atualizar status, linha digitavel, codigo de barras, nosso numero, `pix copia e cola` e valores recebidos.
-- Emissao de boletos no Inter a partir da lista de `boletos faltando` do proprio sistema.
-- Download de PDF individual ou em lote (`.zip`) para os boletos emitidos pelo Inter.
-- Cancelamento de cobrancas pela API.
-- Baixa manual pela API em ambiente `sandbox`, util para homologacao do fluxo ponta a ponta.
+- Sincronização de extrato bancário com deduplicação por transação.
+- Sincronização de cobranças emitidas no Inter para atualizar status, linha digitável, código de barras, nosso número, `pix copia e cola` e valores recebidos.
+- Emissão de boletos no Inter a partir da lista de `boletos faltando` do próprio sistema.
+- Download de PDF individual ou em lote (`.zip`) para boletos emitidos pelo Inter.
+- Cancelamento de cobranças pela API.
+- Baixa manual pela API em ambiente `sandbox`, útil para homologação ponta a ponta.
 - Suporte a `production` e `sandbox`, com sobrescrita opcional de `base URL` para testes.
 - Garantia de que apenas uma conta ativa fique com a API do Inter habilitada por vez.
 
-Para a emissao funcionar, o cadastro do cliente precisa estar completo com documento, endereco, CEP, cidade, UF e telefone.
+Para a emissão funcionar, o cadastro do cliente precisa estar completo com documento, endereço, CEP, cidade, UF e telefone.
 
 ## Arquitetura
 
-O sistema segue uma arquitetura `backend serving frontend`: o frontend e compilado em `frontend/dist`, e o backend entrega tanto a API quanto os arquivos estaticos da aplicacao web.
+O sistema segue uma arquitetura `backend serving frontend`: o frontend é compilado em `frontend/dist`, e o backend entrega tanto a API quanto os arquivos estáticos da aplicação web.
 
 ```mermaid
 flowchart LR
-    U["Usuario"] --> N["Nginx + HTTPS"]
+    U["Usuário"] --> N["Nginx + HTTPS"]
     N --> B["FastAPI API + Static Serving"]
     B --> F["React + Vite Build"]
     B --> P["PostgreSQL"]
     B --> A["Auditoria e Alertas"]
-    B --> S["Autenticacao, MFA e Sessao"]
+    B --> S["Autenticação, MFA e Sessão"]
     B --> I["Banco Inter API"]
     O["systemd + UFW + fail2ban"] --> B
 ```
@@ -121,55 +121,55 @@ Topologia oficial no VPS:
 - branch `main` -> ambiente `prod`
 - checkout `dev`: `/srv/salomao/dev/app`
 - checkout `prod`: `/srv/salomao/prod/app`
-- servicos: `salomao-dev.service` e `salomao-prod.service`
+- serviços: `salomao-dev.service` e `salomao-prod.service`
 
-## Stack tecnica
+## Stack técnica
 
 | Camada | Tecnologias | Papel no projeto |
 | --- | --- | --- |
-| Frontend | `React 18`, `TypeScript`, `Vite`, `React Router`, `react-select` | Interface, roteamento e experiencia web |
-| Backend | `FastAPI`, `SQLAlchemy 2`, `Pydantic Settings`, `psycopg`, `httpx`, `cryptography` | API, integracoes externas, modelagem, configuracao, persistencia e seguranca |
-| Banco e schema | `PostgreSQL`, `Alembic` | Banco oficial e migracoes versionadas |
-| Infraestrutura | `Nginx`, `systemd`, `UFW`, `fail2ban` | Proxy reverso, processo, firewall e protecao de borda |
-| Qualidade | `pytest`, `ruff` | Testes automatizados e padrao de codigo |
+| Frontend | `React 18`, `TypeScript`, `Vite`, `React Router`, `react-select` | Interface, roteamento e experiência web |
+| Backend | `FastAPI`, `SQLAlchemy 2`, `Pydantic Settings`, `psycopg`, `httpx`, `cryptography` | API, integrações externas, modelagem, configuração, persistência e segurança |
+| Banco e schema | `PostgreSQL`, `Alembic` | Banco oficial e migrações versionadas |
+| Infraestrutura | `Nginx`, `systemd`, `UFW`, `fail2ban` | Proxy reverso, processo, firewall e proteção de borda |
+| Qualidade | `pytest`, `ruff` | Testes automatizados e padronização de código |
 
-## Seguranca em destaque
+## Segurança em destaque
 
-Um dos diferenciais mais fortes do projeto esta na camada de seguranca, principalmente no servidor.
+Um dos diferenciais mais fortes do projeto está na camada de segurança, especialmente no ambiente de servidor.
 
-### Na aplicacao
+### Na aplicação
 
-- `MFA obrigatorio em modo servidor`.
-- `Dispositivos confiaveis com expiracao`.
+- `MFA obrigatório em modo servidor`.
+- `Dispositivos confiáveis com expiração`.
 - `Hash de senha com PBKDF2-SHA256`.
 - `Criptografia de campos com AES-GCM`.
-- `Sessao via cookie HttpOnly`.
+- `Sessão via cookie HttpOnly`.
 - `Cookie secure e SameSite`.
 - `Rate limit para login e MFA`.
-- `State tokens assinados para desafios de autenticacao`.
-- `Credenciais sensiveis da integracao Inter criptografadas`, incluindo `client secret`, certificado PEM e chave privada PEM.
-- `Integracao com certificado cliente (mTLS)` para autenticacao na API do Inter.
-- `Logs de auditoria` para login, logout, MFA e gestao de usuarios.
-- `Alertas de seguranca` para tentativas suspeitas, abuso de rate limit e acesso fora do pais permitido.
+- `State tokens assinados para desafios de autenticação`.
+- `Credenciais sensíveis da integração Inter criptografadas`, incluindo `client secret`, certificado PEM e chave privada PEM.
+- `Integração com certificado cliente (mTLS)` para autenticação na API do Inter.
+- `Logs de auditoria` para login, logout, MFA e gestão de usuários.
+- `Alertas de segurança` para tentativas suspeitas, abuso de rate limit e acesso fora do país permitido.
 - `Headers defensivos`: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` e `Cache-Control`.
-- `Protecao contra path traversal` ao servir o frontend compilado.
+- `Proteção contra path traversal` ao servir o frontend compilado.
 
 ### No servidor
 
-- `HTTPS` atras de `Nginx`.
+- `HTTPS` atrás de `Nginx`.
 - `UFW` para controle de portas.
-- `fail2ban` para reforco contra abuso.
-- `systemd` para supervisao do processo.
-- `Healthchecks locais e publicos` apos deploy.
-- `Auditoria operacional` com validacao de servico, portas, SSH, TLS e componentes criticos.
-- `Validacao de segredos e modo de execucao` quando `APP_MODE=server`.
+- `fail2ban` para reforço contra abuso.
+- `systemd` para supervisão do processo.
+- `Healthchecks locais e públicos` após deploy.
+- `Auditoria operacional` com validação de serviço, portas, SSH, TLS e componentes críticos.
+- `Validação de segredos e modo de execução` quando `APP_MODE=server`.
 - `PostgreSQL como banco oficial` do ambiente de servidor.
 
 ## Fluxo de deploy
 
-O projeto e `vps-first`: a publicacao oficial acontece somente no VPS da KingHost.
+O projeto é `vps-first`: a publicação oficial acontece somente no VPS da KingHost.
 
-O branch oficial unico e `main`. Os ambientes `dev` e `prod` usam checkouts separados no VPS, mas ambos acompanham `origin/main`.
+O branch oficial único é `main`. Os ambientes `dev` e `prod` usam checkouts separados no VPS, mas ambos acompanham `origin/main`.
 
 Scripts padronizados:
 
@@ -180,56 +180,56 @@ Scripts padronizados:
 
 Fluxo principal executado pelos scripts:
 
-1. Validacao de `backend/.env`.
-2. Confirmacao de `APP_MODE=server`.
-3. Confirmacao de `DATABASE_URL` em PostgreSQL.
+1. Validação de `backend/.env`.
+2. Confirmação de `APP_MODE=server`.
+3. Confirmação de `DATABASE_URL` em PostgreSQL.
 4. `npm ci`.
 5. `npm run build`.
 6. `alembic upgrade head`.
-7. Restart do servico correto no `systemd`.
+7. Restart do serviço correto no `systemd`.
 8. Healthcheck do ambiente.
 
-Auditoria rapida de producao cobre:
+Auditoria rápida de produção cobre:
 
 - `backend/.env`
 - `salomao-prod.service`
 - `nginx`, `postgresql` e `fail2ban`
-- healthcheck local e publico
+- healthcheck local e público
 - portas expostas
 - `UFW`
-- politica efetiva de SSH
+- política efetiva de SSH
 - certificado HTTPS
 
-## Banco, migracoes e continuidade
+## Banco, migrações e continuidade
 
-O banco oficial do servidor e `PostgreSQL`, com schema evoluindo via `Alembic`.
+O banco oficial do servidor é `PostgreSQL`, com schema evoluindo via `Alembic`.
 
-O repositorio tambem concentra rotinas de suporte operacional para:
+O repositório também concentra rotinas de suporte operacional para:
 
-- migracao de SQLite para PostgreSQL
+- migração de SQLite para PostgreSQL
 - backup operacional do PostgreSQL
-- restauracao de dumps
-- retencao de backups
+- restauração de dumps
+- retenção de backups
 - backups criptografados no servidor
 
-Isso mostra preocupacao com continuidade e manutencao do sistema ao longo do tempo, nao apenas com a primeira entrega.
+Isso reforça a preocupação com continuidade e manutenção do sistema ao longo do tempo, e não apenas com a primeira entrega.
 
-## Testes e confianca
+## Testes e confiabilidade
 
-O backend possui testes cobrindo pontos relevantes para producao, incluindo:
+O backend possui testes cobrindo pontos relevantes para produção, incluindo:
 
-- primitivas de seguranca e TOTP
-- alertas de seguranca e envio de email
-- fluxo de dispositivos confiaveis no MFA
-- calculos financeiros
-- importacoes historicas
-- layouts e regras de relatorios
-- modulos de boletos e planejamento
+- primitivas de segurança e TOTP
+- alertas de segurança e envio de e-mail
+- fluxo de dispositivos confiáveis no MFA
+- cálculos financeiros
+- importações históricas
+- layouts e regras de relatórios
+- módulos de boletos e planejamento
 - cliente HTTP da `API do Inter`
-- sincronizacao de extrato do Inter com paginacao e deduplicacao
-- emissao, sincronizacao, cancelamento, baixa em sandbox e download de PDF de boletos do Inter
+- sincronização de extrato do Inter com paginação e deduplicação
+- emissão, sincronização, cancelamento, baixa em sandbox e download de PDF de boletos do Inter
 
-## Estrutura do repositorio
+## Estrutura do repositório
 
 ```text
 .
@@ -259,7 +259,7 @@ O backend possui testes cobrindo pontos relevantes para producao, incluindo:
 - [scripts/deploy-prod.sh](scripts/deploy-prod.sh)
 - [scripts/check-prod.sh](scripts/check-prod.sh)
 
-## Configuracao minima
+## Configuração mínima
 
 ```env
 APP_MODE=server
@@ -271,26 +271,26 @@ FIELD_ENCRYPTION_KEY=...
 PUBLIC_ORIGIN=https://salomao.example.invalid
 ```
 
-Na primeira inicializacao com banco vazio, defina `BOOTSTRAP_ADMIN_EMAIL` e `BOOTSTRAP_ADMIN_PASSWORD` para criar o administrador inicial. Depois do bootstrap, troque a senha pela interface e remova a senha inicial do arquivo de ambiente.
+Na primeira inicialização com banco vazio, defina `BOOTSTRAP_ADMIN_EMAIL` e `BOOTSTRAP_ADMIN_PASSWORD` para criar o administrador inicial. Depois do bootstrap, troque a senha pela interface e remova a senha inicial do arquivo de ambiente.
 
 ## Como habilitar a API do Inter
 
 1. Acesse `Cadastros > Contas e categorias`.
-2. Edite ou crie a conta bancaria do Inter.
+2. Edite ou crie a conta bancária do Inter.
 3. Ative `API Banco Inter`.
 4. Informe `Ambiente`, `Client ID`, `Conta corrente Inter`, `Client secret`, `Certificado PEM` e `Chave privada PEM`.
-5. Salve a conta. Se outra conta ja estiver com a API do Inter habilitada, o sistema desabilita a anterior automaticamente.
+5. Salve a conta. Se outra conta já estiver com a API do Inter habilitada, o sistema desabilita a anterior automaticamente.
 
 Com a conta configurada, o sistema libera:
 
-- sincronizacao de extrato em `Importacoes` e `Conciliacao`
-- sincronizacao de cobrancas na tela de `Boletos`
-- emissao de boletos faltando direto no Inter
+- sincronização de extrato em `Importações` e `Conciliação`
+- sincronização de cobranças na tela de `Boletos`
+- emissão de boletos faltando direto no Inter
 - download de PDFs individuais ou em lote
 - cancelamento de boletos e baixa manual em `sandbox`
 
-## Resumo final
+## Panorama final
 
-Este projeto se destaca por mostrar uma visao completa de engenharia: produto financeiro, frontend moderno, backend estruturado, persistencia relacional, integracao bancaria real com o Banco Inter, seguranca de autenticacao, observabilidade operacional e deploy disciplinado em servidor Linux.
+O Gestor Financeiro apresenta uma visão completa de engenharia aplicada: produto financeiro, frontend moderno, backend estruturado, persistência relacional, integração bancária real, segurança em múltiplas camadas, observabilidade operacional e deploy disciplinado em servidor Linux.
 
-Para um perfil GitHub, ele comunica bem capacidade de construir e sustentar uma aplicacao real, com preocupacoes de entrega, confiabilidade e seguranca.
+É um projeto que comunica capacidade de construir, evoluir e operar software com responsabilidade técnica, foco em confiabilidade e atenção aos detalhes que normalmente só aparecem em ambientes reais.
