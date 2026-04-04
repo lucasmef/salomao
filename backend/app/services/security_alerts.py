@@ -98,11 +98,16 @@ def _lookup_ip_country(client_ip: str) -> dict[str, str] | None:
     }
 
 
-def _send_email(subject: str, body: str) -> None:
+def send_email(subject: str, body: str, *, recipients: list[str] | None = None) -> None:
     settings = get_settings()
     if not settings.security_alert_email_enabled:
         return
-    if not settings.smtp_host or not settings.security_alert_recipients:
+    resolved_recipients = [
+        item.strip()
+        for item in (recipients or settings.security_alert_recipients)
+        if item.strip()
+    ]
+    if not settings.smtp_host or not resolved_recipients:
         return
     sender = settings.security_alert_email_from or settings.smtp_username
     if not sender:
@@ -111,7 +116,7 @@ def _send_email(subject: str, body: str) -> None:
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = sender
-    message["To"] = ", ".join(settings.security_alert_recipients)
+    message["To"] = ", ".join(resolved_recipients)
     message.set_content(body)
 
     smtp_cls = smtplib.SMTP_SSL if settings.smtp_use_ssl else smtplib.SMTP
@@ -121,6 +126,10 @@ def _send_email(subject: str, body: str) -> None:
         if settings.smtp_username and settings.smtp_password:
             smtp.login(settings.smtp_username, settings.smtp_password)
         smtp.send_message(message)
+
+
+def _send_email(subject: str, body: str) -> None:
+    send_email(subject, body)
 
 
 def _emit_alert(

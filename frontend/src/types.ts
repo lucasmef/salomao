@@ -911,6 +911,11 @@ export type LinxSettings = {
   sales_view_name: string;
   receivables_view_name: string;
   has_password: boolean;
+  auto_sync_enabled: boolean;
+  auto_sync_alert_email: string | null;
+  auto_sync_last_run_at: string | null;
+  auto_sync_last_status: string | null;
+  auto_sync_last_error: string | null;
 };
 
 export type LinxSettingsUpdatePayload = {
@@ -919,6 +924,8 @@ export type LinxSettingsUpdatePayload = {
   password?: string;
   sales_view_name: string;
   receivables_view_name: string;
+  auto_sync_enabled: boolean;
+  auto_sync_alert_email?: string;
 };
 
 export type FeedbackState = {

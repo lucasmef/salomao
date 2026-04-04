@@ -63,6 +63,11 @@ def serialize_linx_settings(company: Company) -> LinxSettingsRead:
             company.linx_receivables_view_name or DEFAULT_LINX_RECEIVABLES_VIEW_NAME
         ).strip(),
         has_password=bool(company.linx_password_encrypted),
+        auto_sync_enabled=bool(company.linx_auto_sync_enabled),
+        auto_sync_alert_email=(company.linx_auto_sync_alert_email or "").strip() or None,
+        auto_sync_last_run_at=company.linx_auto_sync_last_run_at,
+        auto_sync_last_status=(company.linx_auto_sync_last_status or "").strip() or None,
+        auto_sync_last_error=(company.linx_auto_sync_last_error or "").strip() or None,
     )
 
 
@@ -71,6 +76,8 @@ def apply_linx_settings(company: Company, payload: LinxSettingsUpdate) -> None:
     company.linx_username = payload.username
     company.linx_sales_view_name = payload.sales_view_name
     company.linx_receivables_view_name = payload.receivables_view_name
+    company.linx_auto_sync_enabled = payload.auto_sync_enabled
+    company.linx_auto_sync_alert_email = payload.auto_sync_alert_email
     if payload.password is not None:
         company.linx_password_encrypted = encrypt_text(payload.password)
 

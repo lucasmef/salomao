@@ -386,6 +386,11 @@ def ensure_schema_updates(engine: Engine) -> None:
             "linx_password_encrypted": "VARCHAR(512)",
             "linx_sales_view_name": "VARCHAR(160)",
             "linx_receivables_view_name": "VARCHAR(160)",
+            "linx_auto_sync_enabled": "BOOLEAN DEFAULT 0",
+            "linx_auto_sync_alert_email": "VARCHAR(255)",
+            "linx_auto_sync_last_run_at": "DATETIME",
+            "linx_auto_sync_last_status": "VARCHAR(20)",
+            "linx_auto_sync_last_error": "TEXT",
         }
         for column_name, sql_type in company_columns.items():
             _add_column_if_missing(connection, "companies", column_name, sql_type)

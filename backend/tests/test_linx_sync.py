@@ -257,16 +257,22 @@ def test_linx_settings_serialization_and_update_endpoint() -> None:
                 "password": "senha-super-secreta",
                 "sales_view_name": "FATURAMENTO SALOMAO",
                 "receivables_view_name": "CREDIARIO SALOMAO",
+                "auto_sync_enabled": True,
+                "auto_sync_alert_email": "financeiro@example.com",
             },
         )
         assert update_response.status_code == 200
         body = update_response.json()
         assert body["username"] == "usuario.linx"
         assert body["has_password"] is True
+        assert body["auto_sync_enabled"] is True
+        assert body["auto_sync_alert_email"] == "financeiro@example.com"
         assert "password" not in body
 
         session.refresh(company)
         assert decrypt_text(company.linx_password_encrypted) == "senha-super-secreta"
+        assert company.linx_auto_sync_enabled is True
+        assert company.linx_auto_sync_alert_email == "financeiro@example.com"
 
         preserve_response = client.put(
             "/api/v1/company-settings/linx",
@@ -276,16 +282,21 @@ def test_linx_settings_serialization_and_update_endpoint() -> None:
                 "password": "",
                 "sales_view_name": "FATURAMENTO SALOMAO",
                 "receivables_view_name": "CREDIARIO SALOMAO",
+                "auto_sync_enabled": False,
+                "auto_sync_alert_email": "",
             },
         )
         assert preserve_response.status_code == 200
         session.refresh(company)
         assert company.linx_username == "usuario.atualizado"
         assert decrypt_text(company.linx_password_encrypted) == "senha-super-secreta"
+        assert company.linx_auto_sync_enabled is False
+        assert company.linx_auto_sync_alert_email is None
 
         get_response = client.get("/api/v1/company-settings/linx")
         assert get_response.status_code == 200
         assert get_response.json()["has_password"] is True
+        assert get_response.json()["auto_sync_enabled"] is False
     finally:
         client.close()
         session.close()

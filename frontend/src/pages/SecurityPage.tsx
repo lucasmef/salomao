@@ -74,6 +74,8 @@ export function SecurityPage({
     password: "",
     sales_view_name: linxSettings?.sales_view_name ?? "FATURAMENTO SALOMAO",
     receivables_view_name: linxSettings?.receivables_view_name ?? "CREDIARIO SALOMAO",
+    auto_sync_enabled: linxSettings?.auto_sync_enabled ?? false,
+    auto_sync_alert_email: linxSettings?.auto_sync_alert_email ?? "",
   });
   const isLocalBackupMode = (instanceInfo?.backup_mode ?? "local-file") === "local-file";
 
@@ -88,6 +90,8 @@ export function SecurityPage({
       username: linxSettings?.username ?? "",
       sales_view_name: linxSettings?.sales_view_name ?? "FATURAMENTO SALOMAO",
       receivables_view_name: linxSettings?.receivables_view_name ?? "CREDIARIO SALOMAO",
+      auto_sync_enabled: linxSettings?.auto_sync_enabled ?? false,
+      auto_sync_alert_email: linxSettings?.auto_sync_alert_email ?? "",
       password: "",
     }));
   }, [linxSettings]);
@@ -121,6 +125,8 @@ export function SecurityPage({
       password: linxForm.password || undefined,
       sales_view_name: linxForm.sales_view_name,
       receivables_view_name: linxForm.receivables_view_name,
+      auto_sync_enabled: linxForm.auto_sync_enabled,
+      auto_sync_alert_email: linxForm.auto_sync_alert_email || undefined,
     });
     setLinxForm((current) => ({ ...current, password: "" }));
   }
@@ -280,12 +286,46 @@ export function SecurityPage({
                   required
                 />
               </label>
+              <label className="checkbox-field">
+                <input
+                  checked={linxForm.auto_sync_enabled}
+                  onChange={(event) => setLinxForm({ ...linxForm, auto_sync_enabled: event.target.checked })}
+                  type="checkbox"
+                />
+                Ativar sincronizacao automatica diaria do Linx
+              </label>
+              <label>
+                Email para aviso de falha
+                <input
+                  type="email"
+                  value={linxForm.auto_sync_alert_email}
+                  onChange={(event) => setLinxForm({ ...linxForm, auto_sync_alert_email: event.target.value })}
+                  placeholder="financeiro@empresa.com"
+                />
+              </label>
               <div className="summary-list">
                 <div className="summary-row">
                   <span>Senha cadastrada</span>
                   <strong>{linxSettings?.has_password ? "sim" : "nao"}</strong>
                 </div>
+                <div className="summary-row">
+                  <span>Agendamento</span>
+                  <strong>{linxSettings?.auto_sync_enabled ? "Diario apos 22h" : "Inativo"}</strong>
+                </div>
+                <div className="summary-row">
+                  <span>Ultima execucao</span>
+                  <strong>{linxSettings?.auto_sync_last_run_at ? formatDate(linxSettings.auto_sync_last_run_at) : "-"}</strong>
+                </div>
+                <div className="summary-row">
+                  <span>Status da ultima execucao</span>
+                  <strong>{linxSettings?.auto_sync_last_status ?? "-"}</strong>
+                </div>
               </div>
+              {linxSettings?.auto_sync_last_error && (
+                <p className="empty-state">
+                  Ultima falha: {linxSettings.auto_sync_last_error}
+                </p>
+              )}
               <button className="primary-button" disabled={submitting} type="submit">
                 Salvar configuracao Linx
               </button>
@@ -435,6 +475,7 @@ export function SecurityPage({
           </article>
         </section>
       )}
+
     </div>
   );
 }
