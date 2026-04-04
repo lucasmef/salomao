@@ -1,4 +1,5 @@
 import { BarChart } from "../components/BarChart";
+import { RevenueComparisonChart } from "../components/RevenueComparisonChart";
 import { SectionChrome } from "../components/SectionChrome";
 import type { MainNavChild } from "../data/navigation";
 import { formatMoney } from "../lib/format";
@@ -48,7 +49,14 @@ export function ResultsComparativesPage({ tabs, dashboard }: Props) {
       </section>
 
       <section className="content-grid two-columns">
-        <BarChart title="Comparativo de faturamento anual" data={dashboard?.revenue_comparison ?? []} tone="default" />
+        <RevenueComparisonChart
+          title="Comparativo de faturamento mensal"
+          comparison={dashboard?.revenue_comparison ?? {
+            current_year: new Date().getFullYear(),
+            previous_year: new Date().getFullYear() - 1,
+            points: [],
+          }}
+        />
         <BarChart title="Comparativo de margem" data={dashboard?.dre_chart ?? []} tone="success" />
       </section>
 
@@ -75,11 +83,11 @@ export function ResultsComparativesPage({ tabs, dashboard }: Props) {
             <table className="erp-table">
               <thead><tr><th>Mês</th><th>Atual</th><th>Ano anterior</th></tr></thead>
               <tbody>
-                {(dashboard?.revenue_comparison ?? []).slice(0, 6).map((item) => (
+                {(dashboard?.revenue_comparison.points ?? []).slice(0, 6).map((item) => (
                   <tr key={item.label}>
                     <td>{item.label}</td>
-                    <td>{formatMoney(item.value)}</td>
-                    <td>{formatMoney(String(Number(item.value) * 0.92))}</td>
+                    <td>{formatMoney(item.current_year_value)}</td>
+                    <td>{formatMoney(item.previous_year_value)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -483,9 +483,129 @@ textarea {
   table-layout: fixed;
 }
 
+.overview-side-column {
+  display: grid;
+  gap: 12px;
+}
+
+.overview-balance-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.overview-balance-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.overview-balance-kpis .kpi-card {
+  min-height: 72px;
+}
+
 .overview-balance-table th:last-child,
 .overview-balance-table td:last-child {
   width: 180px;
+}
+
+.revenue-comparison-card {
+  display: grid;
+  gap: 14px;
+  padding: 14px 16px 16px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 159, 67, 0.14), transparent 32%),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.revenue-comparison-title {
+  align-items: flex-start;
+}
+
+.revenue-comparison-title h3 {
+  margin: 0;
+}
+
+.revenue-comparison-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.revenue-comparison-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #41536d;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.revenue-comparison-legend i {
+  display: inline-block;
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+}
+
+.revenue-comparison-legend .current-year i {
+  background: #f59e0b;
+}
+
+.revenue-comparison-legend .previous-year i {
+  background: #5b3fa3;
+}
+
+.revenue-comparison-canvas {
+  min-height: 320px;
+}
+
+.revenue-comparison-canvas svg {
+  display: block;
+  width: 100%;
+  height: 320px;
+  overflow: visible;
+}
+
+.revenue-grid-line {
+  stroke: #d8e3f2;
+  stroke-width: 1;
+}
+
+.revenue-axis-label,
+.revenue-month-label {
+  fill: #687a93;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.revenue-line {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.revenue-line.current-year {
+  stroke: #f59e0b;
+}
+
+.revenue-line.previous-year {
+  stroke: #5b3fa3;
+  stroke-dasharray: 0;
+}
+
+.revenue-point {
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.revenue-point.current-year {
+  fill: #f59e0b;
+}
+
+.revenue-point.previous-year {
+  fill: #5b3fa3;
 }
 
 .compact-toolbar-tight {
@@ -1737,6 +1857,10 @@ textarea {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .overview-balance-kpis {
+    grid-template-columns: 1fr;
+  }
+
   .tab-row {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -1855,6 +1979,14 @@ textarea {
 
   .cashflow-projection-table {
     min-width: 620px;
+  }
+
+  .revenue-comparison-canvas {
+    min-height: 280px;
+  }
+
+  .revenue-comparison-canvas svg {
+    height: 280px;
   }
 
   .compact-import-card .compact-button,

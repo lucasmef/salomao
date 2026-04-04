@@ -219,7 +219,11 @@ const emptyDashboard: DashboardOverview = {
   },
   dre_cards: [],
   dre_chart: [],
-  revenue_comparison: [],
+  revenue_comparison: {
+    current_year: new Date().getFullYear(),
+    previous_year: new Date().getFullYear() - 1,
+    points: [],
+  },
   account_balances: [],
   overdue_payables: [],
   overdue_receivables: [],

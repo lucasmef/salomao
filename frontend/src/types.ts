@@ -850,6 +850,19 @@ export type DashboardSeriesPoint = {
   value: string;
 };
 
+export type DashboardRevenueComparisonPoint = {
+  month: number;
+  label: string;
+  current_year_value: string;
+  previous_year_value: string;
+};
+
+export type DashboardRevenueComparison = {
+  current_year: number;
+  previous_year: number;
+  points: DashboardRevenueComparisonPoint[];
+};
+
 export type DashboardPendingItem = {
   id: string;
   title: string;
@@ -886,7 +899,7 @@ export type DashboardOverview = {
   };
   dre_cards: DashboardSeriesPoint[];
   dre_chart: DashboardSeriesPoint[];
-  revenue_comparison: DashboardSeriesPoint[];
+  revenue_comparison: DashboardRevenueComparison;
   account_balances: DashboardAccountBalance[];
   overdue_payables: DashboardPendingItem[];
   overdue_receivables: DashboardPendingItem[];

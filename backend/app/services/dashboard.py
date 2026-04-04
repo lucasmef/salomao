@@ -13,23 +13,14 @@ from app.schemas.dashboard import (
     DashboardKpis,
     DashboardOverview,
     DashboardPendingItem,
+    DashboardRevenueComparison,
+    DashboardRevenueComparisonPoint,
     DashboardSeriesPoint,
 )
 from app.services.cashflow import build_cashflow_overview
 from app.services.reports import build_reports_overview
 
-
-def _safe_month_range(start: date, end: date, year: int) -> tuple[date, date]:
-    def replace_day(value: date, target_year: int) -> date:
-        day = value.day
-        while day > 0:
-            try:
-                return date(target_year, value.month, day)
-            except ValueError:
-                day -= 1
-        return date(target_year, value.month, 1)
-
-    return replace_day(start, year), replace_day(end, year)
+MONTH_LABELS = ("Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez")
 
 
 def build_dashboard_overview(
@@ -100,17 +91,38 @@ def build_dashboard_overview(
     ) or 0
 
     current_year = end.year
-    revenue_comparison: list[DashboardSeriesPoint] = []
-    for year in range(current_year - 2, current_year + 1):
-        year_start, year_end = _safe_month_range(start, end, year)
-        amount = db.scalar(
-            select(func.coalesce(func.sum(SalesSnapshot.gross_revenue), 0)).where(
-                SalesSnapshot.company_id == company.id,
-                SalesSnapshot.snapshot_date >= year_start,
-                SalesSnapshot.snapshot_date <= year_end,
+    previous_year = current_year - 1
+    year_expr = func.strftime("%Y", SalesSnapshot.snapshot_date)
+    month_expr = func.strftime("%m", SalesSnapshot.snapshot_date)
+    revenue_rows = db.execute(
+        select(
+            year_expr.label("year"),
+            month_expr.label("month"),
+            func.coalesce(func.sum(SalesSnapshot.gross_revenue), 0).label("amount"),
+        ).where(
+            SalesSnapshot.company_id == company.id,
+            SalesSnapshot.snapshot_date >= date(previous_year, 1, 1),
+            SalesSnapshot.snapshot_date <= date(current_year, 12, 31),
+        ).group_by(year_expr, month_expr)
+    ).all()
+    revenue_by_year_month = {
+        (int(row.year), int(row.month)): Decimal(row.amount or 0)
+        for row in revenue_rows
+        if row.year and row.month
+    }
+    revenue_comparison = DashboardRevenueComparison(
+        current_year=current_year,
+        previous_year=previous_year,
+        points=[
+            DashboardRevenueComparisonPoint(
+                month=month,
+                label=label,
+                current_year_value=revenue_by_year_month.get((current_year, month), Decimal("0.00")),
+                previous_year_value=revenue_by_year_month.get((previous_year, month), Decimal("0.00")),
             )
-        ) or Decimal("0.00")
-        revenue_comparison.append(DashboardSeriesPoint(label=str(year), value=Decimal(amount)))
+            for month, label in enumerate(MONTH_LABELS, start=1)
+        ],
+    )
 
     period_label = f"{start.isoformat()} a {end.isoformat()}"
     dre_cards = [
