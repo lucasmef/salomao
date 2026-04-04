@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+﻿import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "./components/AppShell";
@@ -197,6 +197,8 @@ const emptyReconciliation: ReconciliationWorklist = {
   total: 0,
   page: 1,
   page_size: 2000,
+  total_account_balance: "0.00",
+  account_balances: [],
   items: [],
 };
 const emptyDashboard: DashboardOverview = {
@@ -355,7 +357,7 @@ function getLegacySectionsForPath(pathname: string): SectionId[] {
   if (currentPath === "/financeiro/conciliacao") {
     return ["conciliacao", "importacoes"];
   }
-  if (currentPath === "/financeiro/cobranca") {
+  if (currentPath === "/financeiro/cobranca" || currentPath.startsWith("/financeiro/cobranca/")) {
     return ["boletos", "caixa", "importacoes"];
   }
   if (currentPath === "/financeiro/importacoes") {
@@ -412,6 +414,7 @@ function AppRuntime() {
   const location = useLocation();
   const networkActivityCount = useNetworkActivityCount();
   const autoLoadingSectionKeysRef = useRef<Set<string>>(new Set());
+  const previousPathRef = useRef(location.pathname);
   const [session, setSession] = useState<SessionState | null>(null);
   const [pendingAuth, setPendingAuth] = useState<PendingAuthState | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -550,6 +553,23 @@ function AppRuntime() {
   }, [loadedSections, location.pathname, purchasePlanningLoadedMode, session]);
 
   useEffect(() => {
+    const currentPath = normalizePath(location.pathname);
+    const previousPath = normalizePath(previousPathRef.current);
+    previousPathRef.current = location.pathname;
+
+    if (!session) {
+      return;
+    }
+
+    const isEnteringOverview = currentPath.startsWith("/overview") && !previousPath.startsWith("/overview");
+    if (!isEnteringOverview || !loadedSections.overview) {
+      return;
+    }
+
+    void refreshOverviewBalances(session);
+  }, [loadedSections.overview, location.pathname, overviewFilters.end, overviewFilters.start, session]);
+
+  useEffect(() => {
     if (!feedback.message) {
       return;
     }
@@ -613,6 +633,28 @@ function AppRuntime() {
     const query = includeAllMonthlyMissing ? "?include_all_monthly_missing=true" : "";
     const boletoData = await fetchJson<BoletoDashboard>(`/boletos/dashboard${query}`, { token: activeSession.token });
     setBoletoDashboard(boletoData);
+  }
+
+  async function refreshOverviewBalances(activeSession: SessionState, filters = overviewFilters) {
+    const cashflowData = await fetchJson<CashflowOverview>(
+      `/cashflow/overview?${buildCashflowQuery({
+        start: filters.start,
+        end: filters.end,
+        account_id: "",
+        include_purchase_planning: true,
+        include_crediario_receivables: true,
+      })}`,
+      { token: activeSession.token },
+    );
+    setDashboard((current) => ({
+      ...current,
+      kpis: {
+        ...current.kpis,
+        current_balance: cashflowData.current_balance,
+        projected_balance: cashflowData.projected_ending_balance,
+      },
+      account_balances: cashflowData.account_balances,
+    }));
   }
 
   async function loadSectionData(activeSession: SessionState, targetSection: SectionId, options?: { force?: boolean }) {
@@ -1438,6 +1480,21 @@ function AppRuntime() {
     }, "Nota de compra salva.", { refreshBase: true, sections: ["planejamento", "caixa"] });
   }
 
+  async function syncLinxPurchaseInvoices() {
+    if (!session) return;
+    await runMutation(async () => {
+      const result = await fetchJson<ImportResult>("/purchase-invoices/linx-sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Notas de compra sincronizadas do Linx.", {
+      refreshBase: true,
+      sections: ["planejamento", "caixa", "lancamentos"],
+    });
+  }
+
   async function createSupplier(payload: Record<string, unknown>) {
     if (!session) {
       return null as never;
@@ -1887,6 +1944,7 @@ function AppRuntime() {
     onImportText: importPurchaseInvoiceText,
     onImportXml: importPurchaseInvoiceXml,
     onLinkInstallment: linkPurchaseInstallment,
+    onSyncLinxPurchaseInvoices: syncLinxPurchaseInvoices,
     onUpdatePurchaseReturn: updatePurchaseReturn,
     onSaveInvoice: savePurchaseInvoice,
     onUpdateCollection: updateCollection,
@@ -2053,39 +2111,52 @@ function AppRuntime() {
           }
           path="/financeiro/conciliacao"
         />
-        <Route
-          element={
-            <SectionChrome
-              description={billingNavigation.children[0].description}
-              sectionLabel="Cobrança"
-              tabLabel={billingNavigation.children[0].label}
-              tabs={billingNavigation.children}
-              title={billingNavigation.children[0].title}
-            >
-              <BoletosPage
-                accounts={accounts}
-                onCancelInterBoleto={cancelInterBoleto}
-                dashboard={boletoDashboard}
-                onDownloadInterBoletoPdf={downloadInterBoletoPdf}
-                onDownloadInterBoletoPdfBatch={downloadInterBoletoPdfBatch}
-                onExportMissingBoletos={exportMissingBoletos}
-                onIssueInterCharges={issueInterCharges}
-                onReceiveInterBoleto={receiveInterBoleto}
-                onSaveClients={saveBoletoClients}
-                onSyncInterCharges={syncInterChargesImport}
-                onSyncReceivables={syncLinxReceivablesImport}
-                onToggleAllMonthlyMissingBoletos={toggleAllMonthlyMissingBoletos}
-                onUploadBoletoC6={uploadBoletoC6Import}
-                onUploadClientData={uploadBoletoCustomerDataImport}
-                onUploadBoletoInter={uploadBoletoInterImport}
-                onUploadReceivables={uploadReceivablesImport}
-                showAllMonthlyMissingBoletos={showAllMonthlyMissingBoletos}
-                submitting={submitting}
-              />
-            </SectionChrome>
-          }
-          path="/financeiro/cobranca"
-        />
+        <Route element={<Navigate replace to="/financeiro/cobranca/resumo" />} path="/financeiro/cobranca" />
+        {[
+          { path: "/financeiro/cobranca/resumo", view: "summary" as const, index: 0 },
+          { path: "/financeiro/cobranca/faturas-em-aberto", view: "open" as const, index: 1 },
+          { path: "/financeiro/cobranca/boletos-em-aberto", view: "open-boletos" as const, index: 2 },
+          { path: "/financeiro/cobranca/atrasados", view: "overdue" as const, index: 3 },
+          { path: "/financeiro/cobranca/pagas-sem-baixa", view: "paid-pending" as const, index: 4 },
+          { path: "/financeiro/cobranca/boletos-faltando", view: "missing" as const, index: 5 },
+          { path: "/financeiro/cobranca/boletos-em-excesso", view: "excess" as const, index: 6 },
+        ].map((billingRoute) => (
+          <Route
+            key={billingRoute.path}
+            element={
+              <SectionChrome
+                description={billingNavigation.children[billingRoute.index].description}
+                sectionLabel="Cobrança"
+                tabLabel={billingNavigation.children[billingRoute.index].label}
+                tabs={billingNavigation.children}
+                title={billingNavigation.children[billingRoute.index].title}
+              >
+                <BoletosPage
+                  accounts={accounts}
+                  view={billingRoute.view}
+                  onCancelInterBoleto={cancelInterBoleto}
+                  dashboard={boletoDashboard}
+                  onDownloadInterBoletoPdf={downloadInterBoletoPdf}
+                  onDownloadInterBoletoPdfBatch={downloadInterBoletoPdfBatch}
+                  onExportMissingBoletos={exportMissingBoletos}
+                  onIssueInterCharges={issueInterCharges}
+                  onReceiveInterBoleto={receiveInterBoleto}
+                  onSaveClients={saveBoletoClients}
+                  onSyncInterCharges={syncInterChargesImport}
+                  onSyncReceivables={syncLinxReceivablesImport}
+                  onToggleAllMonthlyMissingBoletos={toggleAllMonthlyMissingBoletos}
+                  onUploadBoletoC6={uploadBoletoC6Import}
+                  onUploadClientData={uploadBoletoCustomerDataImport}
+                  onUploadBoletoInter={uploadBoletoInterImport}
+                  onUploadReceivables={uploadReceivablesImport}
+                  showAllMonthlyMissingBoletos={showAllMonthlyMissingBoletos}
+                  submitting={submitting}
+                />
+              </SectionChrome>
+            }
+            path={billingRoute.path}
+          />
+        ))}
         <Route element={<Navigate replace to="/sistema/importacoes-gerais" />} path="/financeiro/importacoes" />
 
         <Route
@@ -2408,3 +2479,5 @@ function AppRuntime() {
 }
 
 export default App;
+
+

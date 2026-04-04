@@ -58,6 +58,7 @@ type Props = {
   onImportXml: (file: File) => Promise<PurchaseInvoiceDraft>;
   onSaveInvoice: (payload: Record<string, unknown>) => Promise<void>;
   onLinkInstallment: (installmentId: string, financialEntryId: string | null) => Promise<void>;
+  onSyncLinxPurchaseInvoices: () => Promise<void>;
 };
 
 type SelectOption = { value: string; label: string };
@@ -451,6 +452,7 @@ export function PurchasePlanningPage({
   onImportXml,
   onSaveInvoice,
   onLinkInstallment,
+  onSyncLinxPurchaseInvoices,
 }: Props) {
   const portalTarget = typeof document !== "undefined" ? document.body : undefined;
   const today = new Date().toISOString().slice(0, 10);
@@ -559,14 +561,14 @@ export function PurchasePlanningPage({
   );
   const comparisonCollectionOptions = useMemo<SelectOption[]>(
     () =>
-      collectionsChronological.map((collection) => ({
+      [...collectionsChronological].reverse().map((collection) => ({
         value: collection.id,
         label: collection.season_label || collection.name,
       })),
     [collectionsChronological],
   );
   const planningCollectionOptions = useMemo<SelectOption[]>(
-    () => [...comparisonCollectionOptions].reverse(),
+    () => comparisonCollectionOptions,
     [comparisonCollectionOptions],
   );
   const yearOptions = useMemo<SelectOption[]>(() => {
@@ -1206,6 +1208,11 @@ export function PurchasePlanningPage({
         amount: normalizePtBrMoneyInput(String(installment.amount)),
       })),
     });
+    closeInvoiceModal();
+  }
+
+  async function handleSyncLinxPurchaseInvoices() {
+    await onSyncLinxPurchaseInvoices();
     closeInvoiceModal();
   }
 
@@ -2385,6 +2392,21 @@ export function PurchasePlanningPage({
 
           <div className="content-grid">
             <section className="panel">
+              <div className="purchase-panel-heading">
+                <h3>Sincronizar do Linx</h3>
+              </div>
+              <p className="empty-state">
+                Busca a visao configurada no Linx, compara com as faturas ja vistas e inclui somente os
+                lancamentos novos em aberto.
+              </p>
+              <div className="action-row">
+                <button className="primary-button" type="button" onClick={() => void handleSyncLinxPurchaseInvoices()}>
+                  Sincronizar notas do Linx
+                </button>
+              </div>
+            </section>
+
+            <section className="panel">
               <label className="full-width">
                 Texto da nota
                 <textarea
@@ -2710,9 +2732,9 @@ export function PurchasePlanningPage({
               <strong>{collection?.season_label || collection?.name || "-"}</strong>
             </div>
           </div>
-          <label className="full-width">
-            Observação
+          <div className="full-width">
             <textarea
+              className="purchase-collection-note-input"
               value={collectionObservationModal.notes}
               onChange={(event) =>
                 setCollectionObservationModal((current) =>
@@ -2727,7 +2749,7 @@ export function PurchasePlanningPage({
               placeholder="Digite uma observação para esta coleção"
               rows={5}
             />
-          </label>
+          </div>
           <div className="action-row">
             <button className="primary-button" type="button" onClick={() => void handleSaveCollectionObservation()}>
               Salvar observação

@@ -731,6 +731,8 @@ export type ReconciliationWorklist = {
   total: number;
   page: number;
   page_size: number;
+  total_account_balance: string;
+  account_balances: DashboardAccountBalance[];
   items: ReconciliationItem[];
 };
 
@@ -923,6 +925,7 @@ export type LinxSettings = {
   username: string;
   sales_view_name: string;
   receivables_view_name: string;
+  payables_view_name: string;
   has_password: boolean;
   auto_sync_enabled: boolean;
   auto_sync_alert_email: string | null;
@@ -937,6 +940,7 @@ export type LinxSettingsUpdatePayload = {
   password?: string;
   sales_view_name: string;
   receivables_view_name: string;
+  payables_view_name: string;
   auto_sync_enabled: boolean;
   auto_sync_alert_email?: string;
 };

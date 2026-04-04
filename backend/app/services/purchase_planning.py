@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import re
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from xml.etree import ElementTree
 
 from fastapi import HTTPException
@@ -12,6 +13,8 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models.finance import Category, FinancialEntry
+from app.db.models.imports import ImportBatch
+from app.db.models.linx import PurchasePayableTitle
 from app.db.models.purchasing import (
     CollectionSeason,
     PurchaseBrand,
@@ -26,6 +29,7 @@ from app.db.models.purchasing import (
 )
 from app.db.models.security import Company, User
 from app.schemas.financial_entry import FinancialEntryCreate
+from app.schemas.imports import ImportResult
 from app.schemas.purchase_planning import (
     CollectionSeasonCreate,
     CollectionSeasonRead,
@@ -40,23 +44,31 @@ from app.schemas.purchase_planning import (
     PurchaseInvoiceDraft,
     PurchaseInvoiceRead,
     PurchasePlanCreate,
-    PurchasePlanRead,
-    PurchasePlanUpdate,
-    PurchaseReturnCreate,
-    PurchaseReturnRead,
-    PurchaseReturnUpdate,
     PurchasePlanningMonthlyProjection,
     PurchasePlanningOverview,
     PurchasePlanningRow,
     PurchasePlanningSummary,
     PurchasePlanningUngroupedSupplier,
+    PurchasePlanRead,
+    PurchasePlanUpdate,
+    PurchaseReturnCreate,
+    PurchaseReturnRead,
+    PurchaseReturnUpdate,
     SupplierCreate,
     SupplierRead,
     SupplierUpdate,
 )
 from app.services.audit import write_audit_log
 from app.services.category_catalog import ensure_category_catalog
-from app.services.import_parsers import normalize_label, parse_date_br, parse_decimal_pt_br
+from app.services.import_parsers import (
+    ParsedPurchasePayableRow,
+    fingerprint_bytes,
+    normalize_label,
+    parse_date_br,
+    parse_decimal_pt_br,
+    parse_purchase_payable_rows,
+)
+from app.services.linx import download_linx_purchase_payables_report
 
 TWO_PLACES = Decimal("0.01")
 HISTORICAL_COLLECTION_START_YEAR = 2020
@@ -238,6 +250,45 @@ def _supplier_lookup_keys(value: str | None) -> set[str]:
     if stripped:
         candidates.add(normalize_label(stripped))
     return {candidate for candidate in candidates if candidate}
+
+
+def _normalize_linx_purchase_status(value: str | None) -> str:
+    normalized = normalize_label(value or "")
+    if not normalized:
+        return "Em aberto"
+    if "aberto" in normalized:
+        return "Em aberto"
+    if "baix" in normalized or "liquid" in normalized or "pag" in normalized:
+        return "Baixado"
+    return value.strip() if value else "Em aberto"
+
+
+def _linx_purchase_payable_is_open(row: ParsedPurchasePayableRow) -> bool:
+    return "aberto" in normalize_label(row.status)
+
+
+def _linx_purchase_payable_source_reference(row: ParsedPurchasePayableRow) -> str:
+    payload = "|".join(
+        [
+            row.payable_code or "",
+            row.company_code or "",
+            row.document_number or "",
+            row.document_series or "",
+            row.installment_label or "",
+            row.due_date.isoformat() if row.due_date else "",
+            f"{_money(row.amount_with_charges):.2f}",
+            normalize_label(row.supplier_name),
+        ]
+    )
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:40]
+
+
+def _linx_purchase_invoice_group_key(row: ParsedPurchasePayableRow) -> tuple[str, str, str]:
+    return (
+        normalize_label(row.supplier_name),
+        (row.document_number or "").strip(),
+        (row.document_series or "").strip(),
+    )
 
 
 def _month_key(value: date | None) -> str:
@@ -2647,6 +2698,442 @@ def _create_financial_entry_for_installment(
     db.flush()
     installment.financial_entry_id = financial_entry.id
     return financial_entry
+
+
+def _find_existing_import_batch(
+    db: Session,
+    company_id: str,
+    source_type: str,
+    fingerprint: str,
+) -> ImportBatch | None:
+    return db.scalar(
+        select(ImportBatch).where(
+            ImportBatch.company_id == company_id,
+            ImportBatch.source_type == source_type,
+            ImportBatch.fingerprint == fingerprint,
+            ImportBatch.status == "processed",
+        )
+    )
+
+
+def _create_import_batch(
+    db: Session,
+    company_id: str,
+    source_type: str,
+    filename: str,
+    content: bytes,
+) -> tuple[ImportBatch, bool]:
+    fingerprint = fingerprint_bytes(content)
+    existing = _find_existing_import_batch(db, company_id, source_type, fingerprint)
+    if existing is not None:
+        return existing, True
+
+    batch = ImportBatch(
+        company_id=company_id,
+        source_type=source_type,
+        filename=filename,
+        fingerprint=fingerprint,
+        status="processing",
+    )
+    db.add(batch)
+    db.flush()
+    return batch, False
+
+
+def _resolve_linx_purchase_payable_amount(row: ParsedPurchasePayableRow) -> Decimal:
+    amount = _money(row.amount_with_charges or row.original_amount)
+    if amount <= Decimal("0.00"):
+        amount = _money(row.original_amount)
+    return amount
+
+
+def _build_linx_purchase_invoice_note(rows: list[ParsedPurchasePayableRow]) -> str:
+    payable_codes = sorted({row.payable_code for row in rows if row.payable_code})
+    if payable_codes:
+        return (
+            "Incluido via raspagem de dados do Linx. "
+            f"Codigos da fatura Linx: {', '.join(payable_codes)}."
+        )
+    return "Incluido via raspagem de dados do Linx."
+
+
+def _build_linx_purchase_entry_note(row: ParsedPurchasePayableRow) -> str:
+    details = ["Incluido via raspagem de dados do Linx."]
+    if row.payable_code:
+        details.append(f"Codigo da fatura: {row.payable_code}.")
+    if row.installment_label:
+        details.append(f"Parcela: {row.installment_label}.")
+    if row.document_number:
+        details.append(f"Numero da nota: {row.document_number}.")
+    return " ".join(details)
+
+
+def _find_matching_purchase_invoice_for_linx(
+    db: Session,
+    company_id: str,
+    supplier_id: str,
+    row: ParsedPurchasePayableRow,
+) -> PurchaseInvoice | None:
+    if row.document_number:
+        return db.scalar(
+            select(PurchaseInvoice)
+            .where(
+                PurchaseInvoice.company_id == company_id,
+                PurchaseInvoice.supplier_id == supplier_id,
+                PurchaseInvoice.invoice_number == row.document_number,
+                PurchaseInvoice.series == row.document_series,
+            )
+            .options(joinedload(PurchaseInvoice.installments))
+        )
+    return None
+
+
+def _find_matching_purchase_installment_for_linx(
+    invoice: PurchaseInvoice,
+    row: ParsedPurchasePayableRow,
+) -> PurchaseInstallment | None:
+    target_amount = _resolve_linx_purchase_payable_amount(row)
+    for installment in invoice.installments:
+        same_number = (
+            row.installment_number is not None
+            and installment.installment_number == row.installment_number
+        )
+        same_label = (
+            row.installment_label is not None
+            and installment.installment_label == row.installment_label
+        )
+        same_due_date = installment.due_date == row.due_date
+        same_amount = _money(installment.amount) == target_amount
+        if (same_number or same_label) and same_due_date and same_amount:
+            return installment
+    return None
+
+
+def _create_linx_financial_entry_for_installment(
+    db: Session,
+    *,
+    company_id: str,
+    supplier: Supplier,
+    invoice: PurchaseInvoice,
+    installment: PurchaseInstallment,
+    row: ParsedPurchasePayableRow,
+    source_reference: str,
+) -> FinancialEntry:
+    purchase_category = _ensure_purchase_category(db, company_id)
+    issue_date = invoice.issue_date or installment.due_date
+    due_date = installment.due_date or invoice.issue_date
+    financial_entry = FinancialEntry(
+        company_id=company_id,
+        category_id=purchase_category.id,
+        supplier_id=invoice.supplier_id,
+        collection_id=invoice.collection_id,
+        season_phase=_normalize_season_phase(invoice.season_phase),
+        purchase_invoice_id=invoice.id,
+        purchase_installment_id=installment.id,
+        entry_type="expense",
+        status="open",
+        title=_build_purchase_installment_entry_title(supplier.name, invoice.invoice_number, installment),
+        description="Gerado automaticamente a partir da raspagem de faturas a pagar do Linx.",
+        notes=_build_linx_purchase_entry_note(row),
+        counterparty_name=supplier.name,
+        document_number=invoice.invoice_number,
+        issue_date=issue_date,
+        competence_date=due_date,
+        due_date=due_date,
+        principal_amount=_money(installment.amount),
+        total_amount=_money(installment.amount),
+        paid_amount=Decimal("0.00"),
+        external_source="linx_purchase_payables",
+        source_system="linx_purchase_payables",
+        source_reference=source_reference,
+    )
+    db.add(financial_entry)
+    db.flush()
+    installment.financial_entry_id = financial_entry.id
+    installment.financial_entry = financial_entry
+    installment.status = _sync_installment_status(installment)
+    return financial_entry
+
+
+def _get_or_create_supplier_for_linx_purchase(
+    db: Session,
+    company_id: str,
+    supplier_name: str,
+) -> tuple[Supplier, bool]:
+    existing = _find_matching_supplier(
+        db,
+        company_id,
+        supplier_name=supplier_name,
+        supplier_document=None,
+    )
+    if existing is not None:
+        return existing, False
+    supplier = _find_or_create_supplier(
+        db,
+        company_id,
+        supplier_id=None,
+        supplier_name=supplier_name,
+        supplier_document=None,
+    )
+    return supplier, True
+
+
+def _sort_linx_purchase_rows(rows: list[ParsedPurchasePayableRow]) -> list[ParsedPurchasePayableRow]:
+    return sorted(
+        rows,
+        key=lambda item: (
+            item.installment_number if item.installment_number is not None else 999,
+            item.due_date or date.max,
+            item.payable_code or "",
+        ),
+    )
+
+
+def _create_linx_purchase_invoice(
+    db: Session,
+    *,
+    company: Company,
+    actor_user: User,
+    supplier: Supplier,
+    rows: list[ParsedPurchasePayableRow],
+) -> PurchaseInvoice:
+    first_row = _sort_linx_purchase_rows(rows)[0]
+    supplier.has_purchase_invoices = True
+    brand = _brand_for_supplier(db, company.id, supplier.id)
+    collection = _resolve_collection(db, company.id, None, first_row.issue_date)
+    total_amount = sum((_resolve_linx_purchase_payable_amount(row) for row in rows), Decimal("0.00"))
+    payment_term = f"{max((row.installments_total or 1) for row in rows)}x"
+
+    invoice = PurchaseInvoice(
+        company_id=company.id,
+        brand_id=brand.id if brand else None,
+        supplier_id=supplier.id,
+        collection_id=collection.id if collection else None,
+        purchase_plan_id=None,
+        invoice_number=first_row.document_number,
+        series=first_row.document_series,
+        nfe_key=None,
+        issue_date=first_row.issue_date,
+        entry_date=first_row.issue_date,
+        total_amount=_money(total_amount),
+        payment_description="Linx - Faturas a pagar",
+        payment_term=payment_term,
+        payment_basis=supplier.payment_basis or "delivery",
+        season_phase="main",
+        raw_text=None,
+        raw_xml=None,
+        source_type="linx_payables",
+        status="open",
+        notes=_build_linx_purchase_invoice_note(rows),
+    )
+    db.add(invoice)
+    db.flush()
+
+    db.add(
+        PurchaseDelivery(
+            company_id=company.id,
+            brand_id=brand.id if brand else None,
+            supplier_id=supplier.id,
+            collection_id=collection.id if collection else None,
+            purchase_plan_id=None,
+            purchase_invoice_id=invoice.id,
+            delivery_date=first_row.issue_date,
+            amount=_money(total_amount),
+            season_phase="main",
+            source_type="linx_payables",
+            source_reference=first_row.document_number or first_row.payable_code,
+            notes="Entrega inferida via raspagem de faturas a pagar do Linx",
+        )
+    )
+    db.flush()
+
+    write_audit_log(
+        db,
+        action="create_purchase_invoice",
+        entity_name="purchase_invoice",
+        entity_id=invoice.id,
+        company_id=company.id,
+        actor_user=actor_user,
+        after_state={
+            "supplier_name": supplier.name,
+            "invoice_number": invoice.invoice_number,
+            "total_amount": f"{invoice.total_amount:.2f}",
+            "source_type": invoice.source_type,
+        },
+    )
+    return invoice
+
+
+def import_linx_purchase_payables(
+    db: Session,
+    company: Company,
+    filename: str,
+    content: bytes,
+    actor_user: User,
+) -> ImportResult:
+    batch, reused = _create_import_batch(db, company.id, "linx_purchase_payables", filename, content)
+    if reused:
+        return ImportResult(
+            batch=batch,
+            message="Arquivo de faturas de compra do Linx ja importado anteriormente.",
+        )
+
+    parsed_rows = parse_purchase_payable_rows(content)
+    open_rows_by_reference: dict[str, ParsedPurchasePayableRow] = {}
+    ignored_rows = 0
+    for row in parsed_rows:
+        if not _linx_purchase_payable_is_open(row):
+            ignored_rows += 1
+            continue
+        source_reference = _linx_purchase_payable_source_reference(row)
+        open_rows_by_reference.setdefault(source_reference, row)
+
+    existing_titles = {
+        title.source_reference: title
+        for title in db.scalars(
+            select(PurchasePayableTitle).where(
+                PurchasePayableTitle.company_id == company.id,
+                PurchasePayableTitle.source_reference.in_(list(open_rows_by_reference)),
+            )
+        )
+    }
+
+    new_rows_by_group: dict[tuple[str, str, str], list[tuple[str, ParsedPurchasePayableRow]]] = defaultdict(list)
+    for source_reference, row in open_rows_by_reference.items():
+        existing_title = existing_titles.get(source_reference)
+        if existing_title is not None:
+            existing_title.last_seen_batch_id = batch.id
+            existing_title.issue_date = row.issue_date
+            existing_title.due_date = row.due_date
+            existing_title.status = _normalize_linx_purchase_status(row.status)
+            existing_title.original_amount = row.original_amount
+            existing_title.amount_with_charges = row.amount_with_charges
+            continue
+        new_rows_by_group[_linx_purchase_invoice_group_key(row)].append((source_reference, row))
+
+    created_suppliers = 0
+    created_invoices = 0
+    created_installments = 0
+    created_entries = 0
+
+    for group_rows in new_rows_by_group.values():
+        rows = [item[1] for item in group_rows]
+        first_row = _sort_linx_purchase_rows(rows)[0]
+        supplier, supplier_created = _get_or_create_supplier_for_linx_purchase(
+            db,
+            company.id,
+            first_row.supplier_name,
+        )
+        if supplier_created:
+            created_suppliers += 1
+        supplier.has_purchase_invoices = True
+
+        invoice = _find_matching_purchase_invoice_for_linx(db, company.id, supplier.id, first_row)
+        if invoice is None:
+            invoice = _create_linx_purchase_invoice(
+                db,
+                company=company,
+                actor_user=actor_user,
+                supplier=supplier,
+                rows=rows,
+            )
+            created_invoices += 1
+
+        for source_reference, row in sorted(
+            group_rows,
+            key=lambda item: (
+                item[1].installment_number if item[1].installment_number is not None else 999,
+                item[1].due_date or date.max,
+            ),
+        ):
+            installment = _find_matching_purchase_installment_for_linx(invoice, row)
+            if installment is None:
+                installment = PurchaseInstallment(
+                    company_id=company.id,
+                    purchase_invoice_id=invoice.id,
+                    installment_number=row.installment_number or (len(invoice.installments) + 1),
+                    installment_label=row.installment_label,
+                    due_date=row.due_date,
+                    amount=_resolve_linx_purchase_payable_amount(row),
+                    status="planned",
+                )
+                db.add(installment)
+                db.flush()
+                invoice.installments.append(installment)
+                created_installments += 1
+
+            financial_entry = installment.financial_entry
+            if financial_entry is None and installment.financial_entry_id:
+                financial_entry = db.get(FinancialEntry, installment.financial_entry_id)
+            if financial_entry is None:
+                financial_entry = _create_linx_financial_entry_for_installment(
+                    db,
+                    company_id=company.id,
+                    supplier=supplier,
+                    invoice=invoice,
+                    installment=installment,
+                    row=row,
+                    source_reference=source_reference,
+                )
+                created_entries += 1
+
+            db.add(
+                PurchasePayableTitle(
+                    company_id=company.id,
+                    source_batch_id=batch.id,
+                    last_seen_batch_id=batch.id,
+                    source_reference=source_reference,
+                    issue_date=row.issue_date,
+                    due_date=row.due_date,
+                    payable_code=row.payable_code,
+                    company_code=row.company_code,
+                    installment_label=row.installment_label,
+                    installment_number=row.installment_number,
+                    installments_total=row.installments_total,
+                    original_amount=row.original_amount,
+                    amount_with_charges=row.amount_with_charges,
+                    supplier_name=row.supplier_name,
+                    supplier_code=row.supplier_code,
+                    document_number=row.document_number,
+                    document_series=row.document_series,
+                    status=_normalize_linx_purchase_status(row.status),
+                    purchase_invoice_id=invoice.id,
+                    purchase_installment_id=installment.id,
+                    financial_entry_id=financial_entry.id,
+                )
+            )
+
+    batch.records_total = len(parsed_rows)
+    batch.records_valid = len(open_rows_by_reference)
+    batch.records_invalid = ignored_rows
+    batch.status = "processed"
+    if ignored_rows:
+        batch.error_summary = (
+            f"{ignored_rows} linha(s) foram ignoradas por nao estarem em aberto."
+        )
+
+    db.commit()
+    db.refresh(batch)
+
+    message_parts = [
+        "Faturas de compra do Linx sincronizadas.",
+        f"{len(new_rows_by_group)} nota(s) nova(s) analisada(s).",
+        f"{sum(len(items) for items in new_rows_by_group.values())} fatura(s) nova(s) incluida(s).",
+    ]
+    if created_suppliers:
+        message_parts.append(f"{created_suppliers} fornecedor(es) criado(s).")
+    if created_entries:
+        message_parts.append(f"{created_entries} lancamento(s) aberto(s) criado(s).")
+    return ImportResult(batch=batch, message=" ".join(message_parts))
+
+
+def sync_linx_purchase_payables(
+    db: Session,
+    company: Company,
+    actor_user: User,
+) -> ImportResult:
+    filename, content = download_linx_purchase_payables_report(company)
+    return import_linx_purchase_payables(db, company, filename, content, actor_user)
 
 
 def _delete_orphan_imported_plan(db: Session, plan: PurchasePlan | None) -> bool:

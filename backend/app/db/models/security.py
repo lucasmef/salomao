@@ -19,6 +19,7 @@ class Company(Base, IdMixin, TimestampMixin):
     linx_password_encrypted: Mapped[str | None] = mapped_column(String(512), nullable=True)
     linx_sales_view_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     linx_receivables_view_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    linx_payables_view_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     linx_auto_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     linx_auto_sync_alert_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     linx_auto_sync_last_run_at: Mapped[datetime | None] = mapped_column(

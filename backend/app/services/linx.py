@@ -15,6 +15,7 @@ from app.schemas.company_settings import LinxSettingsRead, LinxSettingsUpdate
 DEFAULT_LINX_BASE_URL = "https://erp.microvix.com.br"
 DEFAULT_LINX_SALES_VIEW_NAME = "FATURAMENTO SALOMAO"
 DEFAULT_LINX_RECEIVABLES_VIEW_NAME = "CREDIARIO SALOMAO"
+DEFAULT_LINX_PAYABLES_VIEW_NAME = "LANCAR NOTAS SALOMAO"
 
 
 def _normalize_label(value: str) -> str:
@@ -52,6 +53,7 @@ class LinxSettings:
     headless: bool
     sales_view_name: str
     receivables_view_name: str
+    payables_view_name: str
 
 
 def serialize_linx_settings(company: Company) -> LinxSettingsRead:
@@ -62,6 +64,7 @@ def serialize_linx_settings(company: Company) -> LinxSettingsRead:
         receivables_view_name=(
             company.linx_receivables_view_name or DEFAULT_LINX_RECEIVABLES_VIEW_NAME
         ).strip(),
+        payables_view_name=(company.linx_payables_view_name or DEFAULT_LINX_PAYABLES_VIEW_NAME).strip(),
         has_password=bool(company.linx_password_encrypted),
         auto_sync_enabled=bool(company.linx_auto_sync_enabled),
         auto_sync_alert_email=(company.linx_auto_sync_alert_email or "").strip() or None,
@@ -76,6 +79,7 @@ def apply_linx_settings(company: Company, payload: LinxSettingsUpdate) -> None:
     company.linx_username = payload.username
     company.linx_sales_view_name = payload.sales_view_name
     company.linx_receivables_view_name = payload.receivables_view_name
+    company.linx_payables_view_name = payload.payables_view_name
     company.linx_auto_sync_enabled = payload.auto_sync_enabled
     company.linx_auto_sync_alert_email = payload.auto_sync_alert_email
     if payload.password is not None:
@@ -99,6 +103,7 @@ def _load_linx_settings(company: Company) -> LinxSettings:
         headless=settings.linx_headless,
         sales_view_name=configured.sales_view_name,
         receivables_view_name=configured.receivables_view_name,
+        payables_view_name=configured.payables_view_name,
     )
 
 
@@ -249,6 +254,38 @@ def download_linx_receivables_report(
         except timeout_error_cls as error:
             raise ValueError(
                 "Tempo esgotado ao gerar o relatorio de faturas a receber no Linx."
+            ) from error
+        finally:
+            context.close()
+            browser.close()
+
+
+def download_linx_purchase_payables_report(company: Company) -> tuple[str, bytes]:
+    settings = _load_linx_settings(company)
+    sync_playwright, timeout_error_cls = _require_playwright()
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=settings.headless)
+        context = browser.new_context(accept_downloads=True)
+        page = context.new_page()
+        page.set_default_timeout(settings.timeout_ms)
+        try:
+            report_root = _login_and_get_report_root(page, settings, timeout_error_cls)
+            page.goto(
+                (
+                    f"{report_root}/gestor_web/financeiro/relatorio_faturas_periodo.asp"
+                    "?tipolanc=pagar&lancamento=S"
+                ),
+                wait_until="domcontentloaded",
+            )
+
+            _select_view(page, "#form1_id_visao", settings.payables_view_name)
+            page.locator("input[name='form1_SubmitVisao']").click()
+            page.locator("#botaoExportarXLS").wait_for(state="visible")
+            return _download_report(page, "#botaoExportarXLS")
+        except timeout_error_cls as error:
+            raise ValueError(
+                "Tempo esgotado ao gerar o relatorio de faturas a pagar no Linx."
             ) from error
         finally:
             context.close()

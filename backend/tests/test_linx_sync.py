@@ -247,6 +247,7 @@ def test_linx_settings_serialization_and_update_endpoint() -> None:
     try:
         initial = serialize_linx_settings(company)
         assert initial.base_url == "https://erp.microvix.com.br"
+        assert initial.payables_view_name == "LANCAR NOTAS SALOMAO"
         assert initial.has_password is False
 
         update_response = client.put(
@@ -257,6 +258,7 @@ def test_linx_settings_serialization_and_update_endpoint() -> None:
                 "password": "senha-super-secreta",
                 "sales_view_name": "FATURAMENTO SALOMAO",
                 "receivables_view_name": "CREDIARIO SALOMAO",
+                "payables_view_name": "LANCAR NOTAS SALOMAO",
                 "auto_sync_enabled": True,
                 "auto_sync_alert_email": "financeiro@example.com",
             },
@@ -267,6 +269,7 @@ def test_linx_settings_serialization_and_update_endpoint() -> None:
         assert body["has_password"] is True
         assert body["auto_sync_enabled"] is True
         assert body["auto_sync_alert_email"] == "financeiro@example.com"
+        assert body["payables_view_name"] == "LANCAR NOTAS SALOMAO"
         assert "password" not in body
 
         session.refresh(company)
@@ -282,6 +285,7 @@ def test_linx_settings_serialization_and_update_endpoint() -> None:
                 "password": "",
                 "sales_view_name": "FATURAMENTO SALOMAO",
                 "receivables_view_name": "CREDIARIO SALOMAO",
+                "payables_view_name": "LANCAR NOTAS SALOMAO",
                 "auto_sync_enabled": False,
                 "auto_sync_alert_email": "",
             },

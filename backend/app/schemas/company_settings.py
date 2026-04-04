@@ -8,6 +8,7 @@ class LinxSettingsRead(BaseModel):
     username: str
     sales_view_name: str
     receivables_view_name: str
+    payables_view_name: str
     has_password: bool = False
     auto_sync_enabled: bool = False
     auto_sync_alert_email: str | None = None
@@ -22,6 +23,7 @@ class LinxSettingsUpdate(BaseModel):
     password: str | None = Field(default=None, max_length=255)
     sales_view_name: str = Field(min_length=1, max_length=160)
     receivables_view_name: str = Field(min_length=1, max_length=160)
+    payables_view_name: str = Field(min_length=1, max_length=160)
     auto_sync_enabled: bool = False
     auto_sync_alert_email: str | None = Field(default=None, max_length=255)
 
@@ -31,6 +33,7 @@ class LinxSettingsUpdate(BaseModel):
         "password",
         "sales_view_name",
         "receivables_view_name",
+        "payables_view_name",
         "auto_sync_alert_email",
     )
     @classmethod

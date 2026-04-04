@@ -73,6 +73,7 @@ export function SecurityPage({
     password: "",
     sales_view_name: linxSettings?.sales_view_name ?? "FATURAMENTO SALOMAO",
     receivables_view_name: linxSettings?.receivables_view_name ?? "CREDIARIO SALOMAO",
+    payables_view_name: linxSettings?.payables_view_name ?? "LANCAR NOTAS SALOMAO",
     auto_sync_enabled: linxSettings?.auto_sync_enabled ?? false,
     auto_sync_alert_email: linxSettings?.auto_sync_alert_email ?? "",
   });
@@ -87,6 +88,7 @@ export function SecurityPage({
       username: linxSettings?.username ?? "",
       sales_view_name: linxSettings?.sales_view_name ?? "FATURAMENTO SALOMAO",
       receivables_view_name: linxSettings?.receivables_view_name ?? "CREDIARIO SALOMAO",
+      payables_view_name: linxSettings?.payables_view_name ?? "LANCAR NOTAS SALOMAO",
       auto_sync_enabled: linxSettings?.auto_sync_enabled ?? false,
       auto_sync_alert_email: linxSettings?.auto_sync_alert_email ?? "",
       password: "",
@@ -122,6 +124,7 @@ export function SecurityPage({
       password: linxForm.password || undefined,
       sales_view_name: linxForm.sales_view_name,
       receivables_view_name: linxForm.receivables_view_name,
+      payables_view_name: linxForm.payables_view_name,
       auto_sync_enabled: linxForm.auto_sync_enabled,
       auto_sync_alert_email: linxForm.auto_sync_alert_email || undefined,
     });
@@ -232,6 +235,14 @@ export function SecurityPage({
                 <input
                   value={linxForm.receivables_view_name}
                   onChange={(event) => setLinxForm({ ...linxForm, receivables_view_name: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Visao faturas a pagar
+                <input
+                  value={linxForm.payables_view_name}
+                  onChange={(event) => setLinxForm({ ...linxForm, payables_view_name: event.target.value })}
                   required
                 />
               </label>
