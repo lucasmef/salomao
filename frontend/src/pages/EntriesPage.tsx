@@ -16,6 +16,8 @@ type Props = {
   categories: Category[];
   suppliers: Supplier[];
   entryList: FinancialEntryListResponse;
+  payables?: FinancialEntryListResponse;
+  receivables?: FinancialEntryListResponse;
   filters: Record<string, string | boolean>;
   submitting: boolean;
   onChangeFilters: (filters: Record<string, string | boolean>) => void;
@@ -182,6 +184,8 @@ export function EntriesPage({
   categories,
   suppliers,
   entryList,
+  payables: _payables,
+  receivables: _receivables,
   filters,
   submitting,
   onChangeFilters,
