@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { PageHeader } from "../components/PageHeader";
-import { formatBytes, formatDate } from "../lib/format";
+import { formatDate } from "../lib/format";
 import type {
   AuthUser,
   BackupRead,
@@ -62,7 +62,6 @@ export function SecurityPage({
     password: "",
     role: "operador",
   });
-  const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [mfaCode, setMfaCode] = useState("");
   const [credentialsForm, setCredentialsForm] = useState({
     email: currentUser.email,
@@ -77,8 +76,6 @@ export function SecurityPage({
     auto_sync_enabled: linxSettings?.auto_sync_enabled ?? false,
     auto_sync_alert_email: linxSettings?.auto_sync_alert_email ?? "",
   });
-  const isLocalBackupMode = (instanceInfo?.backup_mode ?? "local-file") === "local-file";
-
   useEffect(() => {
     setCredentialsForm((current) => ({ ...current, email: currentUser.email }));
   }, [currentUser.email]);
@@ -137,7 +134,7 @@ export function SecurityPage({
         <PageHeader
           eyebrow="Administração"
           title="Segurança e continuidade"
-          description="Usuários, MFA, backup local e operação segura durante a transição para o ambiente online."
+          description="Usuários, MFA e operação segura durante a transição para o ambiente online."
         />
       )}
       <section className="interactive-grid">
@@ -187,54 +184,6 @@ export function SecurityPage({
                 Salvar acesso
               </button>
             </form>
-          </article>
-        )}
-
-        {(view === "all" || view === "backup") && (
-          <article className="panel-card">
-            <div className="panel-heading">
-              <p className="eyebrow">Backup</p>
-              <h3>{isLocalBackupMode ? "Proteção da base local" : "Backups operacionais do servidor"}</h3>
-            </div>
-            {isLocalBackupMode ? (
-              <>
-                <div className="action-row">
-                  <button className="primary-button" disabled={submitting} onClick={() => void onCreateBackup()} type="button">
-                    Criar backup agora
-                  </button>
-                </div>
-                <div className="upload-box">
-                  <input type="file" accept=".sqlite3,.db" onChange={(event) => setRestoreFile(event.target.files?.[0] ?? null)} />
-                  <button
-                    className="ghost-button"
-                    disabled={submitting || !restoreFile}
-                    onClick={() => restoreFile && void onRestoreBackup(restoreFile)}
-                    type="button"
-                  >
-                    Restaurar backup
-                  </button>
-                </div>
-              </>
-            ) : (
-              <p className="empty-state">
-                No modo servidor, os backups do PostgreSQL são operacionais e feitos pelos scripts dedicados, fora da UI.
-              </p>
-            )}
-          </article>
-        )}
-
-        {view === "security" && (
-          <article className="panel-card">
-            <div className="panel-heading">
-              <p className="eyebrow">Segurança</p>
-              <h3>Políticas e endurecimento</h3>
-            </div>
-            <div className="summary-list">
-              <div className="summary-row"><span>Modo da aplicação</span><strong>{instanceInfo?.app_mode ?? "-"}</strong></div>
-              <div className="summary-row"><span>Banco ativo</span><strong>{instanceInfo?.database_backend ?? "-"}</strong></div>
-              <div className="summary-row"><span>MFA obrigatório</span><strong>{mfaStatus?.required ? "sim" : "não"}</strong></div>
-              <div className="summary-row"><span>MFA do usuário atual</span><strong>{mfaStatus?.enabled ? "ativo" : "inativo"}</strong></div>
-            </div>
           </article>
         )}
 
@@ -448,29 +397,6 @@ export function SecurityPage({
                 </div>
               ))}
               {!users.length && <p className="empty-state">Nenhum outro usuario cadastrado.</p>}
-            </div>
-          </article>
-        </section>
-      )}
-
-      {(view === "all" || view === "backup") && isLocalBackupMode && (
-        <section className="interactive-grid single-column">
-          <article className="panel-card">
-            <div className="panel-heading">
-              <p className="eyebrow">Arquivos de backup</p>
-              <h3>{backups.length} copias locais</h3>
-            </div>
-            <div className="table-list">
-              {backups.map((backup) => (
-                <div key={backup.filename} className="list-row">
-                  <div>
-                    <strong>{backup.filename}</strong>
-                    <p>{formatDate(backup.created_at)}</p>
-                  </div>
-                  <span>{formatBytes(backup.size_bytes)}</span>
-                </div>
-              ))}
-              {!backups.length && <p className="empty-state">Nenhum backup criado ainda.</p>}
             </div>
           </article>
         </section>

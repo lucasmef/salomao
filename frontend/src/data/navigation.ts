@@ -146,7 +146,7 @@ export const mainNavigation: MainNavItem[] = [
     label: "Sistema",
     path: "/cadastros/contas",
     title: "Sistema",
-    description: "Administração, cadastros base, backup, segurança, importações técnicas e auditoria.",
+    description: "Administração, cadastros base, segurança, importações técnicas e auditoria.",
     children: [
       {
         key: "contas",
@@ -189,13 +189,6 @@ export const mainNavigation: MainNavItem[] = [
         path: "/sistema/usuarios",
         title: "Usuários",
         description: "Usuários locais, perfis e acessos.",
-      },
-      {
-        key: "backup",
-        label: "Backup",
-        path: "/sistema/backup",
-        title: "Backup",
-        description: "Criação, restauração e histórico de backups.",
       },
       {
         key: "seguranca",

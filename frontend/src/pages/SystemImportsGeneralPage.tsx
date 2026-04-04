@@ -97,15 +97,6 @@ export function SystemImportsGeneralPage({
           </div>
         </article>
 
-        <article className="panel">
-          <div className="panel-title"><h3>Base importada</h3></div>
-          <div className="summary-list">
-            <div className="summary-row"><span>Faturamento</span><strong>{importSummary.sales_snapshot_count}</strong></div>
-            <div className="summary-row"><span>Títulos a receber</span><strong>{importSummary.receivable_title_count}</strong></div>
-            <div className="summary-row"><span>Movimentos OFX</span><strong>{importSummary.bank_transaction_count}</strong></div>
-            <div className="summary-row"><span>Livro caixa</span><strong>{importSummary.historical_cashbook_count}</strong></div>
-          </div>
-        </article>
       </section>
 
       <section className="panel">

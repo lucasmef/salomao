@@ -1854,6 +1854,8 @@ function AppRuntime() {
   const resultsNavigation = getNavigationSection("resultados");
   const systemNavigation = getNavigationSection("sistema");
   const systemTabs = systemNavigation.children;
+  const systemUsersTab = systemTabs.find((tab) => tab.key === "usuarios") ?? systemTabs[0];
+  const systemSecurityTab = systemTabs.find((tab) => tab.key === "seguranca") ?? systemTabs[0];
   const purchasePageProps = {
     embedded: true,
     brands,
@@ -2294,11 +2296,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={systemTabs[5].description}
+              description={systemUsersTab.description}
               sectionLabel="Sistema"
-              tabLabel={systemTabs[5].label}
+              tabLabel={systemUsersTab.label}
               tabs={systemTabs}
-              title={systemTabs[5].title}
+              title={systemUsersTab.title}
             >
               <SecurityPage
                 embedded
@@ -2325,48 +2327,15 @@ function AppRuntime() {
           }
           path="/sistema/usuarios"
         />
+        <Route element={<Navigate replace to="/sistema/seguranca" />} path="/sistema/backup" />
         <Route
           element={
             <SectionChrome
-              description={systemTabs[6].description}
+              description={systemSecurityTab.description}
               sectionLabel="Sistema"
-              tabLabel={systemTabs[6].label}
+              tabLabel={systemSecurityTab.label}
               tabs={systemTabs}
-              title={systemTabs[6].title}
-            >
-              <SecurityPage
-                embedded
-                view="backup"
-                backups={backups}
-                currentUser={session.user}
-                instanceInfo={instanceInfo}
-                linxSettings={linxSettings}
-                mfaStatus={mfaStatus}
-                activeMfaSetup={activeMfaSetup}
-                onCreateBackup={createBackup}
-                onCreateUser={createUser}
-                onDeactivateUser={deactivateUser}
-                onRestoreBackup={restoreBackup}
-                onStartMfaEnrollment={startMfaEnrollment}
-                onConfirmMfaEnrollment={confirmMfaEnrollment}
-                onResetMfa={resetUserMfa}
-                onUpdateCredentials={updateCredentials}
-                onUpdateLinxSettings={updateLinxSettings}
-                submitting={submitting}
-                users={users}
-              />
-            </SectionChrome>
-          }
-          path="/sistema/backup"
-        />
-        <Route
-          element={
-            <SectionChrome
-              description={systemTabs[7].description}
-              sectionLabel="Sistema"
-              tabLabel={systemTabs[7].label}
-              tabs={systemTabs}
-              title={systemTabs[7].title}
+              title={systemSecurityTab.title}
             >
               <SecurityPage
                 embedded
