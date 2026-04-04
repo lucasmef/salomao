@@ -12,7 +12,6 @@ from app.db.models.banking import (
     Reconciliation,
     ReconciliationGroup,
     ReconciliationLine,
-    ReconciliationRule,
 )
 from app.db.models.finance import Account, FinancialEntry
 from app.db.models.security import Company, User
@@ -22,7 +21,6 @@ from app.schemas.reconciliation import (
     ReconciliationAppliedEntry,
     BankTransactionActionCreate,
     BankTransactionWorkItem,
-    ReconciliationCandidate,
     ReconciliationCreate,
     ReconciliationUndoResponse,
     ReconciliationWorklist,
@@ -335,15 +333,6 @@ def build_reconciliation_worklist(
         )
     )
 
-    rules = list(
-        db.scalars(
-            select(ReconciliationRule).where(
-                ReconciliationRule.company_id == company.id,
-                ReconciliationRule.is_active.is_(True),
-            )
-        )
-    )
-
     transaction_ids = [transaction.id for transaction in transactions]
     reconciliation_lines = list(
         db.scalars(
@@ -378,49 +367,8 @@ def build_reconciliation_worklist(
     for reconciliation in legacy_reconciliations:
         legacy_map.setdefault(reconciliation.bank_transaction_id, []).append(reconciliation)
 
-    unreconciled_transactions = [
-        transaction
-        for transaction in transactions
-        if transaction.id not in line_map and transaction.id not in legacy_map
-    ]
-    candidate_entries: list[FinancialEntry] = []
-    if unreconciled_transactions:
-        candidate_types = {
-            "income" if Decimal(transaction.amount) > 0 else "expense"
-            for transaction in unreconciled_transactions
-        }
-        candidate_types.add("transfer")
-        account_ids = {transaction.account_id for transaction in unreconciled_transactions if transaction.account_id}
-        min_date = min(transaction.posted_at for transaction in unreconciled_transactions) - timedelta(days=15)
-        max_date = max(transaction.posted_at for transaction in unreconciled_transactions) + timedelta(days=15)
-
-        candidate_stmt = (
-            select(FinancialEntry)
-            .options(joinedload(FinancialEntry.account))
-            .where(
-                FinancialEntry.company_id == company.id,
-                FinancialEntry.is_deleted.is_(False),
-                FinancialEntry.status.in_(["planned", "partial"]),
-                FinancialEntry.entry_type.in_(list(candidate_types)),
-                or_(
-                    FinancialEntry.due_date.is_(None),
-                    FinancialEntry.due_date.between(min_date, max_date),
-                    FinancialEntry.competence_date.between(min_date, max_date),
-                ),
-            )
-        )
-        if account_ids:
-            candidate_stmt = candidate_stmt.where(
-                or_(
-                    FinancialEntry.account_id.is_(None),
-                    FinancialEntry.account_id.in_(list(account_ids)),
-                )
-            )
-        candidate_entries = list(db.scalars(candidate_stmt))
-
     items: list[BankTransactionWorkItem] = []
     for transaction in transactions:
-        tx_text = _normalize_text(" ".join(filter(None, [transaction.memo, transaction.name])))
         applied_entries: list[ReconciliationAppliedEntry] = []
         transaction_lines = line_map.get(transaction.id, [])
         transaction_legacy = legacy_map.get(transaction.id, [])
@@ -453,36 +401,7 @@ def build_reconciliation_worklist(
                     )
                 )
 
-        ranked: list[ReconciliationCandidate] = []
         is_reconciled = bool(applied_entries)
-        if not is_reconciled:
-            for entry in candidate_entries:
-                if entry.entry_type != "transfer":
-                    transaction_type = "income" if Decimal(transaction.amount) > 0 else "expense"
-                    if entry.entry_type != transaction_type:
-                        continue
-                score, reasons = _score_candidate(transaction, entry)
-                for rule in rules:
-                    if rule.pattern.lower() in tx_text:
-                        score += 12
-                        reasons.append("regra salva")
-                if score < 20:
-                    continue
-                ranked.append(
-                    ReconciliationCandidate(
-                        financial_entry_id=entry.id,
-                        title=entry.title,
-                        counterparty_name=entry.counterparty_name,
-                        entry_type=entry.entry_type,
-                        status=entry.status,
-                        due_date=entry.due_date,
-                        total_amount=entry.total_amount,
-                        account_name=entry.account.name if entry.account else None,
-                        score=round(score, 2),
-                        reasons=list(dict.fromkeys(reasons)),
-                    )
-                )
-        ranked.sort(key=lambda candidate: candidate.score, reverse=True)
         items.append(
             BankTransactionWorkItem(
                 bank_transaction_id=transaction.id,
@@ -497,7 +416,7 @@ def build_reconciliation_worklist(
                 reconciliation_status="matched" if is_reconciled else "pending",
                 undo_mode=_undo_mode_from_entries(applied_entries) if is_reconciled else None,
                 applied_entries=applied_entries,
-                candidates=ranked[:5],
+                candidates=[],
             )
         )
 

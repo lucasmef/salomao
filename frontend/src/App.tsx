@@ -196,7 +196,7 @@ const emptyReconciliation: ReconciliationWorklist = {
   matched_count: 0,
   total: 0,
   page: 1,
-  page_size: 2000,
+  page_size: 200,
   total_account_balance: "0.00",
   account_balances: [],
   items: [],
@@ -256,6 +256,8 @@ const emptyBoletoDashboard: BoletoDashboard = {
   missing_boletos: [],
   excess_boletos: [],
 };
+
+const RECONCILIATION_WORKLIST_LIMIT = 200;
 
 const BoletosPage = lazy(() => import("./pages/BoletosPage").then((module) => ({ default: module.BoletosPage })));
 const CadastrosClientsPage = lazy(() =>
@@ -414,7 +416,6 @@ function AppRuntime() {
   const location = useLocation();
   const networkActivityCount = useNetworkActivityCount();
   const autoLoadingSectionKeysRef = useRef<Set<string>>(new Set());
-  const previousPathRef = useRef(location.pathname);
   const [session, setSession] = useState<SessionState | null>(null);
   const [pendingAuth, setPendingAuth] = useState<PendingAuthState | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -445,8 +446,6 @@ function AppRuntime() {
   const [collections, setCollections] = useState<CollectionSeason[]>([]);
   const [categoryLookups, setCategoryLookups] = useState<CategoryLookups>(emptyLookups);
   const [entryList, setEntryList] = useState<FinancialEntryListResponse>(emptyEntryList);
-  const [payables, setPayables] = useState<FinancialEntryListResponse>(emptyEntryList);
-  const [receivables, setReceivables] = useState<FinancialEntryListResponse>(emptyEntryList);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [recurrences, setRecurrences] = useState<RecurrenceRule[]>([]);
   const [loans, setLoans] = useState<LoanContract[]>([]);
@@ -553,23 +552,6 @@ function AppRuntime() {
   }, [loadedSections, location.pathname, purchasePlanningLoadedMode, session]);
 
   useEffect(() => {
-    const currentPath = normalizePath(location.pathname);
-    const previousPath = normalizePath(previousPathRef.current);
-    previousPathRef.current = location.pathname;
-
-    if (!session) {
-      return;
-    }
-
-    const isEnteringOverview = currentPath.startsWith("/overview") && !previousPath.startsWith("/overview");
-    if (!isEnteringOverview || !loadedSections.overview) {
-      return;
-    }
-
-    void refreshOverviewBalances(session);
-  }, [loadedSections.overview, location.pathname, overviewFilters.end, overviewFilters.start, session]);
-
-  useEffect(() => {
     if (!feedback.message) {
       return;
     }
@@ -635,28 +617,6 @@ function AppRuntime() {
     setBoletoDashboard(boletoData);
   }
 
-  async function refreshOverviewBalances(activeSession: SessionState, filters = overviewFilters) {
-    const cashflowData = await fetchJson<CashflowOverview>(
-      `/cashflow/overview?${buildCashflowQuery({
-        start: filters.start,
-        end: filters.end,
-        account_id: "",
-        include_purchase_planning: true,
-        include_crediario_receivables: true,
-      })}`,
-      { token: activeSession.token },
-    );
-    setDashboard((current) => ({
-      ...current,
-      kpis: {
-        ...current.kpis,
-        current_balance: cashflowData.current_balance,
-        projected_balance: cashflowData.projected_ending_balance,
-      },
-      account_balances: cashflowData.account_balances,
-    }));
-  }
-
   async function loadSectionData(activeSession: SessionState, targetSection: SectionId, options?: { force?: boolean }) {
     if (!options?.force && loadedSections[targetSection]) {
       return;
@@ -682,14 +642,11 @@ function AppRuntime() {
           if (isInitialSectionLoad) {
             setEntryFilters(effectiveEntryFilters);
           }
-          const [entryData, payableData, receivableData] = await Promise.all([
-            fetchJson<FinancialEntryListResponse>(`/entries?${buildQuery(effectiveEntryFilters)}`, { token: activeSession.token }),
-            fetchJson<FinancialEntryListResponse>("/entries/payables?page=1&page_size=100", { token: activeSession.token }),
-            fetchJson<FinancialEntryListResponse>("/entries/receivables?page=1&page_size=100", { token: activeSession.token }),
-          ]);
+          const entryData = await fetchJson<FinancialEntryListResponse>(
+            `/entries?${buildQuery(effectiveEntryFilters)}`,
+            { token: activeSession.token },
+          );
           setEntryList(entryData);
-          setPayables(payableData);
-          setReceivables(receivableData);
           break;
         }
         case "planejamento": {
@@ -745,7 +702,11 @@ function AppRuntime() {
             setReconciliationFilters(effectiveReconciliationFilters);
           }
           const reconciliationData = await fetchJson<ReconciliationWorklist>(
-            `/reconciliation/worklist?${buildQuery({ ...effectiveReconciliationFilters, page: "1", limit: "2000" })}`,
+            `/reconciliation/worklist?${buildQuery({
+              ...effectiveReconciliationFilters,
+              page: "1",
+              limit: String(RECONCILIATION_WORKLIST_LIMIT),
+            })}`,
             { token: activeSession.token },
           );
           setReconciliation(reconciliationData);
@@ -1194,7 +1155,11 @@ function AppRuntime() {
     try {
       const effectiveFilters = nextFilters ?? reconciliationFilters;
       const response = await fetchJson<ReconciliationWorklist>(
-        `/reconciliation/worklist?${buildQuery({ ...effectiveFilters, page: "1", limit: "2000" })}`,
+        `/reconciliation/worklist?${buildQuery({
+          ...effectiveFilters,
+          page: "1",
+          limit: String(RECONCILIATION_WORKLIST_LIMIT),
+        })}`,
         { token: session.token },
       );
       setReconciliation(response);
@@ -1482,17 +1447,29 @@ function AppRuntime() {
 
   async function syncLinxPurchaseInvoices() {
     if (!session) return;
-    await runMutation(async () => {
+    setSubmitting(true);
+    try {
       const result = await fetchJson<ImportResult>("/purchase-invoices/linx-sync", {
         method: "POST",
         token: session.token,
         body: JSON.stringify({}),
       });
+      await loadBaseData(session);
+      await loadSectionData(session, "planejamento", { force: true });
+      if (loadedSections.caixa) {
+        await loadSectionData(session, "caixa", { force: true });
+      }
+      if (loadedSections.lancamentos) {
+        await loadSectionData(session, "lancamentos", { force: true });
+      }
       setFeedback({ tone: "success", message: result.message });
-    }, "Notas de compra sincronizadas do Linx.", {
-      refreshBase: true,
-      sections: ["planejamento", "caixa", "lancamentos"],
-    });
+      return result.message;
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+      throw error;
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function createSupplier(payload: Record<string, unknown>) {
@@ -2048,13 +2025,11 @@ function AppRuntime() {
                 title={entriesNavigation.children[0].title}
               >
                 <EntriesPage
-                  embedded
-                  accounts={accounts}
-                  suppliers={suppliers}
-                  categories={categories}
-                  entryList={entryList}
-                  payables={payables}
-                  receivables={receivables}
+                embedded
+                accounts={accounts}
+                suppliers={suppliers}
+                categories={categories}
+                entryList={entryList}
                   filters={entryFilters}
                   submitting={submitting}
                   onCancelEntry={cancelEntry}
