@@ -905,6 +905,22 @@ export type UserCredentialsUpdatePayload = {
   password?: string;
 };
 
+export type LinxSettings = {
+  base_url: string;
+  username: string;
+  sales_view_name: string;
+  receivables_view_name: string;
+  has_password: boolean;
+};
+
+export type LinxSettingsUpdatePayload = {
+  base_url: string;
+  username: string;
+  password?: string;
+  sales_view_name: string;
+  receivables_view_name: string;
+};
+
 export type FeedbackState = {
   tone: "info" | "success" | "error";
   message: string;

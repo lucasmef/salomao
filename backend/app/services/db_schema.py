@@ -380,6 +380,15 @@ def ensure_schema_updates(engine: Engine) -> None:
         _add_column_if_missing(connection, "purchase_deliveries", "season_phase", "VARCHAR(20) DEFAULT 'main'")
         _add_column_if_missing(connection, "collection_seasons", "season_year", "INTEGER")
         _add_column_if_missing(connection, "collection_seasons", "season_type", "VARCHAR(20)")
+        company_columns = {
+            "linx_base_url": "VARCHAR(255)",
+            "linx_username": "VARCHAR(160)",
+            "linx_password_encrypted": "VARCHAR(512)",
+            "linx_sales_view_name": "VARCHAR(160)",
+            "linx_receivables_view_name": "VARCHAR(160)",
+        }
+        for column_name, sql_type in company_columns.items():
+            _add_column_if_missing(connection, "companies", column_name, sql_type)
 
         user_columns = {
             "mfa_enabled": "BOOLEAN DEFAULT 0",

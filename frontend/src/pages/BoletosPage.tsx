@@ -16,6 +16,7 @@ type Props = {
   onIssueInterCharges: (selectionKeys: string[]) => Promise<void>;
   onReceiveInterBoleto: (boletoId: string, payWith?: "BOLETO" | "PIX") => Promise<void>;
   onSyncInterCharges: () => Promise<void>;
+  onSyncReceivables: () => Promise<void>;
   onToggleAllMonthlyMissingBoletos: (showAll: boolean) => Promise<void>;
   onUploadReceivables: (file: File) => Promise<void>;
   onUploadBoletoInter: (file: File) => Promise<void>;
@@ -117,10 +118,25 @@ type UploadCardProps = {
   submitting: boolean;
   onChange: (file: File | null) => void;
   onSubmit: () => void;
+  secondaryLabel?: string;
+  onSecondaryAction?: () => void;
+  secondaryDisabled?: boolean;
   meta: ReactNode;
 };
 
-function UploadCard({ id, title, accept, selectedFile, submitting, onChange, onSubmit, meta }: UploadCardProps) {
+function UploadCard({
+  id,
+  title,
+  accept,
+  selectedFile,
+  submitting,
+  onChange,
+  onSubmit,
+  secondaryLabel,
+  onSecondaryAction,
+  secondaryDisabled = false,
+  meta,
+}: UploadCardProps) {
   return (
     <div className="compact-import-card billing-import-card">
       <div className="billing-import-header">
@@ -154,6 +170,16 @@ function UploadCard({ id, title, accept, selectedFile, submitting, onChange, onS
       </div>
       <div className="billing-import-meta">
         {meta}
+        {onSecondaryAction ? (
+          <button
+            className="secondary-button compact-action-button"
+            disabled={submitting || secondaryDisabled}
+            onClick={onSecondaryAction}
+            type="button"
+          >
+            {secondaryLabel ?? "Sincronizar"}
+          </button>
+        ) : null}
         {selectedFile ? (
           <small className="compact-muted" title={selectedFile.name}>
             Novo arquivo: {selectedFile.name}
@@ -204,6 +230,7 @@ export function BoletosPage({
   onIssueInterCharges,
   onReceiveInterBoleto,
   onSyncInterCharges,
+  onSyncReceivables,
   onToggleAllMonthlyMissingBoletos,
   onUploadReceivables,
   onUploadBoletoInter,
@@ -1008,6 +1035,8 @@ export function BoletosPage({
                   submitting={submitting}
                   onChange={setReceivablesFile}
                   onSubmit={() => receivablesFile && void onUploadReceivables(receivablesFile)}
+                  secondaryLabel="Sincronizar Linx"
+                  onSecondaryAction={() => void onSyncReceivables()}
                   meta={renderFileMeta("linx_receivables")}
                 />
                 <UploadCard

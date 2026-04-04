@@ -2,7 +2,16 @@ import { FormEvent, useEffect, useState } from "react";
 
 import { PageHeader } from "../components/PageHeader";
 import { formatBytes, formatDate } from "../lib/format";
-import type { AuthUser, BackupRead, InstanceInfo, MfaSetup, MfaStatus, UserCredentialsUpdatePayload } from "../types";
+import type {
+  AuthUser,
+  BackupRead,
+  InstanceInfo,
+  LinxSettings,
+  LinxSettingsUpdatePayload,
+  MfaSetup,
+  MfaStatus,
+  UserCredentialsUpdatePayload,
+} from "../types";
 
 type Props = {
   submitting: boolean;
@@ -10,10 +19,12 @@ type Props = {
   users: AuthUser[];
   backups: BackupRead[];
   instanceInfo: InstanceInfo | null;
+  linxSettings: LinxSettings | null;
   mfaStatus: MfaStatus | null;
   activeMfaSetup: MfaSetup | null;
   onCreateUser: (payload: Record<string, unknown>) => Promise<void>;
   onUpdateCredentials: (payload: UserCredentialsUpdatePayload) => Promise<void>;
+  onUpdateLinxSettings: (payload: LinxSettingsUpdatePayload) => Promise<void>;
   onDeactivateUser: (userId: string) => Promise<void>;
   onCreateBackup: () => Promise<void>;
   onRestoreBackup: (file: File) => Promise<void>;
@@ -30,10 +41,12 @@ export function SecurityPage({
   users,
   backups,
   instanceInfo,
+  linxSettings,
   mfaStatus,
   activeMfaSetup,
   onCreateUser,
   onUpdateCredentials,
+  onUpdateLinxSettings,
   onDeactivateUser,
   onCreateBackup,
   onRestoreBackup,
@@ -55,11 +68,29 @@ export function SecurityPage({
     email: currentUser.email,
     password: "",
   });
+  const [linxForm, setLinxForm] = useState({
+    base_url: linxSettings?.base_url ?? "https://erp.microvix.com.br",
+    username: linxSettings?.username ?? "",
+    password: "",
+    sales_view_name: linxSettings?.sales_view_name ?? "FATURAMENTO SALOMAO",
+    receivables_view_name: linxSettings?.receivables_view_name ?? "CREDIARIO SALOMAO",
+  });
   const isLocalBackupMode = (instanceInfo?.backup_mode ?? "local-file") === "local-file";
 
   useEffect(() => {
     setCredentialsForm((current) => ({ ...current, email: currentUser.email }));
   }, [currentUser.email]);
+
+  useEffect(() => {
+    setLinxForm((current) => ({
+      ...current,
+      base_url: linxSettings?.base_url ?? "https://erp.microvix.com.br",
+      username: linxSettings?.username ?? "",
+      sales_view_name: linxSettings?.sales_view_name ?? "FATURAMENTO SALOMAO",
+      receivables_view_name: linxSettings?.receivables_view_name ?? "CREDIARIO SALOMAO",
+      password: "",
+    }));
+  }, [linxSettings]);
 
   async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -80,6 +111,18 @@ export function SecurityPage({
       password: credentialsForm.password || undefined,
     });
     setCredentialsForm((current) => ({ ...current, password: "" }));
+  }
+
+  async function handleUpdateLinxSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onUpdateLinxSettings({
+      base_url: linxForm.base_url,
+      username: linxForm.username,
+      password: linxForm.password || undefined,
+      sales_view_name: linxForm.sales_view_name,
+      receivables_view_name: linxForm.receivables_view_name,
+    });
+    setLinxForm((current) => ({ ...current, password: "" }));
   }
 
   return (
@@ -186,6 +229,67 @@ export function SecurityPage({
               <div className="summary-row"><span>MFA obrigatório</span><strong>{mfaStatus?.required ? "sim" : "não"}</strong></div>
               <div className="summary-row"><span>MFA do usuário atual</span><strong>{mfaStatus?.enabled ? "ativo" : "inativo"}</strong></div>
             </div>
+          </article>
+        )}
+
+        {view === "security" && currentUser.role === "admin" && (
+          <article className="panel-card">
+            <div className="panel-heading">
+              <p className="eyebrow">Integracao Linx</p>
+              <h3>Credenciais e visoes</h3>
+            </div>
+            <form className="form-grid single" onSubmit={handleUpdateLinxSettings}>
+              <label>
+                URL base
+                <input
+                  value={linxForm.base_url}
+                  onChange={(event) => setLinxForm({ ...linxForm, base_url: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Usuario
+                <input
+                  value={linxForm.username}
+                  onChange={(event) => setLinxForm({ ...linxForm, username: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Senha
+                <input
+                  type="password"
+                  value={linxForm.password}
+                  onChange={(event) => setLinxForm({ ...linxForm, password: event.target.value })}
+                  placeholder={linxSettings?.has_password ? "Deixe em branco para manter a atual" : ""}
+                />
+              </label>
+              <label>
+                Visao faturamento
+                <input
+                  value={linxForm.sales_view_name}
+                  onChange={(event) => setLinxForm({ ...linxForm, sales_view_name: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Visao faturas a receber
+                <input
+                  value={linxForm.receivables_view_name}
+                  onChange={(event) => setLinxForm({ ...linxForm, receivables_view_name: event.target.value })}
+                  required
+                />
+              </label>
+              <div className="summary-list">
+                <div className="summary-row">
+                  <span>Senha cadastrada</span>
+                  <strong>{linxSettings?.has_password ? "sim" : "nao"}</strong>
+                </div>
+              </div>
+              <button className="primary-button" disabled={submitting} type="submit">
+                Salvar configuracao Linx
+              </button>
+            </form>
           </article>
         )}
       </section>

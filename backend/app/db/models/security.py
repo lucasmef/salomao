@@ -14,6 +14,11 @@ class Company(Base, IdMixin, TimestampMixin):
     document: Mapped[str | None] = mapped_column(String(20), nullable=True)
     default_currency: Mapped[str] = mapped_column(String(3), default="BRL")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    linx_base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    linx_username: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    linx_password_encrypted: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    linx_sales_view_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    linx_receivables_view_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
 
     users = relationship("User", back_populates="company")
 

@@ -2,7 +2,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
 from app.api.deps import DbSession
 from app.schemas.inter import InterStatementSyncRequest
-from app.schemas.imports import ImportResult, ImportSummary
+from app.schemas.imports import ImportResult, ImportSummary, LinxSyncRequest
 from app.services.backup import ensure_pre_import_backup
 from app.services.company_context import get_current_company
 from app.services.imports import (
@@ -11,6 +11,8 @@ from app.services.imports import (
     import_linx_receivables,
     import_linx_sales,
     import_ofx,
+    sync_linx_receivables,
+    sync_linx_sales,
 )
 from app.services.inter import sync_inter_statement
 
@@ -38,6 +40,25 @@ async def upload_linx_sales(
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+@router.post("/linx-sales/sync", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+def trigger_linx_sales_sync(
+    payload: LinxSyncRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        ensure_pre_import_backup("linx-sales")
+        return sync_linx_sales(
+            db,
+            company,
+            start_date=payload.start_date,
+            end_date=payload.end_date,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 @router.post("/linx-receivables", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
 async def upload_linx_receivables(
     db: DbSession,
@@ -48,6 +69,29 @@ async def upload_linx_receivables(
         ensure_pre_import_backup("linx-receivables")
         content = await file.read()
         return import_linx_receivables(db, company, file.filename or "linx-receivables.xls", content)
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post(
+    "/linx-receivables/sync",
+    response_model=ImportResult,
+    status_code=status.HTTP_201_CREATED,
+)
+def trigger_linx_receivables_sync(
+    payload: LinxSyncRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        ensure_pre_import_backup("linx-receivables")
+        return sync_linx_receivables(
+            db,
+            company,
+            start_date=payload.start_date,
+            end_date=payload.end_date,
+        )
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error

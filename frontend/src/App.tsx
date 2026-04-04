@@ -28,6 +28,8 @@ import type {
   InstanceInfo,
   LoanContract,
   LoginResponse,
+  LinxSettings,
+  LinxSettingsUpdatePayload,
   MfaSetup,
   MfaStatus,
   PurchaseBrand,
@@ -453,6 +455,7 @@ function AppRuntime() {
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [backups, setBackups] = useState<BackupRead[]>([]);
   const [instanceInfo, setInstanceInfo] = useState<InstanceInfo | null>(null);
+  const [linxSettings, setLinxSettings] = useState<LinxSettings | null>(null);
   const [mfaStatus, setMfaStatus] = useState<MfaStatus | null>(null);
   const [activeMfaSetup, setActiveMfaSetup] = useState<MfaSetup | null>(null);
   const [purchasePlanningLoadedMode, setPurchasePlanningLoadedMode] = useState<"summary" | "planning" | "returns" | null>(null);
@@ -725,15 +728,18 @@ function AppRuntime() {
           const statusData = await fetchJson<MfaStatus>("/auth/mfa/status", { token: activeSession.token });
           setMfaStatus(statusData);
           if (activeSession.user.role === "admin") {
-            const [userData, backupData] = await Promise.all([
+            const [userData, backupData, linxSettingsData] = await Promise.all([
               fetchJson<AuthUser[]>("/auth/users", { token: activeSession.token }),
               fetchJson<BackupRead[]>("/backup", { token: activeSession.token }),
+              fetchJson<LinxSettings>("/company-settings/linx", { token: activeSession.token }),
             ]);
             setUsers(userData);
             setBackups(backupData);
+            setLinxSettings(linxSettingsData);
           } else {
             setUsers([]);
             setBackups([]);
+            setLinxSettings(null);
           }
           break;
         }
@@ -1229,8 +1235,32 @@ function AppRuntime() {
     await uploadManagedFile("/imports/linx-sales", file, ["relatorios", "overview", "importacoes"]);
   }
 
+  async function syncLinxSalesImport(period: { start: string; end: string }) {
+    if (!session) return;
+    await runMutation(async () => {
+      const result = await fetchJson<ImportResult>("/imports/linx-sales/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({ start_date: period.start, end_date: period.end }),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Faturamento Linx sincronizado.", { sections: ["relatorios", "overview", "importacoes"] });
+  }
+
   async function uploadReceivablesImport(file: File) {
     await uploadManagedFile("/imports/linx-receivables", file, ["boletos", "caixa", "importacoes"]);
+  }
+
+  async function syncLinxReceivablesImport() {
+    if (!session) return;
+    await runMutation(async () => {
+      const result = await fetchJson<ImportResult>("/imports/linx-receivables/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Faturas a receber sincronizadas do Linx.", { sections: ["boletos", "caixa", "importacoes"] });
   }
 
   async function uploadOfxImport(file: File, accountId: string) {
@@ -1689,6 +1719,24 @@ function AppRuntime() {
     }
   }
 
+  async function updateLinxSettings(payload: LinxSettingsUpdatePayload) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      const updated = await fetchJson<LinxSettings>("/company-settings/linx", {
+        method: "PUT",
+        token: session.token,
+        body: JSON.stringify(payload),
+      });
+      setLinxSettings(updated);
+      setFeedback({ tone: "success", message: "Configuracao do Linx atualizada." });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function deactivateUser(userId: string) {
     if (!session) return;
     await runMutation(async () => {
@@ -2014,6 +2062,7 @@ function AppRuntime() {
                 onReceiveInterBoleto={receiveInterBoleto}
                 onSaveClients={saveBoletoClients}
                 onSyncInterCharges={syncInterChargesImport}
+                onSyncReceivables={syncLinxReceivablesImport}
                 onToggleAllMonthlyMissingBoletos={toggleAllMonthlyMissingBoletos}
                 onUploadBoletoC6={uploadBoletoC6Import}
                 onUploadClientData={uploadBoletoCustomerDataImport}
@@ -2096,6 +2145,7 @@ function AppRuntime() {
                 onLoadConfig={loadReportConfig}
                 onExport={exportReport}
                 onSaveConfig={saveReportConfig}
+                onSyncSales={syncLinxSalesImport}
                 onUploadSales={uploadSalesImport}
                 reports={reports}
               />
@@ -2123,6 +2173,7 @@ function AppRuntime() {
                 onLoadConfig={loadReportConfig}
                 onExport={exportReport}
                 onSaveConfig={saveReportConfig}
+                onSyncSales={syncLinxSalesImport}
                 onUploadSales={uploadSalesImport}
                 reports={reports}
               />
@@ -2255,6 +2306,7 @@ function AppRuntime() {
                 backups={backups}
                 currentUser={session.user}
                 instanceInfo={instanceInfo}
+                linxSettings={linxSettings}
                 mfaStatus={mfaStatus}
                 activeMfaSetup={activeMfaSetup}
                 onCreateBackup={createBackup}
@@ -2265,6 +2317,7 @@ function AppRuntime() {
                 onConfirmMfaEnrollment={confirmMfaEnrollment}
                 onResetMfa={resetUserMfa}
                 onUpdateCredentials={updateCredentials}
+                onUpdateLinxSettings={updateLinxSettings}
                 submitting={submitting}
                 users={users}
               />
@@ -2287,6 +2340,7 @@ function AppRuntime() {
                 backups={backups}
                 currentUser={session.user}
                 instanceInfo={instanceInfo}
+                linxSettings={linxSettings}
                 mfaStatus={mfaStatus}
                 activeMfaSetup={activeMfaSetup}
                 onCreateBackup={createBackup}
@@ -2297,6 +2351,7 @@ function AppRuntime() {
                 onConfirmMfaEnrollment={confirmMfaEnrollment}
                 onResetMfa={resetUserMfa}
                 onUpdateCredentials={updateCredentials}
+                onUpdateLinxSettings={updateLinxSettings}
                 submitting={submitting}
                 users={users}
               />
@@ -2319,6 +2374,7 @@ function AppRuntime() {
                 backups={backups}
                 currentUser={session.user}
                 instanceInfo={instanceInfo}
+                linxSettings={linxSettings}
                 mfaStatus={mfaStatus}
                 activeMfaSetup={activeMfaSetup}
                 onCreateBackup={createBackup}
@@ -2329,6 +2385,7 @@ function AppRuntime() {
                 onConfirmMfaEnrollment={confirmMfaEnrollment}
                 onResetMfa={resetUserMfa}
                 onUpdateCredentials={updateCredentials}
+                onUpdateLinxSettings={updateLinxSettings}
                 submitting={submitting}
                 users={users}
               />

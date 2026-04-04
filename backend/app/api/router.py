@@ -8,6 +8,7 @@ from app.api.routes import (
     boletos,
     cashflow,
     categories,
+    company_settings,
     dashboard,
     entries,
     health,
@@ -30,6 +31,12 @@ api_router.include_router(accounts.router, prefix="/accounts", tags=["accounts"]
 api_router.include_router(backup.router, prefix="/backup", tags=["backup"], dependencies=protected)
 api_router.include_router(boletos.router, prefix="/boletos", tags=["boletos"], dependencies=protected)
 api_router.include_router(categories.router, prefix="/categories", tags=["categories"], dependencies=protected)
+api_router.include_router(
+    company_settings.router,
+    prefix="/company-settings",
+    tags=["company-settings"],
+    dependencies=protected,
+)
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"], dependencies=protected)
 api_router.include_router(entries.router, prefix="/entries", tags=["entries"], dependencies=protected)
 api_router.include_router(imports.router, prefix="/imports", tags=["imports"], dependencies=protected)

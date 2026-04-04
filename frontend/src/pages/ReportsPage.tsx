@@ -24,6 +24,7 @@ type Props = {
   onApplyFilters: () => Promise<void>;
   onExport: (kind: "dre" | "dro", format: "pdf" | "csv" | "xls") => Promise<void>;
   onUploadSales: (file: File) => Promise<void>;
+  onSyncSales: (period: { start: string; end: string }) => Promise<void>;
   onLoadConfig: (kind: "dre" | "dro") => Promise<ReportConfig>;
   onSaveConfig: (kind: "dre" | "dro", payload: { lines: ReportConfig["lines"] }) => Promise<ReportConfig>;
   embedded?: boolean;
@@ -119,6 +120,7 @@ export function ReportsPage({
   onApplyFilters,
   onExport,
   onUploadSales,
+  onSyncSales,
   onLoadConfig,
   onSaveConfig,
   embedded = false,
@@ -244,6 +246,9 @@ export function ReportsPage({
             </div>
             <button className="primary-button compact-action-button" disabled={loading || !salesFile} onClick={() => salesFile && void onUploadSales(salesFile)} type="button">
               Importar
+            </button>
+            <button className="secondary-button compact-action-button" disabled={loading} onClick={() => void onSyncSales(filters)} type="button">
+              Sincronizar Linx
             </button>
           </div>
         </article>
