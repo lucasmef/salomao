@@ -36,6 +36,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  faturamento: {run.sales_message}")
         if run.receivables_message:
             print(f"  faturas: {run.receivables_message}")
+        if run.purchase_payables_message:
+            print(f"  compras: {run.purchase_payables_message}")
         if run.error_message:
             failure_found = True
             print(f"  erro: {run.error_message}")

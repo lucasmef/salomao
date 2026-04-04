@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -7,16 +8,24 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models.security import Company
+from app.db.models.security import Company, User
 from app.services.audit import write_audit_log
 from app.services.backup import ensure_pre_import_backup
 from app.services.imports import sync_linx_receivables, sync_linx_sales
+from app.services.purchase_planning import sync_linx_purchase_payables
 from app.services.security_alerts import send_email
 
 AUTO_SYNC_TIMEZONE = ZoneInfo("America/Sao_Paulo")
 AUTO_SYNC_TRIGGER_TIME = time(hour=22, minute=0)
 RECEIVABLES_LOOKBACK_DAYS = 730
 RECEIVABLES_LOOKAHEAD_DAYS = 365
+
+
+@dataclass(frozen=True)
+class LinxAutoSyncSummary:
+    sales_overwritten_days: int = 0
+    receivables_overwritten_count: int = 0
+    purchase_payables_included_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -27,6 +36,8 @@ class LinxAutoSyncRun:
     attempted: bool
     sales_message: str | None = None
     receivables_message: str | None = None
+    purchase_payables_message: str | None = None
+    summary: LinxAutoSyncSummary = LinxAutoSyncSummary()
     error_message: str | None = None
 
 
@@ -91,28 +102,90 @@ def _run_receivables_sync(db: Session, company: Company, *, target_date: date) -
     return result.message
 
 
-def _build_failure_email(
+def _run_purchase_payables_sync(db: Session, company: Company) -> str:
+    actor_user = db.scalar(
+        select(User)
+        .where(User.company_id == company.id, User.is_active.is_(True))
+        .order_by(User.created_at.asc(), User.full_name.asc())
+    )
+    result = sync_linx_purchase_payables(db, company, actor_user=actor_user)
+    return result.message
+
+
+def _extract_count(message: str | None, pattern: str) -> int:
+    if not message:
+        return 0
+    match = re.search(pattern, message, flags=re.IGNORECASE)
+    if match is None:
+        return 0
+    return int(match.group(1))
+
+
+def _build_summary(
+    *,
+    sales_message: str | None,
+    receivables_message: str | None,
+    purchase_payables_message: str | None,
+) -> LinxAutoSyncSummary:
+    return LinxAutoSyncSummary(
+        sales_overwritten_days=_extract_count(sales_message, r"(\d+)\s+dia\(s\)"),
+        receivables_overwritten_count=_extract_count(
+            receivables_message,
+            r"(\d+)\s+registro\(s\)\s+antigos",
+        ),
+        purchase_payables_included_count=_extract_count(
+            purchase_payables_message,
+            r"(\d+)\s+fatura\(s\)\s+nova\(s\)\s+inclu",
+        ),
+    )
+
+
+def _build_summary_email(
     company: Company,
     *,
     attempted_at: datetime,
-    error_message: str,
+    status: str,
+    summary: LinxAutoSyncSummary,
+    sales_message: str | None,
+    receivables_message: str | None,
+    purchase_payables_message: str | None,
+    error_message: str | None,
 ) -> tuple[str, str]:
-    subject = f"[Linx] Falha na sincronizacao automatica - {company.trade_name}"
-    body = "\n".join(
-        [
-            f"Empresa: {company.trade_name}",
-            f"Data/hora: {attempted_at.strftime('%d/%m/%Y %H:%M:%S %Z')}",
-            "Origem: sincronizacao automatica diaria do Linx",
-            "",
-            "Resumo da falha:",
-            error_message,
-            "",
-            "Possiveis causas:",
-            "- senha do Linx expirada ou alterada",
-            "- visao do relatorio alterada no Microvix",
-            "- indisponibilidade temporaria do portal",
-        ]
-    )
+    subject_prefix = "[Linx] Resumo da sincronizacao automatica"
+    if status != "success":
+        subject_prefix = "[Linx] Sincronizacao automatica com alerta"
+    company_name = company.trade_name or company.legal_name or company.id
+    subject = f"{subject_prefix} - {company_name}"
+    body_lines = [
+        f"Empresa: {company_name}",
+        f"Data/hora: {attempted_at.strftime('%d/%m/%Y %H:%M:%S %Z')}",
+        "Origem: sincronizacao automatica diaria do Linx",
+        f"Status: {status}",
+        "",
+        "Resumo do processamento:",
+        f"- Dias alterados pelo faturamento: {summary.sales_overwritten_days}",
+        f"- Faturas a receber alteradas: {summary.receivables_overwritten_count}",
+        f"- Faturas de compra incluidas: {summary.purchase_payables_included_count}",
+        "",
+        "Detalhes dos retornos:",
+        f"- Faturamento: {sales_message or 'nao executado'}",
+        f"- Faturas a receber: {receivables_message or 'nao executado'}",
+        f"- Faturas de compra: {purchase_payables_message or 'nao executado'}",
+    ]
+    if error_message:
+        body_lines.extend(
+            [
+                "",
+                "Falhas encontradas:",
+                error_message,
+                "",
+                "Possiveis causas:",
+                "- senha do Linx expirada ou alterada",
+                "- visao do relatorio alterada no Microvix",
+                "- indisponibilidade temporaria do portal",
+            ]
+        )
+    body = "\n".join(body_lines)
     return subject, body
 
 
@@ -139,6 +212,7 @@ def run_linx_auto_sync_for_company(
     errors: list[str] = []
     sales_message: str | None = None
     receivables_message: str | None = None
+    purchase_payables_message: str | None = None
 
     try:
         ensure_pre_import_backup(f"linx-auto-sync:{company.id}")
@@ -158,8 +232,23 @@ def run_linx_auto_sync_for_company(
             db.rollback()
             errors.append(f"Faturas a receber: {error}")
 
+        try:
+            purchase_payables_message = _run_purchase_payables_sync(db, company)
+        except Exception as error:  # pragma: no cover - exercised via service tests
+            db.rollback()
+            errors.append(f"Faturas de compra: {error}")
+
+    summary = _build_summary(
+        sales_message=sales_message,
+        receivables_message=receivables_message,
+        purchase_payables_message=purchase_payables_message,
+    )
+
     if errors:
-        status = "partial_failure" if sales_message or receivables_message else "failed"
+        if sales_message or receivables_message or purchase_payables_message:
+            status = "partial_failure"
+        else:
+            status = "failed"
         error_message = "\n".join(errors)
     else:
         status = "success"
@@ -180,30 +269,41 @@ def run_linx_auto_sync_for_company(
             "status": status,
             "sales_message": sales_message,
             "receivables_message": receivables_message,
+            "purchase_payables_message": purchase_payables_message,
+            "summary": {
+                "sales_overwritten_days": summary.sales_overwritten_days,
+                "receivables_overwritten_count": summary.receivables_overwritten_count,
+                "purchase_payables_included_count": summary.purchase_payables_included_count,
+            },
             "error_message": error_message,
         },
     )
     db.commit()
 
-    if error_message:
-        subject, body = _build_failure_email(
-            company,
-            attempted_at=local_now,
-            error_message=error_message,
+    subject, body = _build_summary_email(
+        company,
+        attempted_at=local_now,
+        status=status,
+        summary=summary,
+        sales_message=sales_message,
+        receivables_message=receivables_message,
+        purchase_payables_message=purchase_payables_message,
+        error_message=error_message,
+    )
+    try:
+        send_email(
+            subject,
+            body,
+            recipients=_split_recipients(company.linx_auto_sync_alert_email),
         )
-        try:
-            send_email(
-                subject,
-                body,
-                recipients=_split_recipients(company.linx_auto_sync_alert_email),
-            )
-        except Exception as email_error:  # pragma: no cover - depends on SMTP runtime
-            company.linx_auto_sync_last_error = (
-                f"{error_message}\nAlerta por email nao enviado: {email_error}"
-            )
-            db.flush()
-            db.commit()
-            error_message = company.linx_auto_sync_last_error
+    except Exception as email_error:  # pragma: no cover - depends on SMTP runtime
+        email_delivery_error = f"Resumo por email nao enviado: {email_error}"
+        company.linx_auto_sync_last_error = (
+            f"{error_message}\n{email_delivery_error}" if error_message else email_delivery_error
+        )
+        db.flush()
+        db.commit()
+        error_message = company.linx_auto_sync_last_error
 
     return LinxAutoSyncRun(
         company_id=company.id,
@@ -212,6 +312,8 @@ def run_linx_auto_sync_for_company(
         attempted=True,
         sales_message=sales_message,
         receivables_message=receivables_message,
+        purchase_payables_message=purchase_payables_message,
+        summary=summary,
         error_message=error_message,
     )
 

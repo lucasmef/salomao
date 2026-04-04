@@ -62,10 +62,25 @@ def test_linx_auto_sync_runs_both_reports_and_updates_status(monkeypatch) -> Non
         return str(captured.setdefault("backup", source))
 
     def _sales_ok(db, current_company, *, target_date):
-        return f"sales:{target_date.isoformat()}:{current_company.id}"
+        return (
+            "Faturamento Linx importado com sucesso. "
+            "3 dia(s) existentes foram sobrescritos. "
+            f"{target_date.isoformat()}:{current_company.id}"
+        )
 
     def _receivables_ok(db, current_company, *, target_date):
-        return f"receivables:{target_date.isoformat()}:{current_company.id}"
+        return (
+            "Faturas a receber importadas com sucesso. "
+            "12 registro(s) antigos de cobranca foram sobrescritos. "
+            f"{target_date.isoformat()}:{current_company.id}"
+        )
+
+    def _purchase_ok(db, current_company):
+        return (
+            "Faturas de compra do Linx sincronizadas. "
+            "2 nota(s) nova(s) analisada(s). "
+            "5 fatura(s) nova(s) incluida(s)."
+        )
 
     monkeypatch.setattr("app.services.linx_auto_sync.ensure_pre_import_backup", _capture_backup)
     monkeypatch.setattr(
@@ -77,8 +92,15 @@ def test_linx_auto_sync_runs_both_reports_and_updates_status(monkeypatch) -> Non
         _receivables_ok,
     )
     monkeypatch.setattr(
+        "app.services.linx_auto_sync._run_purchase_payables_sync",
+        _purchase_ok,
+    )
+    monkeypatch.setattr(
         "app.services.linx_auto_sync.send_email",
-        lambda *args, **kwargs: captured.setdefault("email", True),
+        lambda subject, body, *, recipients=None: captured.setdefault(
+            "email",
+            (subject, body, recipients),
+        ),
     )
 
     try:
@@ -90,10 +112,20 @@ def test_linx_auto_sync_runs_both_reports_and_updates_status(monkeypatch) -> Non
 
         assert result.attempted is True
         assert result.status == "success"
-        assert result.sales_message == f"sales:2026-04-04:{company.id}"
-        assert result.receivables_message == f"receivables:2026-04-04:{company.id}"
+        assert "3 dia(s)" in (result.sales_message or "")
+        assert "12 registro(s)" in (result.receivables_message or "")
+        assert "5 fatura(s) nova(s)" in (result.purchase_payables_message or "")
+        assert result.summary.sales_overwritten_days == 3
+        assert result.summary.receivables_overwritten_count == 12
+        assert result.summary.purchase_payables_included_count == 5
         assert captured["backup"] == f"linx-auto-sync:{company.id}"
-        assert "email" not in captured
+        email_subject, email_body, email_recipients = captured["email"]
+        assert email_recipients == ["alertas@example.com"]
+        assert "Dias alterados pelo faturamento: 3" in email_body
+        assert "Faturas a receber alteradas: 12" in email_body
+        assert "Faturas de compra incluidas: 5" in email_body
+        assert "Status: success" in email_body
+        assert "Resumo da sincronizacao automatica" in email_subject
         session.refresh(company)
         assert company.linx_auto_sync_last_status == "success"
         assert company.linx_auto_sync_last_error is None
@@ -109,13 +141,24 @@ def test_linx_auto_sync_sends_email_and_marks_partial_failure(monkeypatch) -> No
     monkeypatch.setattr("app.services.linx_auto_sync.ensure_pre_import_backup", lambda source: None)
     monkeypatch.setattr(
         "app.services.linx_auto_sync._run_sales_sync",
-        lambda db, current_company, *, target_date: "sales ok",
+        lambda db, current_company, *, target_date: (
+            "Faturamento Linx importado com sucesso. "
+            "2 dia(s) existentes foram sobrescritos."
+        ),
     )
 
     def _fail_receivables(db, current_company, *, target_date):
         raise ValueError("senha expirou no Linx")
 
     monkeypatch.setattr("app.services.linx_auto_sync._run_receivables_sync", _fail_receivables)
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync._run_purchase_payables_sync",
+        lambda db, current_company: (
+            "Faturas de compra do Linx sincronizadas. "
+            "1 nota(s) nova(s) analisada(s). "
+            "4 fatura(s) nova(s) incluida(s)."
+        ),
+    )
     monkeypatch.setattr(
         "app.services.linx_auto_sync.send_email",
         lambda subject, body, *, recipients=None: email_calls.append((subject, body, recipients)),
@@ -131,9 +174,15 @@ def test_linx_auto_sync_sends_email_and_marks_partial_failure(monkeypatch) -> No
         assert result.attempted is True
         assert result.status == "partial_failure"
         assert result.error_message == "Faturas a receber: senha expirou no Linx"
+        assert result.summary.sales_overwritten_days == 2
+        assert result.summary.receivables_overwritten_count == 0
+        assert result.summary.purchase_payables_included_count == 4
         assert len(email_calls) == 1
         assert email_calls[0][2] == ["alertas@example.com"]
         assert "senha expirou no Linx" in email_calls[0][1]
+        assert "Dias alterados pelo faturamento: 2" in email_calls[0][1]
+        assert "Faturas a receber alteradas: 0" in email_calls[0][1]
+        assert "Faturas de compra incluidas: 4" in email_calls[0][1]
         session.refresh(company)
         assert company.linx_auto_sync_last_status == "partial_failure"
         assert company.linx_auto_sync_last_error == "Faturas a receber: senha expirou no Linx"
@@ -163,6 +212,14 @@ def test_linx_auto_sync_cycle_force_runs_disabled_company(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.services.linx_auto_sync._run_receivables_sync",
         lambda db, current_company, *, target_date: "receivables ok",
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync._run_purchase_payables_sync",
+        lambda db, current_company: (
+            "Faturas de compra do Linx sincronizadas. "
+            "0 nota(s) nova(s) analisada(s). "
+            "0 fatura(s) nova(s) incluida(s)."
+        ),
     )
     monkeypatch.setattr("app.services.linx_auto_sync.send_email", lambda *args, **kwargs: None)
 

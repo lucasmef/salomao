@@ -14,8 +14,9 @@ from app.db.models.banking import (
     ReconciliationLine,
     ReconciliationRule,
 )
-from app.db.models.finance import FinancialEntry
+from app.db.models.finance import Account, FinancialEntry
 from app.db.models.security import Company, User
+from app.schemas.dashboard import DashboardAccountBalance
 from app.schemas.financial_entry import FinancialEntryCreate
 from app.schemas.reconciliation import (
     ReconciliationAppliedEntry,
@@ -27,6 +28,7 @@ from app.schemas.reconciliation import (
     ReconciliationWorklist,
 )
 from app.services.audit import write_audit_log
+from app.services.cashflow import RECEIVABLES_CONTROL_ACCOUNT_TYPE, _current_balance_for_account
 from app.services.finance_ops import apply_settlement_breakdown, create_entry, create_transfer, delete_entry
 from app.schemas.transfer import TransferCreate
 from app.services.bootstrap import ensure_default_financial_category
@@ -499,6 +501,33 @@ def build_reconciliation_worklist(
             )
         )
 
+    balance_accounts = sorted(
+        [
+            account
+            for account in db.scalars(
+                select(Account).where(
+                    Account.company_id == company.id,
+                    Account.is_active.is_(True),
+                )
+            )
+            if account.account_type != RECEIVABLES_CONTROL_ACCOUNT_TYPE
+        ],
+        key=lambda item: (item.name or "").lower(),
+    )
+    total_account_balance = Decimal("0.00")
+    account_balances: list[DashboardAccountBalance] = []
+    for account in balance_accounts:
+        balance = _current_balance_for_account(db, company.id, account)
+        total_account_balance += balance
+        account_balances.append(
+            DashboardAccountBalance(
+                account_id=account.id,
+                account_name=account.name,
+                account_type=account.account_type,
+                current_balance=balance,
+            )
+        )
+
     return ReconciliationWorklist(
         unreconciled_count=unreconciled_count,
         overall_unreconciled_count=overall_unreconciled_count,
@@ -506,6 +535,8 @@ def build_reconciliation_worklist(
         total=total_count,
         page=page,
         page_size=limit,
+        total_account_balance=total_account_balance,
+        account_balances=account_balances,
         items=items,
     )
 

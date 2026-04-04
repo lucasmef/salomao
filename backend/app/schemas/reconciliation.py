@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.schemas.dashboard import DashboardAccountBalance
+
 
 class ReconciliationCandidate(BaseModel):
     financial_entry_id: str
@@ -48,6 +50,8 @@ class ReconciliationWorklist(BaseModel):
     total: int
     page: int
     page_size: int
+    total_account_balance: Decimal = Decimal("0.00")
+    account_balances: list[DashboardAccountBalance] = []
     items: list[BankTransactionWorkItem]
 
 
