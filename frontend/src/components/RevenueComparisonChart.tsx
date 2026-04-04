@@ -30,8 +30,8 @@ function buildLinePath(points: Array<{ x: number; y: number }>) {
 export function RevenueComparisonChart({ title, comparison }: Props) {
   const points = comparison.points ?? [];
   const width = 620;
-  const height = 320;
-  const padding = { top: 36, right: 26, bottom: 40, left: 56 };
+  const height = 240;
+  const padding = { top: 28, right: 26, bottom: 34, left: 56 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
   const values = points.flatMap((point) => [

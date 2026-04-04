@@ -557,13 +557,13 @@ textarea {
 }
 
 .revenue-comparison-canvas {
-  min-height: 320px;
+  min-height: 240px;
 }
 
 .revenue-comparison-canvas svg {
   display: block;
   width: 100%;
-  height: 320px;
+  height: 240px;
   overflow: visible;
 }
 
@@ -1982,11 +1982,11 @@ textarea {
   }
 
   .revenue-comparison-canvas {
-    min-height: 280px;
+    min-height: 180px;
   }
 
   .revenue-comparison-canvas svg {
-    height: 280px;
+    height: 180px;
   }
 
   .compact-import-card .compact-button,
