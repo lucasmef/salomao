@@ -652,20 +652,25 @@ function AppRuntime() {
         }
         case "planejamento": {
           const planningMode = getPurchasePlanningMode(location.pathname);
+          const returnDataPromise = fetchJson<PurchaseReturn[]>("/purchase-returns?limit=500", {
+            token: activeSession.token,
+          });
           if (planningMode === "returns") {
-            const returnData = await fetchJson<PurchaseReturn[]>("/purchase-returns?limit=500", {
-              token: activeSession.token,
-            });
+            const returnData = await returnDataPromise;
             setPurchaseReturns(returnData);
           } else {
             const planningQuery =
               planningMode === "summary"
                 ? buildQuery({ ...purchasePlanningFilters, mode: planningMode })
                 : buildQuery({ mode: planningMode });
-            const planningData = await fetchJson<PurchasePlanningOverview>(`/purchase-planning/overview?${planningQuery}`, {
-              token: activeSession.token,
-            });
+            const [planningData, returnData] = await Promise.all([
+              fetchJson<PurchasePlanningOverview>(`/purchase-planning/overview?${planningQuery}`, {
+                token: activeSession.token,
+              }),
+              returnDataPromise,
+            ]);
             setPurchasePlanning(planningData);
+            setPurchaseReturns(returnData);
           }
           setPurchasePlanningLoadedMode(planningMode);
           break;

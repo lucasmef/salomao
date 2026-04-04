@@ -193,9 +193,8 @@ const PURCHASE_RETURN_STATUS_OPTIONS: SelectOption[] = [
   { value: "refund_approved", label: "Reembolso aprovado" },
   { value: "refunded", label: "Reembolsado" },
 ] ;
-const DEFAULT_VISIBLE_PURCHASE_RETURN_STATUSES = PURCHASE_RETURN_STATUS_OPTIONS.filter(
-  (option) => option.value !== "refunded",
-).map((option) => option.value);
+const ALL_PURCHASE_RETURN_STATUSES = PURCHASE_RETURN_STATUS_OPTIONS.map((option) => option.value);
+const DEFAULT_VISIBLE_PURCHASE_RETURN_STATUSES = ALL_PURCHASE_RETURN_STATUSES;
 const PURCHASE_RETURN_STATUS_LABELS = Object.fromEntries(
   PURCHASE_RETURN_STATUS_OPTIONS.map((option) => [option.value, option.label]),
 ) as Record<string, string>;
@@ -310,6 +309,10 @@ function labelizePurchaseReturnStatus(value: string | null | undefined) {
 
 function getPurchaseReturnStatusOptions(currentStatus: string | null) {
   return PURCHASE_RETURN_STATUS_OPTIONS;
+}
+
+function normalizePurchaseReturnVisibleStatuses(values: string[]) {
+  return values.length ? values : ALL_PURCHASE_RETURN_STATUSES;
 }
 
 function parseInstallmentsCount(paymentTerm: string | null | undefined) {
@@ -619,13 +622,20 @@ export function PurchasePlanningPage({
   const selectedSupplierTermOption = paymentTermOptions.find((option) => option.value === supplierModal.default_payment_term) ?? null;
   const selectedPurchaseReturnSupplierOption = supplierOptions.find((option) => option.value === purchaseReturnModal.supplier_id) ?? null;
   const purchaseReturnStatusOptions = getPurchaseReturnStatusOptions(purchaseReturnModal.id ? purchaseReturnModal.status : null);
+  const normalizedPurchaseReturnVisibleStatuses = normalizePurchaseReturnVisibleStatuses(purchaseReturnVisibleStatuses);
   const selectedPurchaseReturnVisibleStatusOptions = PURCHASE_RETURN_STATUS_OPTIONS.filter((option) =>
-    purchaseReturnVisibleStatuses.includes(option.value),
+    normalizedPurchaseReturnVisibleStatuses.includes(option.value),
   );
+  const purchaseReturnStatusPlaceholder =
+    normalizedPurchaseReturnVisibleStatuses.length === PURCHASE_RETURN_STATUS_OPTIONS.length
+      ? "Todos os status"
+      : normalizedPurchaseReturnVisibleStatuses.length === 1
+        ? `${selectedPurchaseReturnVisibleStatusOptions[0]?.label ?? "1 status"}`
+        : `${normalizedPurchaseReturnVisibleStatuses.length} status selecionados`;
   const filteredPurchaseReturns = useMemo(() => {
     const normalizedFilter = normalizeDisplayText(purchaseReturnFilter);
     return purchaseReturns.filter((purchaseReturn) => {
-      if (!purchaseReturnVisibleStatuses.includes(purchaseReturn.status)) {
+      if (!normalizedPurchaseReturnVisibleStatuses.includes(purchaseReturn.status)) {
         return false;
       }
       if (purchaseReturnDateFrom && purchaseReturn.return_date < purchaseReturnDateFrom) {
@@ -653,7 +663,7 @@ export function PurchasePlanningPage({
       );
       return haystack.includes(normalizedFilter);
     });
-  }, [purchaseReturnDateFrom, purchaseReturnDateTo, purchaseReturnFilter, purchaseReturnVisibleStatuses, purchaseReturns]);
+  }, [normalizedPurchaseReturnVisibleStatuses, purchaseReturnDateFrom, purchaseReturnDateTo, purchaseReturnFilter, purchaseReturns]);
   const purchaseReturnsTotal = useMemo(
     () => filteredPurchaseReturns.reduce((sum, purchaseReturn) => sum + Number(purchaseReturn.amount), 0),
     [filteredPurchaseReturns],
@@ -2260,11 +2270,12 @@ export function PurchasePlanningPage({
               <Select
                 options={PURCHASE_RETURN_STATUS_OPTIONS}
                 value={selectedPurchaseReturnVisibleStatusOptions}
-                onChange={(options) => setPurchaseReturnVisibleStatuses(asMultiValue(options))}
+                onChange={(options) => setPurchaseReturnVisibleStatuses(normalizePurchaseReturnVisibleStatuses(asMultiValue(options)))}
                 isMulti
                 closeMenuOnSelect={false}
                 hideSelectedOptions={false}
-                placeholder="Selecione os status"
+                controlShouldRenderValue={false}
+                placeholder={purchaseReturnStatusPlaceholder}
                 styles={purchaseSelectStyles}
                 menuPortalTarget={portalTarget}
               />
