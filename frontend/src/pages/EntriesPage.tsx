@@ -504,6 +504,18 @@ export function EntriesPage({
     setBulkCategoryId("");
   }
 
+  function openEntryModal() {
+    setEditingId(null);
+    setForm({ ...emptyForm, issue_date: todayInput });
+    setInlineSupplierName("");
+    setShowEntryModal(true);
+  }
+
+  function openTransferModal() {
+    setTransferForm(emptyTransferForm);
+    setShowTransferModal(true);
+  }
+
   return (
     <div className="page-layout">
       {!embedded && (
@@ -511,65 +523,12 @@ export function EntriesPage({
           eyebrow="Financeiro"
           title="Lançamentos"
           description="Pagar, receber e consulta financeira do período."
-          actions={
-            <div className="toolbar entries-toolbar-compact">
-              <label>
-                De
-                <input
-                  type="date"
-                  value={String(filters.date_from ?? "")}
-                  onChange={(event) => onChangeFilters({ ...filters, date_from: event.target.value, page: "1" })}
-                />
-              </label>
-              <label>
-                Até
-                <input
-                  type="date"
-                  value={String(filters.date_to ?? "")}
-                  onChange={(event) => onChangeFilters({ ...filters, date_to: event.target.value, page: "1" })}
-                />
-              </label>
-              <label>
-                Busca textual
-                <input
-                  placeholder="Título, documento ou contraparte"
-                  value={String(filters.search ?? "")}
-                  onChange={(event) => onChangeFilters({ ...filters, search: event.target.value, page: "1" })}
-                />
-              </label>
-              <button className="secondary-button" onClick={() => setShowFilters((current) => !current)} type="button">
-                {showFilters ? "Ocultar filtros" : "Mais filtros"}
-              </button>
-              <button
-                className="secondary-button"
-                onClick={() => {
-                  setTransferForm(emptyTransferForm);
-                  setShowTransferModal(true);
-                }}
-                type="button"
-              >
-                Transferir entre contas
-              </button>
-              <button
-                className="primary-button"
-                onClick={() => {
-                  setEditingId(null);
-                  setForm({ ...emptyForm, issue_date: todayInput });
-                  setInlineSupplierName("");
-                  setShowEntryModal(true);
-                }}
-                type="button"
-              >
-                Novo lançamento
-              </button>
-            </div>
-          }
         />
       )}
 
-      {embedded && (
-        <section className="section-toolbar-panel">
-          <div className="section-toolbar-content entries-toolbar-compact">
+      <section className="section-toolbar-panel entries-top-panel">
+        <div className="entries-toolbar-main">
+          <div className="entries-toolbar-fields">
             <label>
               De
               <input
@@ -586,42 +545,87 @@ export function EntriesPage({
                 onChange={(event) => onChangeFilters({ ...filters, date_to: event.target.value, page: "1" })}
               />
             </label>
-            <label>
+            <label className="entries-search-field">
               Busca textual
-                <input
-                  placeholder="Título, documento ou contraparte"
-                  value={String(filters.search ?? "")}
-                  onChange={(event) => onChangeFilters({ ...filters, search: event.target.value, page: "1" })}
-                />
-              </label>
-            <button className="secondary-button" onClick={() => setShowFilters((current) => !current)} type="button">
+              <input
+                placeholder="Título, documento ou contraparte"
+                value={String(filters.search ?? "")}
+                onChange={(event) => onChangeFilters({ ...filters, search: event.target.value, page: "1" })}
+              />
+            </label>
+          </div>
+          <div className="entries-toolbar-actions">
+            <button className="secondary-button compact-button" onClick={() => setShowFilters((current) => !current)} type="button">
               {showFilters ? "Ocultar filtros" : "Mais filtros"}
             </button>
             <button
-              className="secondary-button"
-              onClick={() => {
-                setTransferForm(emptyTransferForm);
-                setShowTransferModal(true);
-              }}
+              className="secondary-button compact-button"
+              onClick={openTransferModal}
               type="button"
             >
               Transferir entre contas
             </button>
             <button
-              className="primary-button"
-              onClick={() => {
-                setEditingId(null);
-                setForm({ ...emptyForm, issue_date: todayInput });
-                setInlineSupplierName("");
-                setShowEntryModal(true);
-              }}
+              className="primary-button compact-button"
+              onClick={openEntryModal}
               type="button"
             >
               Novo lançamento
             </button>
           </div>
-        </section>
-      )}
+        </div>
+        <div className="entries-toolbar-secondary">
+          <div className="entries-top-metrics">
+            <article className="entries-top-metric">
+              <span>Registros</span>
+              <strong>{entryList.total}</strong>
+            </article>
+            <article className="entries-top-metric">
+              <span>Total</span>
+              <strong>{formatMoney(entryList.total_amount)}</strong>
+            </article>
+            <article className="entries-top-metric">
+              <span>Baixado</span>
+              <strong>{formatMoney(entryList.paid_amount)}</strong>
+            </article>
+            <article className="entries-top-metric">
+              <span>Em aberto</span>
+              <strong>{(payables.total ?? 0) + (receivables.total ?? 0)}</strong>
+            </article>
+          </div>
+          <div className="entries-quick-filter-row">
+            <span className="entries-quick-filter-label">Filtro rápido</span>
+            {entryTypeChipOptions.map((chip) => (
+              <button
+                key={chip.key}
+                className={`filter-chip ${activeEntryTypes.includes(chip.key) ? "active" : ""}`}
+                onClick={() => toggleChipFilter("entry_types", chip.key)}
+                type="button"
+              >
+                {chip.label}
+              </button>
+            ))}
+            {entryStatusChipOptions.map((chip) => (
+              <button
+                key={chip.key}
+                className={`filter-chip ${activeStatuses.includes(chip.key) ? "active" : ""}`}
+                disabled={reconciledOnly && chip.key !== "settled"}
+                onClick={() => toggleChipFilter("statuses", chip.key)}
+                type="button"
+              >
+                {chip.label}
+              </button>
+            ))}
+            <button
+              className={`filter-chip ${reconciledOnly ? "active" : ""}`}
+              onClick={toggleReconciledFilter}
+              type="button"
+            >
+              Conciliado
+            </button>
+          </div>
+        </div>
+      </section>
 
       {showFilters && (
         <section className="panel compact-panel-card">
@@ -679,52 +683,6 @@ export function EntriesPage({
           </form>
         </section>
       )}
-
-      <section className="kpi-grid compact-kpis-four">
-        <article className="kpi-card"><span>Registros</span><strong>{entryList.total}</strong></article>
-        <article className="kpi-card"><span>Total</span><strong>{formatMoney(entryList.total_amount)}</strong></article>
-        <article className="kpi-card"><span>Baixado</span><strong>{formatMoney(entryList.paid_amount)}</strong></article>
-        <article className="kpi-card"><span>Em aberto</span><strong>{(payables.total ?? 0) + (receivables.total ?? 0)}</strong></article>
-      </section>
-
-      <section className="panel compact-panel-card">
-        <div className="panel-title compact-title-row">
-          <div>
-            <h3>Filtro rapido</h3>
-            <p className="panel-subtitle">Combine tipo, situacao e conciliacao na mesma consulta.</p>
-          </div>
-        </div>
-        <div className="quick-chip-row">
-          {entryTypeChipOptions.map((chip) => (
-            <button
-              key={chip.key}
-              className={`filter-chip ${activeEntryTypes.includes(chip.key) ? "active" : ""}`}
-              onClick={() => toggleChipFilter("entry_types", chip.key)}
-              type="button"
-            >
-              {chip.label}
-            </button>
-          ))}
-          {entryStatusChipOptions.map((chip) => (
-            <button
-              key={chip.key}
-              className={`filter-chip ${activeStatuses.includes(chip.key) ? "active" : ""}`}
-              disabled={reconciledOnly && chip.key !== "settled"}
-              onClick={() => toggleChipFilter("statuses", chip.key)}
-              type="button"
-            >
-              {chip.label}
-            </button>
-          ))}
-          <button
-            className={`filter-chip ${reconciledOnly ? "active" : ""}`}
-            onClick={toggleReconciledFilter}
-            type="button"
-          >
-            Conciliado
-          </button>
-        </div>
-      </section>
 
       <section className="panel compact-panel-card">
         <div className="panel-title is-column-mobile compact-title-row">
@@ -804,7 +762,7 @@ export function EntriesPage({
             {selectedNonDeletableCount} item(ns) selecionado(s) não podem ser excluídos em lote porque já foram baixados, conciliados ou estão vinculados a outro processo.
           </p>
         )}
-        <div className="table-shell tall">
+        <div className="table-shell entries-table-shell">
           <table className="erp-table">
             <thead>
               <tr>
