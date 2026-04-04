@@ -260,6 +260,53 @@ class ReportLayoutTestCase(unittest.TestCase):
         self.assertEqual([item.label for item in dashboard.dre_cards[:2]], ["RECEITA BRUTA", "(=) RECEITA LIQUIDA"])
         self.assertNotIn("(-) DEDUCOES", {item.label for item in dashboard.dre_chart})
 
+    def test_dashboard_groups_revenue_comparison_by_month_for_current_and_previous_year(self) -> None:
+        self._add_snapshot(gross_revenue="1000.00")
+        previous_year_snapshot = SalesSnapshot(
+            company_id=self.company.id,
+            snapshot_date=date(2025, 3, 15),
+            gross_revenue=Decimal("250.00"),
+            cash_revenue=Decimal("0.00"),
+            check_sight_revenue=Decimal("0.00"),
+            check_term_revenue=Decimal("0.00"),
+            inhouse_credit_revenue=Decimal("0.00"),
+            card_revenue=Decimal("0.00"),
+            convenio_revenue=Decimal("0.00"),
+            pix_revenue=Decimal("0.00"),
+            financing_revenue=Decimal("0.00"),
+            markup=Decimal("100.00"),
+            discount_or_surcharge=Decimal("0.00"),
+        )
+        current_year_extra_snapshot = SalesSnapshot(
+            company_id=self.company.id,
+            snapshot_date=date(2026, 3, 20),
+            gross_revenue=Decimal("300.00"),
+            cash_revenue=Decimal("0.00"),
+            check_sight_revenue=Decimal("0.00"),
+            check_term_revenue=Decimal("0.00"),
+            inhouse_credit_revenue=Decimal("0.00"),
+            card_revenue=Decimal("0.00"),
+            convenio_revenue=Decimal("0.00"),
+            pix_revenue=Decimal("0.00"),
+            financing_revenue=Decimal("0.00"),
+            markup=Decimal("100.00"),
+            discount_or_surcharge=Decimal("0.00"),
+        )
+        self.db.add_all([previous_year_snapshot, current_year_extra_snapshot])
+        self.db.commit()
+
+        dashboard = build_dashboard_overview(self.db, self.company, start=date(2026, 3, 1), end=date(2026, 3, 31))
+
+        march_point = next(point for point in dashboard.revenue_comparison.points if point.month == 3)
+        april_point = next(point for point in dashboard.revenue_comparison.points if point.month == 4)
+
+        self.assertEqual(dashboard.revenue_comparison.current_year, 2026)
+        self.assertEqual(dashboard.revenue_comparison.previous_year, 2025)
+        self.assertEqual(march_point.current_year_value, Decimal("1300.00"))
+        self.assertEqual(march_point.previous_year_value, Decimal("250.00"))
+        self.assertEqual(april_point.current_year_value, Decimal("0.00"))
+        self.assertEqual(april_point.previous_year_value, Decimal("0.00"))
+
     def test_grouped_children_percent_uses_parent_total(self) -> None:
         account = self._add_account("Banco")
         personnel_category = self._add_category(

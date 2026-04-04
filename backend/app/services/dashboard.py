@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.banking import BankTransaction, Reconciliation, ReconciliationLine
@@ -92,8 +92,8 @@ def build_dashboard_overview(
 
     current_year = end.year
     previous_year = current_year - 1
-    year_expr = func.strftime("%Y", SalesSnapshot.snapshot_date)
-    month_expr = func.strftime("%m", SalesSnapshot.snapshot_date)
+    year_expr = extract("year", SalesSnapshot.snapshot_date)
+    month_expr = extract("month", SalesSnapshot.snapshot_date)
     revenue_rows = db.execute(
         select(
             year_expr.label("year"),
