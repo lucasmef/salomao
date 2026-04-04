@@ -101,6 +101,30 @@ check_http_status_ok() {
   fi
 }
 
+check_ssh_listener() {
+  local listen_output="$1"
+  local ssh_socket_show ssh_socket_unit
+
+  ssh_socket_show="$(sudo systemctl show ssh.socket -p Listen -p ActiveState -p SubState 2>/dev/null || true)"
+  ssh_socket_unit="$(sudo systemctl cat ssh.socket 2>/dev/null || true)"
+
+  if grep -Eq '%tailscale0:22\b' <<<"$listen_output"; then
+    pass "SSH ouvindo na porta 22 via interface tailscale0"
+  elif grep -Eq '0\.0\.0\.0:22\b|\[::\]:22\b|:::22\b' <<<"$listen_output"; then
+    warn "SSH ouvindo na porta 22 em interface geral; confira se a exposicao esta intencional"
+  elif grep -Eq '(^|[[:space:]])[^[:space:]]+:22\b' <<<"$listen_output"; then
+    warn "SSH ouvindo na porta 22 fora do tailscale0; revise o bind configurado"
+  elif grep -Eq '^ActiveState=active$' <<<"$ssh_socket_show" \
+    && grep -Eq '^SubState=running$' <<<"$ssh_socket_show" \
+    && grep -Eq '^Listen=.*:22 \(Stream\)$' <<<"$ssh_socket_show" \
+    && ! grep -Eq '^Listen=(0\.0\.0\.0|\[::\]):22 \(Stream\)$' <<<"$ssh_socket_show" \
+    && grep -Eq 'BindToDevice=tailscale0' <<<"$ssh_socket_unit"; then
+    pass "SSH restrito ao Tailscale via ssh.socket"
+  else
+    warn "Porta 22 nao apareceu em ss -ltnp nem na configuracao efetiva do ssh.socket"
+  fi
+}
+
 check_env_file() {
   section "Ambiente"
 
@@ -201,11 +225,7 @@ check_networking() {
     warn "Porta 8101 nao encontrada na lista de sockets"
   fi
 
-  if grep -Eq '0\.0\.0\.0:22\b|:::22\b' <<<"$listen_output"; then
-    pass "SSH ouvindo na porta 22"
-  else
-    warn "Porta 22 nao apareceu em ss -ltnp"
-  fi
+  check_ssh_listener "$listen_output"
 
   if grep -Eq '0\.0\.0\.0:80\b|:::80\b' <<<"$listen_output"; then
     pass "HTTP publico ouvindo na porta 80"
