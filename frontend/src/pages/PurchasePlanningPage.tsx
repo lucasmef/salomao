@@ -58,10 +58,11 @@ type Props = {
   onImportXml: (file: File) => Promise<PurchaseInvoiceDraft>;
   onSaveInvoice: (payload: Record<string, unknown>) => Promise<void>;
   onLinkInstallment: (installmentId: string, financialEntryId: string | null) => Promise<void>;
-  onSyncLinxPurchaseInvoices: () => Promise<void>;
+  onSyncLinxPurchaseInvoices: () => Promise<string | void>;
 };
 
 type SelectOption = { value: string; label: string };
+type SyncFeedbackTone = "info" | "success" | "error";
 
 type SupplierModalState = {
   id: string | null;
@@ -462,6 +463,8 @@ export function PurchasePlanningPage({
   const [invoiceText, setInvoiceText] = useState("");
   const [invoiceDraft, setInvoiceDraft] = useState<PurchaseInvoiceDraft>(emptyInvoiceDraft());
   const [uploadingXml, setUploadingXml] = useState(false);
+  const [syncingLinxInvoices, setSyncingLinxInvoices] = useState(false);
+  const [linxSyncFeedback, setLinxSyncFeedback] = useState<{ tone: SyncFeedbackTone; message: string } | null>(null);
 
   const [brandModalOpen, setBrandModalOpen] = useState(false);
   const [inactiveBrandsModalOpen, setInactiveBrandsModalOpen] = useState(false);
@@ -1026,12 +1029,16 @@ export function PurchasePlanningPage({
     setInvoiceModalOpen(true);
     setInvoiceText("");
     setInvoiceDraft(emptyInvoiceDraft());
+    setLinxSyncFeedback(null);
+    setSyncingLinxInvoices(false);
   }
 
   function closeInvoiceModal() {
     setInvoiceModalOpen(false);
     setInvoiceText("");
     setInvoiceDraft(emptyInvoiceDraft());
+    setLinxSyncFeedback(null);
+    setSyncingLinxInvoices(false);
   }
 
   function closeBrandModal() {
@@ -1212,8 +1219,29 @@ export function PurchasePlanningPage({
   }
 
   async function handleSyncLinxPurchaseInvoices() {
-    await onSyncLinxPurchaseInvoices();
-    closeInvoiceModal();
+    setSyncingLinxInvoices(true);
+    setLinxSyncFeedback({
+      tone: "info",
+      message: "Sincronizando notas do Linx. Isso pode levar alguns segundos...",
+    });
+    try {
+      const message = await onSyncLinxPurchaseInvoices();
+      setLinxSyncFeedback({
+        tone: "success",
+        message: normalizeDisplayText(message ?? "") || "Sincronizacao do Linx concluida.",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? normalizeDisplayText(error.message)
+          : "Nao foi possivel concluir a sincronizacao do Linx.";
+      setLinxSyncFeedback({
+        tone: "error",
+        message,
+      });
+    } finally {
+      setSyncingLinxInvoices(false);
+    }
   }
 
   async function handleSaveBrand() {
@@ -2399,9 +2427,24 @@ export function PurchasePlanningPage({
                 Busca a visao configurada no Linx, compara com as faturas ja vistas e inclui somente os
                 lancamentos novos em aberto.
               </p>
+              {linxSyncFeedback && (
+                <div
+                  className={`purchase-sync-feedback is-${linxSyncFeedback.tone}`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {linxSyncFeedback.message}
+                </div>
+              )}
               <div className="action-row">
-                <button className="primary-button" type="button" onClick={() => void handleSyncLinxPurchaseInvoices()}>
-                  Sincronizar notas do Linx
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => void handleSyncLinxPurchaseInvoices()}
+                  disabled={syncingLinxInvoices}
+                  aria-busy={syncingLinxInvoices}
+                >
+                  {syncingLinxInvoices ? "Sincronizando notas do Linx..." : "Sincronizar notas do Linx"}
                 </button>
               </div>
             </section>

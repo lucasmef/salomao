@@ -19,6 +19,7 @@ from app.db.models import purchasing as purchasing_models  # noqa: F401
 from app.db.models.imports import ImportBatch
 from app.db.models.security import Company, User
 from app.schemas.imports import ImportResult
+from app.services.finance_ops import delete_entry
 from app.services.import_parsers import parse_purchase_payable_rows
 from app.services.purchase_planning import import_linx_purchase_payables
 
@@ -328,4 +329,108 @@ def test_purchase_invoice_linx_sync_endpoint_smoke(monkeypatch) -> None:
         assert response.json()["message"] == "ok"
     finally:
         client.close()
+        session.close()
+
+
+def test_import_linx_purchase_payables_with_empty_report_returns_clear_message() -> None:
+    session, company, user = _build_session()
+    empty_content = _build_purchase_payables_report()
+
+    try:
+        result = import_linx_purchase_payables(session, company, "payables-empty.xls", empty_content, user)
+
+        assert "0 nota(s) nova(s) analisada(s)." in result.message
+        assert "0 fatura(s) nova(s) incluida(s)." in result.message
+        assert "Nenhuma fatura encontrada na visao selecionada do Linx." in result.message
+        assert session.scalar(select(purchasing_models.PurchaseInvoice)) is None
+        assert session.scalar(select(finance_models.FinancialEntry)) is None
+        assert session.scalar(select(linx_models.PurchasePayableTitle)) is None
+    finally:
+        session.close()
+
+
+def test_delete_open_linx_purchase_entry_keeps_history_without_reimporting() -> None:
+    session, company, user = _build_session()
+    first_content = _build_purchase_payables_report(
+        {
+            "issue_date": "29/10/25",
+            "payable_pair": "54951|1",
+            "due_date": "29/04/2026",
+            "installment_label": "1|1",
+            "original_amount": "R$ 685,00",
+            "amount_with_charges": "R$ 685,00",
+            "supplier_display": "BIAMAR MALHAS E CONFECCOES LTDA (12)",
+            "document_pair": "422137|6",
+            "status": "Em aberto",
+        }
+    )
+    second_content = _build_purchase_payables_report(
+        {
+            "issue_date": "29/10/25",
+            "payable_pair": "54951|1",
+            "due_date": "29/04/2026",
+            "installment_label": "1|1",
+            "original_amount": "R$ 685,00",
+            "amount_with_charges": "R$ 685,00",
+            "supplier_display": "BIAMAR MALHAS E CONFECCOES LTDA (12)",
+            "document_pair": "422137|6",
+            "status": "Em aberto",
+        },
+        {
+            "issue_date": "29/10/25",
+            "payable_pair": "99999|1",
+            "due_date": "29/06/2026",
+            "installment_label": "1|1",
+            "original_amount": "R$ 10,00",
+            "amount_with_charges": "R$ 10,00",
+            "supplier_display": "IGNORAR TESTE LTDA (99)",
+            "document_pair": "000001|1",
+            "status": "Baixado",
+        },
+    )
+
+    try:
+        import_linx_purchase_payables(session, company, "payables-1.xls", first_content, user)
+
+        installment = session.scalar(select(purchasing_models.PurchaseInstallment))
+        assert installment is not None
+        entry = session.scalar(
+            select(finance_models.FinancialEntry).where(
+                finance_models.FinancialEntry.purchase_installment_id == installment.id,
+                finance_models.FinancialEntry.is_deleted.is_(False),
+            )
+        )
+        assert entry is not None
+
+        delete_entry(session, company, entry.id, user)
+        session.commit()
+
+        deleted_entry = session.get(finance_models.FinancialEntry, entry.id)
+        assert deleted_entry is not None
+        assert deleted_entry.is_deleted is True
+        assert deleted_entry.purchase_invoice_id is None
+        assert deleted_entry.purchase_installment_id is None
+
+        assert session.scalar(select(purchasing_models.PurchaseInstallment)) is None
+        assert session.scalar(select(purchasing_models.PurchaseInvoice)) is None
+
+        registry = session.scalar(select(linx_models.PurchasePayableTitle))
+        assert registry is not None
+        assert registry.financial_entry_id is None
+        assert registry.purchase_installment_id is None
+        assert registry.purchase_invoice_id is None
+
+        result = import_linx_purchase_payables(session, company, "payables-2.xls", second_content, user)
+        assert "0 fatura(s) nova(s) incluida(s)." in result.message
+        entries_after_reimport = list(
+            session.scalars(
+                select(finance_models.FinancialEntry).where(
+                    finance_models.FinancialEntry.is_deleted.is_(False),
+                )
+            )
+        )
+        assert entries_after_reimport == []
+        assert session.scalar(select(purchasing_models.PurchaseInstallment)) is None
+        assert session.scalar(select(purchasing_models.PurchaseInvoice)) is None
+    finally:
         session.close()

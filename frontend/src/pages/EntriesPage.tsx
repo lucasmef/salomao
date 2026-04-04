@@ -16,8 +16,6 @@ type Props = {
   categories: Category[];
   suppliers: Supplier[];
   entryList: FinancialEntryListResponse;
-  payables: FinancialEntryListResponse;
-  receivables: FinancialEntryListResponse;
   filters: Record<string, string | boolean>;
   submitting: boolean;
   onChangeFilters: (filters: Record<string, string | boolean>) => void;
@@ -546,14 +544,17 @@ export function EntriesPage({
 
   function canDeleteEntry(entry: FinancialEntry) {
     return (
-      (entry.status === "planned" || entry.status === "cancelled") &&
+      (entry.status === "planned" || entry.status === "cancelled" || entry.status === "open") &&
       Number(entry.paid_amount) <= 0 &&
       !entry.settled_at &&
       !entry.transfer_id &&
       !entry.loan_installment_id &&
-      !entry.purchase_installment_id &&
       !entry.is_recurring_generated
     );
+  }
+
+  function isPurchaseInvoiceEntry(entry: FinancialEntry) {
+    return Boolean(entry.purchase_invoice_id || entry.purchase_installment_id);
   }
 
   function isTransferEntry(entry: FinancialEntry) {
@@ -1153,7 +1154,7 @@ export function EntriesPage({
                                 Excluir
                               </button>
                             )}
-                            {(entry.status === "planned" || entry.status === "partial") && (
+                            {!isPurchaseInvoiceEntry(entry) && (entry.status === "planned" || entry.status === "partial") && (
                               <button
                                 className="entries-row-menu-item is-danger"
                                 onClick={() => {

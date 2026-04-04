@@ -1822,6 +1822,35 @@ textarea {
   font-size: 0.94rem;
 }
 
+.purchase-sync-feedback {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d6e1ef;
+  background: #f7fafd;
+  color: #28405f;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.purchase-sync-feedback.is-info {
+  border-color: #cfe0ff;
+  background: #eef5ff;
+  color: #24457f;
+}
+
+.purchase-sync-feedback.is-success {
+  border-color: #cfe7d6;
+  background: #edf8f1;
+  color: #1f5a33;
+}
+
+.purchase-sync-feedback.is-error {
+  border-color: #efc9c9;
+  background: #fff1f1;
+  color: #8a2f2f;
+}
+
 .purchase-spacer {
   height: 10px;
 }

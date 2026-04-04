@@ -2503,7 +2503,7 @@ def delete_purchase_plan(
 
 def _sync_installment_status(installment: PurchaseInstallment) -> str:
     linked_entry = installment.financial_entry
-    if linked_entry is None:
+    if linked_entry is None or linked_entry.is_deleted:
         return "planned"
     paid_amount = Decimal(linked_entry.paid_amount or 0)
     if paid_amount >= Decimal(installment.amount or 0) and linked_entry.status == "settled":
@@ -2514,7 +2514,7 @@ def _sync_installment_status(installment: PurchaseInstallment) -> str:
 
 
 def _installment_remaining_amount(installment: PurchaseInstallment) -> Decimal:
-    if installment.financial_entry is None:
+    if installment.financial_entry is None or installment.financial_entry.is_deleted:
         return _money(installment.amount)
     paid_amount = Decimal(installment.financial_entry.paid_amount or 0)
     return max(_money(Decimal(installment.amount or 0) - paid_amount), Decimal("0.00"))
@@ -3120,6 +3120,10 @@ def import_linx_purchase_payables(
         f"{len(new_rows_by_group)} nota(s) nova(s) analisada(s).",
         f"{sum(len(items) for items in new_rows_by_group.values())} fatura(s) nova(s) incluida(s).",
     ]
+    if not parsed_rows:
+        message_parts.append("Nenhuma fatura encontrada na visao selecionada do Linx.")
+    elif not open_rows_by_reference:
+        message_parts.append("Nenhuma fatura em aberto encontrada no Linx.")
     if created_suppliers:
         message_parts.append(f"{created_suppliers} fornecedor(es) criado(s).")
     if created_entries:
@@ -3134,6 +3138,114 @@ def sync_linx_purchase_payables(
 ) -> ImportResult:
     filename, content = download_linx_purchase_payables_report(company)
     return import_linx_purchase_payables(db, company, filename, content, actor_user)
+
+
+def cleanup_deleted_purchase_entry(
+    db: Session,
+    entry: FinancialEntry,
+) -> None:
+    installment = None
+    if entry.purchase_installment_id:
+        installment = db.get(PurchaseInstallment, entry.purchase_installment_id)
+        if installment is not None and installment.company_id != entry.company_id:
+            installment = None
+
+    invoice = None
+    if installment is not None:
+        invoice = installment.invoice
+    elif entry.purchase_invoice_id:
+        invoice = db.get(PurchaseInvoice, entry.purchase_invoice_id)
+        if invoice is not None and invoice.company_id != entry.company_id:
+            invoice = None
+
+    payable_title_matchers = [PurchasePayableTitle.financial_entry_id == entry.id]
+    if entry.purchase_installment_id:
+        payable_title_matchers.append(
+            PurchasePayableTitle.purchase_installment_id == entry.purchase_installment_id
+        )
+    payable_title_filters = [
+        PurchasePayableTitle.company_id == entry.company_id,
+        or_(*payable_title_matchers),
+    ]
+    payable_titles = list(db.scalars(select(PurchasePayableTitle).where(*payable_title_filters)))
+    for payable_title in payable_titles:
+        if payable_title.financial_entry_id == entry.id:
+            payable_title.financial_entry_id = None
+
+    if installment is None:
+        entry.purchase_invoice = None
+        entry.purchase_installment = None
+        entry.purchase_invoice_id = None
+        entry.purchase_installment_id = None
+        return
+
+    if invoice is None or invoice.source_type != "linx_payables":
+        if installment.financial_entry_id == entry.id:
+            installment.financial_entry_id = None
+        installment.financial_entry = None
+        installment.status = "planned"
+        entry.purchase_invoice = None
+        entry.purchase_installment = None
+        entry.purchase_invoice_id = None
+        entry.purchase_installment_id = None
+        return
+
+    for payable_title in payable_titles:
+        if payable_title.purchase_installment_id == installment.id:
+            payable_title.purchase_installment_id = None
+            payable_title.purchase_invoice_id = None
+
+    if installment.financial_entry_id == entry.id:
+        installment.financial_entry_id = None
+    installment.financial_entry = None
+    entry.purchase_invoice = None
+    entry.purchase_installment = None
+    entry.purchase_installment_id = None
+    entry.purchase_invoice_id = None
+    db.delete(installment)
+    db.flush()
+
+    remaining_installments = list(
+        db.scalars(
+            select(PurchaseInstallment)
+            .where(
+                PurchaseInstallment.company_id == entry.company_id,
+                PurchaseInstallment.purchase_invoice_id == invoice.id,
+            )
+            .order_by(PurchaseInstallment.installment_number.asc(), PurchaseInstallment.created_at.asc())
+        )
+    )
+    remaining_total = _money(
+        sum((Decimal(item.amount or 0) for item in remaining_installments), Decimal("0.00"))
+    )
+    linked_deliveries = list(
+        db.scalars(
+            select(PurchaseDelivery).where(
+                PurchaseDelivery.company_id == entry.company_id,
+                PurchaseDelivery.purchase_invoice_id == invoice.id,
+                PurchaseDelivery.source_type == "linx_payables",
+            )
+        )
+    )
+
+    if remaining_installments:
+        invoice.total_amount = remaining_total
+        for delivery in linked_deliveries:
+            delivery.amount = remaining_total
+        return
+
+    for payable_title in db.scalars(
+        select(PurchasePayableTitle).where(
+            PurchasePayableTitle.company_id == entry.company_id,
+            PurchasePayableTitle.purchase_invoice_id == invoice.id,
+        )
+    ):
+        payable_title.purchase_invoice_id = None
+    for delivery in linked_deliveries:
+        db.delete(delivery)
+    purchase_plan = invoice.purchase_plan
+    db.delete(invoice)
+    _delete_orphan_imported_plan(db, purchase_plan)
 
 
 def _delete_orphan_imported_plan(db: Session, plan: PurchasePlan | None) -> bool:

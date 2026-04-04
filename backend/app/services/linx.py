@@ -16,6 +16,14 @@ DEFAULT_LINX_BASE_URL = "https://erp.microvix.com.br"
 DEFAULT_LINX_SALES_VIEW_NAME = "FATURAMENTO SALOMAO"
 DEFAULT_LINX_RECEIVABLES_VIEW_NAME = "CREDIARIO SALOMAO"
 DEFAULT_LINX_PAYABLES_VIEW_NAME = "LANCAR NOTAS SALOMAO"
+EMPTY_LINX_PURCHASE_PAYABLES_MARKERS = (
+    "NENHUM REGISTRO",
+    "NENHUMA FATURA",
+    "NAO FORAM ENCONTRADOS REGISTROS",
+    "NAO HA DADOS",
+    "SEM RESULTADOS",
+    "QUANTIDADE DE FATURAS",
+)
 
 
 def _normalize_label(value: str) -> str:
@@ -177,6 +185,48 @@ def _download_report(page, export_selector: str) -> tuple[str, bytes]:
     return download.suggested_filename, Path(download_path).read_bytes()
 
 
+def _page_body_text(page) -> str:
+    try:
+        return _normalize_label(page.locator("body").inner_text(timeout=2_000))
+    except Exception:
+        try:
+            return _normalize_label(page.content())
+        except Exception:
+            return ""
+
+
+def _page_contains_any_marker(page, markers: tuple[str, ...]) -> bool:
+    body_text = _page_body_text(page)
+    if not body_text:
+        return False
+    return any(_normalize_label(marker) in body_text for marker in markers)
+
+
+def _build_empty_purchase_payables_report() -> bytes:
+    return b"""
+    <html>
+      <body>
+        <table>
+          <tr><td></td><td>Periodo: 01/01/2000 a 31/12/2050</td><td></td></tr>
+          <tr>
+            <th>Emissao</th>
+            <th>Fatura/ Empresa</th>
+            <th>Venc.</th>
+            <th>Parc.</th>
+            <th>Valor Fatura</th>
+            <th>Valor c/ Desconto e Tx. Financ.</th>
+            <th>Cliente/Fornecedor</th>
+            <th>Doc./ Serie/ Nosso Numero</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+          <tr><td>Legenda</td><td></td></tr>
+        </table>
+      </body>
+    </html>
+    """
+
+
 def download_linx_sales_report(
     company: Company,
     *,
@@ -281,7 +331,16 @@ def download_linx_purchase_payables_report(company: Company) -> tuple[str, bytes
 
             _select_view(page, "#form1_id_visao", settings.payables_view_name)
             page.locator("input[name='form1_SubmitVisao']").click()
-            page.locator("#botaoExportarXLS").wait_for(state="visible")
+            page.wait_for_load_state("domcontentloaded")
+            try:
+                page.locator("#botaoExportarXLS").wait_for(
+                    state="visible",
+                    timeout=min(settings.timeout_ms, 15_000),
+                )
+            except timeout_error_cls:
+                if _page_contains_any_marker(page, EMPTY_LINX_PURCHASE_PAYABLES_MARKERS):
+                    return "FaturasaPagarporPeriodo.xls", _build_empty_purchase_payables_report()
+                raise
             return _download_report(page, "#botaoExportarXLS")
         except timeout_error_cls as error:
             raise ValueError(
