@@ -317,6 +317,10 @@ function labelizePurchaseReturnStatus(value: string | null | undefined) {
   return PURCHASE_RETURN_STATUS_LABELS[value] ?? value;
 }
 
+function isPurchaseReturnActionRequired(status: string | null | undefined) {
+  return status === "request_open" || status === "send";
+}
+
 function getPurchaseReturnStatusOptions(currentStatus: string | null) {
   return PURCHASE_RETURN_STATUS_OPTIONS;
 }
@@ -2320,7 +2324,10 @@ export function PurchasePlanningPage({
               <tbody>
                 {filteredPurchaseReturns.length ? (
                   filteredPurchaseReturns.map((purchaseReturn) => (
-                    <tr key={purchaseReturn.id}>
+                    <tr
+                      key={purchaseReturn.id}
+                      className={isPurchaseReturnActionRequired(purchaseReturn.status) ? "purchase-return-row--action-needed" : undefined}
+                    >
                       <td>{formatDate(purchaseReturn.return_date)}</td>
                       <td>{purchaseReturn.supplier_name || "-"}</td>
                       <td>{purchaseReturn.invoice_number || "-"}</td>

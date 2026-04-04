@@ -1241,6 +1241,14 @@ textarea {
   min-width: 0;
 }
 
+.purchase-return-row--action-needed td {
+  background: #fff4f4;
+}
+
+.purchase-return-row--action-needed:hover td {
+  background: #ffecec;
+}
+
 .purchase-two-column {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
