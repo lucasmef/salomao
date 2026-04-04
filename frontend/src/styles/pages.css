@@ -1223,6 +1223,24 @@ textarea {
   min-width: 0;
 }
 
+.purchase-return-status-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.purchase-return-inline-label {
+  flex: 0 0 auto;
+  color: #304254;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.purchase-return-status-inline > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .purchase-two-column {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
@@ -2010,6 +2028,7 @@ textarea {
   .entries-toolbar-fields label,
   .bulk-entry-category,
   .purchase-filter-bar label,
+  .purchase-return-filter-field,
   .purchase-filter-bar--compact label,
   .reconciliation-filter-group label,
   .compact-toolbar-tight label {
@@ -2038,6 +2057,12 @@ textarea {
   .entries-toolbar-fields,
   .entries-top-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .purchase-return-status-inline {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .entries-toolbar-actions > button,

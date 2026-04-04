@@ -148,13 +148,21 @@ const purchaseSelectStyles = {
     ...base,
     minHeight: 36,
     borderRadius: 10,
-    borderColor: state.isFocused ? "#2f5be7" : "#cfd9e8",
+    borderColor: state.isFocused ? "#c5d0df" : "#d7e1ef",
     boxShadow: "none",
+    backgroundColor: "#ffffff",
     fontSize: "0.84rem",
+    ":hover": {
+      borderColor: "#c5d0df",
+    },
   }),
   valueContainer: (base: Record<string, unknown>) => ({
     ...base,
     padding: "0 10px",
+  }),
+  placeholder: (base: Record<string, unknown>) => ({
+    ...base,
+    color: "#607087",
   }),
   input: (base: Record<string, unknown>) => ({
     ...base,
@@ -194,7 +202,9 @@ const PURCHASE_RETURN_STATUS_OPTIONS: SelectOption[] = [
   { value: "refunded", label: "Reembolsado" },
 ] ;
 const ALL_PURCHASE_RETURN_STATUSES = PURCHASE_RETURN_STATUS_OPTIONS.map((option) => option.value);
-const DEFAULT_VISIBLE_PURCHASE_RETURN_STATUSES = ALL_PURCHASE_RETURN_STATUSES;
+const DEFAULT_VISIBLE_PURCHASE_RETURN_STATUSES = PURCHASE_RETURN_STATUS_OPTIONS.filter(
+  (option) => option.value !== "refunded",
+).map((option) => option.value);
 const PURCHASE_RETURN_STATUS_LABELS = Object.fromEntries(
   PURCHASE_RETURN_STATUS_OPTIONS.map((option) => [option.value, option.label]),
 ) as Record<string, string>;
@@ -312,7 +322,7 @@ function getPurchaseReturnStatusOptions(currentStatus: string | null) {
 }
 
 function normalizePurchaseReturnVisibleStatuses(values: string[]) {
-  return values.length ? values : ALL_PURCHASE_RETURN_STATUSES;
+  return values.length ? values : DEFAULT_VISIBLE_PURCHASE_RETURN_STATUSES;
 }
 
 function parseInstallmentsCount(paymentTerm: string | null | undefined) {
@@ -599,6 +609,12 @@ export function PurchasePlanningPage({
   const selectedCollectionSeasonTypeOption = SEASON_TYPE_OPTIONS.find((option) => option.value === collectionModal.season_type) ?? SEASON_TYPE_OPTIONS[0];
   const selectedInvoiceSeasonPhaseOption = SEASON_PHASE_OPTIONS.find((option) => option.value === invoiceDraft.season_phase) ?? SEASON_PHASE_OPTIONS[0];
   const selectedComparisonCollectionOptions = comparisonCollectionOptions.filter((option) => compareCollectionIds.includes(option.value));
+  const comparisonCollectionsPlaceholder =
+    selectedComparisonCollectionOptions.length === 0
+      ? "Selecione as coleções"
+      : selectedComparisonCollectionOptions.length === 1
+        ? selectedComparisonCollectionOptions[0]?.label ?? "1 coleção selecionada"
+        : `${selectedComparisonCollectionOptions.length} coleções selecionadas`;
 
   const filteredSuppliers = useMemo(() => {
     return suppliers.filter((supplier) => {
@@ -664,11 +680,6 @@ export function PurchasePlanningPage({
       return haystack.includes(normalizedFilter);
     });
   }, [normalizedPurchaseReturnVisibleStatuses, purchaseReturnDateFrom, purchaseReturnDateTo, purchaseReturnFilter, purchaseReturns]);
-  const purchaseReturnsTotal = useMemo(
-    () => filteredPurchaseReturns.reduce((sum, purchaseReturn) => sum + Number(purchaseReturn.amount), 0),
-    [filteredPurchaseReturns],
-  );
-
   const plannedTotal = useMemo(
     () => overview.monthly_projection.reduce((sum, item) => sum + Number(item.planned_outflows), 0),
     [overview.monthly_projection],
@@ -1632,7 +1643,9 @@ export function PurchasePlanningPage({
               }}
               isMulti
               closeMenuOnSelect={false}
-              placeholder="Selecione as coleções"
+              hideSelectedOptions={false}
+              controlShouldRenderValue={false}
+              placeholder={comparisonCollectionsPlaceholder}
               styles={purchaseSelectStyles}
               menuPortalTarget={portalTarget}
             />
@@ -2265,8 +2278,8 @@ export function PurchasePlanningPage({
               Data final
               <input type="date" value={purchaseReturnDateTo} onChange={(event) => setPurchaseReturnDateTo(event.target.value)} />
             </label>
-            <label className="purchase-return-filter-field">
-              Status
+            <div className="purchase-return-filter-field purchase-return-status-inline">
+              <span className="purchase-return-inline-label">Status</span>
               <Select
                 options={PURCHASE_RETURN_STATUS_OPTIONS}
                 value={selectedPurchaseReturnVisibleStatusOptions}
@@ -2279,18 +2292,13 @@ export function PurchasePlanningPage({
                 styles={purchaseSelectStyles}
                 menuPortalTarget={portalTarget}
               />
-            </label>
+            </div>
             <div className="action-row">
               <button className="secondary-button" type="button" onClick={() => openPurchaseReturnModal()}>
                 Nova devolução
               </button>
             </div>
           </div>
-        </section>
-
-        <section className="kpi-grid compact-kpis-four">
-          {renderMetricCard("Registros", String(filteredPurchaseReturns.length))}
-          {renderMetricCard("Valor devolvido", formatMoney(purchaseReturnsTotal.toFixed(2)))}
         </section>
 
         <article className="panel-card">
