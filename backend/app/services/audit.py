@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from app.db.models.audit import AuditLog
@@ -25,8 +26,8 @@ def write_audit_log(
         action=action,
         entity_name=entity_name,
         entity_id=entity_id,
-        before_state=before_state,
-        after_state=after_state,
+        before_state=jsonable_encoder(before_state) if before_state is not None else None,
+        after_state=jsonable_encoder(after_state) if after_state is not None else None,
     )
     db.add(audit_log)
     db.flush()

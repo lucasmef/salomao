@@ -3,10 +3,11 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import or_, select
+from sqlalchemy import desc, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.finance import Account, FinancialEntry, Transfer
+from app.db.models.imports import ImportBatch
 from app.db.models.linx import ReceivableTitle
 from app.db.models.security import Company
 from app.schemas.cashflow import AccountBalance, CashflowOverview, CashflowPoint
@@ -14,6 +15,9 @@ from app.services.purchase_planning import PurchasePlanningFilters, build_purcha
 
 RECEIVABLES_CONTROL_ACCOUNT_TYPE = "receivables_control"
 RECEIVABLES_CONTROL_SOURCE = "linx_sales_control"
+OPEN_RECEIVABLE_STATUS_KEYWORDS = ("aberto", "a receber", "vencido", "em aberto", "pendente")
+PAID_RECEIVABLE_STATUS_KEYWORDS = ("recebido", "pago", "paid", "quitado", "baixado")
+CANCELLED_RECEIVABLE_STATUS_KEYWORDS = ("cancelado",)
 
 
 @dataclass(slots=True)
@@ -58,6 +62,31 @@ def _add_months(value: date, months: int) -> date:
     year = value.year + (month_index // 12)
     month = (month_index % 12) + 1
     return date(year, month, 1)
+
+
+def _receivable_is_open(status: str | None) -> bool:
+    normalized = (status or "").strip().lower()
+    if any(keyword in normalized for keyword in CANCELLED_RECEIVABLE_STATUS_KEYWORDS):
+        return False
+    if any(keyword in normalized for keyword in PAID_RECEIVABLE_STATUS_KEYWORDS):
+        return False
+    if any(keyword in normalized for keyword in OPEN_RECEIVABLE_STATUS_KEYWORDS):
+        return True
+    return True
+
+
+def _latest_receivables_batch_id(db: Session, company_id: str) -> str | None:
+    latest_batch = db.scalar(
+        select(ImportBatch)
+        .where(
+            ImportBatch.company_id == company_id,
+            ImportBatch.source_type == "linx_receivables",
+            ImportBatch.status == "processed",
+        )
+        .order_by(desc(ImportBatch.created_at))
+        .limit(1)
+    )
+    return latest_batch.id if latest_batch else None
 
 
 def _current_balance_for_account(db: Session, company_id: str, account: Account) -> Decimal:
@@ -122,20 +151,22 @@ def _future_events(
     events: list[CashflowEvent] = []
 
     if include_crediario_receivables:
-        receivables = db.scalars(
-            select(ReceivableTitle).where(
-                ReceivableTitle.company_id == company.id,
-                ReceivableTitle.due_date.is_not(None),
-                ReceivableTitle.due_date >= start_date,
-                ReceivableTitle.due_date <= end_date,
+        latest_batch_id = _latest_receivables_batch_id(db, company.id)
+        if latest_batch_id:
+            receivables = db.scalars(
+                select(ReceivableTitle).where(
+                    ReceivableTitle.company_id == company.id,
+                    ReceivableTitle.source_batch_id == latest_batch_id,
+                    ReceivableTitle.due_date.is_not(None),
+                    ReceivableTitle.due_date >= start_date,
+                    ReceivableTitle.due_date <= end_date,
+                )
             )
-        )
-        for title in receivables:
-            status = (title.status or "").strip().lower()
-            if status in {"recebido", "pago", "paid", "quitado"}:
-                continue
-            amount = title.amount_with_interest or title.original_amount
-            events.append(CashflowEvent(title.due_date, crediario_inflow=Decimal(amount)))
+            for title in receivables:
+                if not _receivable_is_open(title.status):
+                    continue
+                amount = title.amount_with_interest or title.original_amount
+                events.append(CashflowEvent(title.due_date, crediario_inflow=Decimal(amount)))
 
     planned_entries = db.scalars(
         select(FinancialEntry).where(

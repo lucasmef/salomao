@@ -275,7 +275,7 @@ def download_linx_receivables_report(
 ) -> tuple[str, bytes]:
     settings = _load_linx_settings(company)
     sync_playwright, timeout_error_cls = _require_playwright()
-    period_start, period_end = _resolve_period(start_date, end_date)
+    _ = (start_date, end_date)
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=settings.headless)
@@ -292,12 +292,10 @@ def download_linx_receivables_report(
                 wait_until="domcontentloaded",
             )
 
-            if _select_view(page, "#form1_id_visao", settings.receivables_view_name):
-                page.locator("input[name='form1_SubmitVisao']").click()
-                page.wait_for_load_state("domcontentloaded")
-
-            _apply_date_range(page, "#data_inicial", "#data_final", period_start, period_end)
-            page.locator("input[type='submit'][name='Prosseguir']").click()
+            # For receivables, the saved Linx view carries the intended report scope.
+            # Reapplying dates here makes Microvix fall back to the current-month search.
+            _select_view(page, "#form1_id_visao", settings.receivables_view_name)
+            page.locator("input[name='form1_SubmitVisao']").click()
             page.wait_for_url("**/listagem_relatorio_periodo.asp**", timeout=settings.timeout_ms)
             page.locator("#botaoExportarXLS").wait_for(state="visible")
             return _download_report(page, "#botaoExportarXLS")

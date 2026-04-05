@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -16,7 +16,7 @@ from app.db.models.imports import ImportBatch
 from app.db.models.security import Company, User
 from app.schemas.imports import ImportResult
 from app.services.imports import sync_linx_receivables, sync_linx_sales
-from app.services.linx import serialize_linx_settings
+from app.services.linx import download_linx_receivables_report, serialize_linx_settings
 
 
 def _build_session() -> tuple[Session, Company, User]:
@@ -165,6 +165,149 @@ def test_sync_linx_receivables_downloads_file_and_delegates_import(monkeypatch) 
         session.close()
 
 
+def test_download_linx_receivables_report_submits_saved_view_without_overwriting_period(
+    monkeypatch,
+) -> None:
+    _, company, _ = _build_session()
+    selected_views: list[tuple[str, str]] = []
+
+    class FakeLocator:
+        def __init__(self, page, selector: str) -> None:
+            self.page = page
+            self.selector = selector
+
+        def click(self) -> None:
+            self.page.clicks.append(self.selector)
+
+        def wait_for(self, *, state: str) -> None:
+            self.page.waits.append((self.selector, state))
+
+    class FakePage:
+        def __init__(self) -> None:
+            self.clicks: list[str] = []
+            self.waits: list[tuple[str, str]] = []
+            self.gotos: list[str] = []
+            self.waited_urls: list[str] = []
+            self.timeout_ms: int | None = None
+
+        def set_default_timeout(self, timeout_ms: int) -> None:
+            self.timeout_ms = timeout_ms
+
+        def goto(self, url: str, *, wait_until: str) -> None:
+            self.gotos.append(f"{url}|{wait_until}")
+
+        def locator(self, selector: str) -> FakeLocator:
+            return FakeLocator(self, selector)
+
+        def wait_for_url(self, pattern: str, *, timeout: int) -> None:
+            self.waited_urls.append(pattern)
+            assert timeout == 12_345
+
+    class FakeContext:
+        def __init__(self, page: FakePage) -> None:
+            self.page = page
+
+        def new_page(self) -> FakePage:
+            return self.page
+
+        def close(self) -> None:
+            return None
+
+    class FakeBrowser:
+        def __init__(self, page: FakePage) -> None:
+            self.page = page
+
+        def new_context(self, *, accept_downloads: bool) -> FakeContext:
+            assert accept_downloads is True
+            return FakeContext(self.page)
+
+        def close(self) -> None:
+            return None
+
+    class FakeChromium:
+        def __init__(self, page: FakePage) -> None:
+            self.page = page
+
+        def launch(self, *, headless: bool) -> FakeBrowser:
+            assert headless is True
+            return FakeBrowser(self.page)
+
+    class FakePlaywright:
+        def __init__(self, page: FakePage) -> None:
+            self.chromium = FakeChromium(page)
+
+    class FakePlaywrightManager:
+        def __init__(self, page: FakePage) -> None:
+            self.page = page
+
+        def __enter__(self) -> FakePlaywright:
+            return FakePlaywright(self.page)
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+    class FakeTimeoutError(Exception):
+        pass
+
+    fake_page = FakePage()
+
+    monkeypatch.setattr(
+        "app.services.linx._load_linx_settings",
+        lambda current_company: type(
+            "Settings",
+            (),
+            {
+                "base_url": "https://erp.microvix.com.br",
+                "username": "usuario",
+                "password": "senha",
+                "timeout_ms": 12_345,
+                "headless": True,
+                "sales_view_name": "FATURAMENTO SALOMAO",
+                "receivables_view_name": "VISAO GERAL",
+                "payables_view_name": "LANCAR NOTAS SALOMAO",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        "app.services.linx._require_playwright",
+        lambda: (lambda: FakePlaywrightManager(fake_page), FakeTimeoutError),
+    )
+    monkeypatch.setattr(
+        "app.services.linx._login_and_get_report_root",
+        lambda page, settings, timeout_error_cls: "https://erp.microvix.com.br",
+    )
+    monkeypatch.setattr(
+        "app.services.linx._select_view",
+        lambda page, selector, expected_view_name: selected_views.append(
+            (selector, expected_view_name)
+        )
+        or False,
+    )
+    monkeypatch.setattr(
+        "app.services.linx._apply_date_range",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("Receivables sync should not overwrite the saved Linx view period.")
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.linx._download_report",
+        lambda page, export_selector: ("FaturasaReceberporPeriodo.xls", b"conteudo"),
+    )
+
+    filename, content = download_linx_receivables_report(
+        company,
+        start_date=date(2026, 4, 1),
+        end_date=date(2026, 4, 30),
+    )
+
+    assert filename == "FaturasaReceberporPeriodo.xls"
+    assert content == b"conteudo"
+    assert selected_views == [("#form1_id_visao", "VISAO GERAL")]
+    assert fake_page.clicks == ["input[name='form1_SubmitVisao']"]
+    assert fake_page.waited_urls == ["**/listagem_relatorio_periodo.asp**"]
+    assert all("Prosseguir" not in selector for selector in fake_page.clicks)
+
+
 def test_linx_sync_endpoints_smoke(monkeypatch) -> None:
     session, company, user = _build_session()
     captured: dict[str, object] = {}
@@ -234,6 +377,8 @@ def test_linx_sync_endpoints_smoke(monkeypatch) -> None:
 
 def test_linx_settings_serialization_and_update_endpoint() -> None:
     session, company, user = _build_session()
+    company.linx_auto_sync_last_run_at = datetime(2026, 4, 5, 22, 0)
+    session.commit()
     app = FastAPI()
     app.include_router(api_router, prefix="/api/v1")
     app.dependency_overrides[get_current_user] = lambda: user
@@ -270,6 +415,7 @@ def test_linx_settings_serialization_and_update_endpoint() -> None:
         assert body["auto_sync_enabled"] is True
         assert body["auto_sync_alert_email"] == "financeiro@example.com"
         assert body["payables_view_name"] == "LANCAR NOTAS SALOMAO"
+        assert body["auto_sync_last_run_at"] is not None
         assert "password" not in body
 
         session.refresh(company)
