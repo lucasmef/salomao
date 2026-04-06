@@ -19,6 +19,7 @@ from app.schemas.reports import (
     ReportConfigLine,
     ReportConfigUpdate,
     ReportFormulaItem,
+    ReportGroupSelection,
     ReportGroupOption,
     ReportOption,
 )
@@ -79,6 +80,23 @@ LEGACY_SPECIAL_SOURCE_GROUPS: dict[str, dict[str, list[str]]] = {
 }
 
 
+def _deserialize_group_selection(raw: str, *, default_operation: str) -> ReportGroupSelection:
+    stripped = raw.strip()
+    for operation in ("add", "subtract"):
+        prefix = f"{operation}::"
+        if stripped.startswith(prefix):
+            return ReportGroupSelection(group_name=_normalize_group_value(stripped[len(prefix) :]), operation=operation)
+    return ReportGroupSelection(group_name=_normalize_group_value(stripped), operation=default_operation)
+
+
+def _serialize_group_selection(group: ReportGroupSelection) -> str:
+    return f"{group.operation}::{group.group_name}"
+
+
+def _make_group_selection(group_name: str, *, operation: str = "add") -> ReportGroupSelection:
+    return ReportGroupSelection(group_name=_normalize_group_value(group_name), operation=operation)
+
+
 def _new_id() -> str:
     return str(uuid4())
 
@@ -101,20 +119,24 @@ def _make_source_line(
     name: str,
     operation: str,
     special_source: str | None = None,
-    category_groups: list[str] | None = None,
+    category_groups: list[str | ReportGroupSelection] | None = None,
     summary_binding: str | None = None,
     show_on_dashboard: bool = False,
     show_percent: bool = True,
     percent_mode: str = "reference_line",
     percent_reference_line_id: str | None = None,
 ) -> dict[str, object]:
+    normalized_groups = [
+        group if isinstance(group, ReportGroupSelection) else _make_group_selection(group, operation=operation)
+        for group in (category_groups or [])
+    ]
     return {
         "id": _new_id(),
         "name": name,
         "line_type": "source",
         "operation": operation,
         "special_source": special_source,
-        "category_groups": category_groups or [],
+        "category_groups": normalized_groups,
         "formula": [],
         "show_on_dashboard": show_on_dashboard,
         "show_percent": show_percent,
@@ -441,7 +463,14 @@ def _default_lines_for(kind: str) -> list[dict[str, object]]:
 
 
 def _normalize_line(line: ReportConfigLine, *, order: int) -> ReportConfigLine:
-    groups = [_normalize_group_value(group) for group in line.category_groups if group.strip()]
+    groups = [
+        ReportGroupSelection(
+            group_name=_normalize_group_value(group.group_name),
+            operation=group.operation,
+        )
+        for group in line.category_groups
+        if group.group_name.strip()
+    ]
     normalized_percent_mode = "grouped_children" if not line.show_percent else line.percent_mode
     return line.model_copy(
         update={
@@ -493,8 +522,6 @@ def _validate_layout(kind: str, lines: list[ReportConfigLine]) -> list[ReportCon
     seen_ids: set[str] = set()
     group_owners: dict[str, str] = {}
     line_positions = {line.id: index for index, line in enumerate(normalized_lines)}
-    line_by_id = {line.id: line for line in normalized_lines}
-
     for line in normalized_lines:
         if not line.id.strip():
             raise HTTPException(status_code=400, detail="Todas as linhas precisam de identificador.")
@@ -545,12 +572,12 @@ def _validate_layout(kind: str, lines: list[ReportConfigLine]) -> list[ReportCon
                 raise HTTPException(status_code=400, detail=f"Fonte especial invalida: {line.special_source}")
             if not line.special_source and not line.category_groups:
                 raise HTTPException(status_code=400, detail=f"A linha {line.name} precisa ter grupos ou uma fonte especial.")
-            for group_name in line.category_groups:
-                normalized_group_key = group_name.casefold()
+            for group in line.category_groups:
+                normalized_group_key = group.group_name.casefold()
                 if normalized_group_key in group_owners:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"O grupo {group_name} ja esta sendo usado em outra linha do mesmo relatorio.",
+                        detail=f"O grupo {group.group_name} ja esta sendo usado em outra linha do mesmo relatorio.",
                     )
                 group_owners[normalized_group_key] = line.id
         else:
@@ -588,7 +615,10 @@ def _serialize_layout(
             line_type=line.line_type,
             operation=line.operation,
             special_source=line.special_source,
-            category_groups=[group.group_name for group in sorted(line.group_assignments, key=lambda item: item.position)],
+            category_groups=[
+                _deserialize_group_selection(group.group_name, default_operation=line.operation)
+                for group in sorted(line.group_assignments, key=lambda item: item.position)
+            ],
             formula=[
                 {"referenced_line_id": item.referenced_line_id, "operation": item.operation}
                 for item in sorted(line.formula_items, key=lambda item: item.position)
@@ -604,10 +634,10 @@ def _serialize_layout(
         for line in sorted(layout.lines, key=lambda item: item.position)
     ]
     used_groups = {
-        group_name.casefold()
+        group.group_name.casefold()
         for line in lines
         if line.is_active and line.line_type == "source"
-        for group_name in line.category_groups
+        for group in line.category_groups
     }
     unmapped_groups = [
         f"{'Grupo' if option.scope == 'group' else 'Subgrupo'}: {option.name}"
@@ -707,12 +737,12 @@ def _persist_layout(
             is_hidden=line.is_hidden,
         )
         db.add(db_line)
-        for group_index, group_name in enumerate(line.category_groups, start=1):
+        for group_index, group in enumerate(line.category_groups, start=1):
             db.add(
                 ReportLayoutLineGroup(
                     line_id=db_line.id,
                     position=group_index,
-                    group_name=group_name,
+                    group_name=_serialize_group_selection(group),
                 )
             )
         for formula_index, formula_item in enumerate(line.formula, start=1):
@@ -748,16 +778,19 @@ def _normalize_existing_layout_if_needed(db: Session, company: Company, kind: st
             special_source = None
             changed = True
 
-        normalized_groups = [_normalize_group_value(group) for group in category_groups]
-        if normalized_groups != category_groups:
+        normalized_groups = [
+            _deserialize_group_selection(group, default_operation=line.operation)
+            for group in category_groups
+        ]
+        if [_serialize_group_selection(group) for group in normalized_groups] != category_groups:
             changed = True
         if (
             kind == "dro"
             and line.summary_binding == "sales_taxes"
-            and sales_tax_subgroup in normalized_groups
-            and sales_tax_group not in normalized_groups
+            and any(group.group_name == sales_tax_subgroup for group in normalized_groups)
+            and not any(group.group_name == sales_tax_group for group in normalized_groups)
         ):
-            normalized_groups = [*normalized_groups, sales_tax_group]
+            normalized_groups = [*normalized_groups, _make_group_selection(sales_tax_group, operation="subtract")]
             changed = True
 
         normalized_show_percent = True if line.show_percent is None else line.show_percent

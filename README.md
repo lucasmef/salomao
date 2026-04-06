@@ -35,6 +35,15 @@ O resultado é um sistema que não se limita à interface ou ao backend isoladam
 - Scripts operacionais para deploy, validação de ambiente, migração, backup e auditoria rápida de produção.
 - Testes automatizados cobrindo segurança, autenticação e regras críticas de negócio.
 
+## Novidades recentes
+
+- Configuração de relatórios (`DRE` e `DRO`) com grupos e subgrupos que podem somar e subtrair dentro da mesma linha.
+- Planejamento de compras com controle explícito de `devoluções`, exibidas separadamente do `recebido`.
+- Gestão operacional de coleções com observações por coleção dentro do fluxo de planejamento.
+- Exportação de boletos mais resiliente, com template `.xlsx` interno de fallback e compatibilidade com variações no nome da aba.
+- Regra padrão para boletos mensais sem dia configurado: vencimento assumido no dia `20`.
+- Documentação complementar em `docs/`, incluindo template de cobranças e auditoria recente de regra de negócio.
+
 ## O que este projeto evidencia
 
 - Visão full stack de ponta a ponta, sem separar produto, backend, frontend e infraestrutura.
@@ -78,8 +87,8 @@ Em outras palavras, o uso de `Codex` aqui se encaixa em um fluxo de `AI-assisted
 - Lançamentos financeiros e títulos em aberto.
 - Conciliação bancária com importação OFX e sincronização de extrato via `API do Inter`.
 - Cobrança, clientes e recebíveis com emissão e sincronização de boletos pelo `Banco Inter`.
-- Compras e planejamento operacional.
-- Fluxo de caixa, DRE, DRO, projeções e comparativos.
+- Compras e planejamento operacional, com marcas, coleções, pedidos, parcelas, devoluções e observações por coleção.
+- Fluxo de caixa, DRE, DRO, projeções, comparativos e configuração persistida dos layouts gerenciais.
 - Cadastros de contas, categorias, clientes e regras, incluindo configuração segura da conta `Inter`.
 - Administração de usuários, backup, segurança e auditoria.
 - Importações técnicas e históricas.
@@ -91,11 +100,13 @@ O sistema possui integração direta com a API do Banco Inter para reduzir traba
 - Sincronização de extrato bancário com deduplicação por transação.
 - Sincronização de cobranças emitidas no Inter para atualizar status, linha digitável, código de barras, nosso número, `pix copia e cola` e valores recebidos.
 - Emissão de boletos no Inter a partir da lista de `boletos faltando` do próprio sistema.
+- Exportação de arquivo Excel de cobrança com template interno de fallback e tolerância a variações no nome da aba do modelo.
 - Download de PDF individual ou em lote (`.zip`) para boletos emitidos pelo Inter.
 - Cancelamento de cobranças pela API.
 - Baixa manual pela API em ambiente `sandbox`, útil para homologação ponta a ponta.
 - Suporte a `production` e `sandbox`, com sobrescrita opcional de `base URL` para testes.
 - Garantia de que apenas uma conta ativa fique com a API do Inter habilitada por vez.
+- Configuração mensal sem dia de vencimento passa a usar o dia `20` como padrão operacional no arquivo de exportação.
 
 Para a emissão funcionar, o cadastro do cliente precisa estar completo com documento, endereço, CEP, cidade, UF e telefone.
 
@@ -223,11 +234,11 @@ O backend possui testes cobrindo pontos relevantes para produção, incluindo:
 - fluxo de dispositivos confiáveis no MFA
 - cálculos financeiros
 - importações históricas
-- layouts e regras de relatórios
-- módulos de boletos e planejamento
+- layouts e regras de relatórios, incluindo linhas com sinais mistos por grupo/subgrupo
+- módulos de boletos e planejamento, incluindo devoluções separadas do recebido
 - cliente HTTP da `API do Inter`
 - sincronização de extrato do Inter com paginação e deduplicação
-- emissão, sincronização, cancelamento, baixa em sandbox e download de PDF de boletos do Inter
+- emissão, sincronização, cancelamento, baixa em sandbox, download de PDF e exportação resiliente de boletos do Inter
 
 ## Estrutura do repositório
 
@@ -247,14 +258,24 @@ O backend possui testes cobrindo pontos relevantes para produção, incluindo:
 ## Arquivos importantes
 
 - [docs/architecture.md](docs/architecture.md)
+- [docs/auditoria-regra-negocio-2026-04-02.md](docs/auditoria-regra-negocio-2026-04-02.md)
+- [docs/auditoria-regra-negocio-2026-04-02.pdf](docs/auditoria-regra-negocio-2026-04-02.pdf)
 - [docs/deploy-vps.md](docs/deploy-vps.md)
 - [docs/postgres-cutover-checklist.md](docs/postgres-cutover-checklist.md)
+- [docs/Template_Cobranças_Arquivo_Excel.xlsx](docs/Template_Cobranças_Arquivo_Excel.xlsx)
 - [backend/.env.example](backend/.env.example)
 - [backend/.env.dev.example](backend/.env.dev.example)
 - [backend/.env.prod.example](backend/.env.prod.example)
+- [backend/app/services/boletos.py](backend/app/services/boletos.py)
+- [backend/app/services/purchase_planning.py](backend/app/services/purchase_planning.py)
+- [backend/app/services/report_layouts.py](backend/app/services/report_layouts.py)
+- [backend/app/services/reports.py](backend/app/services/reports.py)
 - [backend/app/services/inter.py](backend/app/services/inter.py)
 - [backend/app/schemas/inter.py](backend/app/schemas/inter.py)
+- [backend/tests/test_boletos.py](backend/tests/test_boletos.py)
+- [backend/tests/test_purchase_planning.py](backend/tests/test_purchase_planning.py)
 - [backend/tests/test_inter_api_endpoints.py](backend/tests/test_inter_api_endpoints.py)
+- [backend/tests/test_report_layouts.py](backend/tests/test_report_layouts.py)
 - [scripts/deploy-dev.sh](scripts/deploy-dev.sh)
 - [scripts/deploy-prod.sh](scripts/deploy-prod.sh)
 - [scripts/check-prod.sh](scripts/check-prod.sh)

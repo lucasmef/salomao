@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ReportOption(BaseModel):
@@ -22,6 +22,11 @@ class ReportFormulaItem(BaseModel):
     operation: str = Field(default="add", pattern="^(add|subtract)$")
 
 
+class ReportGroupSelection(BaseModel):
+    group_name: str = Field(min_length=1)
+    operation: str = Field(default="add", pattern="^(add|subtract)$")
+
+
 class ReportConfigLine(BaseModel):
     id: str
     name: str = Field(min_length=1, max_length=160)
@@ -29,7 +34,7 @@ class ReportConfigLine(BaseModel):
     line_type: str = Field(default="source", pattern="^(source|totalizer)$")
     operation: str = Field(default="add", pattern="^(add|subtract)$")
     special_source: str | None = Field(default=None, max_length=60)
-    category_groups: list[str] = Field(default_factory=list)
+    category_groups: list[ReportGroupSelection] = Field(default_factory=list)
     formula: list[ReportFormulaItem] = Field(default_factory=list)
     show_on_dashboard: bool = False
     show_percent: bool = True
@@ -38,6 +43,30 @@ class ReportConfigLine(BaseModel):
     is_active: bool = True
     is_hidden: bool = False
     summary_binding: str | None = Field(default=None, max_length=60)
+
+    @field_validator("category_groups", mode="before")
+    @classmethod
+    def _normalize_category_groups(cls, value: object) -> object:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            return value
+        normalized: list[object] = []
+        for item in value:
+            if isinstance(item, str):
+                normalized.append({"group_name": item, "operation": "add"})
+                continue
+            if isinstance(item, dict):
+                normalized.append(
+                    {
+                        **item,
+                        "group_name": item.get("group_name", item.get("value")),
+                        "operation": item.get("operation", "add"),
+                    }
+                )
+                continue
+            normalized.append(item)
+        return normalized
 
 
 class ReportDashboardCard(BaseModel):

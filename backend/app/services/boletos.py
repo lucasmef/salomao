@@ -375,10 +375,13 @@ def _sheet_path_from_workbook(workbook: zipfile.ZipFile, sheet_name: str | None 
         item.attrib["Id"]: item.attrib["Target"].lstrip("/")
         for item in relations_root
     }
+    normalized_sheet_name = normalize_text(sheet_name) if sheet_name is not None else None
 
     for sheet in workbook_root.findall("a:sheets/a:sheet", EXCEL_NS):
-        if sheet_name is not None and sheet.attrib.get("name") != sheet_name:
-            continue
+        if sheet_name is not None:
+            current_name = sheet.attrib.get("name", "")
+            if current_name != sheet_name and normalize_text(current_name) != normalized_sheet_name:
+                continue
         relation_id = sheet.attrib.get(f"{{{EXCEL_NS['r']}}}id")
         if not relation_id or relation_id not in relation_map:
             continue
@@ -1592,6 +1595,148 @@ def _locate_boleto_template_path() -> Path:
     return candidates[0]
 
 
+def _build_default_boleto_template_bytes() -> bytes:
+    sheet_template_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="A1:{TEMPLATE_LAST_COLUMN}{TEMPLATE_FILL_ROW}"/>
+  <sheetViews>
+    <sheetView workbookViewId="0"/>
+  </sheetViews>
+  <sheetFormatPr defaultRowHeight="15"/>
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="inlineStr"><is><t>Arquivo gerado automaticamente pelo sistema.</t></is></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="inlineStr"><is><t>Preencha ou importe este arquivo no portal do banco.</t></is></c>
+    </row>
+    <row r="3">
+      <c r="A3" t="inlineStr"><is><t>Os dados de cobranca comecam na linha 4.</t></is></c>
+    </row>
+    <row r="4"/>
+    <row r="5"/>
+  </sheetData>
+</worksheet>
+"""
+    workbook_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <bookViews>
+    <workbookView activeTab="1"/>
+  </bookViews>
+  <sheets>
+    <sheet name="Resumo" sheetId="1" r:id="rId1"/>
+    <sheet name="{TEMPLATE_SHEET_NAME}" sheetId="2" r:id="rId2"/>
+  </sheets>
+</workbook>
+"""
+    workbook_rels_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>
+"""
+    content_types_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>
+"""
+    root_rels_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+</Relationships>
+"""
+    styles_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="1">
+    <font>
+      <sz val="11"/>
+      <name val="Calibri"/>
+      <family val="2"/>
+    </font>
+  </fonts>
+  <fills count="2">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+  </fills>
+  <borders count="1">
+    <border>
+      <left/>
+      <right/>
+      <top/>
+      <bottom/>
+      <diagonal/>
+    </border>
+  </borders>
+  <cellStyleXfs count="1">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
+  </cellStyleXfs>
+  <cellXfs count="1">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+  </cellXfs>
+  <cellStyles count="1">
+    <cellStyle name="Normal" xfId="0" builtinId="0"/>
+  </cellStyles>
+</styleSheet>
+"""
+    app_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <Application>Gestor Financeiro</Application>
+</Properties>
+"""
+    core_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <dc:creator>Gestor Financeiro</dc:creator>
+  <cp:lastModifiedBy>Gestor Financeiro</cp:lastModifiedBy>
+  <dcterms:created xsi:type="dcterms:W3CDTF">{datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")}</dcterms:created>
+  <dcterms:modified xsi:type="dcterms:W3CDTF">{datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")}</dcterms:modified>
+</cp:coreProperties>
+"""
+    summary_sheet_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="A1:A1"/>
+  <sheetViews>
+    <sheetView workbookViewId="0"/>
+  </sheetViews>
+  <sheetFormatPr defaultRowHeight="15"/>
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="inlineStr"><is><t>Use a aba de cobranca para enviar os boletos ao banco.</t></is></c>
+    </row>
+  </sheetData>
+</worksheet>
+"""
+
+    content = io.BytesIO()
+    with zipfile.ZipFile(content, "w", zipfile.ZIP_DEFLATED) as workbook:
+        workbook.writestr("[Content_Types].xml", content_types_xml)
+        workbook.writestr("_rels/.rels", root_rels_xml)
+        workbook.writestr("docProps/app.xml", app_xml)
+        workbook.writestr("docProps/core.xml", core_xml)
+        workbook.writestr("xl/workbook.xml", workbook_xml)
+        workbook.writestr("xl/_rels/workbook.xml.rels", workbook_rels_xml)
+        workbook.writestr("xl/styles.xml", styles_xml)
+        workbook.writestr("xl/worksheets/sheet1.xml", summary_sheet_xml)
+        workbook.writestr("xl/worksheets/sheet2.xml", sheet_template_xml)
+    return content.getvalue()
+
+
+def _load_boleto_template_bytes() -> bytes:
+    try:
+        return _locate_boleto_template_path().read_bytes()
+    except ValueError:
+        return _build_default_boleto_template_bytes()
+
+
 def _column_letters(index: int) -> str:
     result = ""
     current = index
@@ -1677,9 +1822,9 @@ def _make_sheet_row(
 
 
 def _render_boleto_workbook(rows: list[MissingBoletoExportRow]) -> bytes:
-    template_path = _locate_boleto_template_path()
+    template_bytes = _load_boleto_template_bytes()
 
-    with zipfile.ZipFile(template_path, "r") as template_file:
+    with zipfile.ZipFile(io.BytesIO(template_bytes), "r") as template_file:
         sheet_path = _sheet_path_from_template(template_file, TEMPLATE_SHEET_NAME)
         sheet_root = ET.fromstring(template_file.read(sheet_path))
         sheet_data = sheet_root.find("a:sheetData", EXCEL_NS)
@@ -1794,12 +1939,19 @@ def _validate_export_client_config(config: BoletoCustomerConfig | None, client_n
 
 def _resolve_export_due_date(item: BoletoMatchItem, config: BoletoCustomerConfig | None, today: date) -> date:
     reference_due_date = item.due_date or today
-    if config and config.mode != "individual" and config.boleto_due_day:
+    resolved_due_day: int | None = None
+    if config and config.mode != "individual":
+        if config.boleto_due_day:
+            resolved_due_day = config.boleto_due_day
+        elif config.mode == "mensal":
+            resolved_due_day = 20
+
+    if resolved_due_day:
         last_day = calendar.monthrange(reference_due_date.year, reference_due_date.month)[1]
         resolved_due_date = date(
             reference_due_date.year,
             reference_due_date.month,
-            min(config.boleto_due_day, last_day),
+            min(resolved_due_day, last_day),
         )
     else:
         resolved_due_date = reference_due_date

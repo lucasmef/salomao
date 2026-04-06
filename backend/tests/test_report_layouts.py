@@ -16,7 +16,7 @@ from app.db.models.finance import Account, Category, FinancialEntry
 from app.db.models.linx import SalesSnapshot
 from app.db.models.reporting import ReportLayoutLine
 from app.db.models.security import Company, User
-from app.schemas.reports import ReportConfigLine, ReportConfigUpdate
+from app.schemas.reports import ReportConfigLine, ReportConfigUpdate, ReportGroupSelection
 from app.services.dashboard import build_dashboard_overview
 from app.services.report_layouts import get_or_create_report_config, update_report_config
 from app.services.reports import build_reports_overview
@@ -90,6 +90,9 @@ class ReportLayoutTestCase(unittest.TestCase):
         self.db.commit()
         return entry
 
+    def _group_selection(self, group_name: str, operation: str = "add") -> ReportGroupSelection:
+        return ReportGroupSelection(group_name=group_name, operation=operation)
+
     def _add_entry_custom_dates(
         self,
         *,
@@ -154,8 +157,12 @@ class ReportLayoutTestCase(unittest.TestCase):
     def test_update_report_config_rejects_duplicate_group_in_same_report(self) -> None:
         config = get_or_create_report_config(self.db, self.company, "dro")
         lines = [line.model_copy(deep=True) for line in config.lines]
-        lines[0] = lines[0].model_copy(update={"special_source": None, "category_groups": ["group:Receitas de Vendas"]})
-        lines[1] = lines[1].model_copy(update={"special_source": None, "category_groups": ["group:Receitas de Vendas"]})
+        lines[0] = lines[0].model_copy(
+            update={"special_source": None, "category_groups": [self._group_selection("group:Receitas de Vendas")]}
+        )
+        lines[1] = lines[1].model_copy(
+            update={"special_source": None, "category_groups": [self._group_selection("group:Receitas de Vendas")]}
+        )
 
         with self.assertRaises(HTTPException) as raised:
             update_report_config(self.db, self.company, "dro", ReportConfigUpdate(lines=lines))
@@ -196,14 +203,14 @@ class ReportLayoutTestCase(unittest.TestCase):
         lines[1] = lines[1].model_copy(
             update={
                 "special_source": "deducoes_faturamento",
-                "category_groups": ["subgroup:Impostos e Taxas"],
+                "category_groups": [self._group_selection("subgroup:Impostos e Taxas")],
             }
         )
 
         updated = update_report_config(self.db, self.company, "dre", ReportConfigUpdate(lines=lines))
 
         self.assertEqual(updated.lines[1].special_source, "deducoes_faturamento")
-        self.assertIn("subgroup:Impostos e Taxas", updated.lines[1].category_groups)
+        self.assertIn("subgroup:Impostos e Taxas", {group.group_name for group in updated.lines[1].category_groups})
 
     def test_existing_legacy_special_source_is_migrated_to_category_groups(self) -> None:
         config = get_or_create_report_config(self.db, self.company, "dro")
@@ -218,7 +225,7 @@ class ReportLayoutTestCase(unittest.TestCase):
         migrated_line = next(line for line in migrated.lines if line.summary_binding == "bank_revenue")
 
         self.assertIsNone(migrated_line.special_source)
-        self.assertIn("group:Receitas", migrated_line.category_groups)
+        self.assertIn("group:Receitas", {group.group_name for group in migrated_line.category_groups})
 
     def test_existing_totalizer_formula_is_preserved(self) -> None:
         config = get_or_create_report_config(self.db, self.company, "dre")
@@ -397,7 +404,7 @@ class ReportLayoutTestCase(unittest.TestCase):
         lines[1] = lines[1].model_copy(
             update={
                 "special_source": "deducoes_faturamento",
-                "category_groups": ["group:Imposto de Vendas"],
+                "category_groups": [self._group_selection("group:Imposto de Vendas", "subtract")],
             }
         )
         update_report_config(self.db, self.company, "dre", ReportConfigUpdate(lines=lines))
@@ -414,6 +421,58 @@ class ReportLayoutTestCase(unittest.TestCase):
 
         overview_april = build_reports_overview(self.db, self.company, start=date(2026, 4, 1), end=date(2026, 4, 30))
         self.assertEqual(overview_april.dro.sales_taxes, Decimal("250.00"))
+
+    def test_source_line_allows_mixed_signs_per_group_selection(self) -> None:
+        account = self._add_account("Banco")
+        purchase_category = self._add_category(
+            name="Compra paga",
+            code="3.3.1.1",
+            entry_kind="expense",
+            report_group="Compras Pagas",
+            report_subgroup="Compras Pagas",
+        )
+        revenue_category = self._add_category(
+            name="Receita loja",
+            code="3.1.1.1",
+            entry_kind="income",
+            report_group="Receitas de Vendas",
+            report_subgroup="Receitas de Vendas",
+        )
+        self._add_entry(account=account, category=purchase_category, entry_type="expense", total_amount="120.00")
+        self._add_entry(account=account, category=revenue_category, entry_type="income", total_amount="500.00")
+
+        custom_line = ReportConfigLine.model_validate(
+            {
+                "id": "linha-mista",
+                "name": "Compras x Receitas",
+                "order": 1,
+                "line_type": "source",
+                "operation": "add",
+                "special_source": None,
+                "category_groups": [
+                    {"group_name": "group:Compras Pagas", "operation": "subtract"},
+                    {"group_name": "group:Receitas de Vendas", "operation": "add"},
+                ],
+                "formula": [],
+                "show_on_dashboard": False,
+                "show_percent": True,
+                "percent_mode": "grouped_children",
+                "percent_reference_line_id": None,
+                "is_active": True,
+                "is_hidden": False,
+                "summary_binding": "bank_revenue",
+            }
+        )
+        update_report_config(self.db, self.company, "dro", ReportConfigUpdate(lines=[custom_line]))
+
+        overview = build_reports_overview(self.db, self.company, start=date(2026, 3, 1), end=date(2026, 3, 31))
+        mixed_node = next(node for node in overview.dro.statement if node.label == "Compras x Receitas")
+        child_amounts = {child.label: child.amount for child in mixed_node.children}
+
+        self.assertEqual(overview.dro.bank_revenue, Decimal("380.00"))
+        self.assertEqual(mixed_node.amount, Decimal("380.00"))
+        self.assertEqual(child_amounts["Compras Pagas"], Decimal("-120.00"))
+        self.assertEqual(child_amounts["Receitas de Vendas"], Decimal("500.00"))
 
 
 if __name__ == "__main__":

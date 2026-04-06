@@ -195,12 +195,14 @@ def test_import_boleto_inter_report_accepts_outer_zip_with_excel_inside() -> Non
         engine.dispose()
 
 
-def test_build_missing_boletos_export_generates_excel_with_interest_and_fixed_template_values() -> None:
+def test_build_missing_boletos_export_generates_excel_with_interest_and_fixed_template_values(monkeypatch) -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)
     session = Session(engine)
 
     try:
+        monkeypatch.setattr("app.services.boletos._candidate_template_paths", lambda: [])
+
         company = Company(legal_name="Salomao LTDA", trade_name="Salomao")
         session.add(company)
         session.flush()
@@ -276,6 +278,84 @@ def test_build_missing_boletos_export_generates_excel_with_interest_and_fixed_te
         assert cells["Y4"] == "Taxa (% a.m.)"
         assert cells["Z4"] == "1"
         assert cells["AA4"] == "Não aplicar desconto"
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_build_missing_boletos_export_defaults_monthly_due_day_to_20_when_empty(monkeypatch) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+
+    try:
+        class FrozenDate(date):
+            @classmethod
+            def today(cls) -> "FrozenDate":
+                return cls(2026, 3, 6)
+
+        monkeypatch.setattr("app.services.boletos._candidate_template_paths", lambda: [])
+        monkeypatch.setattr("app.services.boletos.date", FrozenDate)
+
+        company = Company(legal_name="Salomao LTDA", trade_name="Salomao")
+        session.add(company)
+        session.flush()
+
+        customer = BoletoCustomerConfig(
+            company_id=company.id,
+            client_key=normalize_text("Cliente Exemplo"),
+            client_name="Cliente Exemplo",
+            client_code="1001",
+            uses_boleto=True,
+            mode="mensal",
+            boleto_due_day=None,
+            include_interest=True,
+            address_street="Rua Exemplo",
+            address_number="330",
+            neighborhood="Centro",
+            city="Cidade Exemplo",
+            state="SC",
+            zip_code="99999999",
+            tax_id="12345678901",
+            mobile="48999990000",
+        )
+        batch = _create_receivable_batch(session, company)
+        receivable = ReceivableTitle(
+            company_id=company.id,
+            source_batch_id=batch.id,
+            issue_date=date(2026, 3, 1),
+            due_date=date(2026, 3, 12),
+            invoice_number="12345",
+            company_code="1001",
+            installment_label="001",
+            original_amount=Decimal("250.00"),
+            amount_with_interest=Decimal("250.00"),
+            customer_name="Cliente Exemplo",
+            document_reference="DOC-1",
+            status="Em aberto",
+        )
+        session.add_all([customer, receivable])
+        session.commit()
+
+        dashboard = build_boleto_dashboard(session, company, include_all_monthly_missing=True)
+        content, _filename = build_missing_boletos_export(
+            session,
+            company,
+            [dashboard.missing_boletos[0].selection_key],
+        )
+
+        with zipfile.ZipFile(io.BytesIO(content)) as workbook:
+            sheet_root = ET.fromstring(workbook.read("xl/worksheets/sheet2.xml"))
+
+        namespace = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+        row = next(item for item in sheet_root.findall("a:sheetData/a:row", namespace) if item.attrib.get("r") == "4")
+        due_date_value = next(
+            cell.findtext("a:v", default="", namespaces=namespace)
+            for cell in row.findall("a:c", namespace)
+            if cell.attrib["r"] == "T4"
+        )
+
+        assert due_date_value == "20032026"
     finally:
         session.close()
         engine.dispose()

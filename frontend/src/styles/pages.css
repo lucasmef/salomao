@@ -1773,6 +1773,29 @@ textarea {
   min-width: 0;
 }
 
+.purchase-filter-toggle {
+  display: flex;
+  align-items: flex-end;
+}
+
+.purchase-filter-toggle-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  color: #304254;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.purchase-filter-toggle-control input {
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+}
+
 .purchase-return-status-inline {
   display: flex;
   align-items: center;
@@ -2153,6 +2176,24 @@ textarea {
   width: auto;
   min-width: 0;
   text-align: right;
+  white-space: nowrap;
+}
+
+.planning-inline-edit-readonly-values,
+.planning-inline-readonly-stack {
+  display: grid;
+  gap: 2px;
+}
+
+.planning-inline-readonly-stack {
+  justify-items: end;
+}
+
+.planning-inline-return-value {
+  font-size: 0.68rem;
+  line-height: 1.2;
+  color: #7a8797;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -2662,6 +2703,7 @@ textarea {
   .bulk-entry-category,
   .purchase-filter-bar label,
   .purchase-return-filter-field,
+  .purchase-filter-toggle,
   .purchase-filter-bar--compact label,
   .reconciliation-panel-heading,
   .reconciliation-filter-group label,
@@ -2688,6 +2730,17 @@ textarea {
     min-width: 0;
     min-height: 40px;
     font-size: 16px;
+  }
+
+  .purchase-filter-toggle-control {
+    min-height: 32px;
+  }
+
+  .purchase-filter-toggle-control input {
+    width: 16px;
+    min-width: 16px;
+    height: 16px;
+    min-height: 16px;
   }
 
   .entries-toolbar-fields,

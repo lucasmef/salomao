@@ -257,6 +257,7 @@ class PurchasePlanningRow(BaseModel):
     order_date: date | None = None
     expected_delivery_date: date | None = None
     purchased_total: Decimal
+    returns_total: Decimal = Decimal("0.00")
     received_total: Decimal = Decimal("0.00")
     delivered_total: Decimal
     launched_financial_total: Decimal

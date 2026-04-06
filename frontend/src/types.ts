@@ -643,6 +643,7 @@ export type PurchasePlanningRow = {
   order_date?: string | null;
   expected_delivery_date?: string | null;
   purchased_total: string;
+  returns_total: string;
   received_total: string;
   delivered_total: string;
   launched_financial_total: string;
@@ -807,6 +808,11 @@ export type ReportFormulaItem = {
   operation: "add" | "subtract";
 };
 
+export type ReportGroupSelection = {
+  group_name: string;
+  operation: "add" | "subtract";
+};
+
 export type ReportConfigLine = {
   id: string;
   name: string;
@@ -814,7 +820,7 @@ export type ReportConfigLine = {
   line_type: "source" | "totalizer";
   operation: "add" | "subtract";
   special_source: string | null;
-  category_groups: string[];
+  category_groups: ReportGroupSelection[];
   formula: ReportFormulaItem[];
   show_on_dashboard: boolean;
   show_percent: boolean;

@@ -2734,7 +2734,7 @@ def test_overview_received_total_uses_supplier_entries_issue_date_within_collect
     assert "Verao 2026" not in row_by_collection
 
 
-def test_overview_received_total_ignores_purchase_returns_for_current_or_future_collection(
+def test_overview_assigns_purchase_returns_to_current_collection_without_changing_received_total(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2811,10 +2811,11 @@ def test_overview_received_total_ignores_purchase_returns_for_current_or_future_
 
     row_by_collection = {row.collection_name: row for row in overview.rows if row.brand_name == "Marca Retorno"}
     assert row_by_collection["Inverno 2026"].received_total == Decimal("320.00")
+    assert row_by_collection["Inverno 2026"].returns_total == Decimal("120.00")
     assert "Verao 2026" not in row_by_collection
 
 
-def test_overview_received_total_subtracts_purchase_returns_for_past_collection(
+def test_overview_assigns_purchase_returns_to_past_collection_without_changing_received_total(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2890,11 +2891,12 @@ def test_overview_received_total_subtracts_purchase_returns_for_past_collection(
     overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters(), mode="planning")
 
     row_by_collection = {row.collection_name: row for row in overview.rows if row.brand_name == "Marca Retorno Passado"}
-    assert row_by_collection["Inverno 2026"].received_total == Decimal("200.00")
+    assert row_by_collection["Inverno 2026"].received_total == Decimal("320.00")
+    assert row_by_collection["Inverno 2026"].returns_total == Decimal("120.00")
     assert "Verao 2026" not in row_by_collection
 
 
-def test_overview_keeps_received_total_for_inactive_brand_in_past_collection(
+def test_overview_keeps_purchase_return_visible_for_inactive_brand_in_past_collection(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2963,4 +2965,5 @@ def test_overview_keeps_received_total_for_inactive_brand_in_past_collection(
     overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters(), mode="planning")
 
     row_by_collection = {row.collection_name: row for row in overview.rows if row.brand_name == "LP"}
-    assert row_by_collection["Inverno 2026"].received_total == Decimal("200.00")
+    assert row_by_collection["Inverno 2026"].received_total == Decimal("320.00")
+    assert row_by_collection["Inverno 2026"].returns_total == Decimal("120.00")

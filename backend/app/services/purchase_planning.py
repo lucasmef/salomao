@@ -4041,6 +4041,7 @@ def build_purchase_planning_overview(
                 "expected_delivery_date": None,
                 "supplier_names": [],
                 "purchased_total": Decimal("0.00"),
+                "returns_total": Decimal("0.00"),
                 "received_total": Decimal("0.00"),
                 "delivered_total": Decimal("0.00"),
                 "launched_financial_total": Decimal("0.00"),
@@ -4232,7 +4233,7 @@ def build_purchase_planning_overview(
     purchase_returns = list(db.scalars(purchase_return_stmt))
     for purchase_return in purchase_returns:
         reporting_collection = resolve_reporting_collection(None, purchase_return.return_date)
-        if reporting_collection is None or not _is_past_collection(reporting_collection, today=today):
+        if reporting_collection is None:
             continue
         supplier_brand_id = resolve_brand_id_from_supplier(purchase_return.supplier_id)
         supplier_brand_name = resolve_brand_name_from_supplier(purchase_return.supplier_id)
@@ -4250,14 +4251,12 @@ def build_purchase_planning_overview(
         )
         attach_supplier(row, purchase_return.supplier.name if purchase_return.supplier else None, purchase_return.supplier_id)
         attach_plan_metadata(row, billing_deadline=reporting_collection.end_date)
-        row["received_total"] = max(
-            Decimal(row["received_total"]) - _money(purchase_return.amount),
-            Decimal("0.00"),
-        )
+        row["returns_total"] = Decimal(row["returns_total"]) + _money(purchase_return.amount)
 
     rows: list[PurchasePlanningRow] = []
     for item in aggregates.values():
         purchased_total = _money(Decimal(item["purchased_total"]))
+        returns_total = _money(Decimal(item["returns_total"]))
         received_total = _money(Decimal(item["received_total"]))
         delivered_total = _money(Decimal(item["delivered_total"]))
         launched_total = _money(Decimal(item["launched_financial_total"]))
@@ -4282,6 +4281,7 @@ def build_purchase_planning_overview(
                 order_date=item["order_date"] if isinstance(item["order_date"], date) else None,
                 expected_delivery_date=item["expected_delivery_date"] if isinstance(item["expected_delivery_date"], date) else None,
                 purchased_total=purchased_total,
+                returns_total=returns_total,
                 received_total=received_total,
                 delivered_total=delivered_total,
                 launched_financial_total=launched_total,

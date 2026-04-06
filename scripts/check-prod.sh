@@ -276,7 +276,7 @@ check_nginx_and_tls() {
   fi
 
   if command -v certbot >/dev/null 2>&1; then
-    if sudo certbot renew --dry-run >/dev/null 2>&1; then
+    if sudo certbot renew --dry-run --no-random-sleep-on-renew >/dev/null 2>&1; then
       pass "Renovacao do certificado passou no dry-run"
     else
       warn "Dry-run do certbot falhou"

@@ -16,6 +16,7 @@ from app.schemas.reports import (
     DroReport,
     ReportConfigLine,
     ReportDashboardCard,
+    ReportGroupSelection,
     ReportsOverview,
     ReportTreeNode,
 )
@@ -279,6 +280,9 @@ def _build_category_breakdown(
     absolute_percent_base: bool = False,
     root_key: str,
 ) -> list[ReportTreeNode]:
+    def _percent_amount(amount: Decimal) -> Decimal:
+        return abs(amount) if absolute_percent_base else amount
+
     macro_buckets: dict[tuple[str | None, str], list[dict[str, object]]] = defaultdict(list)
     for item in items:
         macro_buckets[(item.get("macro_code"), str(item["macro_label"]))].append(item)
@@ -299,7 +303,7 @@ def _build_category_breakdown(
                     label=str(bucket["label"]),
                     code=str(bucket["code"]) if bucket.get("code") else None,
                     amount=Decimal(bucket["amount"]),
-                    percent=_percent(Decimal(bucket["amount"]), percent_base, absolute_base=absolute_percent_base),
+                    percent=_percent(_percent_amount(Decimal(bucket["amount"])), percent_base, absolute_base=absolute_percent_base),
                     tone="detail",
                 )
                 for leaf_index, bucket in enumerate(sorted(subgroup_items, key=lambda item: str(item["label"])))
@@ -315,7 +319,7 @@ def _build_category_breakdown(
                     label=sub_label,
                     code=sub_code,
                     amount=subgroup_total,
-                    percent=_percent(subgroup_total, percent_base, absolute_base=absolute_percent_base),
+                    percent=_percent(_percent_amount(subgroup_total), percent_base, absolute_base=absolute_percent_base),
                     tone="subtotal",
                     children=category_nodes,
                 )
@@ -331,7 +335,7 @@ def _build_category_breakdown(
                 label=macro_label,
                 code=macro_code,
                 amount=macro_total,
-                percent=_percent(macro_total, percent_base, absolute_base=absolute_percent_base),
+                percent=_percent(_percent_amount(macro_total), percent_base, absolute_base=absolute_percent_base),
                 tone="subtotal",
                 children=subgroup_nodes,
             )
@@ -702,17 +706,20 @@ def _children_for_evaluated_line(
     return []
 
 
-def _items_for_groups(context: ReportContext, group_names: list[str]) -> list[dict[str, object]]:
+def _items_for_groups(context: ReportContext, group_selections: list[ReportGroupSelection]) -> list[dict[str, object]]:
     selected: list[dict[str, object]] = []
     seen_keys: set[str] = set()
-    for group_name in group_names:
-        for item in context.group_items.get(group_name, []):
+    for group_selection in group_selections:
+        sign = Decimal("-1.00") if group_selection.operation == "subtract" else Decimal("1.00")
+        for item in context.group_items.get(group_selection.group_name, []):
             component_key = str(item.get("component_key") or "")
             if component_key and component_key in seen_keys:
                 continue
             if component_key:
                 seen_keys.add(component_key)
-            selected.append(_clone_item(item))
+            cloned_item = _clone_item(item)
+            cloned_item["amount"] = Decimal(cloned_item["amount"]) * sign
+            selected.append(cloned_item)
     return selected
 
 
@@ -731,15 +738,19 @@ def _evaluate_lines(
 
         if line.line_type == "source":
             items = _items_for_groups(context, line.category_groups)
-            formula_value = sum((Decimal(item["amount"]) for item in items), ZERO)
+            display_amount = sum((Decimal(item["amount"]) for item in items), ZERO)
             detail_label = None
             if line.special_source:
                 source = context.special_sources.get(line.special_source, SourceDefinition(amount=ZERO, items=[]))
-                formula_value += source.amount
-                items.extend(_clone_item(item) for item in source.items)
+                special_source_sign = Decimal("-1.00") if line.operation == "subtract" else Decimal("1.00")
+                display_amount += source.amount * special_source_sign
+                for source_item in source.items:
+                    cloned_item = _clone_item(source_item)
+                    cloned_item["amount"] = Decimal(cloned_item["amount"]) * special_source_sign
+                    items.append(cloned_item)
                 if source.detail_label and source.amount != ZERO and not source.items:
-                    items.append(_special_source_item(source.detail_label, source.amount))
-            display_amount = formula_value if line.operation == "add" else -formula_value
+                    items.append(_special_source_item(source.detail_label, source.amount * special_source_sign))
+            formula_value = abs(display_amount)
         else:
             items = []
             detail_label = None
