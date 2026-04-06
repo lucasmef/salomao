@@ -85,7 +85,9 @@ def _should_run_now(company: Company, *, now: datetime, force: bool) -> tuple[bo
         last_run_local = last_run_at.replace(tzinfo=AUTO_SYNC_TIMEZONE)
     else:
         last_run_local = last_run_at.astimezone(AUTO_SYNC_TIMEZONE)
-    if last_run_local.date() >= now.date():
+    if last_run_local.date() > now.date():
+        return False, "already-ran"
+    if last_run_local.date() == now.date() and last_run_local.time() >= AUTO_SYNC_TRIGGER_TIME:
         return False, "already-ran"
     return True, "scheduled"
 

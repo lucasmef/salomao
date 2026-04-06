@@ -234,3 +234,64 @@ def test_linx_auto_sync_cycle_force_runs_disabled_company(monkeypatch) -> None:
         assert runs[0].status == "success"
     finally:
         session.close()
+
+
+def test_linx_auto_sync_scheduled_run_still_happens_if_previous_force_was_before_22h(
+    monkeypatch,
+) -> None:
+    session, company = _build_session()
+    company.linx_auto_sync_last_run_at = datetime(2026, 4, 5, 0, 15, tzinfo=AUTO_SYNC_TIMEZONE)
+    session.commit()
+
+    monkeypatch.setattr("app.services.linx_auto_sync.ensure_pre_import_backup", lambda source: None)
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync._run_sales_sync",
+        lambda db, current_company, *, target_date: "sales ok",
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync._run_receivables_sync",
+        lambda db, current_company, *, target_date: "receivables ok",
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync._run_purchase_payables_sync",
+        lambda db, current_company: "purchase ok",
+    )
+    monkeypatch.setattr("app.services.linx_auto_sync.send_email", lambda *args, **kwargs: None)
+
+    try:
+        result = run_linx_auto_sync_for_company(
+            session,
+            company,
+            now=datetime(2026, 4, 5, 22, 5, tzinfo=AUTO_SYNC_TIMEZONE),
+        )
+
+        assert result.attempted is True
+        assert result.status == "success"
+        session.refresh(company)
+        assert company.linx_auto_sync_last_run_at is not None
+        assert company.linx_auto_sync_last_run_at.replace(tzinfo=AUTO_SYNC_TIMEZONE) == datetime(
+            2026, 4, 5, 22, 5, tzinfo=AUTO_SYNC_TIMEZONE
+        )
+    finally:
+        session.close()
+
+
+def test_linx_auto_sync_still_skips_second_run_after_22h(monkeypatch) -> None:
+    session, company = _build_session()
+    company.linx_auto_sync_last_run_at = datetime(2026, 4, 5, 22, 1, tzinfo=AUTO_SYNC_TIMEZONE)
+    session.commit()
+
+    monkeypatch.setattr("app.services.linx_auto_sync.ensure_pre_import_backup", lambda source: None)
+    monkeypatch.setattr("app.services.linx_auto_sync.send_email", lambda *args, **kwargs: None)
+
+    try:
+        result = run_linx_auto_sync_for_company(
+            session,
+            company,
+            now=datetime(2026, 4, 5, 23, 0, tzinfo=AUTO_SYNC_TIMEZONE),
+        )
+
+        assert result.attempted is False
+        assert result.status == "already-ran"
+    finally:
+        session.close()
