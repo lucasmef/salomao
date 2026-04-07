@@ -26,6 +26,10 @@ import type {
   ImportResult,
   ImportSummary,
   InstanceInfo,
+  LinxCustomerDirectory,
+  LinxMovementDirectory,
+  LinxOpenReceivableDirectory,
+  LinxProductDirectory,
   LoanContract,
   LoginResponse,
   LinxSettings,
@@ -256,12 +260,74 @@ const emptyBoletoDashboard: BoletoDashboard = {
   missing_boletos: [],
   excess_boletos: [],
 };
+const emptyLinxCustomerDirectory: LinxCustomerDirectory = {
+  generated_at: "",
+  summary: {
+    total_count: 0,
+    client_count: 0,
+    supplier_count: 0,
+    transporter_count: 0,
+    active_count: 0,
+    boleto_enabled_count: 0,
+  },
+  items: [],
+};
+const emptyLinxProductDirectory: LinxProductDirectory = {
+  generated_at: "",
+  summary: {
+    total_count: 0,
+    active_count: 0,
+    inactive_count: 0,
+    with_supplier_count: 0,
+    with_collection_count: 0,
+  },
+  items: [],
+  total: 0,
+  page: 1,
+  page_size: 50,
+};
+const emptyLinxMovementDirectory: LinxMovementDirectory = {
+  generated_at: "",
+  summary: {
+    total_count: 0,
+    sales_total_amount: "0.00",
+    sales_return_total_amount: "0.00",
+    purchases_total_amount: "0.00",
+    purchase_returns_total_amount: "0.00",
+  },
+  items: [],
+  total: 0,
+  page: 1,
+  page_size: 50,
+};
+const emptyLinxOpenReceivableDirectory: LinxOpenReceivableDirectory = {
+  generated_at: "",
+  summary: {
+    total_count: 0,
+    overdue_count: 0,
+    due_today_count: 0,
+    total_amount: "0.00",
+  },
+  items: [],
+  total: 0,
+  page: 1,
+  page_size: 50,
+};
 
 const RECONCILIATION_WORKLIST_LIMIT = 200;
 
 const BoletosPage = lazy(() => import("./pages/BoletosPage").then((module) => ({ default: module.BoletosPage })));
 const CadastrosClientsPage = lazy(() =>
   import("./pages/CadastrosClientsPage").then((module) => ({ default: module.CadastrosClientsPage })),
+);
+const CadastrosProductsPage = lazy(() =>
+  import("./pages/CadastrosProductsPage").then((module) => ({ default: module.CadastrosProductsPage })),
+);
+const CadastrosMovementsPage = lazy(() =>
+  import("./pages/CadastrosMovementsPage").then((module) => ({ default: module.CadastrosMovementsPage })),
+);
+const CadastrosOpenReceivablesPage = lazy(() =>
+  import("./pages/CadastrosOpenReceivablesPage").then((module) => ({ default: module.CadastrosOpenReceivablesPage })),
 );
 const CadastrosRulesPage = lazy(() =>
   import("./pages/CadastrosRulesPage").then((module) => ({ default: module.CadastrosRulesPage })),
@@ -387,7 +453,16 @@ function getLegacySectionsForPath(pathname: string): SectionId[] {
     return ["planejamento"];
   }
   if (currentPath === "/cadastros/clientes") {
-    return ["boletos"];
+    return ["cadastros", "importacoes"];
+  }
+  if (currentPath === "/cadastros/produtos") {
+    return ["cadastros", "importacoes"];
+  }
+  if (currentPath === "/cadastros/movimentos") {
+    return ["cadastros", "importacoes"];
+  }
+  if (currentPath === "/cadastros/faturas-a-receber") {
+    return ["cadastros", "importacoes"];
   }
   if (currentPath === "/cadastros/regras") {
     return ["operacoes"];
@@ -451,6 +526,12 @@ function AppRuntime() {
   const [loans, setLoans] = useState<LoanContract[]>([]);
   const [importSummary, setImportSummary] = useState<ImportSummary>(emptyImportSummary);
   const [boletoDashboard, setBoletoDashboard] = useState<BoletoDashboard>(emptyBoletoDashboard);
+  const [linxCustomerDirectory, setLinxCustomerDirectory] = useState<LinxCustomerDirectory>(emptyLinxCustomerDirectory);
+  const [linxProductDirectory, setLinxProductDirectory] = useState<LinxProductDirectory>(emptyLinxProductDirectory);
+  const [linxMovementDirectory, setLinxMovementDirectory] = useState<LinxMovementDirectory>(emptyLinxMovementDirectory);
+  const [linxOpenReceivableDirectory, setLinxOpenReceivableDirectory] = useState<LinxOpenReceivableDirectory>(
+    emptyLinxOpenReceivableDirectory,
+  );
   const [showAllMonthlyMissingBoletos, setShowAllMonthlyMissingBoletos] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardOverview>(emptyDashboard);
   const [cashflow, setCashflow] = useState<CashflowOverview>(emptyCashflow);
@@ -465,6 +546,7 @@ function AppRuntime() {
   const [mfaStatus, setMfaStatus] = useState<MfaStatus | null>(null);
   const [activeMfaSetup, setActiveMfaSetup] = useState<MfaSetup | null>(null);
   const [purchasePlanningLoadedMode, setPurchasePlanningLoadedMode] = useState<"summary" | "planning" | "returns" | null>(null);
+  const [cadastrosLoadedPath, setCadastrosLoadedPath] = useState<string | null>(null);
 
   const [overviewFilters, setOverviewFilters] = useState(() => getCurrentMonthRange());
   const [entryFilters, setEntryFilters] = useState<Record<string, string | boolean>>(() => getDefaultEntryFilters());
@@ -475,6 +557,24 @@ function AppRuntime() {
     supplier_id: "",
     collection_id: "",
     status: "",
+  });
+  const [linxProductFilters, setLinxProductFilters] = useState({
+    search: "",
+    status: "all",
+    page: 1,
+    page_size: 50,
+  });
+  const [linxMovementFilters, setLinxMovementFilters] = useState({
+    search: "",
+    group: "all",
+    movement_type: "all",
+    page: 1,
+    page_size: 50,
+  });
+  const [linxOpenReceivableFilters, setLinxOpenReceivableFilters] = useState({
+    search: "",
+    page: 1,
+    page_size: 50,
   });
   const [reportFilters, setReportFilters] = useState(() => getCurrentMonthRange());
   const [reconciliationFilters, setReconciliationFilters] = useState({
@@ -502,6 +602,7 @@ function AppRuntime() {
         seguranca: false,
       });
       setPurchasePlanningLoadedMode(null);
+      setCadastrosLoadedPath(null);
       setShowAllMonthlyMissingBoletos(false);
       setPendingAuth(null);
       void loadBaseData(session);
@@ -534,9 +635,15 @@ function AppRuntime() {
       for (const targetSection of requiredSections) {
         const requiresPurchaseReload =
           targetSection === "planejamento" && purchasePlanningLoadedMode !== requiredPurchasePlanningMode;
-        if (!loadedSections[targetSection] || requiresPurchaseReload) {
+        const requiresCadastrosReload =
+          targetSection === "cadastros" && cadastrosLoadedPath !== normalizePath(location.pathname);
+        if (!loadedSections[targetSection] || requiresPurchaseReload || requiresCadastrosReload) {
           const loadKey =
-            targetSection === "planejamento" ? `${targetSection}:${requiredPurchasePlanningMode}` : targetSection;
+            targetSection === "planejamento"
+              ? `${targetSection}:${requiredPurchasePlanningMode}`
+              : targetSection === "cadastros"
+                ? `${targetSection}:${normalizePath(location.pathname)}`
+                : targetSection;
           if (autoLoadingSectionKeysRef.current.has(loadKey)) {
             continue;
           }
@@ -549,7 +656,7 @@ function AppRuntime() {
         }
       }
     })();
-  }, [loadedSections, location.pathname, purchasePlanningLoadedMode, session]);
+  }, [cadastrosLoadedPath, loadedSections, location.pathname, purchasePlanningLoadedMode, session]);
 
   useEffect(() => {
     if (!feedback.message) {
@@ -615,6 +722,84 @@ function AppRuntime() {
     const query = includeAllMonthlyMissing ? "?include_all_monthly_missing=true" : "";
     const boletoData = await fetchJson<BoletoDashboard>(`/boletos/dashboard${query}`, { token: activeSession.token });
     setBoletoDashboard(boletoData);
+  }
+
+  async function fetchLinxCustomerDirectory(activeSession: SessionState) {
+    const response = await fetchJson<LinxCustomerDirectory>("/linx-customers", { token: activeSession.token });
+    setLinxCustomerDirectory(response);
+  }
+
+  async function fetchLinxProductDirectory(
+    activeSession: SessionState,
+    overrides?: Partial<typeof linxProductFilters>,
+  ) {
+    const nextFilters = {
+      ...linxProductFilters,
+      ...overrides,
+    };
+    const query = new URLSearchParams();
+    query.set("page", String(nextFilters.page));
+    query.set("page_size", String(nextFilters.page_size));
+    if (nextFilters.search.trim()) {
+      query.set("search", nextFilters.search.trim());
+    }
+    if (nextFilters.status && nextFilters.status !== "all") {
+      query.set("status", nextFilters.status);
+    }
+    const response = await fetchJson<LinxProductDirectory>(`/linx-products?${query.toString()}`, {
+      token: activeSession.token,
+    });
+    setLinxProductDirectory(response);
+    setLinxProductFilters(nextFilters);
+  }
+
+  async function fetchLinxMovementDirectory(
+    activeSession: SessionState,
+    overrides?: Partial<typeof linxMovementFilters>,
+  ) {
+    const nextFilters = {
+      ...linxMovementFilters,
+      ...overrides,
+    };
+    const query = new URLSearchParams();
+    query.set("page", String(nextFilters.page));
+    query.set("page_size", String(nextFilters.page_size));
+    if (nextFilters.search.trim()) {
+      query.set("search", nextFilters.search.trim());
+    }
+    if (nextFilters.group && nextFilters.group !== "all") {
+      query.set("group", nextFilters.group);
+    }
+    if (nextFilters.movement_type && nextFilters.movement_type !== "all") {
+      query.set("movement_type", nextFilters.movement_type);
+    }
+    const response = await fetchJson<LinxMovementDirectory>(`/linx-movements?${query.toString()}`, {
+      token: activeSession.token,
+    });
+    setLinxMovementDirectory(response);
+    setLinxMovementFilters(nextFilters);
+  }
+
+  async function fetchLinxOpenReceivableDirectory(
+    activeSession: SessionState,
+    overrides?: Partial<typeof linxOpenReceivableFilters>,
+  ) {
+    const nextFilters = {
+      ...linxOpenReceivableFilters,
+      ...overrides,
+    };
+    const query = new URLSearchParams();
+    query.set("page", String(nextFilters.page));
+    query.set("page_size", String(nextFilters.page_size));
+    if (nextFilters.search.trim()) {
+      query.set("search", nextFilters.search.trim());
+    }
+    const response = await fetchJson<LinxOpenReceivableDirectory>(
+      `/linx-open-receivables?${query.toString()}`,
+      { token: activeSession.token },
+    );
+    setLinxOpenReceivableDirectory(response);
+    setLinxOpenReceivableFilters(nextFilters);
   }
 
   async function loadSectionData(activeSession: SessionState, targetSection: SectionId, options?: { force?: boolean }) {
@@ -683,6 +868,18 @@ function AppRuntime() {
           setTransfers(transferData);
           setRecurrences(recurrenceData);
           setLoans(loanData);
+          break;
+        }
+        case "cadastros": {
+          if (location.pathname === "/cadastros/clientes") {
+            await fetchLinxCustomerDirectory(activeSession);
+          } else if (location.pathname === "/cadastros/produtos") {
+            await fetchLinxProductDirectory(activeSession);
+          } else if (location.pathname === "/cadastros/movimentos") {
+            await fetchLinxMovementDirectory(activeSession);
+          } else if (location.pathname === "/cadastros/faturas-a-receber") {
+            await fetchLinxOpenReceivableDirectory(activeSession);
+          }
           break;
         }
         case "importacoes": {
@@ -757,6 +954,9 @@ function AppRuntime() {
         }
         default:
           break;
+      }
+      if (targetSection === "cadastros") {
+        setCadastrosLoadedPath(normalizePath(location.pathname));
       }
       setLoadedSections((current) => ({ ...current, [targetSection]: true }));
     } catch (error) {
@@ -1277,6 +1477,162 @@ function AppRuntime() {
       });
       setFeedback({ tone: "success", message: result.message });
     }, "Faturas a receber sincronizadas do Linx.", { sections: ["boletos", "caixa", "importacoes"] });
+  }
+
+  async function syncLinxCustomersImport() {
+    if (!session) return;
+    await runMutation(async () => {
+      const result = await fetchJson<ImportResult>("/imports/linx-customers/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Clientes e fornecedores do Linx atualizados.", { sections: ["cadastros", "importacoes"] });
+  }
+
+  async function applyLinxProductFilters(filters: { search: string; status: string }) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxProductDirectory(session, { ...filters, page: 1 });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changeLinxProductPage(page: number) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxProductDirectory(session, { page });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changeLinxProductPageSize(pageSize: number) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxProductDirectory(session, { page_size: pageSize, page: 1 });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function syncLinxProductsImport() {
+    if (!session) return;
+    await runMutation(async () => {
+      const result = await fetchJson<ImportResult>("/imports/linx-products/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Produtos do Linx atualizados.", { sections: ["cadastros", "importacoes"] });
+  }
+
+  async function applyLinxMovementFilters(filters: { search: string; group: string; movement_type: string }) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxMovementDirectory(session, { ...filters, page: 1 });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changeLinxMovementPage(page: number) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxMovementDirectory(session, { page });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changeLinxMovementPageSize(pageSize: number) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxMovementDirectory(session, { page_size: pageSize, page: 1 });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function syncLinxMovementsImport() {
+    if (!session) return;
+    await runMutation(async () => {
+      const result = await fetchJson<ImportResult>("/imports/linx-movements/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Movimentos do Linx atualizados.", { sections: ["cadastros", "importacoes"] });
+  }
+
+  async function applyLinxOpenReceivableFilters(filters: { search: string }) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxOpenReceivableDirectory(session, { ...filters, page: 1 });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changeLinxOpenReceivablePage(page: number) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxOpenReceivableDirectory(session, { page });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changeLinxOpenReceivablePageSize(pageSize: number) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxOpenReceivableDirectory(session, { page_size: pageSize, page: 1 });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function syncLinxOpenReceivablesImport() {
+    if (!session) return;
+    await runMutation(async () => {
+      const result = await fetchJson<ImportResult>("/imports/linx-open-receivables/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Faturas a receber do Linx atualizadas.", { sections: ["cadastros", "importacoes"] });
   }
 
   async function uploadOfxImport(file: File, accountId: string) {
@@ -1897,6 +2253,9 @@ function AppRuntime() {
   const resultsNavigation = getNavigationSection("resultados");
   const systemNavigation = getNavigationSection("sistema");
   const systemTabs = systemNavigation.children;
+  const systemAccountsTab = systemTabs.find((tab) => tab.key === "contas") ?? systemTabs[0];
+  const systemCategoriesTab = systemTabs.find((tab) => tab.key === "categorias") ?? systemTabs[0];
+  const systemSuppliersTab = systemTabs.find((tab) => tab.key === "fornecedores") ?? systemTabs[0];
   const systemUsersTab = systemTabs.find((tab) => tab.key === "usuarios") ?? systemTabs[0];
   const systemSecurityTab = systemTabs.find((tab) => tab.key === "seguranca") ?? systemTabs[0];
   const purchasePageProps = {
@@ -2276,11 +2635,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={systemTabs[0].description}
+              description={systemAccountsTab.description}
               sectionLabel="Sistema"
-              tabLabel={systemTabs[0].label}
+              tabLabel={systemAccountsTab.label}
               tabs={systemTabs}
-              title={systemTabs[0].title}
+              title={systemAccountsTab.title}
             >
               <MasterDataPage
                 embedded
@@ -2302,11 +2661,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={systemTabs[1].description}
+              description={systemCategoriesTab.description}
               sectionLabel="Sistema"
-              tabLabel={systemTabs[1].label}
+              tabLabel={systemCategoriesTab.label}
               tabs={systemTabs}
-              title={systemTabs[1].title}
+              title={systemCategoriesTab.title}
             >
               <MasterDataPage
                 embedded
@@ -2326,8 +2685,68 @@ function AppRuntime() {
           path="/cadastros/categorias"
         />
         <Route
-          element={<CadastrosClientsPage dashboard={boletoDashboard} tabs={systemTabs} />}
+          element={
+            <CadastrosClientsPage
+              directory={linxCustomerDirectory}
+              importSummary={importSummary}
+              loading={loading || submitting}
+              onSyncLinxCustomers={syncLinxCustomersImport}
+              tabs={systemTabs}
+            />
+          }
           path="/cadastros/clientes"
+        />
+        <Route
+          element={
+            <CadastrosProductsPage
+              directory={linxProductDirectory}
+              filters={{ search: linxProductFilters.search, status: linxProductFilters.status }}
+              importSummary={importSummary}
+              loading={loading || submitting}
+              onApplyFilters={applyLinxProductFilters}
+              onChangePage={changeLinxProductPage}
+              onChangePageSize={changeLinxProductPageSize}
+              onSyncLinxProducts={syncLinxProductsImport}
+              tabs={systemTabs}
+            />
+          }
+          path="/cadastros/produtos"
+        />
+        <Route
+          element={
+            <CadastrosMovementsPage
+              directory={linxMovementDirectory}
+              filters={{
+                search: linxMovementFilters.search,
+                group: linxMovementFilters.group,
+                movement_type: linxMovementFilters.movement_type,
+              }}
+              importSummary={importSummary}
+              loading={loading || submitting}
+              onApplyFilters={applyLinxMovementFilters}
+              onChangePage={changeLinxMovementPage}
+              onChangePageSize={changeLinxMovementPageSize}
+              onSyncLinxMovements={syncLinxMovementsImport}
+              tabs={systemTabs}
+            />
+          }
+          path="/cadastros/movimentos"
+        />
+        <Route
+          element={
+            <CadastrosOpenReceivablesPage
+              directory={linxOpenReceivableDirectory}
+              filters={{ search: linxOpenReceivableFilters.search }}
+              importSummary={importSummary}
+              loading={loading || submitting}
+              onApplyFilters={applyLinxOpenReceivableFilters}
+              onChangePage={changeLinxOpenReceivablePage}
+              onChangePageSize={changeLinxOpenReceivablePageSize}
+              onSyncLinxOpenReceivables={syncLinxOpenReceivablesImport}
+              tabs={systemTabs}
+            />
+          }
+          path="/cadastros/faturas-a-receber"
         />
         <Route
           element={<CadastrosRulesPage loans={loans} recurrences={recurrences} tabs={systemTabs} />}
@@ -2336,11 +2755,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={systemTabs[4].description}
+              description={systemSuppliersTab.description}
               sectionLabel="Sistema"
-              tabLabel={systemTabs[4].label}
+              tabLabel={systemSuppliersTab.label}
               tabs={systemTabs}
-              title={systemTabs[4].title}
+              title={systemSuppliersTab.title}
             >
               <PurchasePlanningPage {...purchasePageProps} view="fornecedores" />
             </SectionChrome>

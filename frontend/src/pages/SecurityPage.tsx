@@ -71,6 +71,9 @@ export function SecurityPage({
     base_url: linxSettings?.base_url ?? "https://erp.microvix.com.br",
     username: linxSettings?.username ?? "",
     password: "",
+    api_base_url: linxSettings?.api_base_url ?? "https://webapi.microvix.com.br/1.0/api/integracao",
+    api_cnpj: linxSettings?.api_cnpj ?? "",
+    api_key: "",
     sales_view_name: linxSettings?.sales_view_name ?? "FATURAMENTO SALOMAO",
     receivables_view_name: linxSettings?.receivables_view_name ?? "CREDIARIO SALOMAO",
     payables_view_name: linxSettings?.payables_view_name ?? "LANCAR NOTAS SALOMAO",
@@ -86,12 +89,15 @@ export function SecurityPage({
       ...current,
       base_url: linxSettings?.base_url ?? "https://erp.microvix.com.br",
       username: linxSettings?.username ?? "",
+      api_base_url: linxSettings?.api_base_url ?? "https://webapi.microvix.com.br/1.0/api/integracao",
+      api_cnpj: linxSettings?.api_cnpj ?? "",
       sales_view_name: linxSettings?.sales_view_name ?? "FATURAMENTO SALOMAO",
       receivables_view_name: linxSettings?.receivables_view_name ?? "CREDIARIO SALOMAO",
       payables_view_name: linxSettings?.payables_view_name ?? "LANCAR NOTAS SALOMAO",
       auto_sync_enabled: linxSettings?.auto_sync_enabled ?? false,
       auto_sync_alert_email: linxSettings?.auto_sync_alert_email ?? "",
       password: "",
+      api_key: "",
     }));
   }, [linxSettings]);
 
@@ -122,13 +128,16 @@ export function SecurityPage({
       base_url: linxForm.base_url,
       username: linxForm.username,
       password: linxForm.password || undefined,
+      api_base_url: linxForm.api_base_url,
+      api_cnpj: linxForm.api_cnpj || undefined,
+      api_key: linxForm.api_key || undefined,
       sales_view_name: linxForm.sales_view_name,
       receivables_view_name: linxForm.receivables_view_name,
       payables_view_name: linxForm.payables_view_name,
       auto_sync_enabled: linxForm.auto_sync_enabled,
       auto_sync_alert_email: linxForm.auto_sync_alert_email || undefined,
     });
-    setLinxForm((current) => ({ ...current, password: "" }));
+    setLinxForm((current) => ({ ...current, password: "", api_key: "" }));
   }
 
   return (
@@ -223,6 +232,31 @@ export function SecurityPage({
                 />
               </label>
               <label>
+                URL API
+                <input
+                  value={linxForm.api_base_url}
+                  onChange={(event) => setLinxForm({ ...linxForm, api_base_url: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                CNPJ API
+                <input
+                  value={linxForm.api_cnpj}
+                  onChange={(event) => setLinxForm({ ...linxForm, api_cnpj: event.target.value })}
+                  placeholder="Somente numeros"
+                />
+              </label>
+              <label>
+                Chave API
+                <input
+                  type="password"
+                  value={linxForm.api_key}
+                  onChange={(event) => setLinxForm({ ...linxForm, api_key: event.target.value })}
+                  placeholder={linxSettings?.has_api_key ? "Deixe em branco para manter a atual" : ""}
+                />
+              </label>
+              <label>
                 Visao faturamento
                 <input
                   value={linxForm.sales_view_name}
@@ -267,6 +301,10 @@ export function SecurityPage({
                 <div className="summary-row">
                   <span>Senha cadastrada</span>
                   <strong>{linxSettings?.has_password ? "sim" : "nao"}</strong>
+                </div>
+                <div className="summary-row">
+                  <span>Chave API cadastrada</span>
+                  <strong>{linxSettings?.has_api_key ? "sim" : "nao"}</strong>
                 </div>
                 <div className="summary-row">
                   <span>Agendamento</span>
