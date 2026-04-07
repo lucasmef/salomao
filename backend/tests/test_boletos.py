@@ -1,6 +1,6 @@
 import io
 import zipfile
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 import xml.etree.ElementTree as ET
 
@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.base import Base
 from app.db.models.boleto import BoletoCustomerConfig, BoletoRecord
 from app.db.models.imports import ImportBatch
-from app.db.models.linx import ReceivableTitle
+from app.db.models.linx import LinxCustomer, LinxOpenReceivable, ReceivableTitle
 from app.db.models.security import Company
 from app.services.boletos import (
     build_boleto_dashboard,
@@ -356,6 +356,187 @@ def test_build_missing_boletos_export_defaults_monthly_due_day_to_20_when_empty(
         )
 
         assert due_date_value == "20032026"
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_build_boleto_dashboard_prefers_linx_api_receivables_and_customers() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+
+    try:
+        company = Company(legal_name="Salomao LTDA", trade_name="Salomao")
+        session.add(company)
+        session.flush()
+
+        client_key = normalize_text("Cliente API")
+        legacy_batch = _create_receivable_batch(session, company, filename="legacy.xlsx")
+        session.add(
+            BoletoCustomerConfig(
+                company_id=company.id,
+                client_key=client_key,
+                client_name="Cliente API",
+                client_code="1001",
+                uses_boleto=True,
+                mode="individual",
+                boleto_due_day=12,
+                include_interest=True,
+            )
+        )
+        session.add(
+            LinxCustomer(
+                company_id=company.id,
+                linx_code=1001,
+                legal_name="Cliente API",
+                registration_type="C",
+                address_street="Rua API",
+                address_number="55",
+                neighborhood="Centro",
+                city="Cidade API",
+                state="SC",
+                zip_code="88000000",
+                document_number="12345678901",
+                phone_primary="4833334444",
+                mobile="48999998888",
+                state_registration="ISENTO",
+            )
+        )
+        session.add(
+            LinxOpenReceivable(
+                company_id=company.id,
+                linx_code=9001,
+                customer_code=1001,
+                customer_name="Cliente API",
+                issue_date=datetime(2026, 4, 1),
+                due_date=datetime(2026, 4, 12),
+                amount=Decimal("250.00"),
+                interest_amount=Decimal("5.00"),
+                discount_amount=Decimal("0.00"),
+                document_number="FAT-API",
+                document_series="A",
+                installment_number=1,
+                installment_count=1,
+            )
+        )
+        session.add(
+            ReceivableTitle(
+                company_id=company.id,
+                source_batch_id=legacy_batch.id,
+                issue_date=date(2026, 3, 1),
+                due_date=date(2026, 3, 12),
+                invoice_number="LEGACY",
+                company_code="1001",
+                installment_label="001",
+                original_amount=Decimal("999.00"),
+                amount_with_interest=Decimal("999.00"),
+                customer_name="Cliente Legado",
+                document_reference="DOC-OLD",
+                status="Em aberto",
+            )
+        )
+        session.commit()
+
+        dashboard = build_boleto_dashboard(session, company)
+
+        assert dashboard.summary.receivable_count == 1
+        assert dashboard.summary.receivable_total == Decimal("250.00")
+        assert dashboard.receivables[0].invoice_number == "FAT-API"
+        assert dashboard.receivables[0].corrected_amount == Decimal("255.00")
+        assert dashboard.clients[0].address_street == "Rua API"
+        assert dashboard.clients[0].tax_id == "12345678901"
+        assert dashboard.clients[0].phone_primary == "4833334444"
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_build_missing_boletos_export_uses_linx_customer_data_when_available(monkeypatch) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+
+    try:
+        monkeypatch.setattr("app.services.boletos._candidate_template_paths", lambda: [])
+
+        company = Company(legal_name="Salomao LTDA", trade_name="Salomao")
+        session.add(company)
+        session.flush()
+
+        customer = BoletoCustomerConfig(
+            company_id=company.id,
+            client_key=normalize_text("Cliente API"),
+            client_name="Cliente API",
+            client_code="1001",
+            uses_boleto=True,
+            mode="mensal",
+            boleto_due_day=12,
+            include_interest=True,
+        )
+        session.add(customer)
+        session.add(
+            LinxCustomer(
+                company_id=company.id,
+                linx_code=1001,
+                legal_name="Cliente API",
+                registration_type="C",
+                address_street="Rua API",
+                address_number="55",
+                neighborhood="Centro",
+                city="Cidade API",
+                state="SC",
+                zip_code="88000000",
+                document_number="12345678901",
+                mobile="48999998888",
+            )
+        )
+        session.add(
+            LinxOpenReceivable(
+                company_id=company.id,
+                linx_code=9001,
+                customer_code=1001,
+                customer_name="Cliente API",
+                issue_date=datetime(2026, 4, 1),
+                due_date=datetime(2026, 4, 12),
+                amount=Decimal("250.00"),
+                interest_amount=Decimal("0.00"),
+                discount_amount=Decimal("0.00"),
+                document_number="FAT-API",
+                installment_number=1,
+                installment_count=1,
+            )
+        )
+        session.commit()
+
+        dashboard = build_boleto_dashboard(session, company, include_all_monthly_missing=True)
+        assert len(dashboard.missing_boletos) == 1
+
+        content, filename = build_missing_boletos_export(
+            session,
+            company,
+            [dashboard.missing_boletos[0].selection_key],
+        )
+
+        assert filename.endswith(".xlsx")
+        with zipfile.ZipFile(io.BytesIO(content)) as workbook:
+            sheet_root = ET.fromstring(workbook.read("xl/worksheets/sheet2.xml"))
+
+        namespace = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+        row = next(item for item in sheet_root.findall("a:sheetData/a:row", namespace) if item.attrib.get("r") == "4")
+        cells: dict[str, str] = {}
+        for cell in row.findall("a:c", namespace):
+            reference = cell.attrib["r"]
+            inline_text = "".join(node.text or "" for node in cell.findall(".//a:t", namespace))
+            raw_value = cell.findtext("a:v", default="", namespaces=namespace)
+            cells[reference] = inline_text or raw_value
+
+        assert cells["A4"] == "Cliente API"
+        assert cells["E4"] == "Rua API"
+        assert cells["F4"] == "55"
+        assert cells["H4"] == "Centro"
+        assert cells["I4"] == "Cidade API"
+        assert cells["J4"] == "SC"
     finally:
         session.close()
         engine.dispose()

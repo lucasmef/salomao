@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.boleto import BoletoCustomerConfig, BoletoRecord
 from app.db.models.imports import ImportBatch
-from app.db.models.linx import ReceivableTitle
+from app.db.models.linx import LinxCustomer, LinxOpenReceivable, ReceivableTitle
 from app.db.models.security import Company
 from app.schemas.boletos import (
     BoletoClientConfigBulkUpdate,
@@ -122,6 +122,37 @@ class CustomerLabelRow:
     code: str
     client_name: str
     client_key: str
+    address_street: str | None
+    address_number: str | None
+    address_complement: str | None
+    neighborhood: str | None
+    city: str | None
+    state: str | None
+    zip_code: str | None
+    tax_id: str | None
+    state_registration: str | None
+    phone_primary: str | None
+    phone_secondary: str | None
+    mobile: str | None
+
+
+@dataclass
+class LinxCustomerLookup:
+    by_code: dict[str, LinxCustomer]
+    by_name: dict[str, LinxCustomer]
+
+
+@dataclass
+class ResolvedCustomerData:
+    config: BoletoCustomerConfig | None
+    linx_customer: LinxCustomer | None
+    client_name: str
+    client_code: str | None
+    uses_boleto: bool
+    mode: str
+    boleto_due_day: int | None
+    include_interest: bool
+    notes: str | None
     address_street: str | None
     address_number: str | None
     address_complement: str | None
@@ -676,7 +707,97 @@ def _receivable_is_open(status: str) -> bool:
     return True
 
 
+def _build_linx_customer_lookup(db: Session, company_id: str) -> LinxCustomerLookup:
+    customers = list(
+        db.scalars(
+            select(LinxCustomer).where(
+                LinxCustomer.company_id == company_id,
+                LinxCustomer.registration_type.in_(("C", "A")),
+            )
+        )
+    )
+
+    by_code: dict[str, LinxCustomer] = {}
+    by_name: dict[str, LinxCustomer] = {}
+    for customer in customers:
+        normalized_code = _normalize_client_code(str(customer.linx_code))
+        if normalized_code and normalized_code not in by_code:
+            by_code[normalized_code] = customer
+
+        candidate_names = [customer.legal_name, customer.display_name]
+        for candidate_name in candidate_names:
+            normalized_name = normalize_text(candidate_name or "")
+            if normalized_name and normalized_name not in by_name:
+                by_name[normalized_name] = customer
+
+    return LinxCustomerLookup(by_code=by_code, by_name=by_name)
+
+
+def _match_linx_customer(
+    lookup: LinxCustomerLookup,
+    *,
+    client_code: str | None,
+    client_name: str | None,
+    client_key: str | None,
+) -> LinxCustomer | None:
+    normalized_code = _normalize_client_code(client_code)
+    if normalized_code:
+        matched_by_code = lookup.by_code.get(normalized_code)
+        if matched_by_code is not None:
+            return matched_by_code
+
+    normalized_name = normalize_text(client_name or "")
+    if normalized_name:
+        matched_by_name = lookup.by_name.get(normalized_name)
+        if matched_by_name is not None:
+            return matched_by_name
+
+    normalized_key = normalize_text(client_key or "")
+    if normalized_key:
+        return lookup.by_name.get(normalized_key)
+    return None
+
+
 def _load_receivable_items(db: Session, company_id: str) -> list[ReceivableItem]:
+    linx_open_receivables = list(
+        db.scalars(
+            select(LinxOpenReceivable)
+            .where(LinxOpenReceivable.company_id == company_id)
+            .order_by(LinxOpenReceivable.due_date.asc(), LinxOpenReceivable.customer_name.asc())
+        )
+    )
+    if linx_open_receivables:
+        items: list[ReceivableItem] = []
+        for receivable in linx_open_receivables:
+            issue_date = receivable.issue_date.date() if receivable.issue_date else None
+            due_date = receivable.due_date.date() if receivable.due_date else None
+            amount = Decimal(receivable.amount or 0)
+            interest_amount = Decimal(receivable.interest_amount or 0)
+            discount_amount = Decimal(receivable.discount_amount or 0)
+            installment_label = ""
+            if receivable.installment_number and receivable.installment_count:
+                installment_label = f"{receivable.installment_number:03d}/{receivable.installment_count:03d}"
+            elif receivable.installment_number:
+                installment_label = f"{receivable.installment_number:03d}"
+
+            document_parts = [part for part in [receivable.document_number, receivable.document_series] if part]
+            items.append(
+                ReceivableItem(
+                    client_name=(receivable.customer_name or "").strip() or f"Cliente {receivable.linx_code}",
+                    client_code=str(receivable.customer_code or ""),
+                    client_key=normalize_text(receivable.customer_name or f"Cliente {receivable.linx_code}"),
+                    issue_date=issue_date,
+                    due_date=due_date,
+                    invoice_number=receivable.document_number or str(receivable.linx_code),
+                    installment=installment_label,
+                    amount=amount,
+                    corrected_amount=max(amount + interest_amount - discount_amount, Decimal("0")),
+                    document="/".join(document_parts),
+                    status="Em aberto",
+                )
+            )
+        return items
+
     latest_batch = db.scalar(
         select(ImportBatch)
         .where(
@@ -731,6 +852,7 @@ def _sync_customer_configs_from_reports(
     receivables_by_client: dict[str, list[ReceivableItem]],
     boletos_by_client: dict[str, list[BoletoRecord]],
     config_map: dict[str, BoletoCustomerConfig],
+    customer_lookup: LinxCustomerLookup,
 ) -> dict[str, BoletoCustomerConfig]:
     all_client_keys = sorted(set(receivables_by_client) | set(boletos_by_client) | set(config_map))
     changed = False
@@ -744,6 +866,15 @@ def _sync_customer_configs_from_reports(
             or client_key.title()
         )
         client_code = client_receivables[0].client_code if client_receivables else None
+        matched_customer = _match_linx_customer(
+            customer_lookup,
+            client_code=client_code,
+            client_name=client_name,
+            client_key=client_key,
+        )
+        if matched_customer is not None:
+            client_name = matched_customer.legal_name or client_name
+            client_code = client_code or str(matched_customer.linx_code)
         config = config_map.get(client_key)
 
         if not config:
@@ -774,6 +905,58 @@ def _sync_customer_configs_from_reports(
         db.commit()
         return _load_customer_configs(db, company.id)
     return config_map
+
+
+def _resolve_customer_data(
+    *,
+    client_key: str,
+    client_name: str,
+    client_code: str | None,
+    config: BoletoCustomerConfig | None,
+    customer_lookup: LinxCustomerLookup,
+    auto_uses_boleto: bool,
+) -> ResolvedCustomerData:
+    matched_customer = _match_linx_customer(
+        customer_lookup,
+        client_code=client_code or (config.client_code if config else None),
+        client_name=client_name or (config.client_name if config else None),
+        client_key=client_key,
+    )
+    resolved_name = (
+        client_name
+        or (matched_customer.legal_name if matched_customer else None)
+        or (config.client_name if config else None)
+        or client_key.title()
+    )
+    resolved_code = (
+        client_code
+        or (str(matched_customer.linx_code) if matched_customer else None)
+        or (config.client_code if config else None)
+    )
+
+    return ResolvedCustomerData(
+        config=config,
+        linx_customer=matched_customer,
+        client_name=resolved_name,
+        client_code=resolved_code,
+        uses_boleto=config.uses_boleto if config else auto_uses_boleto,
+        mode=config.mode if config else "individual",
+        boleto_due_day=config.boleto_due_day if config else None,
+        include_interest=bool(config.include_interest) if config else False,
+        notes=config.notes if config else None,
+        address_street=(matched_customer.address_street if matched_customer else None) or (config.address_street if config else None),
+        address_number=(matched_customer.address_number if matched_customer else None) or (config.address_number if config else None),
+        address_complement=(matched_customer.address_complement if matched_customer else None) or (config.address_complement if config else None),
+        neighborhood=(matched_customer.neighborhood if matched_customer else None) or (config.neighborhood if config else None),
+        city=(matched_customer.city if matched_customer else None) or (config.city if config else None),
+        state=(matched_customer.state if matched_customer else None) or (config.state if config else None),
+        zip_code=(matched_customer.zip_code if matched_customer else None) or (config.zip_code if config else None),
+        tax_id=(matched_customer.document_number if matched_customer else None) or (config.tax_id if config else None),
+        state_registration=(matched_customer.state_registration if matched_customer else None) or (config.state_registration if config else None),
+        phone_primary=(matched_customer.phone_primary if matched_customer else None) or (config.phone_primary if config else None),
+        phone_secondary=config.phone_secondary if config else None,
+        mobile=(matched_customer.mobile if matched_customer else None) or (config.mobile if config else None),
+    )
 
 
 def _latest_file_info(db: Session, company_id: str, source_type: str) -> BoletoFileRead | None:
@@ -1204,6 +1387,7 @@ def build_boleto_dashboard(
     receivables = _load_receivable_items(db, company.id)
     boleto_records = list(db.scalars(select(BoletoRecord).where(BoletoRecord.company_id == company.id)))
     config_map = _load_customer_configs(db, company.id)
+    customer_lookup = _build_linx_customer_lookup(db, company.id)
 
     receivables_by_client: dict[str, list[ReceivableItem]] = {}
     boletos_by_client: dict[str, list[BoletoRecord]] = {}
@@ -1212,12 +1396,20 @@ def build_boleto_dashboard(
     for boleto in boleto_records:
         boletos_by_client.setdefault(boleto.client_key, []).append(boleto)
 
-    config_map = _sync_customer_configs_from_reports(db, company, receivables_by_client, boletos_by_client, config_map)
+    config_map = _sync_customer_configs_from_reports(
+        db,
+        company,
+        receivables_by_client,
+        boletos_by_client,
+        config_map,
+        customer_lookup,
+    )
 
     files = [
         item
         for item in [
-            _latest_file_info(db, company.id, "linx_receivables"),
+            _latest_file_info(db, company.id, "linx_open_receivables"),
+            _latest_file_info(db, company.id, "linx_customers"),
             _latest_file_info(db, company.id, "boletos:inter"),
             _latest_file_info(db, company.id, "boletos:c6"),
             _latest_file_info(db, company.id, "boletos:etiquetas"),
@@ -1255,12 +1447,21 @@ def build_boleto_dashboard(
             or (client_boletos[0].client_name if client_boletos else None)
             or (config.client_name if config else client_key.title())
         )
-        client_code = (client_receivables[0].client_code if client_receivables else None) or (config.client_code if config else None)
-        uses_boleto = config.uses_boleto if config else bool(client_boletos)
-        mode = config.mode if config else "individual"
-        due_day = config.boleto_due_day if config else None
-        notes = config.notes if config else None
         auto_uses_boleto = bool(client_boletos)
+        resolved_customer = _resolve_customer_data(
+            client_key=client_key,
+            client_name=client_name,
+            client_code=(client_receivables[0].client_code if client_receivables else None) or (config.client_code if config else None),
+            config=config,
+            customer_lookup=customer_lookup,
+            auto_uses_boleto=auto_uses_boleto,
+        )
+        client_name = resolved_customer.client_name
+        client_code = resolved_customer.client_code
+        uses_boleto = resolved_customer.uses_boleto
+        mode = resolved_customer.mode
+        due_day = resolved_customer.boleto_due_day
+        notes = resolved_customer.notes
         active_client_boletos = [boleto for boleto in client_boletos if _boleto_status_bucket(boleto) == "active"]
 
         overdue_receivables = [item for item in client_receivables if item.due_date and item.due_date < today]
@@ -1490,25 +1691,25 @@ def build_boleto_dashboard(
                 uses_boleto=uses_boleto,
                 mode=mode,
                 boleto_due_day=due_day,
-                include_interest=config.include_interest if config else False,
+                include_interest=resolved_customer.include_interest,
                 notes=notes,
                 auto_uses_boleto=auto_uses_boleto,
                 receivable_count=len(client_receivables),
                 overdue_boleto_count=overdue_boleto_count,
                 total_amount=sum((item.amount for item in client_receivables), Decimal("0")),
                 matched_paid_count=matched_paid_count,
-                address_street=config.address_street if config else None,
-                address_number=config.address_number if config else None,
-                address_complement=config.address_complement if config else None,
-                neighborhood=config.neighborhood if config else None,
-                city=config.city if config else None,
-                state=config.state if config else None,
-                zip_code=config.zip_code if config else None,
-                tax_id=config.tax_id if config else None,
-                state_registration=config.state_registration if config else None,
-                phone_primary=config.phone_primary if config else None,
-                phone_secondary=config.phone_secondary if config else None,
-                mobile=config.mobile if config else None,
+                address_street=resolved_customer.address_street,
+                address_number=resolved_customer.address_number,
+                address_complement=resolved_customer.address_complement,
+                neighborhood=resolved_customer.neighborhood,
+                city=resolved_customer.city,
+                state=resolved_customer.state,
+                zip_code=resolved_customer.zip_code,
+                tax_id=resolved_customer.tax_id,
+                state_registration=resolved_customer.state_registration,
+                phone_primary=resolved_customer.phone_primary,
+                phone_secondary=resolved_customer.phone_secondary,
+                mobile=resolved_customer.mobile,
             )
         )
 
@@ -1914,36 +2115,36 @@ def _render_boleto_workbook(rows: list[MissingBoletoExportRow]) -> bytes:
     return output.getvalue()
 
 
-def _validate_export_client_config(config: BoletoCustomerConfig | None, client_name: str) -> list[str]:
-    if config is None:
+def _validate_export_client_config(customer_data: ResolvedCustomerData | None, client_name: str) -> list[str]:
+    if customer_data is None:
         return ["cadastro do cliente nao localizado"]
 
     missing: list[str] = []
-    tax_id = _digits_only(config.tax_id)
+    tax_id = _digits_only(customer_data.tax_id)
     if len(tax_id) not in {11, 14}:
         missing.append("CPF/CNPJ")
-    if not _truncate_text(config.address_street, 200):
+    if not _truncate_text(customer_data.address_street, 200):
         missing.append("endereco")
-    if not _truncate_text(config.address_number, 40):
+    if not _truncate_text(customer_data.address_number, 40):
         missing.append("numero")
-    if not _truncate_text(config.neighborhood, 120):
+    if not _truncate_text(customer_data.neighborhood, 120):
         missing.append("bairro")
-    if not _truncate_text(config.city, 120):
+    if not _truncate_text(customer_data.city, 120):
         missing.append("cidade")
-    if len(_truncate_text(config.state, 10)) != 2:
+    if len(_truncate_text(customer_data.state, 10)) != 2:
         missing.append("estado")
-    if len(_digits_only(config.zip_code)) != 8:
+    if len(_digits_only(customer_data.zip_code)) != 8:
         missing.append("CEP")
     return missing
 
 
-def _resolve_export_due_date(item: BoletoMatchItem, config: BoletoCustomerConfig | None, today: date) -> date:
+def _resolve_export_due_date(item: BoletoMatchItem, customer_data: ResolvedCustomerData | None, today: date) -> date:
     reference_due_date = item.due_date or today
     resolved_due_day: int | None = None
-    if config and config.mode != "individual":
-        if config.boleto_due_day:
-            resolved_due_day = config.boleto_due_day
-        elif config.mode == "mensal":
+    if customer_data and customer_data.mode != "individual":
+        if customer_data.boleto_due_day:
+            resolved_due_day = customer_data.boleto_due_day
+        elif customer_data.mode == "mensal":
             resolved_due_day = 20
 
     if resolved_due_day:
@@ -1994,23 +2195,32 @@ def build_missing_boletos_export(
         raise ValueError("Alguns boletos selecionados nao foram encontrados. Atualize a tela e tente novamente.")
 
     config_map = _load_customer_configs(db, company.id)
+    customer_lookup = _build_linx_customer_lookup(db, company.id)
     validation_errors: list[str] = []
     export_rows: list[MissingBoletoExportRow] = []
     today = date.today()
 
     for item in selected_items:
         config = config_map.get(item.client_key)
-        missing_fields = _validate_export_client_config(config, item.client_name)
+        receivable_client_code = item.receivables[0].client_code if item.receivables else None
+        customer_data = _resolve_customer_data(
+            client_key=item.client_key,
+            client_name=item.client_name,
+            client_code=receivable_client_code or (config.client_code if config else None),
+            config=config,
+            customer_lookup=customer_lookup,
+            auto_uses_boleto=bool(config.uses_boleto) if config else False,
+        )
+        missing_fields = _validate_export_client_config(customer_data, item.client_name)
         if missing_fields:
             validation_errors.append(f"{item.client_name}: {', '.join(missing_fields)}")
             continue
 
-        assert config is not None
-        tax_id = _digits_only(config.tax_id)
-        zip_code = _digits_only(config.zip_code)
-        phone = _digits_only(config.mobile or config.phone_primary or config.phone_secondary)
-        due_date = _resolve_export_due_date(item, config, today)
-        include_interest = bool(config.include_interest)
+        tax_id = _digits_only(customer_data.tax_id)
+        zip_code = _digits_only(customer_data.zip_code)
+        phone = _digits_only(customer_data.mobile or customer_data.phone_primary or customer_data.phone_secondary)
+        due_date = _resolve_export_due_date(item, customer_data, today)
+        include_interest = bool(customer_data.include_interest)
 
         export_rows.append(
             MissingBoletoExportRow(
@@ -2018,16 +2228,16 @@ def build_missing_boletos_export(
                 tax_id=tax_id,
                 email=None,
                 phone=phone[:11] or None,
-                address_street=_truncate_text(config.address_street, 54),
-                address_number=_truncate_text(config.address_number, 32),
-                address_complement=_truncate_text(config.address_complement, 30) or None,
-                neighborhood=_truncate_text(config.neighborhood, 60),
-                city=_truncate_text(config.city, 60),
-                state=_truncate_text(config.state, 2).upper(),
+                address_street=_truncate_text(customer_data.address_street, 54),
+                address_number=_truncate_text(customer_data.address_number, 32),
+                address_complement=_truncate_text(customer_data.address_complement, 30) or None,
+                neighborhood=_truncate_text(customer_data.neighborhood, 60),
+                city=_truncate_text(customer_data.city, 60),
+                state=_truncate_text(customer_data.state, 2).upper(),
                 zip_code=zip_code[:8],
                 amount=Decimal(item.amount),
                 include_interest=include_interest,
-                charge_code=_build_export_charge_code(item, config.client_code, include_interest),
+                charge_code=_build_export_charge_code(item, customer_data.client_code, include_interest),
                 description=_build_export_description(item),
                 due_date=due_date,
             )

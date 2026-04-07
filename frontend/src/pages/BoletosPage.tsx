@@ -16,10 +16,10 @@ type Props = {
   onExportMissingBoletos: (selectionKeys: string[]) => Promise<void>;
   onIssueInterCharges: (selectionKeys: string[]) => Promise<void>;
   onReceiveInterBoleto: (boletoId: string, payWith?: "BOLETO" | "PIX") => Promise<void>;
+  onSyncCustomers: () => Promise<void>;
   onSyncInterCharges: () => Promise<void>;
   onSyncReceivables: () => Promise<void>;
   onToggleAllMonthlyMissingBoletos: (showAll: boolean) => Promise<void>;
-  onUploadReceivables: (file: File) => Promise<void>;
   onUploadBoletoInter: (file: File) => Promise<void>;
   onUploadBoletoC6: (file: File) => Promise<void>;
   onUploadClientData: (file: File) => Promise<void>;
@@ -216,16 +216,15 @@ export function BoletosPage({
   onExportMissingBoletos,
   onIssueInterCharges,
   onReceiveInterBoleto,
+  onSyncCustomers,
   onSyncInterCharges,
   onSyncReceivables,
   onToggleAllMonthlyMissingBoletos,
-  onUploadReceivables,
   onUploadBoletoInter,
   onUploadBoletoC6,
   onUploadClientData,
   onSaveClients,
 }: Props) {
-  const [receivablesFile, setReceivablesFile] = useState<File | null>(null);
   const [interFile, setInterFile] = useState<File | null>(null);
   const [c6File, setC6File] = useState<File | null>(null);
   const [customerDataFile, setCustomerDataFile] = useState<File | null>(null);
@@ -1147,18 +1146,42 @@ export function BoletosPage({
                 </button>
               </div>
               <div className="compact-import-grid billing-import-grid">
-                <UploadCard
-                  id="boletos-receivables-file"
-                  title="Faturas a receber"
-                  accept=".xls,.xlsx,.zip"
-                  selectedFile={receivablesFile}
-                  submitting={submitting}
-                  onChange={setReceivablesFile}
-                  onSubmit={() => receivablesFile && void onUploadReceivables(receivablesFile)}
-                  secondaryLabel="Sincronizar Linx"
-                  onSecondaryAction={() => void onSyncReceivables()}
-                  meta={renderFileMeta("linx_receivables")}
-                />
+                <div className="compact-import-card billing-import-card">
+                  <div className="billing-import-header">
+                    <strong>Faturas Linx API</strong>
+                    <button
+                      className="primary-button icon-button"
+                      disabled={submitting}
+                      onClick={() => void onSyncReceivables()}
+                      title="Atualizar faturas em aberto da API Linx"
+                      type="button"
+                    >
+                      <RefreshIcon />
+                    </button>
+                  </div>
+                  <div className="billing-import-meta">
+                    {renderFileMeta("linx_open_receivables")}
+                    <small className="compact-muted">Usa a base espelho da API para a cobrança.</small>
+                  </div>
+                </div>
+                <div className="compact-import-card billing-import-card">
+                  <div className="billing-import-header">
+                    <strong>Clientes Linx API</strong>
+                    <button
+                      className="primary-button icon-button"
+                      disabled={submitting}
+                      onClick={() => void onSyncCustomers()}
+                      title="Atualizar clientes do Linx"
+                      type="button"
+                    >
+                      <RefreshIcon />
+                    </button>
+                  </div>
+                  <div className="billing-import-meta">
+                    {renderFileMeta("linx_customers")}
+                    <small className="compact-muted">Cadastro usado para nome e dados de boleto.</small>
+                  </div>
+                </div>
                 <UploadCard
                   id="boletos-inter-file"
                   title="Relatório Inter"

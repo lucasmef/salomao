@@ -1463,14 +1463,10 @@ function AppRuntime() {
     }, "Faturamento Linx sincronizado.", { sections: ["relatorios", "overview", "importacoes"] });
   }
 
-  async function uploadReceivablesImport(file: File) {
-    await uploadManagedFile("/imports/linx-receivables", file, ["boletos", "caixa", "importacoes"]);
-  }
-
   async function syncLinxReceivablesImport() {
     if (!session) return;
     await runMutation(async () => {
-      const result = await fetchJson<ImportResult>("/imports/linx-receivables/sync", {
+      const result = await fetchJson<ImportResult>("/imports/linx-open-receivables/sync", {
         method: "POST",
         token: session.token,
         body: JSON.stringify({}),
@@ -2476,13 +2472,13 @@ function AppRuntime() {
                   onIssueInterCharges={issueInterCharges}
                   onReceiveInterBoleto={receiveInterBoleto}
                   onSaveClients={saveBoletoClients}
+                  onSyncCustomers={syncLinxCustomersImport}
                   onSyncInterCharges={syncInterChargesImport}
                   onSyncReceivables={syncLinxReceivablesImport}
                   onToggleAllMonthlyMissingBoletos={toggleAllMonthlyMissingBoletos}
                   onUploadBoletoC6={uploadBoletoC6Import}
                   onUploadClientData={uploadBoletoCustomerDataImport}
                   onUploadBoletoInter={uploadBoletoInterImport}
-                  onUploadReceivables={uploadReceivablesImport}
                   showAllMonthlyMissingBoletos={showAllMonthlyMissingBoletos}
                   submitting={submitting}
                 />
