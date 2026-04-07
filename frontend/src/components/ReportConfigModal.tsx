@@ -315,7 +315,7 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
             <div className="report-config-lines-header">
               <div>
                 <strong>{draft.lines.length} linhas configuradas</strong>
-                <p>Use linhas agrupadoras para juntar grupos e faturamento. Use linhas totalizadoras para montar subtotais com linhas anteriores.</p>
+                <p>Use linhas agrupadoras para juntar grupos e componentes da API Linx. Use linhas totalizadoras para montar subtotais com linhas anteriores.</p>
               </div>
               <button className="secondary-button" onClick={addLine} type="button">
                 Adicionar linha no fim
@@ -527,7 +527,7 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
                           <strong>{line.line_type === "source" ? "Composicao da linha" : "Formula da linha"}</strong>
                           <span>
                             {line.line_type === "source"
-                              ? "Junte grupos/subgrupos e, se precisar, um componente do faturamento na mesma linha."
+                              ? "Junte grupos/subgrupos e, se precisar, um componente da API Linx na mesma linha."
                               : "Cada linha totalizadora soma ou diminui linhas anteriores."}
                           </span>
                         </div>
@@ -551,7 +551,7 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
 
                               {specialSourceOptions.length > 0 && (
                                 <label className="span-two">
-                                  Componente do faturamento
+                                  Componente da API Linx
                                   <Select
                                     classNamePrefix="report-config-select"
                                     isClearable

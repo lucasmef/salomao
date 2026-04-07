@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.base import Base
 from app.db.models.finance import Account, Category, FinancialEntry
-from app.db.models.linx import SalesSnapshot
+from app.db.models.linx import LinxMovement, SalesSnapshot
 from app.db.models.reporting import ReportLayoutLine
 from app.db.models.security import Company, User
 from app.schemas.reports import ReportConfigLine, ReportConfigUpdate, ReportGroupSelection
@@ -145,6 +145,31 @@ class ReportLayoutTestCase(unittest.TestCase):
         self.db.commit()
         return snapshot
 
+    def _add_movement(
+        self,
+        *,
+        movement_date: date,
+        movement_type: str,
+        total_amount: str,
+        quantity: str = "1.00",
+        cost_price: str = "0.00",
+    ) -> LinxMovement:
+        movement = LinxMovement(
+            company_id=self.company.id,
+            linx_transaction=int(datetime.combine(movement_date, datetime.min.time()).timestamp()),
+            movement_group="sale",
+            movement_type=movement_type,
+            launch_date=datetime.combine(movement_date, datetime.min.time()),
+            issue_date=datetime.combine(movement_date, datetime.min.time()),
+            quantity=Decimal(quantity),
+            cost_price=Decimal(cost_price),
+            total_amount=Decimal(total_amount),
+            net_amount=Decimal(total_amount),
+        )
+        self.db.add(movement)
+        self.db.commit()
+        return movement
+
     def test_get_or_create_report_config_seeds_default_layout(self) -> None:
         config = get_or_create_report_config(self.db, self.company, "dre")
 
@@ -243,14 +268,17 @@ class ReportLayoutTestCase(unittest.TestCase):
 
         self.assertTrue(any(item.referenced_line_id == net_line.id for item in migrated_gross_profit.formula))
 
-    def test_dre_uses_snapshot_special_sources_from_default_layout(self) -> None:
-        self._add_snapshot(gross_revenue="1000.00", markup="100.00")
+    def test_dre_uses_linx_movements_special_sources_from_default_layout(self) -> None:
+        self._add_movement(movement_date=date(2026, 3, 10), movement_type="sale", total_amount="1000.00", quantity="2.00", cost_price="250.00")
+        self._add_movement(movement_date=date(2026, 3, 11), movement_type="sale_return", total_amount="100.00")
 
         overview = build_reports_overview(self.db, self.company, start=date(2026, 3, 1), end=date(2026, 3, 31))
 
         self.assertEqual(overview.dre.gross_revenue, Decimal("1000.00"))
+        self.assertEqual(overview.dre.deductions, Decimal("100.00"))
+        self.assertEqual(overview.dre.net_revenue, Decimal("900.00"))
         self.assertEqual(overview.dre.cmv, Decimal("500.00"))
-        self.assertEqual(overview.dre.net_profit, Decimal("500.00"))
+        self.assertEqual(overview.dre.net_profit, Decimal("400.00"))
         self.assertEqual(overview.dre.statement[0].percent, Decimal("100.00"))
 
     def test_dashboard_uses_dre_dashboard_cards_with_configured_names(self) -> None:
@@ -387,7 +415,8 @@ class ReportLayoutTestCase(unittest.TestCase):
             entry_kind="expense",
             report_group="Imposto de Vendas",
         )
-        self._add_snapshot(gross_revenue="1000.00", markup="100.00", discount_or_surcharge="-100.00")
+        self._add_movement(movement_date=date(2026, 3, 10), movement_type="sale", total_amount="1000.00", quantity="2.00", cost_price="250.00")
+        self._add_movement(movement_date=date(2026, 3, 10), movement_type="sale_return", total_amount="100.00")
         self._add_entry_custom_dates(
             account=account,
             category=tax_category,
@@ -414,7 +443,7 @@ class ReportLayoutTestCase(unittest.TestCase):
         deduction_labels = [child.label for child in deduction_node.children]
 
         self.assertEqual(overview_march.dre.deductions, Decimal("350.00"))
-        self.assertIn("Descontos, abatimentos e acrescimos", deduction_labels)
+        self.assertIn("Devolucoes de venda da API Linx", deduction_labels)
         self.assertIn("Imposto de Vendas", deduction_labels)
         self.assertNotIn("Faturamento", deduction_labels)
         self.assertEqual(overview_march.dro.sales_taxes, Decimal("0.00"))

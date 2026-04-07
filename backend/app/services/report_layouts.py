@@ -27,9 +27,9 @@ from app.schemas.reports import (
 
 REPORT_SPECIAL_SOURCE_OPTIONS: dict[str, list[ReportOption]] = {
     "dre": [
-        ReportOption(value="faturamento_bruto", label="Faturamento bruto"),
-        ReportOption(value="deducoes_faturamento", label="Deducoes do faturamento"),
-        ReportOption(value="cmv_faturamento", label="CMV do faturamento"),
+        ReportOption(value="faturamento_bruto", label="Total vendido (API Linx)"),
+        ReportOption(value="deducoes_faturamento", label="Devolucoes de venda (API Linx)"),
+        ReportOption(value="cmv_faturamento", label="CMV dos itens vendidos (API Linx)"),
     ],
     "dro": [],
 }

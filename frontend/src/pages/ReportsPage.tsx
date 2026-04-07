@@ -23,8 +23,7 @@ type Props = {
   onChangeFilters: (filters: { start: string; end: string }) => void;
   onApplyFilters: () => Promise<void>;
   onExport: (kind: "dre" | "dro", format: "pdf" | "csv" | "xls") => Promise<void>;
-  onUploadSales: (file: File) => Promise<void>;
-  onSyncSales: (period: { start: string; end: string }) => Promise<void>;
+  onSyncMovements: () => Promise<void>;
   onLoadConfig: (kind: "dre" | "dro") => Promise<ReportConfig>;
   onSaveConfig: (kind: "dre" | "dro", payload: { lines: ReportConfig["lines"] }) => Promise<ReportConfig>;
   embedded?: boolean;
@@ -119,8 +118,7 @@ export function ReportsPage({
   onChangeFilters,
   onApplyFilters,
   onExport,
-  onUploadSales,
-  onSyncSales,
+  onSyncMovements,
   onLoadConfig,
   onSaveConfig,
   embedded = false,
@@ -128,15 +126,13 @@ export function ReportsPage({
 }: Props) {
   const [activeTab, setActiveTab] = useState<ReportTab>(forcedTab ?? "dre");
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
-  const [salesFile, setSalesFile] = useState<File | null>(null);
   const [configByKind, setConfigByKind] = useState<Record<ReportTab, ReportConfig | null>>({ dre: null, dro: null });
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
   const [configSaving, setConfigSaving] = useState(false);
   const hasMountedAutoApplyRef = useRef(false);
 
-  const latestSalesImport = useMemo(() => latestBatchFor(importSummary, "linx_sales"), [importSummary]);
-  const latestReceivablesImport = useMemo(() => latestBatchFor(importSummary, "linx_receivables"), [importSummary]);
+  const latestMovementsImport = useMemo(() => latestBatchFor(importSummary, "linx_movements"), [importSummary]);
 
   useEffect(() => {
     if (forcedTab) {
@@ -237,18 +233,17 @@ export function ReportsPage({
         <article className="panel compact-import-panel">
           <div className="panel-heading compact-panel-heading">
             <p className="eyebrow">Linx</p>
-            <h3>Importar faturamento</h3>
+            <h3>Movimentos Linx API</h3>
           </div>
           <div className="compact-upload-box">
-            <input type="file" accept=".xls,.html" onChange={(event) => setSalesFile(event.target.files?.[0] ?? null)} />
             <div className="import-last-meta">
-              {latestSalesImport ? `Última importação: ${latestSalesImport.filename} em ${formatDate(latestSalesImport.created_at)}` : "Última importação: nenhuma"}
+              {latestMovementsImport
+                ? `Ultima sincronizacao: ${latestMovementsImport.filename} em ${formatDate(latestMovementsImport.created_at)}`
+                : "Ultima sincronizacao: nenhuma"}
             </div>
-            <button className="primary-button compact-action-button" disabled={loading || !salesFile} onClick={() => salesFile && void onUploadSales(salesFile)} type="button">
-              Importar
-            </button>
-            <button className="secondary-button compact-action-button" disabled={loading} onClick={() => void onSyncSales(filters)} type="button">
-              Sincronizar Linx
+            <p className="compact-muted">Faturamento, deducoes e CMV do DRE agora saem dos movimentos da API.</p>
+            <button className="primary-button compact-action-button" disabled={loading} onClick={() => void onSyncMovements()} type="button">
+              Atualizar Linx
             </button>
           </div>
         </article>
@@ -256,9 +251,10 @@ export function ReportsPage({
         <article className="panel">
           <div className="panel-title"><h3>Bases utilizadas</h3></div>
           <div className="summary-list">
-            <div className="summary-row"><span>Faturamento Linx</span><strong>{latestSalesImport ? formatDate(latestSalesImport.created_at) : "Sem carga"}</strong></div>
-            <div className="summary-row"><span>Faturas a receber</span><strong>{latestReceivablesImport ? formatDate(latestReceivablesImport.created_at) : "Sem carga"}</strong></div>
-            <div className="summary-row"><span>Entrada de recebíveis</span><strong>Cobrança</strong></div>
+            <div className="summary-row"><span>Movimentos Linx API</span><strong>{latestMovementsImport ? formatDate(latestMovementsImport.created_at) : "Sem carga"}</strong></div>
+            <div className="summary-row"><span>Faturamento</span><strong>Total vendido API</strong></div>
+            <div className="summary-row"><span>Deducoes</span><strong>Devolucoes de venda API</strong></div>
+            <div className="summary-row"><span>CMV</span><strong>Preco de custo dos itens vendidos</strong></div>
           </div>
         </article>
       </section>
