@@ -261,6 +261,99 @@ def test_sync_inter_charges_matches_legacy_record_without_inter_ids_by_business_
         session.close()
 
 
+def test_sync_inter_charges_keeps_distinct_records_when_inter_reuses_seu_numero() -> None:
+    session = _build_session()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            return httpx.Response(200, json={"access_token": "token-123"})
+        if request.url.path == "/cobranca/v3/cobrancas":
+            return httpx.Response(
+                200,
+                json={
+                    "cobrancas": [
+                        {
+                            "cobranca": {
+                                "codigoSolicitacao": "SOL-REUSE-1",
+                                "seuNumero": "305",
+                            }
+                        },
+                        {
+                            "cobranca": {
+                                "codigoSolicitacao": "SOL-REUSE-2",
+                                "seuNumero": "305",
+                            }
+                        },
+                    ]
+                },
+            )
+        if request.url.path == "/cobranca/v3/cobrancas/SOL-REUSE-1":
+            return httpx.Response(
+                200,
+                json={
+                    "cobranca": {
+                        "codigoSolicitacao": "SOL-REUSE-1",
+                        "seuNumero": "305",
+                        "situacao": "A_RECEBER",
+                        "dataEmissao": "2026-03-01",
+                        "dataVencimento": "2026-03-10",
+                        "valorNominal": "250.00",
+                        "valorTotalRecebido": "0.00",
+                        "pagador": {"nome": "Cliente Reutilizado", "cpfCnpj": "12345678901"},
+                    },
+                    "boleto": {
+                        "codigoBarras": "111222333",
+                        "linhaDigitavel": "111.222.333",
+                        "nossoNumero": "NOSSO-1",
+                    },
+                },
+            )
+        if request.url.path == "/cobranca/v3/cobrancas/SOL-REUSE-2":
+            return httpx.Response(
+                200,
+                json={
+                    "cobranca": {
+                        "codigoSolicitacao": "SOL-REUSE-2",
+                        "seuNumero": "305",
+                        "situacao": "RECEBIDO",
+                        "dataEmissao": "2026-04-01",
+                        "dataVencimento": "2026-04-10",
+                        "valorNominal": "275.00",
+                        "valorTotalRecebido": "275.00",
+                        "pagador": {"nome": "Cliente Reutilizado", "cpfCnpj": "12345678901"},
+                    },
+                    "boleto": {
+                        "codigoBarras": "999888777",
+                        "linhaDigitavel": "999.888.777",
+                        "nossoNumero": "NOSSO-2",
+                    },
+                },
+            )
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    try:
+        company, account = _build_company_and_account(session)
+
+        result = sync_inter_charges(
+            session,
+            company,
+            account_id=account.id,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 4, 30),
+            transport=httpx.MockTransport(handler),
+        )
+
+        records = session.query(BoletoRecord).order_by(BoletoRecord.inter_codigo_solicitacao.asc()).all()
+        assert len(records) == 2
+        assert result.batch.records_total == 2
+        assert result.batch.records_valid == 2
+        assert {item.inter_codigo_solicitacao for item in records} == {"SOL-REUSE-1", "SOL-REUSE-2"}
+        assert all(item.inter_seu_numero == "305" for item in records)
+        assert {item.status for item in records} == {"A receber", "Recebido por boleto"}
+    finally:
+        session.close()
+
+
 def test_sync_inter_charges_refreshes_pending_local_boleto_missing_from_charge_list() -> None:
     session = _build_session()
 

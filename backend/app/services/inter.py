@@ -825,20 +825,13 @@ def _find_existing_boleto_record(
     codigo_solicitacao: str | None,
     seu_numero: str | None,
 ) -> BoletoRecord | None:
-    filters = []
-    if codigo_solicitacao:
-        filters.append(BoletoRecord.inter_codigo_solicitacao == codigo_solicitacao)
-        filters.append(BoletoRecord.document_id == codigo_solicitacao)
-    if seu_numero:
-        filters.append(BoletoRecord.inter_seu_numero == seu_numero)
-        filters.append(BoletoRecord.document_id == seu_numero)
-    if not filters:
+    if not codigo_solicitacao:
         return None
     return db.scalar(
         select(BoletoRecord).where(
             BoletoRecord.company_id == company_id,
             BoletoRecord.bank == "INTER",
-            or_(*filters),
+            BoletoRecord.inter_codigo_solicitacao == codigo_solicitacao,
         )
     )
 
