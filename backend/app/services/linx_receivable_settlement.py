@@ -172,7 +172,7 @@ def settle_paid_pending_inter_receivables(
             _remove_open_receivable_from_local_dashboard(db, company_id=company.id, invoice_number=result.invoice_number)
 
     email_error: str | None = None
-    if settled_results and not validate_only:
+    if results and not validate_only:
         subject, body = _build_success_email(company, results)
         try:
             send_email(
