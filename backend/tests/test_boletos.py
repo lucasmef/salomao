@@ -622,6 +622,100 @@ def test_build_boleto_dashboard_matches_monthly_by_exact_month_total_ignoring_du
         engine.dispose()
 
 
+def test_build_boleto_dashboard_matches_monthly_inter_boletos_by_document_competence() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+
+    try:
+        company = Company(legal_name="Salomao LTDA", trade_name="Salomao")
+        session.add(company)
+        session.flush()
+
+        customer = BoletoCustomerConfig(
+            company_id=company.id,
+            client_key=normalize_text("Cliente Mensal"),
+            client_name="Cliente Mensal",
+            client_code="1001",
+            uses_boleto=True,
+            mode="mensal",
+            boleto_due_day=6,
+            include_interest=False,
+        )
+        batch = _create_receivable_batch(session, company)
+        receivables = [
+            ReceivableTitle(
+                company_id=company.id,
+                source_batch_id=batch.id,
+                issue_date=date(2026, 3, 1),
+                due_date=date(2026, 3, 1),
+                invoice_number="257",
+                company_code="1001",
+                installment_label="003/004",
+                original_amount=Decimal("503.87"),
+                amount_with_interest=Decimal("503.87"),
+                customer_name="Cliente Mensal",
+                document_reference="DOC-202603",
+                status="Em aberto",
+            ),
+            ReceivableTitle(
+                company_id=company.id,
+                source_batch_id=batch.id,
+                issue_date=date(2026, 4, 1),
+                due_date=date(2026, 4, 1),
+                invoice_number="257",
+                company_code="1001",
+                installment_label="004/004",
+                original_amount=Decimal("1967.64"),
+                amount_with_interest=Decimal("1967.64"),
+                customer_name="Cliente Mensal",
+                document_reference="DOC-202604",
+                status="Em aberto",
+            ),
+        ]
+        boletos = [
+            BoletoRecord(
+                company_id=company.id,
+                bank="INTER",
+                client_key=normalize_text("Cliente Mensal"),
+                client_name="Cliente Mensal",
+                document_id="202603",
+                issue_date=date(2026, 4, 6),
+                due_date=date(2026, 4, 6),
+                amount=Decimal("503.87"),
+                paid_amount=Decimal("503.87"),
+                status="Recebido por boleto",
+            ),
+            BoletoRecord(
+                company_id=company.id,
+                bank="INTER",
+                client_key=normalize_text("Cliente Mensal"),
+                client_name="Cliente Mensal",
+                document_id="202604",
+                issue_date=date(2026, 4, 6),
+                due_date=date(2026, 4, 6),
+                amount=Decimal("1967.64"),
+                paid_amount=Decimal("1967.64"),
+                status="Recebido por boleto",
+            ),
+        ]
+        session.add(customer)
+        session.add_all(receivables)
+        session.add_all(boletos)
+        session.commit()
+
+        dashboard = build_boleto_dashboard(session, company)
+
+        assert dashboard.missing_boletos == []
+        assert dashboard.overdue_boletos == []
+        assert len(dashboard.paid_pending) == 2
+        paid_pending_amounts = sorted(item.amount for item in dashboard.paid_pending)
+        assert paid_pending_amounts == [Decimal("503.87"), Decimal("1967.64")]
+    finally:
+        session.close()
+        engine.dispose()
+
+
 def test_build_boleto_dashboard_flags_monthly_total_mismatch_as_missing_and_excess() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)

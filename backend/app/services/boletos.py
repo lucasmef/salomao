@@ -52,6 +52,20 @@ CANCELLED_STATUSES = {
     "C6": {"Cancelado"},
     "INTER": {"Cancelado"},
 }
+MONTH_ABBREVIATION_TO_NUMBER = {
+    "JAN": 1,
+    "FEV": 2,
+    "MAR": 3,
+    "ABR": 4,
+    "MAI": 5,
+    "JUN": 6,
+    "JUL": 7,
+    "AGO": 8,
+    "SET": 9,
+    "OUT": 10,
+    "NOV": 11,
+    "DEZ": 12,
+}
 
 OPEN_RECEIVABLE_STATUS_KEYWORDS = ("aberto", "a receber", "vencido", "em aberto", "pendente")
 PAID_RECEIVABLE_STATUS_KEYWORDS = ("recebido", "pago", "quitado", "baixado")
@@ -321,6 +335,47 @@ def _month_key(target_date: date | None) -> str:
     if not target_date:
         return ""
     return f"{target_date.year:04d}-{target_date.month:02d}"
+
+
+def _format_month_key(year: int, month: int) -> str:
+    return f"{year:04d}-{month:02d}"
+
+
+def _parse_document_competence_key(document_id: str | None, due_date: date | None) -> str | None:
+    raw = (document_id or "").strip()
+    if not raw:
+        return None
+    normalized = normalize_text(raw)
+    if re.fullmatch(r"\d{4}-\d{2}", raw):
+        year = int(raw[:4])
+        month = int(raw[5:7])
+        if 1 <= month <= 12:
+            return _format_month_key(year, month)
+    if re.fullmatch(r"\d{6}", raw):
+        year = int(raw[:4])
+        month = int(raw[4:6])
+        if 1 <= month <= 12:
+            return _format_month_key(year, month)
+    if re.fullmatch(r"\d{5,6}", raw):
+        year = int(raw[-4:])
+        month = int(raw[:-4])
+        if 1 <= month <= 12:
+            return _format_month_key(year, month)
+    if normalized in MONTH_ABBREVIATION_TO_NUMBER and due_date:
+        month = MONTH_ABBREVIATION_TO_NUMBER[normalized]
+        year = due_date.year
+        if month > due_date.month:
+            year -= 1
+        return _format_month_key(year, month)
+    return None
+
+
+def _resolve_boleto_competence_key(boleto: BoletoRecord, *, mode: str) -> str:
+    if mode == "mensal":
+        parsed_competence = _parse_document_competence_key(boleto.document_id, boleto.due_date)
+        if parsed_competence:
+            return parsed_competence
+    return _month_key(boleto.due_date)
 
 
 def _create_batch(
@@ -1073,7 +1128,7 @@ def _match_grouped_receivables(
     for receivable in receivables:
         receivables_by_month.setdefault(_month_key(receivable.due_date), []).append(receivable)
     for boleto in boletos:
-        boletos_by_month.setdefault(_month_key(boleto.due_date), []).append(boleto)
+        boletos_by_month.setdefault(_resolve_boleto_competence_key(boleto, mode=mode), []).append(boleto)
 
     all_competences = sorted(set(receivables_by_month) | set(boletos_by_month))
     allocations: list[dict[str, Any]] = []
