@@ -101,6 +101,8 @@ LINX_SETTLEMENT_CONFIRM_SELECTORS = (
     "a:has-text('Confirmar baixa')",
 )
 LINX_SETTLEMENT_RATEIO_SELECTORS = (
+    "input[type='button'][value*='Confirmar baixa e rateio']",
+    "input[type='button'][value*='Confirmar rateio']",
     "button:has-text('Confirmar baixa e rateio')",
     "button:has-text('Confirmar rateio')",
     "input[type='submit'][value*='Confirmar baixa e rateio']",
