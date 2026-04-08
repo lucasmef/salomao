@@ -358,6 +358,7 @@ def _settle_receivable_in_portal(
     _fill_first_matching_locator(target, LINX_SETTLEMENT_INVOICE_SELECTORS, lookup_invoice)
     _click_first_matching_locator(target, LINX_SETTLEMENT_PROCEED_SELECTORS)
     _wait_for_page_idle(target)
+    target = _current_receivable_settlement_target(page, fallback=target)
 
     _validate_receivable_confirmation_context(
         target,
@@ -386,8 +387,10 @@ def _settle_receivable_in_portal(
 
     _click_first_matching_locator(target, LINX_SETTLEMENT_CONFIRM_SELECTORS)
     _wait_for_page_idle(target)
+    target = _current_receivable_settlement_target(page, fallback=target)
     _click_first_matching_locator(target, LINX_SETTLEMENT_RATEIO_SELECTORS, required=False)
     _wait_for_page_idle(target)
+    target = _current_receivable_settlement_target(page, fallback=target)
 
     success_message = _extract_success_message(target, lookup_invoice)
     if not success_message:
@@ -410,12 +413,17 @@ def _open_receivable_settlement_target(page: Any, *, root_url: str) -> Any:
         page.wait_for_load_state("networkidle")
     except Exception:
         pass
-    frame = page.frame(name=LINX_RECEIVABLE_SETTLEMENT_FRAME_NAME)
+    frame = _current_receivable_settlement_target(page)
     if frame is None:
         raise ValueError("O Linx nao abriu o iframe principal da tela de baixa de faturas.")
     _wait_for_page_idle(frame)
     _raise_if_permission_denied(frame)
     return frame
+
+
+def _current_receivable_settlement_target(page: Any, *, fallback: Any | None = None) -> Any | None:
+    frame = page.frame(name=LINX_RECEIVABLE_SETTLEMENT_FRAME_NAME)
+    return frame if frame is not None else fallback
 
 
 def _raise_if_permission_denied(target: Any) -> None:
