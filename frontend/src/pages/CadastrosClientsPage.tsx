@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { SectionChrome } from "../components/SectionChrome";
-import type { MainNavChild } from "../data/navigation";
+import { findNavChildByKey, type MainNavChild } from "../data/navigation";
 import { formatDate, normalizeDisplayText } from "../lib/format";
 import type { ImportSummary, LinxCustomerDirectory } from "../types";
 
@@ -42,7 +42,7 @@ export function CadastrosClientsPage({
   loading,
   onSyncLinxCustomers,
 }: Props) {
-  const currentTab = tabs.find((item) => item.key === "clientes") ?? tabs[0];
+  const currentTab = findNavChildByKey(tabs, "clientes") ?? tabs[0];
   const latestBatch = useMemo(() => latestBatchFor(importSummary, "linx_customers"), [importSummary]);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");

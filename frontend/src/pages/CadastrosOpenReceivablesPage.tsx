@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { TablePagination } from "../components/TablePagination";
 import { SectionChrome } from "../components/SectionChrome";
-import type { MainNavChild } from "../data/navigation";
+import { findNavChildByKey, type MainNavChild } from "../data/navigation";
 import { formatDate, formatMoney } from "../lib/format";
 import type { ImportSummary, LinxOpenReceivableDirectory } from "../types";
 
@@ -42,7 +42,7 @@ export function CadastrosOpenReceivablesPage({
   onChangePageSize,
   onSyncLinxOpenReceivables,
 }: Props) {
-  const currentTab = tabs.find((item) => item.key === "faturas-receber") ?? tabs[0];
+  const currentTab = findNavChildByKey(tabs, "faturas-receber") ?? tabs[0];
   const latestBatch = useMemo(
     () => latestBatchFor(importSummary, "linx_open_receivables"),
     [importSummary],

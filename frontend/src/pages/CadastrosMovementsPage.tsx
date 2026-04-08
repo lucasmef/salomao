@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { TablePagination } from "../components/TablePagination";
 import { SectionChrome } from "../components/SectionChrome";
-import type { MainNavChild } from "../data/navigation";
+import { findNavChildByKey, type MainNavChild } from "../data/navigation";
 import { formatDate, formatMoney } from "../lib/format";
 import type { ImportSummary, LinxMovementDirectory } from "../types";
 
@@ -52,7 +52,7 @@ export function CadastrosMovementsPage({
   onChangePageSize,
   onSyncLinxMovements,
 }: Props) {
-  const currentTab = tabs.find((item) => item.key === "movimentos") ?? tabs[0];
+  const currentTab = findNavChildByKey(tabs, "movimentos") ?? tabs[0];
   const latestBatch = useMemo(() => latestBatchFor(importSummary, "linx_movements"), [importSummary]);
   const [searchInput, setSearchInput] = useState(filters.search);
   const [groupInput, setGroupInput] = useState(filters.group);

@@ -4,7 +4,7 @@ export type MainNavChild = {
   path: string;
   title: string;
   description: string;
-  group?: string;
+  children?: MainNavChild[];
 };
 
 export type MainNavItem = {
@@ -204,7 +204,6 @@ export const mainNavigation: MainNavItem[] = [
         path: "/cadastros/contas",
         title: "Contas",
         description: "Contas bancárias, caixas e configuração de OFX.",
-        group: "Base",
       },
       {
         key: "categorias",
@@ -212,39 +211,43 @@ export const mainNavigation: MainNavItem[] = [
         path: "/cadastros/categorias",
         title: "Categorias",
         description: "Tipos, grupos e categorias do financeiro.",
-        group: "Base",
       },
       {
-        key: "clientes",
-        label: "Clientes e fornecedores",
+        key: "linx",
+        label: "Linx",
         path: "/cadastros/clientes",
-        title: "Clientes e fornecedores",
-        description: "Base Linx de clientes e fornecedores com visão das configurações de cobrança.",
-        group: "Linx",
-      },
-      {
-        key: "produtos",
-        label: "Produtos",
-        path: "/cadastros/produtos",
-        title: "Produtos",
-        description: "Base Linx de produtos com custo, venda, fornecedor e coleção.",
-        group: "Linx",
-      },
-      {
-        key: "movimentos",
-        label: "Movimentos",
-        path: "/cadastros/movimentos",
-        title: "Movimentos",
-        description: "Espelho Linx detalhado por produto para vendas e compras relevantes ao lucro por coleção.",
-        group: "Linx",
-      },
-      {
-        key: "faturas-receber",
-        label: "Faturas a receber",
-        path: "/cadastros/faturas-a-receber",
-        title: "Faturas a receber",
-        description: "Espelho Linx das faturas em aberto do crediário, sem alterar a cobrança atual.",
-        group: "Linx",
+        title: "Linx",
+        description: "Bases integradas do Linx para clientes, produtos, movimentos e faturas a receber.",
+        children: [
+          {
+            key: "clientes",
+            label: "Clientes e fornecedores",
+            path: "/cadastros/clientes",
+            title: "Clientes e fornecedores",
+            description: "Base Linx de clientes e fornecedores com visão das configurações de cobrança.",
+          },
+          {
+            key: "produtos",
+            label: "Produtos",
+            path: "/cadastros/produtos",
+            title: "Produtos",
+            description: "Base Linx de produtos com custo, venda, fornecedor e coleção.",
+          },
+          {
+            key: "movimentos",
+            label: "Movimentos",
+            path: "/cadastros/movimentos",
+            title: "Movimentos",
+            description: "Espelho Linx detalhado por produto para vendas e compras relevantes ao lucro por coleção.",
+          },
+          {
+            key: "faturas-receber",
+            label: "Faturas a receber",
+            path: "/cadastros/faturas-a-receber",
+            title: "Faturas a receber",
+            description: "Espelho Linx das faturas em aberto do crediário, sem alterar a cobrança atual.",
+          },
+        ],
       },
       {
         key: "regras",
@@ -252,7 +255,6 @@ export const mainNavigation: MainNavItem[] = [
         path: "/cadastros/regras",
         title: "Regras",
         description: "Regras recorrentes e padrões operacionais.",
-        group: "Base",
       },
       {
         key: "seguranca",
@@ -260,7 +262,6 @@ export const mainNavigation: MainNavItem[] = [
         path: "/sistema/seguranca",
         title: "Segurança",
         description: "Usuários, acessos, MFA, integrações e continuidade.",
-        group: "Administração",
       },
       {
         key: "importacoes-gerais",
@@ -268,7 +269,6 @@ export const mainNavigation: MainNavItem[] = [
         path: "/sistema/importacoes-gerais",
         title: "Importações gerais",
         description: "Histórico central de importações e cargas históricas do sistema.",
-        group: "Administração",
       },
     ],
   },
@@ -289,12 +289,19 @@ export const legacySectionPathMap: Record<string, string> = {
 };
 
 export function findMainNavItem(pathname: string) {
+  function childMatchesPath(child: MainNavChild): boolean {
+    if (pathname === child.path || pathname.startsWith(`${child.path}/`)) {
+      return true;
+    }
+    return child.children?.some(childMatchesPath) ?? false;
+  }
+
   const matchedItem =
     mainNavigation.find(
       (item) =>
         pathname === item.path ||
         pathname.startsWith(`${item.path}/`) ||
-        item.children.some((child) => pathname === child.path || pathname.startsWith(`${child.path}/`)),
+        item.children.some(childMatchesPath),
     ) ?? null;
   if (matchedItem) {
     return matchedItem;
@@ -306,9 +313,47 @@ export function findMainNavItem(pathname: string) {
 }
 
 export function findChildNavItem(pathname: string) {
+  function findMatchingChild(items: MainNavChild[]): MainNavChild | null {
+    for (const item of items) {
+      if (pathname === item.path || pathname.startsWith(`${item.path}/`)) {
+        return item.children ? findMatchingChild(item.children) ?? item : item;
+      }
+      if (item.children) {
+        const nestedMatch = findMatchingChild(item.children);
+        if (nestedMatch) {
+          return nestedMatch;
+        }
+      }
+    }
+    return null;
+  }
+
+  function firstNavigableChild(items: MainNavChild[]): MainNavChild {
+    const firstItem = items[0];
+    if (!firstItem) {
+      return overviewNavigationItem.children[0];
+    }
+    return firstItem.children ? firstNavigableChild(firstItem.children) : firstItem;
+  }
+
   const section = findMainNavItem(pathname);
   if (!section) {
     return overviewNavigationItem.children[0];
   }
-  return section.children.find((child) => pathname === child.path || pathname.startsWith(`${child.path}/`)) ?? section.children[0];
+  return findMatchingChild(section.children) ?? firstNavigableChild(section.children);
+}
+
+export function findNavChildByKey(items: MainNavChild[], key: string): MainNavChild | null {
+  for (const item of items) {
+    if (item.key === key) {
+      return item;
+    }
+    if (item.children) {
+      const nestedMatch = findNavChildByKey(item.children, key);
+      if (nestedMatch) {
+        return nestedMatch;
+      }
+    }
+  }
+  return null;
 }

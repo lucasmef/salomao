@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, Query, status
@@ -118,6 +119,8 @@ def get_entries(
     counterparty_name: str | None = Query(default=None),
     document_number: str | None = Query(default=None),
     search: str | None = Query(default=None),
+    amount_min: Decimal | None = Query(default=None),
+    amount_max: Decimal | None = Query(default=None),
     include_legacy: bool = Query(default=False),
     date_field: Literal["due_date", "issue_date"] = Query(default="due_date"),
     date_from: date | None = Query(default=None),
@@ -140,6 +143,8 @@ def get_entries(
         counterparty_name=counterparty_name,
         document_number=document_number,
         search=search,
+        amount_min=amount_min,
+        amount_max=amount_max,
         include_legacy=include_legacy,
         date_field=date_field,
         date_from=date_from,

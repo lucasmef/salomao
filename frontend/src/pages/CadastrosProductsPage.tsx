@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { TablePagination } from "../components/TablePagination";
 import { SectionChrome } from "../components/SectionChrome";
-import type { MainNavChild } from "../data/navigation";
+import { findNavChildByKey, type MainNavChild } from "../data/navigation";
 import { formatDate, formatMoney } from "../lib/format";
 import type { ImportSummary, LinxProductDirectory } from "../types";
 
@@ -36,7 +36,7 @@ export function CadastrosProductsPage({
   onChangePageSize,
   onSyncLinxProducts,
 }: Props) {
-  const currentTab = tabs.find((item) => item.key === "produtos") ?? tabs[0];
+  const currentTab = findNavChildByKey(tabs, "produtos") ?? tabs[0];
   const latestBatch = useMemo(() => latestBatchFor(importSummary, "linx_products"), [importSummary]);
   const [searchInput, setSearchInput] = useState(filters.search);
   const [statusInput, setStatusInput] = useState(filters.status);

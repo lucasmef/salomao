@@ -183,39 +183,32 @@
   font-size: 0.74rem;
 }
 
-.section-tabs {
+.section-tabs-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.section-tabs,
+.section-subtabs {
   display: flex;
   gap: 8px;
   align-items: stretch;
   padding-bottom: 6px;
-  border-bottom: 1px solid #dbe4f1;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.section-tabs::-webkit-scrollbar {
+.section-tabs {
+  border-bottom: 1px solid #dbe4f1;
+}
+
+.section-subtabs {
+  padding-bottom: 2px;
+}
+
+.section-tabs::-webkit-scrollbar,
+.section-subtabs::-webkit-scrollbar {
   display: none;
-}
-
-.section-tab-group {
-  display: grid;
-  gap: 6px;
-  min-width: fit-content;
-}
-
-.section-tab-group-label {
-  color: #5e6d84;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding-left: 2px;
-}
-
-.section-tab-group-links {
-  display: flex;
-  gap: 8px;
-  align-items: end;
 }
 
 .section-tab-link {
@@ -236,6 +229,27 @@
   border-bottom-color: #fff;
   background: #fff;
   color: #1d2f50;
+  font-weight: 700;
+}
+
+.section-subtab-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid #d5dfed;
+  border-radius: 999px;
+  background: #f6f9fd;
+  color: #5a6b84;
+  text-decoration: none;
+  font-size: 0.73rem;
+  white-space: nowrap;
+}
+
+.section-subtab-link.active {
+  border-color: #bed0f8;
+  background: #eaf1ff;
+  color: #1f46b3;
   font-weight: 700;
 }
 
@@ -382,11 +396,9 @@
     gap: 6px;
   }
 
-  .section-tab-group {
-    gap: 4px;
-  }
-
-  .section-tab-group-links {
+  .section-subtabs {
+    margin: 0 -2px;
+    padding: 0 2px 2px;
     gap: 6px;
   }
 
@@ -394,6 +406,12 @@
     min-height: 36px;
     padding: 0 10px;
     font-size: 0.8rem;
+  }
+
+  .section-subtab-link {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 0.78rem;
   }
 
   .section-toolbar-content,
@@ -438,26 +456,21 @@
 }
 
 @media (max-width: 520px) {
-.section-tabs {
+  .section-tabs,
+  .section-subtabs {
     gap: 4px;
     padding-bottom: 3px;
-  }
-
-  .section-tab-group {
-    gap: 3px;
-  }
-
-  .section-tab-group-label {
-    font-size: 0.64rem;
-  }
-
-  .section-tab-group-links {
-    gap: 4px;
   }
 
   .section-tab-link {
     min-height: 34px;
     padding: 0 8px;
     font-size: 0.76rem;
+  }
+
+  .section-subtab-link {
+    min-height: 32px;
+    padding: 0 8px;
+    font-size: 0.74rem;
   }
 }

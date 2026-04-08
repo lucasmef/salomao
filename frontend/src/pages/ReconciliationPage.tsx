@@ -208,39 +208,20 @@ function buildGroupedEntryNotes(items: ReconciliationWorklist["items"]) {
     .join("\n");
 }
 
-function extractFinderKeyword(value: string) {
-  const normalized = value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
-
-  return normalized.find((token) => token.length >= 3) ?? normalized[0] ?? "";
-}
-
-function buildFinderCounterparty(item: ReconciliationWorklist["items"][number] | null) {
+function buildFinderAmountRange(item: ReconciliationWorklist["items"][number] | null) {
   if (!item) {
-    return "";
+    return null;
   }
 
-  const directName = compactSingleLine(item.name, "");
-  if (directName) {
-    return extractFinderKeyword(directName);
+  const amount = Math.abs(Number(item.amount));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return null;
   }
 
-  const rawMemo = compactSingleLine(item.memo, "")
-    .replace(/^pix enviado:\s*/i, "")
-    .replace(/^pix recebido:\s*/i, "")
-    .replace(/^pagamento efetuado:\s*/i, "")
-    .replace(/^transferência recebida:\s*/i, "")
-    .replace(/^transferência enviada:\s*/i, "")
-    .replace(/^boleto de cobranca recebido:\s*/i, "")
-    .replace(/^credito domicilio cartao:\s*/i, "")
-    .trim();
-
-  return extractFinderKeyword(rawMemo);
+  return {
+    min: (amount * 0.99).toFixed(2),
+    max: (amount * 1.1).toFixed(2),
+  };
 }
 
 function SelectionIcon() {
@@ -764,9 +745,8 @@ export function ReconciliationPage({
       return;
     }
 
-    const suggestedSearch = buildFinderCounterparty(selectedBankItems[0]);
     setSelectedEntryIds([]);
-    setEntrySearch(suggestedSearch);
+    setEntrySearch("");
     setEntryStatus("open");
   }, [finderModeActive, selectedBankItems]);
 
@@ -776,7 +756,7 @@ export function ReconciliationPage({
     }, 220);
 
     return () => window.clearTimeout(timeoutId);
-  }, [entrySearch, entryStatus, filters.end, filters.start]);
+  }, [entrySearch, entryStatus, filters.end, filters.start, finderModeActive, selectedBankItems]);
 
   useEffect(() => {
     if (!supplierRequired || createDraft.supplier_id || !inferredSupplierId) {
@@ -803,11 +783,17 @@ export function ReconciliationPage({
     entryRequestIdRef.current = requestId;
     setEntryLoading(true);
     try {
+      const finderRange =
+        finderModeActive && selectedBankItems.length === 1
+          ? buildFinderAmountRange(selectedBankItems[0])
+          : null;
       const response = await onSearchEntries({
         date_from: filters.start,
         date_to: filters.end,
         status,
         search,
+        amount_min: finderRange?.min ?? "",
+        amount_max: finderRange?.max ?? "",
         page: "1",
         page_size: String(RECONCILIATION_ENTRY_FETCH_LIMIT),
       });

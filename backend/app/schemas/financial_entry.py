@@ -114,6 +114,8 @@ class FinancialEntryFilter(BaseModel):
     counterparty_name: str | None = None
     document_number: str | None = None
     search: str | None = None
+    amount_min: Decimal | None = None
+    amount_max: Decimal | None = None
     include_legacy: bool = False
     date_field: Literal["due_date", "issue_date"] = "due_date"
     date_from: date | None = None

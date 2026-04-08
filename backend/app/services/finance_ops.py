@@ -434,6 +434,10 @@ def list_entries(
                 FinancialEntry.document_number.ilike(like_value),
             )
         )
+    if filters.amount_min is not None:
+        stmt = stmt.where(FinancialEntry.total_amount >= filters.amount_min)
+    if filters.amount_max is not None:
+        stmt = stmt.where(FinancialEntry.total_amount <= filters.amount_max)
     if not filters.include_legacy:
         stmt = stmt.where(
             or_(
