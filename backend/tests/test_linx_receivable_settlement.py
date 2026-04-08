@@ -11,11 +11,14 @@ from app.db.base import Base
 from app.db.models.boleto import BoletoRecord
 from app.db.models.linx import LinxOpenReceivable
 from app.db.models.security import Company
+from app.schemas.boletos import BoletoMatchItem, BoletoReceivableRead
 from app.services.boletos import normalize_text
 from app.services.linx_receivable_settlement import (
     LinxSettlementInvoiceResult,
+    _build_settlement_candidates,
     _client_names_match,
     _page_matches_due_date,
+    _parse_brl_amount,
     settle_paid_pending_inter_receivables,
 )
 
@@ -75,7 +78,7 @@ def test_settle_paid_pending_inter_receivables_removes_open_receivable_and_sends
 
     monkeypatch.setattr(
         "app.services.linx_receivable_settlement._settle_candidates_in_portal",
-        lambda current_company, candidates: [
+        lambda current_company, candidates, validate_only=False: [
             LinxSettlementInvoiceResult(
                 client_name=candidates[0].client_name,
                 boleto_amount=candidates[0].boleto_amount,
@@ -141,7 +144,7 @@ def test_settle_paid_pending_inter_receivables_respects_charge_code_filter(monke
 
     monkeypatch.setattr(
         "app.services.linx_receivable_settlement._settle_candidates_in_portal",
-        lambda current_company, candidates: (_ for _ in ()).throw(AssertionError("nao deveria executar")),
+        lambda current_company, candidates, validate_only=False: (_ for _ in ()).throw(AssertionError("nao deveria executar")),
     )
 
     try:
@@ -198,3 +201,81 @@ def test_page_matches_due_date_from_body_text() -> None:
         expected_due_date=date(2026, 4, 10),
         normalized_body="CLIENTE MARIA APARECIDA VENCIMENTO 10/04/2026 VALOR PAGO 170,50",
     )
+
+
+def test_build_settlement_candidates_sorts_clients_and_receivables_by_oldest_due_date() -> None:
+    items = [
+        BoletoMatchItem(
+            selection_key="abril",
+            client_key="PRISCILA",
+            type="agrupado",
+            client_name="PRISCILA TARTARI",
+            mode="mensal",
+            due_date=date(2026, 4, 1),
+            status="Pago sem baixa",
+            amount=Decimal("200.00"),
+            reason="teste",
+            receivable_count=1,
+            bank="INTER",
+            receivables=[
+                BoletoReceivableRead(
+                    client_name="PRISCILA TARTARI",
+                    invoice_number="55233",
+                    installment="004/004",
+                    due_date=date(2026, 4, 1),
+                    amount=Decimal("200.00"),
+                    corrected_amount=Decimal("200.00"),
+                    document="257/D",
+                    status="Em aberto",
+                )
+            ],
+            boletos=[],
+        ),
+        BoletoMatchItem(
+            selection_key="marco",
+            client_key="PRISCILA",
+            type="agrupado",
+            client_name="PRISCILA TARTARI",
+            mode="mensal",
+            due_date=date(2026, 3, 1),
+            status="Pago sem baixa",
+            amount=Decimal("100.00"),
+            reason="teste",
+            receivable_count=2,
+            bank="INTER",
+            receivables=[
+                BoletoReceivableRead(
+                    client_name="PRISCILA TARTARI",
+                    invoice_number="55380",
+                    installment="003/004",
+                    due_date=date(2026, 3, 10),
+                    amount=Decimal("50.00"),
+                    corrected_amount=Decimal("50.00"),
+                    document="269/D",
+                    status="Em aberto",
+                ),
+                BoletoReceivableRead(
+                    client_name="PRISCILA TARTARI",
+                    invoice_number="55232",
+                    installment="003/004",
+                    due_date=date(2026, 3, 1),
+                    amount=Decimal("50.00"),
+                    corrected_amount=Decimal("50.00"),
+                    document="257/D",
+                    status="Em aberto",
+                ),
+            ],
+            boletos=[],
+        ),
+    ]
+
+    candidates = _build_settlement_candidates(items, filter_charge_codes=None)
+
+    assert [candidate.invoice_numbers for candidate in candidates] == [
+        ("55232", "55380"),
+        ("55233",),
+    ]
+
+
+def test_parse_brl_amount_accepts_integer_values_from_hidden_linx_fields() -> None:
+    assert _parse_brl_amount("195") == Decimal("195.00")

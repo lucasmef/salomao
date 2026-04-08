@@ -37,6 +37,8 @@ LINX_SETTLEMENT_PROCEED_SELECTORS = (
     "a:has-text('Prosseguir')",
 )
 LINX_SETTLEMENT_AMOUNT_SELECTORS = (
+    "input[name='f_valor_pago']",
+    "input[id='f_valor_pago']",
     "input[name='valor_pago']",
     "input[name='valorPago']",
     "input[id='valor_pago']",
@@ -47,6 +49,26 @@ LINX_SETTLEMENT_AMOUNT_SELECTORS = (
     "input[name*='valorPago']",
     "span:has-text('Valor Pago')",
     "label:has-text('Valor Pago')",
+)
+LINX_SETTLEMENT_INVOICE_AMOUNT_SELECTORS = (
+    "input[name='f_valorfatura']",
+    "input[id='f_valorfatura']",
+    "input[name*='valorfatura']",
+    "input[id*='valorfatura']",
+    "span:has-text('Valor da Fatura')",
+    "label:has-text('Valor da Fatura')",
+)
+LINX_SETTLEMENT_INTEREST_SELECTORS = (
+    "input[name='f_juros']",
+    "input[id='f_juros']",
+    "input[name*='juros']",
+    "input[id*='juros']",
+)
+LINX_SETTLEMENT_PENALTY_SELECTORS = (
+    "input[name='f_multa']",
+    "input[id='f_multa']",
+    "input[name*='multa']",
+    "input[id*='multa']",
 )
 LINX_SETTLEMENT_CLIENT_SELECTORS = (
     "input[name='cliente']",
@@ -75,6 +97,7 @@ LINX_SETTLEMENT_DUE_DATE_SELECTORS = (
 LINX_SETTLEMENT_CONFIRM_SELECTORS = (
     "button:has-text('Confirmar baixa')",
     "input[type='submit'][value*='Confirmar baixa']",
+    "input[type='submit'][value*='Confirma Baixa']",
     "a:has-text('Confirmar baixa')",
 )
 LINX_SETTLEMENT_RATEIO_SELECTORS = (
@@ -88,6 +111,7 @@ LINX_SETTLEMENT_SUCCESS_KEYWORDS = (
     "JA FOI BAIXADA",
     "JA ESTA BAIXADA",
 )
+LINX_SETTLEMENT_PREVIOUS_OPEN_WARNING = "EXISTE(M) FATURA(S) EM ABERTO DESTE CLIENTE COM VENCIMENTO ANTERIOR A ESTA"
 
 
 @dataclass(frozen=True)
@@ -232,7 +256,7 @@ def _build_settlement_candidates(
         )
         if normalized_filter_codes and not (set(charge_codes) & normalized_filter_codes):
             continue
-        receivables = tuple(item.receivables)
+        receivables = tuple(sorted(item.receivables, key=_receivable_sort_key))
         if not receivables:
             continue
         boleto_amount = sum(
@@ -251,6 +275,7 @@ def _build_settlement_candidates(
                 receivables=receivables,
             )
         )
+    candidates.sort(key=_candidate_sort_key)
     return candidates
 
 
@@ -342,6 +367,8 @@ def _settle_receivable_in_portal(
         expected_amount=expected_amount,
     )
 
+    _normalize_confirmation_amount_fields(target)
+
     # Revalida o valor imediatamente antes da confirmacao para evitar baixa com tela alterada.
     paid_amount = _extract_paid_amount(target)
     if paid_amount is None:
@@ -419,21 +446,26 @@ def _validate_receivable_confirmation_context(
     body_text = _read_body_text(page)
     normalized_body = _normalize_text(body_text)
 
+    if LINX_SETTLEMENT_PREVIOUS_OPEN_WARNING in normalized_body:
+        raise ValueError(
+            f"Double-check falhou para a fatura {invoice_number}: o Linx informou que existem faturas anteriores em aberto para este cliente."
+        )
+
     if not _page_mentions_invoice(page, invoice_number=invoice_number, normalized_body=normalized_body):
         raise ValueError(
             f"Double-check falhou para a fatura {invoice_number}: o numero da fatura nao apareceu de forma confiavel na tela do Linx."
         )
 
-    paid_amount = _extract_paid_amount(page)
-    if paid_amount is None:
+    invoice_amount = _extract_invoice_amount(page)
+    if invoice_amount is None:
         raise ValueError(
-            f"Double-check falhou para a fatura {invoice_number}: nao foi possivel ler o valor pago na tela do Linx."
+            f"Double-check falhou para a fatura {invoice_number}: nao foi possivel ler o valor da fatura na tela do Linx."
         )
     normalized_expected_amount = expected_amount.quantize(Decimal("0.01"))
-    if paid_amount != normalized_expected_amount:
+    if invoice_amount != normalized_expected_amount:
         raise ValueError(
             f"Double-check falhou para a fatura {invoice_number}: valor esperado { _format_brl(normalized_expected_amount) }, "
-            f"mas o Linx exibiu { _format_brl(paid_amount) }."
+            f"mas o Linx exibiu { _format_brl(invoice_amount) }."
         )
 
     if not _page_matches_client_name(page, expected_client_name=expected_client_name, normalized_body=normalized_body):
@@ -517,6 +549,46 @@ def _extract_paid_amount(page: Any) -> Decimal | None:
     if amount is not None:
         return amount
     return None
+
+
+def _extract_invoice_amount(page: Any) -> Decimal | None:
+    for selector in LINX_SETTLEMENT_INVOICE_AMOUNT_SELECTORS:
+        value = _read_first_matching_locator_value(page, selector)
+        amount = _parse_brl_amount(value)
+        if amount is not None:
+            return amount
+
+    body_text = _read_body_text(page)
+    amount = _parse_brl_amount(_extract_invoice_amount_snippet(body_text))
+    if amount is not None:
+        return amount
+    return None
+
+
+def _normalize_confirmation_amount_fields(page: Any) -> None:
+    _overwrite_first_matching_amount(page, LINX_SETTLEMENT_INTEREST_SELECTORS, Decimal("0.00"))
+    _overwrite_first_matching_amount(page, LINX_SETTLEMENT_PENALTY_SELECTORS, Decimal("0.00"))
+
+
+def _overwrite_first_matching_amount(page: Any, selectors: tuple[str, ...], amount: Decimal) -> bool:
+    locator = _find_first_locator(page, selectors)
+    if locator is None:
+        return False
+    formatted_amount = _format_decimal_for_linx(amount)
+    try:
+        locator.fill(formatted_amount)
+    except Exception:
+        return False
+    try:
+        locator.blur()
+    except Exception:
+        pass
+    try:
+        page.wait_for_timeout(300)
+    except Exception:
+        pass
+    _wait_for_page_idle(page)
+    return True
 
 
 def _page_mentions_invoice(page: Any, *, invoice_number: str, normalized_body: str) -> bool:
@@ -669,17 +741,48 @@ def _extract_value_paid_snippet(body_text: str) -> str:
     return match.group(1)
 
 
+def _extract_invoice_amount_snippet(body_text: str) -> str:
+    match = re.search(
+        r"VALOR\s+DA\s+FATURA\s*:?\s*(?:R\$\s*)?([0-9\.\,]+)",
+        _normalize_text(body_text),
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        return ""
+    return match.group(1)
+
+
 def _parse_brl_amount(raw_value: str | None) -> Decimal | None:
     text = (raw_value or "").strip()
     if not text:
         return None
-    match = re.search(r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[\,\.]\d{2})", text)
+    match = re.search(r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[\,\.]\d{2}|\d+)", text)
     normalized = match.group(1) if match else text
     normalized = normalized.replace("R$", "").replace(" ", "").replace(".", "").replace(",", ".")
     try:
         return Decimal(normalized).quantize(Decimal("0.01"))
     except Exception:
         return None
+
+
+def _format_decimal_for_linx(value: Decimal) -> str:
+    normalized = Decimal(value or 0).quantize(Decimal("0.01"))
+    return f"{normalized:.2f}".replace(".", ",")
+
+
+def _candidate_sort_key(candidate: LinxSettlementCandidate) -> tuple[str, date, str]:
+    return (
+        _normalize_text(candidate.client_name),
+        min((receivable.due_date or date.max) for receivable in candidate.receivables),
+        candidate.invoice_numbers[0] if candidate.invoice_numbers else "",
+    )
+
+
+def _receivable_sort_key(receivable: BoletoReceivableRead) -> tuple[date, str]:
+    return (
+        receivable.due_date or date.max,
+        _build_lookup_invoice_number(receivable.invoice_number),
+    )
 
 
 def _build_lookup_invoice_number(invoice_number: str) -> str:
