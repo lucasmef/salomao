@@ -11,7 +11,7 @@ import ssl
 import tempfile
 import zipfile
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -43,6 +43,9 @@ INTER_BANK_CODE = "077"
 INTER_REQUIRED_SCOPES = "boleto-cobranca.read boleto-cobranca.write extrato.read"
 INTER_STATEMENT_FIT_ID_MAX_LENGTH = 80
 INTER_STATEMENT_REFERENCE_NUMBER_MAX_LENGTH = 50
+INTER_CHARGE_FULL_SYNC_START = date(2020, 1, 1)
+INTER_CHARGE_DEFAULT_LOOKBACK_DAYS = 90
+INTER_CHARGE_INCREMENTAL_LOOKBACK_DAYS = 7
 INTER_STATEMENT_MATCH_STOPWORDS = {
     "A",
     "API",
@@ -100,6 +103,11 @@ def _json_dumps(payload: Any) -> str:
 def _normalize_optional_text(value: str | None) -> str | None:
     text = (value or "").strip()
     return text or None
+
+
+def _default_charge_sync_start(reference_date: date | None = None) -> date:
+    current = reference_date or date.today()
+    return current - timedelta(days=INTER_CHARGE_DEFAULT_LOOKBACK_DAYS)
 
 
 def _to_decimal(value: Any) -> Decimal:
@@ -268,6 +276,26 @@ def _map_charge_status(status: str | None) -> str:
     return status or ""
 
 
+def _coerce_charge_detail_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    if isinstance(payload.get("cobranca"), dict) or isinstance(payload.get("boleto"), dict):
+        return payload
+    return {"cobranca": payload}
+
+
+def _extract_charge_summary_code(payload: dict[str, Any] | None) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    direct_code = _normalize_optional_text(str(payload.get("codigoSolicitacao") or ""))
+    if direct_code:
+        return direct_code
+    cobranca = payload.get("cobranca") or {}
+    if isinstance(cobranca, dict):
+        return _normalize_optional_text(str(cobranca.get("codigoSolicitacao") or ""))
+    return ""
+
+
 def _is_pending_inter_charge_status(status: str | None) -> bool:
     normalized = _normalize_optional_text(status)
     if not normalized:
@@ -302,6 +330,94 @@ def _list_pending_inter_boleto_records(
             )
         )
     )
+
+
+def _has_api_linked_inter_boleto_records(
+    db: Session,
+    *,
+    company_id: str,
+    account_id: str,
+) -> bool:
+    return (
+        db.scalar(
+            select(BoletoRecord.id)
+            .where(
+                BoletoRecord.company_id == company_id,
+                BoletoRecord.bank == "INTER",
+                BoletoRecord.inter_account_id == account_id,
+                BoletoRecord.inter_codigo_solicitacao.is_not(None),
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
+def _latest_api_linked_inter_charge_reference_date(
+    db: Session,
+    *,
+    company_id: str,
+    account_id: str,
+) -> date | None:
+    record = db.scalars(
+        select(BoletoRecord)
+        .where(
+            BoletoRecord.company_id == company_id,
+            BoletoRecord.bank == "INTER",
+            BoletoRecord.inter_account_id == account_id,
+            BoletoRecord.inter_codigo_solicitacao.is_not(None),
+        )
+        .order_by(
+            BoletoRecord.issue_date.desc().nulls_last(),
+            BoletoRecord.due_date.desc().nulls_last(),
+            BoletoRecord.created_at.desc().nulls_last(),
+        )
+    ).first()
+    if record is None:
+        return None
+    if record.issue_date:
+        return record.issue_date
+    if record.due_date:
+        return record.due_date
+    if record.created_at:
+        return record.created_at.date()
+    return None
+
+
+def _uses_default_charge_sync_window(start_date: date, end_date: date) -> bool:
+    today = date.today()
+    return end_date == today and start_date == _default_charge_sync_start(today)
+
+
+def _resolve_inter_charge_sync_window(
+    db: Session,
+    *,
+    company_id: str,
+    account_id: str,
+    requested_start_date: date,
+    requested_end_date: date,
+) -> tuple[date, date, str]:
+    if not _uses_default_charge_sync_window(requested_start_date, requested_end_date):
+        return requested_start_date, requested_end_date, "custom"
+    if not _has_api_linked_inter_boleto_records(
+        db,
+        company_id=company_id,
+        account_id=account_id,
+    ):
+        return INTER_CHARGE_FULL_SYNC_START, requested_end_date, "full"
+    latest_reference_date = _latest_api_linked_inter_charge_reference_date(
+        db,
+        company_id=company_id,
+        account_id=account_id,
+    )
+    if latest_reference_date is None:
+        return INTER_CHARGE_FULL_SYNC_START, requested_end_date, "full"
+    bounded_reference_date = min(latest_reference_date, requested_end_date)
+    incremental_start_date = max(
+        INTER_CHARGE_FULL_SYNC_START,
+        bounded_reference_date - timedelta(days=INTER_CHARGE_INCREMENTAL_LOOKBACK_DAYS),
+    )
+    return incremental_start_date, requested_end_date, "incremental"
 
 
 def _sanitize_pdf_filename_fragment(value: str | None, *, fallback: str) -> str:
@@ -668,6 +784,37 @@ def _find_existing_boleto_record(
     )
 
 
+def _find_legacy_boleto_record_by_business_key(
+    db: Session,
+    *,
+    company_id: str,
+    client_name: str,
+    due_date: date | None,
+    amount: Decimal | None,
+) -> BoletoRecord | None:
+    if not due_date or amount is None:
+        return None
+    matches = list(
+        db.scalars(
+            select(BoletoRecord).where(
+                BoletoRecord.company_id == company_id,
+                BoletoRecord.bank == "INTER",
+                BoletoRecord.inter_codigo_solicitacao.is_(None),
+                BoletoRecord.inter_seu_numero.is_(None),
+                BoletoRecord.client_key == normalize_text(client_name),
+                BoletoRecord.due_date == due_date,
+                BoletoRecord.amount == amount,
+            )
+        )
+    )
+    if len(matches) == 1:
+        return matches[0]
+    pending_matches = [item for item in matches if _is_pending_inter_charge_status(item.status)]
+    if len(pending_matches) == 1:
+        return pending_matches[0]
+    return None
+
+
 def _upsert_boleto_record(
     db: Session,
     *,
@@ -676,20 +823,31 @@ def _upsert_boleto_record(
     account_id: str,
     detail_payload: dict[str, Any],
 ) -> tuple[BoletoRecord, bool]:
-    cobranca = detail_payload.get("cobranca") or {}
-    boleto = detail_payload.get("boleto") or {}
-    pix = detail_payload.get("pix") or {}
+    normalized_payload = _coerce_charge_detail_payload(detail_payload)
+    cobranca = normalized_payload.get("cobranca") or {}
+    boleto = normalized_payload.get("boleto") or {}
+    pix = normalized_payload.get("pix") or {}
     pagador = cobranca.get("pagador") or {}
 
     codigo_solicitacao = _normalize_optional_text(str(cobranca.get("codigoSolicitacao") or ""))
     seu_numero = _normalize_optional_text(str(cobranca.get("seuNumero") or ""))
     client_name = _normalize_optional_text(str(pagador.get("nome") or "")) or "Cliente Inter"
+    due_date = _parse_date(str(cobranca.get("dataVencimento") or ""))
+    amount = _to_decimal(cobranca.get("valorNominal"))
     record = _find_existing_boleto_record(
         db,
         company_id=company_id,
         codigo_solicitacao=codigo_solicitacao,
         seu_numero=seu_numero,
     )
+    if record is None:
+        record = _find_legacy_boleto_record_by_business_key(
+            db,
+            company_id=company_id,
+            client_name=client_name,
+            due_date=due_date,
+            amount=amount,
+        )
     created = record is None
     if record is None:
         record = BoletoRecord(
@@ -709,8 +867,8 @@ def _upsert_boleto_record(
     record.client_key = normalize_text(client_name)
     record.document_id = seu_numero or codigo_solicitacao or record.document_id
     record.issue_date = _parse_date(str(cobranca.get("dataEmissao") or ""))
-    record.due_date = _parse_date(str(cobranca.get("dataVencimento") or ""))
-    record.amount = _to_decimal(cobranca.get("valorNominal"))
+    record.due_date = due_date
+    record.amount = amount
     record.paid_amount = _to_decimal(cobranca.get("valorTotalRecebido"))
     record.status = _map_charge_status(str(cobranca.get("situacao") or ""))
     record.barcode = _normalize_optional_text(str(boleto.get("codigoBarras") or ""))
@@ -794,24 +952,32 @@ def sync_inter_charges(
     transport: httpx.BaseTransport | None = None,
 ) -> ImportResult:
     account, config = _resolve_inter_account(db, company, account_id)
+    effective_start_date, effective_end_date, sync_mode = _resolve_inter_charge_sync_window(
+        db,
+        company_id=company.id,
+        account_id=account.id,
+        requested_start_date=start_date,
+        requested_end_date=end_date,
+    )
     batch = _start_sync_batch(
         db,
         company.id,
         source_type=_resolve_batch_source_type("charge_sync"),
-        filename=f"inter-cobrancas-{start_date.isoformat()}-{end_date.isoformat()}",
+        filename=f"inter-cobrancas-{effective_start_date.isoformat()}-{effective_end_date.isoformat()}",
     )
     client = InterApiClient(config, transport=transport)
     try:
-        summaries = client.list_charges(start_date, end_date)
+        summaries = client.list_charges(effective_start_date, effective_end_date)
         created_count = 0
         updated_count = 0
         refreshed_pending_count = 0
         processed_charge_codes: set[str] = set()
         for summary in summaries:
-            codigo_solicitacao = _normalize_optional_text(str(summary.get("codigoSolicitacao") or ""))
+            normalized_summary = _coerce_charge_detail_payload(summary)
+            codigo_solicitacao = _extract_charge_summary_code(normalized_summary)
             if codigo_solicitacao:
                 processed_charge_codes.add(codigo_solicitacao)
-            detail = client.get_charge_detail(codigo_solicitacao) if codigo_solicitacao else {"cobranca": summary}
+            detail = client.get_charge_detail(codigo_solicitacao) if codigo_solicitacao else normalized_summary
             _, created = _upsert_boleto_record(
                 db,
                 company_id=company.id,
@@ -857,6 +1023,14 @@ def sync_inter_charges(
     batch.records_invalid = 0
     batch.status = "processed"
     details: list[str] = []
+    if sync_mode == "full":
+        details.append(
+            f"Carga completa inicial do Inter executada de {effective_start_date.isoformat()} ate {effective_end_date.isoformat()}."
+        )
+    elif sync_mode == "incremental":
+        details.append(
+            f"Sincronizacao incremental do Inter executada de {effective_start_date.isoformat()} ate {effective_end_date.isoformat()}."
+        )
     if updated_count:
         details.append(f"{updated_count} cobranca(s) do Inter foram atualizadas.")
     if refreshed_pending_count:
