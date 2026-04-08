@@ -14,6 +14,7 @@ from app.db.models.finance import Account
 from app.db.models.security import Company
 from app.services.boletos import normalize_text
 from app.services.inter import (
+    INTER_CHARGE_FULL_SYNC_DUE_END,
     INTER_CHARGE_FULL_SYNC_START,
     INTER_CHARGE_INCREMENTAL_LOOKBACK_DAYS,
     cancel_inter_charge,
@@ -338,14 +339,19 @@ def test_sync_inter_charges_uses_full_initial_window_for_first_default_sync() ->
     session = _build_session()
     requested_end_date = date.today()
     requested_start_date = requested_end_date - timedelta(days=90)
-    captured_params: dict[str, str] = {}
+    captured_calls: list[dict[str, str]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/oauth/v2/token":
             return httpx.Response(200, json={"access_token": "token-123"})
         if request.url.path == "/cobranca/v3/cobrancas":
-            captured_params["dataInicial"] = str(request.url.params.get("dataInicial") or "")
-            captured_params["dataFinal"] = str(request.url.params.get("dataFinal") or "")
+            captured_calls.append(
+                {
+                    "dataInicial": str(request.url.params.get("dataInicial") or ""),
+                    "dataFinal": str(request.url.params.get("dataFinal") or ""),
+                    "filtrarDataPor": str(request.url.params.get("filtrarDataPor") or ""),
+                }
+            )
             return httpx.Response(200, json={"cobrancas": []})
         raise AssertionError(f"Requisicao inesperada: {request.url}")
 
@@ -360,12 +366,29 @@ def test_sync_inter_charges_uses_full_initial_window_for_first_default_sync() ->
             transport=httpx.MockTransport(handler),
         )
 
-        assert captured_params["dataInicial"] == INTER_CHARGE_FULL_SYNC_START.isoformat()
-        assert captured_params["dataFinal"] == requested_end_date.isoformat()
+        assert captured_calls == [
+            {
+                "dataInicial": INTER_CHARGE_FULL_SYNC_START.isoformat(),
+                "dataFinal": requested_end_date.isoformat(),
+                "filtrarDataPor": "EMISSAO",
+            },
+            {
+                "dataInicial": INTER_CHARGE_FULL_SYNC_START.isoformat(),
+                "dataFinal": INTER_CHARGE_FULL_SYNC_DUE_END.isoformat(),
+                "filtrarDataPor": "VENCIMENTO",
+            },
+        ]
         assert result.batch.filename == (
-            f"inter-cobrancas-{INTER_CHARGE_FULL_SYNC_START.isoformat()}-{requested_end_date.isoformat()}"
+            "inter-cobrancas-full-"
+            f"{INTER_CHARGE_FULL_SYNC_START.isoformat()}-{requested_end_date.isoformat()}-"
+            f"venc-{INTER_CHARGE_FULL_SYNC_DUE_END.isoformat()}"
         )
-        assert "Carga completa inicial do Inter" in (result.batch.error_summary or "")
+        assert (
+            "Carga completa inicial do Inter executada com emissao entre "
+            f"{INTER_CHARGE_FULL_SYNC_START.isoformat()} e {requested_end_date.isoformat()} "
+            "ou vencimento entre "
+            f"{INTER_CHARGE_FULL_SYNC_START.isoformat()} e {INTER_CHARGE_FULL_SYNC_DUE_END.isoformat()}."
+        ) in (result.batch.error_summary or "")
     finally:
         session.close()
 
@@ -423,6 +446,71 @@ def test_sync_inter_charges_uses_incremental_window_after_first_api_sync() -> No
             f"inter-cobrancas-{expected_start_date.isoformat()}-{requested_end_date.isoformat()}"
         )
         assert "Sincronizacao incremental do Inter" in (result.batch.error_summary or "")
+    finally:
+        session.close()
+
+
+def test_sync_inter_charges_deduplicates_full_sync_summaries_from_emission_and_due_date() -> None:
+    session = _build_session()
+    requested_end_date = date.today()
+    requested_start_date = requested_end_date - timedelta(days=90)
+    detail_calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            return httpx.Response(200, json={"access_token": "token-123"})
+        if request.url.path == "/cobranca/v3/cobrancas":
+            filter_by = str(request.url.params.get("filtrarDataPor") or "")
+            if filter_by == "EMISSAO":
+                return httpx.Response(
+                    200,
+                    json={"cobrancas": [{"cobranca": {"codigoSolicitacao": "SOL-001", "seuNumero": "SEU-001"}}]},
+                )
+            if filter_by == "VENCIMENTO":
+                return httpx.Response(
+                    200,
+                    json={"cobrancas": [{"cobranca": {"codigoSolicitacao": "SOL-001", "seuNumero": "SEU-001"}}]},
+                )
+        if request.url.path == "/cobranca/v3/cobrancas/SOL-001":
+            detail_calls.append(request.url.path)
+            return httpx.Response(
+                200,
+                json={
+                    "cobranca": {
+                        "codigoSolicitacao": "SOL-001",
+                        "seuNumero": "SEU-001",
+                        "situacao": "A_RECEBER",
+                        "dataEmissao": "2026-03-01",
+                        "dataVencimento": "2027-01-10",
+                        "valorNominal": "250.00",
+                        "valorTotalRecebido": "0.00",
+                        "pagador": {"nome": "Cliente Exemplo", "cpfCnpj": "12345678901"},
+                    },
+                    "boleto": {
+                        "codigoBarras": "111222333",
+                        "linhaDigitavel": "111.222.333",
+                        "nossoNumero": "NOSSO-1",
+                    },
+                },
+            )
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    try:
+        company, account = _build_company_and_account(session)
+        result = sync_inter_charges(
+            session,
+            company,
+            account_id=account.id,
+            start_date=requested_start_date,
+            end_date=requested_end_date,
+            transport=httpx.MockTransport(handler),
+        )
+
+        records = session.query(BoletoRecord).all()
+        assert len(records) == 1
+        assert detail_calls == ["/cobranca/v3/cobrancas/SOL-001"]
+        assert result.batch.records_total == 1
+        assert result.batch.records_valid == 1
     finally:
         session.close()
 

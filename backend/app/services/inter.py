@@ -43,7 +43,8 @@ INTER_BANK_CODE = "077"
 INTER_REQUIRED_SCOPES = "boleto-cobranca.read boleto-cobranca.write extrato.read"
 INTER_STATEMENT_FIT_ID_MAX_LENGTH = 80
 INTER_STATEMENT_REFERENCE_NUMBER_MAX_LENGTH = 50
-INTER_CHARGE_FULL_SYNC_START = date(2020, 1, 1)
+INTER_CHARGE_FULL_SYNC_START = date(2025, 1, 1)
+INTER_CHARGE_FULL_SYNC_DUE_END = date(2027, 12, 31)
 INTER_CHARGE_DEFAULT_LOOKBACK_DAYS = 90
 INTER_CHARGE_INCREMENTAL_LOOKBACK_DAYS = 7
 INTER_STATEMENT_MATCH_STOPWORDS = {
@@ -420,6 +421,58 @@ def _resolve_inter_charge_sync_window(
     return incremental_start_date, requested_end_date, "incremental"
 
 
+def _merge_charge_summaries(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    seen_codes: set[str] = set()
+    seen_payloads: set[str] = set()
+    for group in groups:
+        for summary in group:
+            normalized_summary = _coerce_charge_detail_payload(summary)
+            codigo_solicitacao = _extract_charge_summary_code(normalized_summary)
+            if codigo_solicitacao:
+                if codigo_solicitacao in seen_codes:
+                    continue
+                seen_codes.add(codigo_solicitacao)
+                merged.append(summary)
+                continue
+            payload_fingerprint = _json_dumps(normalized_summary)
+            if payload_fingerprint in seen_payloads:
+                continue
+            seen_payloads.add(payload_fingerprint)
+            merged.append(summary)
+    return merged
+
+
+def _collect_inter_charge_summaries(
+    client: "InterApiClient",
+    *,
+    sync_mode: str,
+    effective_start_date: date,
+    effective_end_date: date,
+) -> tuple[list[dict[str, Any]], str | None]:
+    if sync_mode != "full":
+        return client.list_charges(effective_start_date, effective_end_date), None
+    due_end_date = max(effective_end_date, INTER_CHARGE_FULL_SYNC_DUE_END)
+    emission_summaries = client.list_charges(
+        effective_start_date,
+        effective_end_date,
+        filter_by="EMISSAO",
+    )
+    due_summaries = client.list_charges(
+        INTER_CHARGE_FULL_SYNC_START,
+        due_end_date,
+        filter_by="VENCIMENTO",
+    )
+    merged = _merge_charge_summaries(emission_summaries, due_summaries)
+    detail = (
+        "Carga completa inicial do Inter executada com emissao entre "
+        f"{effective_start_date.isoformat()} e {effective_end_date.isoformat()} "
+        "ou vencimento entre "
+        f"{INTER_CHARGE_FULL_SYNC_START.isoformat()} e {due_end_date.isoformat()}."
+    )
+    return merged, detail
+
+
 def _sanitize_pdf_filename_fragment(value: str | None, *, fallback: str) -> str:
     normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", (value or "").strip()).strip("-._")
     return normalized or fallback
@@ -713,14 +766,20 @@ class InterApiClient:
             scroll_id = payload.get("scrollId")
         return transactions
 
-    def list_charges(self, start_date: date, end_date: date) -> list[dict[str, Any]]:
+    def list_charges(
+        self,
+        start_date: date,
+        end_date: date,
+        *,
+        filter_by: str = "EMISSAO",
+    ) -> list[dict[str, Any]]:
         payload = self.request(
             "GET",
             "/cobranca/v3/cobrancas",
             params={
                 "dataInicial": start_date.isoformat(),
                 "dataFinal": end_date.isoformat(),
-                "filtrarDataPor": "EMISSAO",
+                "filtrarDataPor": filter_by,
             },
         )
         return list(payload.get("cobrancas") or [])
@@ -959,15 +1018,27 @@ def sync_inter_charges(
         requested_start_date=start_date,
         requested_end_date=end_date,
     )
+    batch_filename = f"inter-cobrancas-{effective_start_date.isoformat()}-{effective_end_date.isoformat()}"
+    if sync_mode == "full":
+        batch_filename = (
+            "inter-cobrancas-full-"
+            f"{effective_start_date.isoformat()}-{effective_end_date.isoformat()}-"
+            f"venc-{INTER_CHARGE_FULL_SYNC_DUE_END.isoformat()}"
+        )
     batch = _start_sync_batch(
         db,
         company.id,
         source_type=_resolve_batch_source_type("charge_sync"),
-        filename=f"inter-cobrancas-{effective_start_date.isoformat()}-{effective_end_date.isoformat()}",
+        filename=batch_filename,
     )
     client = InterApiClient(config, transport=transport)
     try:
-        summaries = client.list_charges(effective_start_date, effective_end_date)
+        summaries, full_sync_detail = _collect_inter_charge_summaries(
+            client,
+            sync_mode=sync_mode,
+            effective_start_date=effective_start_date,
+            effective_end_date=effective_end_date,
+        )
         created_count = 0
         updated_count = 0
         refreshed_pending_count = 0
@@ -1023,10 +1094,8 @@ def sync_inter_charges(
     batch.records_invalid = 0
     batch.status = "processed"
     details: list[str] = []
-    if sync_mode == "full":
-        details.append(
-            f"Carga completa inicial do Inter executada de {effective_start_date.isoformat()} ate {effective_end_date.isoformat()}."
-        )
+    if full_sync_detail:
+        details.append(full_sync_detail)
     elif sync_mode == "incremental":
         details.append(
             f"Sincronizacao incremental do Inter executada de {effective_start_date.isoformat()} ate {effective_end_date.isoformat()}."
