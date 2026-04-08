@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 from datetime import date
 from decimal import Decimal
 
@@ -82,6 +83,26 @@ def test_map_statement_payload_normalizes_amount_and_metadata() -> None:
     assert payload["memo"] == "Pagamento | Fornecedor ABC"
     assert payload["check_number"] == "DOC-77"
     assert payload["bank_name"] == "Banco Inter"
+
+
+def test_map_statement_payload_bounds_long_inter_transaction_id() -> None:
+    transaction_id = "MDAxXzAwMDE5XzMzNTc5NjQ3OF8yMDI2LTAzLTA5XzcyODQxNDUyOQ==" * 2
+    payload = _map_statement_to_transaction_payload(
+        company_id="company-1",
+        batch_id="batch-1",
+        account_id="account-1",
+        transaction={
+            "idTransacao": transaction_id,
+            "dataTransacao": "2026-03-15",
+            "tipoTransacao": "PIX",
+            "tipoOperacao": "CREDITO",
+            "valor": "150.50",
+        },
+    )
+
+    assert payload["fit_id"] == f"INTER:{hashlib.sha1(transaction_id.encode('utf-8')).hexdigest()}"
+    assert len(payload["fit_id"]) <= 80
+    assert payload["reference_number"] == transaction_id[:50]
 
 
 def test_load_inter_account_config_decrypts_sensitive_values() -> None:

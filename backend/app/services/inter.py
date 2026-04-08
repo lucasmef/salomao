@@ -40,6 +40,8 @@ INTER_PRODUCTION_BASE_URL = "https://cdpj.partners.bancointer.com.br"
 INTER_SANDBOX_BASE_URL = "https://cdpj-sandbox.partners.uatinter.co"
 INTER_BANK_CODE = "077"
 INTER_REQUIRED_SCOPES = "boleto-cobranca.read boleto-cobranca.write extrato.read"
+INTER_STATEMENT_FIT_ID_MAX_LENGTH = 80
+INTER_STATEMENT_REFERENCE_NUMBER_MAX_LENGTH = 50
 INTER_BATCH_SOURCE_TYPES = {
     "statement": "inter_statement",
     "charge_sync": "inter_charge_sync",
@@ -107,7 +109,10 @@ def _resolve_statement_amount(transaction: dict[str, Any]) -> Decimal:
 def _build_statement_fit_id(transaction: dict[str, Any]) -> str:
     transaction_id = _normalize_optional_text(str(transaction.get("idTransacao") or ""))
     if transaction_id:
-        return f"INTER:{transaction_id}"
+        fit_id = f"INTER:{transaction_id}"
+        if len(fit_id) <= INTER_STATEMENT_FIT_ID_MAX_LENGTH:
+            return fit_id
+        return f"INTER:{hashlib.sha1(transaction_id.encode('utf-8')).hexdigest()}"
     payload = "|".join(
         [
             str(transaction.get("dataTransacao") or transaction.get("dataInclusao") or ""),
@@ -119,6 +124,13 @@ def _build_statement_fit_id(transaction: dict[str, Any]) -> str:
         ]
     )
     return f"INTER:{hashlib.sha1(payload.encode('utf-8')).hexdigest()[:32]}"
+
+
+def _truncate_statement_reference_number(transaction: dict[str, Any]) -> str | None:
+    transaction_id = _normalize_optional_text(str(transaction.get("idTransacao") or ""))
+    if not transaction_id:
+        return None
+    return transaction_id[:INTER_STATEMENT_REFERENCE_NUMBER_MAX_LENGTH]
 
 
 def _map_statement_to_transaction_payload(
@@ -144,7 +156,7 @@ def _map_statement_to_transaction_payload(
         "amount": _resolve_statement_amount(transaction),
         "fit_id": _build_statement_fit_id(transaction),
         "check_number": _normalize_optional_text(str(transaction.get("numeroDocumento") or "")),
-        "reference_number": _normalize_optional_text(str(transaction.get("idTransacao") or "")),
+        "reference_number": _truncate_statement_reference_number(transaction),
         "memo": " | ".join(memo_parts) if memo_parts else None,
         "name": title,
         "raw_payload": _json_dumps(transaction),

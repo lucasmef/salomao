@@ -125,3 +125,60 @@ def test_sync_inter_statement_imports_scroll_pages_and_deduplicates_reimport() -
         assert statement_calls == 4
     finally:
         session.close()
+
+
+def test_sync_inter_statement_accepts_long_inter_transaction_ids() -> None:
+    session = _build_session()
+    long_transaction_id = "MDAxXzAwMDE5XzMzNTc5NjQ3OF8yMDI2LTAzLTA5XzcyODQxNDUyOQ==" * 2
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            return httpx.Response(200, json={"access_token": "token-123"})
+        if request.url.path == "/banking/v2/extrato/completo":
+            return httpx.Response(
+                200,
+                json={
+                    "transacoes": [
+                        {
+                            "idTransacao": long_transaction_id,
+                            "dataTransacao": "2026-03-15",
+                            "tipoTransacao": "PIX",
+                            "tipoOperacao": "CREDITO",
+                            "valor": "150.50",
+                            "titulo": "Recebimento",
+                        }
+                    ]
+                },
+            )
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    try:
+        company, account = _build_company_and_account(session)
+        transport = httpx.MockTransport(handler)
+
+        first_result = sync_inter_statement(
+            session,
+            company,
+            account_id=account.id,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            transport=transport,
+        )
+        second_result = sync_inter_statement(
+            session,
+            company,
+            account_id=account.id,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            transport=transport,
+        )
+
+        transactions = session.query(BankTransaction).all()
+        assert len(transactions) == 1
+        assert len(transactions[0].fit_id) <= 80
+        assert transactions[0].reference_number == long_transaction_id[:50]
+        assert first_result.batch.records_valid == 1
+        assert second_result.batch.records_valid == 0
+        assert second_result.batch.records_invalid == 1
+    finally:
+        session.close()
