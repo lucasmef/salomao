@@ -880,9 +880,9 @@ def _build_success_email(
         html_rows = "".join(
             (
                 "<tr>"
-                f"<td>{escape(result.invoice_number)}</td>"
-                f"<td>{escape(result.due_date.strftime('%d/%m/%Y') if result.due_date else '-')}</td>"
-                f"<td style='text-align:right'>{escape(_format_brl(result.amount))}</td>"
+                f"<td style='padding:5px 7px;border:1px solid #d1d5db'>{escape(result.invoice_number)}</td>"
+                f"<td style='padding:5px 7px;border:1px solid #d1d5db'>{escape(result.due_date.strftime('%d/%m/%Y') if result.due_date else '-')}</td>"
+                f"<td style='padding:5px 7px;border:1px solid #d1d5db;text-align:right'>{escape(_format_brl(result.amount))}</td>"
                 "</tr>"
             )
             for result in client_results
@@ -890,9 +890,9 @@ def _build_success_email(
         html_sections.append(
             "".join(
                 [
-                    f"<h3 style='margin:20px 0 8px;font-size:16px;color:#1f2937'>{escape(client_name)}</h3>",
+                    f"<h3 style='margin:14px 0 6px;font-size:14px;color:#1f2937'>{escape(client_name)}</h3>",
                     (
-                        f"<p style='margin:0 0 10px;color:#4b5563'>"
+                        f"<p style='margin:0 0 6px;color:#4b5563;font-size:12px;line-height:1.35'>"
                         f"Pagou boleto no valor <strong>{escape(boleto_amount)}</strong> "
                         f"referente a faturas {escape(invoice_numbers)}."
                         "</p>"
@@ -902,7 +902,7 @@ def _build_success_email(
                         rows=html_rows,
                     ),
                     (
-                        f"<p style='margin:10px 0 0;color:#111827'>"
+                        f"<p style='margin:6px 0 0;color:#111827;font-size:12px;line-height:1.35'>"
                         f"<strong>Total do cliente:</strong> {len(client_results)} fatura(s) | "
                         f"{escape(_format_brl(client_total_amount))}"
                         "</p>"
@@ -921,9 +921,9 @@ def _build_success_email(
         failure_rows = "".join(
             (
                 "<tr>"
-                f"<td>{escape(result.client_name)}</td>"
-                f"<td>{escape(result.invoice_number)}</td>"
-                f"<td>{escape(result.message)}</td>"
+                f"<td style='padding:5px 7px;border:1px solid #d1d5db'>{escape(result.client_name)}</td>"
+                f"<td style='padding:5px 7px;border:1px solid #d1d5db'>{escape(result.invoice_number)}</td>"
+                f"<td style='padding:5px 7px;border:1px solid #d1d5db'>{escape(result.message)}</td>"
                 "</tr>"
             )
             for result in failed_results
@@ -931,7 +931,7 @@ def _build_success_email(
         html_sections.append(
             "".join(
                 [
-                    "<h3 style='margin:24px 0 8px;font-size:16px;color:#991b1b'>Falhas encontradas</h3>",
+                    "<h3 style='margin:18px 0 6px;font-size:14px;color:#991b1b'>Falhas encontradas</h3>",
                     _build_email_table(
                         headers=("Cliente", "Fatura", "Detalhe"),
                         rows=failure_rows,
@@ -947,19 +947,20 @@ def _build_success_email(
     summary_rows = "".join(
         (
             "<tr>"
-            f"<td>{escape(client_name)}</td>"
-            f"<td style='text-align:center'>{count}</td>"
-            f"<td style='text-align:right'>{escape(_format_brl(amount))}</td>"
+            f"<td style='padding:5px 7px;border:1px solid #d1d5db'>{escape(client_name)}</td>"
+            f"<td style='padding:5px 7px;border:1px solid #d1d5db;text-align:center'>{count}</td>"
+            f"<td style='padding:5px 7px;border:1px solid #d1d5db;text-align:right'>{escape(_format_brl(amount))}</td>"
             "</tr>"
         )
         for client_name, (count, amount) in sorted(client_totals.items())
     )
     html_body = "".join(
         [
-            "<html><body style='font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111827'>",
-            f"<h2 style='margin:0 0 12px'>{escape(subject)}</h2>",
+            "<html><body style='font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111827;line-height:1.35'>",
+            f"<div style='max-width:720px'>",
+            f"<h2 style='margin:0 0 10px;font-size:18px;line-height:1.25'>{escape(subject)}</h2>",
             (
-                f"<p style='margin:0 0 16px'>"
+                f"<p style='margin:0 0 10px;font-size:12px;line-height:1.35'>"
                 f"<strong>Total de faturas baixadas:</strong> {total_settled} fatura(s) | "
                 f"{escape(_format_brl(total_settled_amount))}"
                 "</p>"
@@ -973,7 +974,7 @@ def _build_success_email(
                 else ""
             ),
             "".join(html_sections),
-            "</body></html>",
+            "</div></body></html>",
         ]
     )
     return subject, "\n".join(lines), html_body
@@ -981,11 +982,11 @@ def _build_success_email(
 
 def _build_email_table(*, headers: tuple[str, ...], rows: str) -> str:
     header_html = "".join(
-        f"<th style='padding:8px 10px;border:1px solid #d1d5db;background:#f3f4f6;text-align:left'>{escape(header)}</th>"
+        f"<th style='padding:5px 7px;border:1px solid #d1d5db;background:#f3f4f6;text-align:left;font-size:12px;line-height:1.25'>{escape(header)}</th>"
         for header in headers
     )
     return (
-        "<table style='border-collapse:collapse;width:100%;margin:8px 0 12px'>"
+        "<table style='border-collapse:collapse;width:auto;max-width:100%;margin:6px 0 8px;font-size:12px;line-height:1.25'>"
         f"<thead><tr>{header_html}</tr></thead>"
         f"<tbody>{rows}</tbody>"
         "</table>"
