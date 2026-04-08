@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Any
-from urllib.parse import urljoin
 
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
@@ -20,6 +19,9 @@ from app.services.linx import _load_linx_settings, _login_and_get_report_root, _
 from app.services.security_alerts import send_email
 
 LINX_RECEIVABLE_SETTLEMENT_PATH = "financeiro/baixa_faturas.asp?tipolanc=receber"
+LINX_RECEIVABLE_SETTLEMENT_MENU_SELECTOR = "a[data-endereco='financeiro/baixa_faturas.asp?tipolanc=receber']"
+LINX_RECEIVABLE_SETTLEMENT_FRAME_NAME = "main"
+LINX_RECEIVABLE_SETTLEMENT_PERMISSION_FRAME_SUFFIX = "mensagem-permissao.asp"
 LINX_SETTLEMENT_INVOICE_SELECTORS = (
     "input[name='numero_fatura']",
     "input[name='fatura']",
@@ -326,17 +328,14 @@ def _settle_receivable_in_portal(
     expected_amount: Decimal,
     validate_only: bool = False,
 ) -> str:
-    page.goto(
-        urljoin(f"{root_url.rstrip('/')}/", LINX_RECEIVABLE_SETTLEMENT_PATH),
-        wait_until="networkidle",
-    )
+    target = _open_receivable_settlement_target(page, root_url=root_url)
     lookup_invoice = _build_lookup_invoice_number(invoice_number)
-    _fill_first_matching_locator(page, LINX_SETTLEMENT_INVOICE_SELECTORS, lookup_invoice)
-    _click_first_matching_locator(page, LINX_SETTLEMENT_PROCEED_SELECTORS)
-    _wait_for_page_idle(page)
+    _fill_first_matching_locator(target, LINX_SETTLEMENT_INVOICE_SELECTORS, lookup_invoice)
+    _click_first_matching_locator(target, LINX_SETTLEMENT_PROCEED_SELECTORS)
+    _wait_for_page_idle(target)
 
     _validate_receivable_confirmation_context(
-        page,
+        target,
         invoice_number=lookup_invoice,
         expected_client_name=expected_client_name,
         expected_due_date=expected_due_date,
@@ -344,7 +343,7 @@ def _settle_receivable_in_portal(
     )
 
     # Revalida o valor imediatamente antes da confirmacao para evitar baixa com tela alterada.
-    paid_amount = _extract_paid_amount(page)
+    paid_amount = _extract_paid_amount(target)
     if paid_amount is None:
         raise ValueError(f"Nao foi possivel ler o 'Valor Pago (R$)' da fatura {lookup_invoice} no Linx.")
     if paid_amount != expected_amount.quantize(Decimal("0.01")):
@@ -358,15 +357,55 @@ def _settle_receivable_in_portal(
             f"sem confirmar a baixa no Linx."
         )
 
-    _click_first_matching_locator(page, LINX_SETTLEMENT_CONFIRM_SELECTORS)
-    _wait_for_page_idle(page)
-    _click_first_matching_locator(page, LINX_SETTLEMENT_RATEIO_SELECTORS, required=False)
-    _wait_for_page_idle(page)
+    _click_first_matching_locator(target, LINX_SETTLEMENT_CONFIRM_SELECTORS)
+    _wait_for_page_idle(target)
+    _click_first_matching_locator(target, LINX_SETTLEMENT_RATEIO_SELECTORS, required=False)
+    _wait_for_page_idle(target)
 
-    success_message = _extract_success_message(page, lookup_invoice)
+    success_message = _extract_success_message(target, lookup_invoice)
     if not success_message:
         raise ValueError(f"O Linx nao confirmou a baixa da fatura {lookup_invoice}.")
     return success_message
+
+
+def _open_receivable_settlement_target(page: Any, *, root_url: str) -> Any:
+    del root_url
+    menu_locator = page.locator(LINX_RECEIVABLE_SETTLEMENT_MENU_SELECTOR).first
+    try:
+        menu_locator.evaluate("el => el.click()")
+    except Exception as error:
+        raise ValueError("Nao foi possivel abrir o menu 'Baixa de Faturas' no Linx.") from error
+    try:
+        page.wait_for_timeout(2_000)
+    except Exception:
+        pass
+    try:
+        page.wait_for_load_state("networkidle")
+    except Exception:
+        pass
+    frame = page.frame(name=LINX_RECEIVABLE_SETTLEMENT_FRAME_NAME)
+    if frame is None:
+        raise ValueError("O Linx nao abriu o iframe principal da tela de baixa de faturas.")
+    _wait_for_page_idle(frame)
+    _raise_if_permission_denied(frame)
+    return frame
+
+
+def _raise_if_permission_denied(target: Any) -> None:
+    target_url = ""
+    try:
+        target_url = str(target.url or "")
+    except Exception:
+        target_url = ""
+    if target_url.endswith(LINX_RECEIVABLE_SETTLEMENT_PERMISSION_FRAME_SUFFIX):
+        raise ValueError("O usuario configurado no Linx nao possui permissao para 'Baixa de faturas'.")
+
+    permission_payload = _read_first_matching_locator_value(target, "#objetoRetorno")
+    if (
+        "POSSUIPERMISSAO\":FALSE" in permission_payload.upper()
+        or "\"POSSUIPERMISSAO\":FALSE" in permission_payload.upper()
+    ):
+        raise ValueError("O usuario configurado no Linx nao possui permissao para 'Baixa de faturas'.")
 
 
 def _validate_receivable_confirmation_context(
