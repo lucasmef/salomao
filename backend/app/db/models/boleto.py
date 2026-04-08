@@ -44,6 +44,7 @@ class BoletoRecord(Base, IdMixin, TimestampMixin):
     document_id: Mapped[str] = mapped_column(String(80), index=True)
     issue_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    payment_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     paid_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     status: Mapped[str] = mapped_column(String(60), default="")

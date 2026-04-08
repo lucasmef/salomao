@@ -11,7 +11,7 @@ from app.db.base import Base
 from app.db.models.boleto import BoletoRecord
 from app.db.models.linx import LinxOpenReceivable
 from app.db.models.security import Company
-from app.schemas.boletos import BoletoMatchItem, BoletoReceivableRead
+from app.schemas.boletos import BoletoMatchItem, BoletoReceivableRead, BoletoRecordRead
 from app.services.boletos import normalize_text
 from app.services.linx_receivable_settlement import (
     LinxSettlementInvoiceResult,
@@ -70,6 +70,7 @@ def test_settle_paid_pending_inter_receivables_removes_open_receivable_and_sends
             document_id="56418",
             issue_date=date(2026, 4, 1),
             due_date=date(2026, 4, 10),
+            payment_date=date(2026, 4, 11),
             amount=Decimal("170.50"),
             paid_amount=Decimal("170.50"),
             status="Recebido por boleto",
@@ -84,6 +85,8 @@ def test_settle_paid_pending_inter_receivables_removes_open_receivable_and_sends
             LinxSettlementInvoiceResult(
                 client_name=candidates[0].client_name,
                 boleto_amount=candidates[0].boleto_amount,
+                boleto_due_dates=candidates[0].boleto_due_dates,
+                payment_dates=candidates[0].payment_dates,
                 invoice_number=candidates[0].receivables[0].invoice_number,
                 due_date=candidates[0].receivables[0].due_date,
                 amount=Decimal(candidates[0].receivables[0].amount),
@@ -106,6 +109,8 @@ def test_settle_paid_pending_inter_receivables_removes_open_receivable_and_sends
         assert summary.client_count == 1
         assert email_calls[0][2] == ["financeiro@example.com"]
         assert "MARIA APARECIDA pagou boleto no valor R$ 170,50 referente a faturas 56418" in email_calls[0][1]
+        assert "Vencimento do boleto: 10/04/2026" in email_calls[0][1]
+        assert "Data do pagamento: 11/04/2026" in email_calls[0][1]
         assert "Total de faturas baixadas: 1 fatura(s) | R$ 170,50" in email_calls[0][1]
         assert "<table" in (email_calls[0][3] or "")
         assert session.scalar(select(LinxOpenReceivable.id).where(LinxOpenReceivable.company_id == company.id)) is None
@@ -137,6 +142,7 @@ def test_settle_paid_pending_inter_receivables_respects_charge_code_filter(monke
             document_id="777",
             issue_date=date(2026, 4, 1),
             due_date=date(2026, 4, 10),
+            payment_date=date(2026, 4, 11),
             amount=Decimal("99.90"),
             paid_amount=Decimal("99.90"),
             status="Recebido por boleto",
@@ -291,8 +297,8 @@ def test_build_settlement_candidates_sorts_clients_and_receivables_by_oldest_due
                     invoice_number="55380",
                     installment="003/004",
                     due_date=date(2026, 3, 10),
-                    amount=Decimal("50.00"),
-                    corrected_amount=Decimal("50.00"),
+                    amount=Decimal("60.00"),
+                    corrected_amount=Decimal("60.00"),
                     document="269/D",
                     status="Em aberto",
                 ),
@@ -307,16 +313,99 @@ def test_build_settlement_candidates_sorts_clients_and_receivables_by_oldest_due
                     status="Em aberto",
                 ),
             ],
-            boletos=[],
+            boletos=[
+                BoletoRecordRead(
+                    id="boleto-marco",
+                    bank="INTER",
+                    client_name="PRISCILA TARTARI",
+                    document_id="2026-03",
+                    issue_date=date(2026, 3, 1),
+                    due_date=date(2026, 3, 20),
+                    payment_date=date(2026, 3, 21),
+                    amount=Decimal("110.00"),
+                    paid_amount=Decimal("110.00"),
+                    status="Recebido por boleto",
+                    inter_codigo_solicitacao="SOL-PRI-1",
+                    inter_account_id="acc-1",
+                    pdf_available=True,
+                )
+            ],
         ),
     ]
 
-    candidates = _build_settlement_candidates(items, filter_charge_codes=None)
+    candidates, failures = _build_settlement_candidates(items, filter_charge_codes=None)
 
+    assert failures == []
     assert [candidate.invoice_numbers for candidate in candidates] == [
         ("55232", "55380"),
         ("55233",),
     ]
+    assert candidates[0].boleto_due_dates == (date(2026, 3, 20),)
+    assert candidates[0].payment_dates == (date(2026, 3, 21),)
+
+
+def test_build_settlement_candidates_blocks_duplicate_invoice_amounts_per_client() -> None:
+    items = [
+        BoletoMatchItem(
+            selection_key="dup",
+            client_key="CLIENTE",
+            type="agrupado",
+            client_name="CLIENTE DUPLICADO",
+            mode="mensal",
+            due_date=date(2026, 3, 1),
+            status="Pago sem baixa",
+            amount=Decimal("200.00"),
+            reason="teste",
+            receivable_count=2,
+            bank="INTER",
+            receivables=[
+                BoletoReceivableRead(
+                    client_name="CLIENTE DUPLICADO",
+                    invoice_number="1001",
+                    installment="001/002",
+                    due_date=date(2026, 3, 1),
+                    amount=Decimal("100.00"),
+                    corrected_amount=Decimal("100.00"),
+                    document="DOC-1",
+                    status="Em aberto",
+                ),
+                BoletoReceivableRead(
+                    client_name="CLIENTE DUPLICADO",
+                    invoice_number="1002",
+                    installment="002/002",
+                    due_date=date(2026, 3, 5),
+                    amount=Decimal("100.00"),
+                    corrected_amount=Decimal("100.00"),
+                    document="DOC-2",
+                    status="Em aberto",
+                ),
+            ],
+            boletos=[
+                BoletoRecordRead(
+                    id="boleto-dup",
+                    bank="INTER",
+                    client_name="CLIENTE DUPLICADO",
+                    document_id="2026-03",
+                    issue_date=date(2026, 3, 1),
+                    due_date=date(2026, 3, 20),
+                    payment_date=date(2026, 3, 21),
+                    amount=Decimal("200.00"),
+                    paid_amount=Decimal("200.00"),
+                    status="Recebido por boleto",
+                    inter_codigo_solicitacao="SOL-DUP",
+                    inter_account_id="acc-1",
+                    pdf_available=True,
+                )
+            ],
+        )
+    ]
+
+    candidates, failures = _build_settlement_candidates(items, filter_charge_codes=None)
+
+    assert candidates == []
+    assert len(failures) == 2
+    assert {item.invoice_number for item in failures} == {"1001", "1002"}
+    assert all("mais de uma fatura com o mesmo valor" in item.message for item in failures)
 
 
 def test_parse_brl_amount_accepts_integer_values_from_hidden_linx_fields() -> None:
@@ -329,6 +418,8 @@ def test_build_success_email_includes_quantity_and_value_totals_and_html_tables(
         LinxSettlementInvoiceResult(
             client_name="Cliente Exemplo",
             boleto_amount=Decimal("300.00"),
+            boleto_due_dates=(date(2026, 4, 20),),
+            payment_dates=(date(2026, 4, 21),),
             invoice_number="1001",
             due_date=date(2026, 4, 10),
             amount=Decimal("100.00"),
@@ -339,6 +430,8 @@ def test_build_success_email_includes_quantity_and_value_totals_and_html_tables(
         LinxSettlementInvoiceResult(
             client_name="Cliente Exemplo",
             boleto_amount=Decimal("300.00"),
+            boleto_due_dates=(date(2026, 4, 20),),
+            payment_dates=(date(2026, 4, 21),),
             invoice_number="1002",
             due_date=date(2026, 4, 20),
             amount=Decimal("200.00"),
@@ -351,8 +444,11 @@ def test_build_success_email_includes_quantity_and_value_totals_and_html_tables(
     subject, body, html_body = _build_success_email(company, results)
 
     assert subject == "[Linx] Baixa automatica de faturas - Salomao"
+    assert "Vencimento do boleto: 20/04/2026" in body
+    assert "Data do pagamento: 21/04/2026" in body
     assert "Total do cliente Cliente Exemplo: 2 fatura(s) | R$ 300,00" in body
     assert "Total de faturas baixadas: 2 fatura(s) | R$ 300,00" in body
     assert "<table" in html_body
+    assert "Data do pagamento" in html_body
     assert "Valor total" in html_body
     assert "Cliente Exemplo" in html_body

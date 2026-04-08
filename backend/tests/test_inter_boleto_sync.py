@@ -93,6 +93,7 @@ def test_sync_inter_charges_updates_existing_record_and_creates_new_one() -> Non
                         "seuNumero": "SEU-001",
                         "situacao": "RECEBIDO",
                         "dataEmissao": "2026-03-01",
+                        "dataSituacao": "2026-03-10",
                         "dataVencimento": "2026-03-10",
                         "valorNominal": "250.00",
                         "valorTotalRecebido": "250.00",
@@ -172,6 +173,7 @@ def test_sync_inter_charges_updates_existing_record_and_creates_new_one() -> Non
 
         assert updated.status == "Recebido por boleto"
         assert updated.paid_amount == Decimal("250.00")
+        assert updated.payment_date == date(2026, 3, 10)
         assert updated.inter_account_id == account.id
         assert updated.inter_codigo_solicitacao == "SOL-001"
         assert updated.linha_digitavel == "111.222.333"
@@ -179,6 +181,7 @@ def test_sync_inter_charges_updates_existing_record_and_creates_new_one() -> Non
 
         assert created.status == "A receber"
         assert created.amount == Decimal("199.90")
+        assert created.payment_date is None
         assert created.inter_account_id == account.id
         assert created.barcode == "999888777"
         assert created.inter_nosso_numero == "NOSSO-2"
@@ -289,6 +292,7 @@ def test_sync_inter_charges_triggers_linx_settlement_for_processed_codes(monkeyp
                         "seuNumero": "SEU-001",
                         "situacao": "RECEBIDO",
                         "dataEmissao": "2026-03-01",
+                        "dataSituacao": "2026-03-10",
                         "dataVencimento": "2026-03-10",
                         "valorNominal": "250.00",
                         "valorTotalRecebido": "250.00",
@@ -361,6 +365,7 @@ def test_sync_inter_charges_matches_legacy_record_without_inter_ids_by_business_
                         "seuNumero": "SEU-LEGACY",
                         "situacao": "RECEBIDO",
                         "dataEmissao": "2026-03-01",
+                        "dataSituacao": "2026-03-10",
                         "dataVencimento": "2026-03-10",
                         "valorNominal": "250.00",
                         "valorTotalRecebido": "250.00",
@@ -469,6 +474,7 @@ def test_sync_inter_charges_keeps_distinct_records_when_inter_reuses_seu_numero(
                         "seuNumero": "305",
                         "situacao": "RECEBIDO",
                         "dataEmissao": "2026-04-01",
+                        "dataSituacao": "2026-04-10",
                         "dataVencimento": "2026-04-10",
                         "valorNominal": "275.00",
                         "valorTotalRecebido": "275.00",
@@ -595,6 +601,7 @@ def test_sync_inter_charges_refreshes_pending_local_boleto_missing_from_charge_l
                         "seuNumero": "SEU-OLD",
                         "situacao": "RECEBIDO",
                         "dataEmissao": "2025-12-01",
+                        "dataSituacao": "2025-12-15",
                         "dataVencimento": "2025-12-10",
                         "valorNominal": "320.00",
                         "valorTotalRecebido": "320.00",
@@ -853,6 +860,7 @@ def test_cancel_and_receive_inter_charge_update_boleto_status() -> None:
                             "seuNumero": "SEU-001",
                             "situacao": status_value,
                             "dataEmissao": "2026-03-01",
+                            "dataSituacao": "2026-03-10" if status_value == "RECEBIDO" else "",
                             "dataVencimento": "2026-03-10",
                             "valorNominal": "250.00",
                             "valorTotalRecebido": "250.00" if status_value == "RECEBIDO" else "0.00",

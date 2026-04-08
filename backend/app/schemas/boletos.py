@@ -111,6 +111,7 @@ class BoletoRecordRead(BaseModel):
     document_id: str
     issue_date: date | None = None
     due_date: date | None = None
+    payment_date: date | None = None
     amount: Decimal
     paid_amount: Decimal
     status: str

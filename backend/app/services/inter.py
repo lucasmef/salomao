@@ -173,6 +173,14 @@ def _truncate_statement_reference_number(transaction: dict[str, Any]) -> str | N
     return transaction_id[:INTER_STATEMENT_REFERENCE_NUMBER_MAX_LENGTH]
 
 
+def _resolve_charge_payment_date(cobranca: dict[str, Any]) -> date | None:
+    status = _map_charge_status(str(cobranca.get("situacao") or ""))
+    total_received = _to_decimal(cobranca.get("valorTotalRecebido"))
+    if status != "Recebido por boleto" and total_received <= 0:
+        return None
+    return _parse_date(str(cobranca.get("dataSituacao") or ""))
+
+
 def _map_statement_to_transaction_payload(
     company_id: str,
     batch_id: str,
@@ -987,6 +995,7 @@ def _upsert_boleto_record(
     record.document_id = resolved_document_id
     record.issue_date = _parse_date(str(cobranca.get("dataEmissao") or ""))
     record.due_date = due_date
+    record.payment_date = _resolve_charge_payment_date(cobranca)
     record.amount = amount
     record.paid_amount = _to_decimal(cobranca.get("valorTotalRecebido"))
     record.status = _map_charge_status(str(cobranca.get("situacao") or ""))

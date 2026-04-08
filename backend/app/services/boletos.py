@@ -1279,6 +1279,7 @@ def _serialize_boleto(boleto: BoletoRecord) -> BoletoRecordRead:
         document_id=boleto.document_id,
         issue_date=boleto.issue_date,
         due_date=boleto.due_date,
+        payment_date=boleto.payment_date,
         amount=Decimal(boleto.amount or 0),
         paid_amount=Decimal(boleto.paid_amount or 0),
         status=boleto.status,

@@ -121,6 +121,8 @@ LINX_SETTLEMENT_PREVIOUS_OPEN_WARNING = "EXISTE(M) FATURA(S) EM ABERTO DESTE CLI
 class LinxSettlementCandidate:
     client_name: str
     boleto_amount: Decimal
+    boleto_due_dates: tuple[date, ...]
+    payment_dates: tuple[date, ...]
     invoice_numbers: tuple[str, ...]
     charge_codes: tuple[str, ...]
     receivables: tuple[BoletoReceivableRead, ...]
@@ -130,6 +132,8 @@ class LinxSettlementCandidate:
 class LinxSettlementInvoiceResult:
     client_name: str
     boleto_amount: Decimal
+    boleto_due_dates: tuple[date, ...]
+    payment_dates: tuple[date, ...]
     invoice_number: str
     due_date: date | None
     amount: Decimal
@@ -176,11 +180,11 @@ def settle_paid_pending_inter_receivables(
     validate_only: bool = False,
 ) -> LinxSettlementSummary:
     dashboard = build_boleto_dashboard(db, company, include_all_monthly_missing=True)
-    candidates = _build_settlement_candidates(
+    candidates, precheck_failures = _build_settlement_candidates(
         dashboard.paid_pending,
         filter_charge_codes=filter_charge_codes,
     )
-    if not candidates:
+    if not candidates and not precheck_failures:
         return LinxSettlementSummary(
             attempted_invoice_count=0,
             settled_invoice_count=0,
@@ -189,7 +193,9 @@ def settle_paid_pending_inter_receivables(
             validate_only=validate_only,
         )
 
-    results = _settle_candidates_in_portal(company, candidates, validate_only=validate_only)
+    results = [*precheck_failures]
+    if candidates:
+        results.extend(_settle_candidates_in_portal(company, candidates, validate_only=validate_only))
     settled_results = [item for item in results if item.success]
     failed_results = [item for item in results if not item.success]
 
@@ -244,9 +250,10 @@ def _build_settlement_candidates(
     items: list[BoletoMatchItem],
     *,
     filter_charge_codes: set[str] | None,
-) -> list[LinxSettlementCandidate]:
+) -> tuple[list[LinxSettlementCandidate], list[LinxSettlementInvoiceResult]]:
     normalized_filter_codes = {item.strip() for item in (filter_charge_codes or set()) if item and item.strip()}
     candidates: list[LinxSettlementCandidate] = []
+    failures: list[LinxSettlementInvoiceResult] = []
     for item in items:
         if (item.bank or "").strip().upper() != "INTER":
             continue
@@ -263,6 +270,9 @@ def _build_settlement_candidates(
         receivables = tuple(sorted(item.receivables, key=_receivable_sort_key))
         if not receivables:
             continue
+        duplicate_amounts = _find_duplicate_receivable_amounts(receivables)
+        boleto_due_dates = tuple(sorted({boleto.due_date for boleto in item.boletos if boleto.due_date is not None}))
+        payment_dates = tuple(sorted({boleto.payment_date for boleto in item.boletos if boleto.payment_date is not None}))
         boleto_amount = sum(
             (
                 Decimal(boleto.paid_amount or 0) if Decimal(boleto.paid_amount or 0) > 0 else Decimal(boleto.amount or 0)
@@ -270,17 +280,43 @@ def _build_settlement_candidates(
             ),
             Decimal("0"),
         )
+        if duplicate_amounts:
+            duplicate_labels = ", ".join(_format_brl(amount) for amount in duplicate_amounts)
+            invoices = ", ".join(receivable.invoice_number for receivable in receivables)
+            message = (
+                "Validacao de seguranca bloqueou a baixa automatica: "
+                f"o cliente possui mais de uma fatura com o mesmo valor ({duplicate_labels}) "
+                f"no mesmo pagamento ({invoices})."
+            )
+            for receivable in receivables:
+                failures.append(
+                    LinxSettlementInvoiceResult(
+                        client_name=item.client_name,
+                        boleto_amount=boleto_amount.quantize(Decimal("0.01")),
+                        boleto_due_dates=boleto_due_dates,
+                        payment_dates=payment_dates,
+                        invoice_number=receivable.invoice_number,
+                        due_date=receivable.due_date,
+                        amount=Decimal(receivable.amount or 0).quantize(Decimal("0.01")),
+                        success=False,
+                        message=message,
+                        group_token="|".join([*charge_codes, *(current.invoice_number for current in receivables)]),
+                    )
+                )
+            continue
         candidates.append(
             LinxSettlementCandidate(
                 client_name=item.client_name,
                 boleto_amount=boleto_amount.quantize(Decimal("0.01")),
+                boleto_due_dates=boleto_due_dates,
+                payment_dates=payment_dates,
                 invoice_numbers=tuple(receivable.invoice_number for receivable in receivables),
                 charge_codes=charge_codes,
                 receivables=receivables,
             )
         )
     candidates.sort(key=_candidate_sort_key)
-    return candidates
+    return candidates, failures
 
 
 def _settle_candidates_in_portal(
@@ -319,6 +355,8 @@ def _settle_candidates_in_portal(
                             LinxSettlementInvoiceResult(
                                 client_name=candidate.client_name,
                                 boleto_amount=candidate.boleto_amount,
+                                boleto_due_dates=candidate.boleto_due_dates,
+                                payment_dates=candidate.payment_dates,
                                 group_token=group_token,
                                 invoice_number=receivable.invoice_number,
                                 due_date=receivable.due_date,
@@ -333,6 +371,8 @@ def _settle_candidates_in_portal(
                         LinxSettlementInvoiceResult(
                             client_name=candidate.client_name,
                             boleto_amount=candidate.boleto_amount,
+                            boleto_due_dates=candidate.boleto_due_dates,
+                            payment_dates=candidate.payment_dates,
                             group_token=group_token,
                             invoice_number=receivable.invoice_number,
                             due_date=receivable.due_date,
@@ -857,6 +897,20 @@ def _remove_open_receivable_from_local_dashboard(db: Session, *, company_id: str
     )
 
 
+def _format_dates_for_email(values: tuple[date, ...]) -> str:
+    if not values:
+        return "-"
+    return ", ".join(item.strftime("%d/%m/%Y") for item in values)
+
+
+def _find_duplicate_receivable_amounts(receivables: tuple[BoletoReceivableRead, ...]) -> tuple[Decimal, ...]:
+    counts: dict[Decimal, int] = {}
+    for receivable in receivables:
+        amount = Decimal(receivable.amount or 0).quantize(Decimal("0.01"))
+        counts[amount] = counts.get(amount, 0) + 1
+    return tuple(sorted((amount for amount, count in counts.items() if count > 1), key=lambda item: (item,)))
+
+
 def _build_success_email(
     company: Company,
     results: list[LinxSettlementInvoiceResult],
@@ -865,10 +919,16 @@ def _build_success_email(
     company_name = company.trade_name or company.legal_name or company.id
     subject = f"[Linx] Baixa automatica de faturas - {company_name}"
 
-    grouped: dict[tuple[str, str, str], list[LinxSettlementInvoiceResult]] = {}
+    grouped: dict[tuple[str, str, str, str, str], list[LinxSettlementInvoiceResult]] = {}
     for result in settled_results:
         grouped.setdefault(
-            (result.client_name, _format_brl(result.boleto_amount), result.group_token),
+            (
+                result.client_name,
+                _format_brl(result.boleto_amount),
+                _format_dates_for_email(result.boleto_due_dates),
+                _format_dates_for_email(result.payment_dates),
+                result.group_token,
+            ),
             [],
         ).append(result)
 
@@ -877,7 +937,7 @@ def _build_success_email(
     total_settled = 0
     total_settled_amount = Decimal("0.00")
     client_totals: dict[str, tuple[int, Decimal]] = {}
-    for (client_name, boleto_amount, _group_token), client_results in grouped.items():
+    for (client_name, boleto_amount, boleto_due_dates, payment_dates, _group_token), client_results in grouped.items():
         invoice_numbers = ", ".join(result.invoice_number for result in client_results)
         client_total_amount = sum((Decimal(result.amount or 0) for result in client_results), Decimal("0.00"))
         total_settled += len(client_results)
@@ -891,6 +951,8 @@ def _build_success_email(
         lines.append(
             f"{client_name} pagou boleto no valor {boleto_amount} referente a faturas {invoice_numbers}"
         )
+        lines.append(f"Vencimento do boleto: {boleto_due_dates}")
+        lines.append(f"Data do pagamento: {payment_dates}")
         lines.append("Faturas baixadas automaticamente no Linx:")
         lines.append("Fatura | Vencimento | Valor")
         for result in client_results:
@@ -922,6 +984,16 @@ def _build_success_email(
                         f"<p style='margin:0 0 6px;color:#4b5563;font-size:12px;line-height:1.35'>"
                         f"Pagou boleto no valor <strong>{escape(boleto_amount)}</strong> "
                         f"referente a faturas {escape(invoice_numbers)}."
+                        "</p>"
+                    ),
+                    (
+                        f"<p style='margin:0 0 4px;color:#4b5563;font-size:12px;line-height:1.35'>"
+                        f"<strong>Vencimento do boleto:</strong> {escape(boleto_due_dates)}"
+                        "</p>"
+                    ),
+                    (
+                        f"<p style='margin:0 0 6px;color:#4b5563;font-size:12px;line-height:1.35'>"
+                        f"<strong>Data do pagamento:</strong> {escape(payment_dates)}"
                         "</p>"
                     ),
                     _build_email_table(
