@@ -382,7 +382,7 @@ def _entry_component_items(entry: FinancialEntry, *, use_paid_amount: bool) -> l
 
     if use_paid_amount:
         principal_amount = _safe_decimal(entry.paid_amount)
-        if principal_amount <= ZERO and entry.status == "settled":
+        if principal_amount <= ZERO and entry.status in {"settled", "planned"}:
             principal_amount = _safe_decimal(entry.total_amount)
     else:
         principal_amount = _safe_decimal(entry.principal_amount)
@@ -598,7 +598,7 @@ def _build_dro_context(
     distribution_items: list[dict[str, object]] = []
     sales_tax_items: list[dict[str, object]] = []
 
-    for entry, components in _entry_items_in_period(entries, start=start, end=end, date_basis="due", use_paid_amount=False):
+    for entry, components in _entry_items_in_period(entries, start=start, end=end, date_basis="due", use_paid_amount=True):
         if entry.entry_type in INCOME_ENTRY_TYPES:
             amount = _safe_decimal(entry.paid_amount if entry.paid_amount > ZERO else entry.total_amount)
             if _is_non_operating_income(entry):
@@ -673,7 +673,7 @@ def _build_dro_context(
 
     return ReportContext(
         special_sources={},
-        group_items=_build_group_items(entries, start=start, end=end, date_basis="due", use_paid_amount=False),
+        group_items=_build_group_items(entries, start=start, end=end, date_basis="due", use_paid_amount=True),
     )
 
 

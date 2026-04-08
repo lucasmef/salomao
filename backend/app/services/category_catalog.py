@@ -129,10 +129,10 @@ def ensure_category(
         category.code = seed.code
         category.name = seed.name
         category.entry_kind = seed.entry_kind
-        category.report_group = seed.report_group
-        category.report_subgroup = seed.report_subgroup
-        category.is_financial_expense = seed.is_financial_expense
-        category.is_active = True
+        if category.report_group is None:
+            category.report_group = seed.report_group
+        if category.report_subgroup is None and category.report_group == seed.report_group:
+            category.report_subgroup = seed.report_subgroup
         db.flush()
         return category
 

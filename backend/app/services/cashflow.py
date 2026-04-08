@@ -196,6 +196,8 @@ def _future_events(
                 continue
             if transfer.source_account_id == entry.account_id:
                 events.append(CashflowEvent(entry.due_date, launched_outflow=remaining_amount))
+            elif transfer.destination_account_id == entry.account_id:
+                events.append(CashflowEvent(entry.due_date, card_inflow=remaining_amount))
 
     if include_purchase_planning and not account_id:
         for installment in build_purchase_planning_cashflow_events(db, company, PurchasePlanningFilters()):
