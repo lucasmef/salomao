@@ -268,6 +268,42 @@ def _map_charge_status(status: str | None) -> str:
     return status or ""
 
 
+def _is_pending_inter_charge_status(status: str | None) -> bool:
+    normalized = _normalize_optional_text(status)
+    if not normalized:
+        return False
+    return normalized not in {"Recebido por boleto", "Cancelado"}
+
+
+def _list_pending_inter_boleto_records(
+    db: Session,
+    *,
+    company_id: str,
+    account_id: str,
+) -> list[BoletoRecord]:
+    enabled_account_ids = list(
+        db.scalars(
+            select(Account.id).where(
+                Account.company_id == company_id,
+                Account.inter_api_enabled.is_(True),
+            )
+        )
+    )
+    account_filters = [BoletoRecord.inter_account_id == account_id]
+    if len(enabled_account_ids) <= 1:
+        account_filters.append(BoletoRecord.inter_account_id.is_(None))
+    return list(
+        db.scalars(
+            select(BoletoRecord).where(
+                BoletoRecord.company_id == company_id,
+                BoletoRecord.bank == "INTER",
+                BoletoRecord.inter_codigo_solicitacao.is_not(None),
+                or_(*account_filters),
+            )
+        )
+    )
+
+
 def _sanitize_pdf_filename_fragment(value: str | None, *, fallback: str) -> str:
     normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", (value or "").strip()).strip("-._")
     return normalized or fallback
@@ -769,8 +805,12 @@ def sync_inter_charges(
         summaries = client.list_charges(start_date, end_date)
         created_count = 0
         updated_count = 0
+        refreshed_pending_count = 0
+        processed_charge_codes: set[str] = set()
         for summary in summaries:
             codigo_solicitacao = _normalize_optional_text(str(summary.get("codigoSolicitacao") or ""))
+            if codigo_solicitacao:
+                processed_charge_codes.add(codigo_solicitacao)
             detail = client.get_charge_detail(codigo_solicitacao) if codigo_solicitacao else {"cobranca": summary}
             _, created = _upsert_boleto_record(
                 db,
@@ -783,15 +823,48 @@ def sync_inter_charges(
                 created_count += 1
             else:
                 updated_count += 1
+
+        pending_records = _list_pending_inter_boleto_records(
+            db,
+            company_id=company.id,
+            account_id=account.id,
+        )
+        for record in pending_records:
+            if not _is_pending_inter_charge_status(record.status):
+                continue
+            codigo_solicitacao = _normalize_optional_text(str(record.inter_codigo_solicitacao or ""))
+            if not codigo_solicitacao or codigo_solicitacao in processed_charge_codes:
+                continue
+            detail = client.get_charge_detail(codigo_solicitacao)
+            _, created = _upsert_boleto_record(
+                db,
+                company_id=company.id,
+                batch_id=batch.id,
+                account_id=account.id,
+                detail_payload=detail,
+            )
+            refreshed_pending_count += 1
+            processed_charge_codes.add(codigo_solicitacao)
+            if created:
+                created_count += 1
+            else:
+                updated_count += 1
     finally:
         client.close()
 
-    batch.records_total = len(summaries)
+    batch.records_total = len(summaries) + refreshed_pending_count
     batch.records_valid = created_count + updated_count
     batch.records_invalid = 0
     batch.status = "processed"
+    details: list[str] = []
     if updated_count:
-        batch.error_summary = f"{updated_count} cobranca(s) do Inter foram atualizadas."
+        details.append(f"{updated_count} cobranca(s) do Inter foram atualizadas.")
+    if refreshed_pending_count:
+        details.append(
+            f"{refreshed_pending_count} boleto(s) pendente(s) foram conferidos individualmente no Inter."
+        )
+    if details:
+        batch.error_summary = " ".join(details)
     db.commit()
     db.refresh(batch)
     return ImportResult(batch=batch, message="Cobrancas do Inter sincronizadas com sucesso.")

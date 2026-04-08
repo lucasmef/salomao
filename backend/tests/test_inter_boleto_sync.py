@@ -163,6 +163,80 @@ def test_sync_inter_charges_updates_existing_record_and_creates_new_one() -> Non
         session.close()
 
 
+def test_sync_inter_charges_refreshes_pending_local_boleto_missing_from_charge_list() -> None:
+    session = _build_session()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            return httpx.Response(200, json={"access_token": "token-123"})
+        if request.url.path == "/cobranca/v3/cobrancas":
+            return httpx.Response(200, json={"cobrancas": []})
+        if request.url.path == "/cobranca/v3/cobrancas/SOL-OLD":
+            return httpx.Response(
+                200,
+                json={
+                    "cobranca": {
+                        "codigoSolicitacao": "SOL-OLD",
+                        "seuNumero": "SEU-OLD",
+                        "situacao": "RECEBIDO",
+                        "dataEmissao": "2025-12-01",
+                        "dataVencimento": "2025-12-10",
+                        "valorNominal": "320.00",
+                        "valorTotalRecebido": "320.00",
+                        "pagador": {"nome": "Cliente Antigo", "cpfCnpj": "12345678901"},
+                    },
+                    "boleto": {
+                        "codigoBarras": "123123123",
+                        "linhaDigitavel": "123.123.123",
+                        "nossoNumero": "NOSSO-OLD",
+                    },
+                },
+            )
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    try:
+        company, account = _build_company_and_account(session)
+        session.add(
+            BoletoRecord(
+                company_id=company.id,
+                bank="INTER",
+                client_key=normalize_text("Cliente Antigo"),
+                client_name="Cliente Antigo",
+                document_id="SEU-OLD",
+                issue_date=date(2025, 12, 1),
+                due_date=date(2025, 12, 10),
+                amount=Decimal("320.00"),
+                paid_amount=Decimal("0.00"),
+                status="A receber",
+                inter_account_id=account.id,
+                inter_codigo_solicitacao="SOL-OLD",
+                inter_seu_numero="SEU-OLD",
+            )
+        )
+        session.commit()
+
+        result = sync_inter_charges(
+            session,
+            company,
+            account_id=account.id,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            transport=httpx.MockTransport(handler),
+        )
+
+        session.expire_all()
+        record = session.query(BoletoRecord).filter_by(inter_codigo_solicitacao="SOL-OLD").one()
+        assert result.message == "Cobrancas do Inter sincronizadas com sucesso."
+        assert result.batch.records_total == 1
+        assert result.batch.records_valid == 1
+        assert "conferidos individualmente" in (result.batch.error_summary or "")
+        assert record.status == "Recebido por boleto"
+        assert record.paid_amount == Decimal("320.00")
+        assert record.linha_digitavel == "123.123.123"
+    finally:
+        session.close()
+
+
 def test_cancel_and_receive_inter_charge_update_boleto_status() -> None:
     session = _build_session()
 
