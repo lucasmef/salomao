@@ -136,6 +136,8 @@ textarea {
 }
 
 .reconciliation-cell-stack {
+  display: flex;
+  flex-direction: column;
   gap: 2px;
   max-width: 100%;
 }
@@ -157,6 +159,12 @@ textarea {
   line-height: 1.2;
   color: #6b7b91;
   word-break: break-word;
+}
+
+.reconciliation-statement-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .compact-row-actions {
@@ -974,22 +982,23 @@ textarea {
 }
 
 .reconciliation-bank-table th:nth-child(4),
-.reconciliation-bank-table td:nth-child(4),
+.reconciliation-bank-table td:nth-child(4) {
+  width: 96px;
+}
+
+.reconciliation-bank-table th:nth-child(5),
+.reconciliation-bank-table td:nth-child(5) {
+  width: 132px;
+}
+
 .reconciliation-entry-table th:nth-child(4),
 .reconciliation-entry-table td:nth-child(4) {
   width: 118px;
 }
 
-.reconciliation-bank-table th:nth-child(5),
-.reconciliation-bank-table td:nth-child(5),
 .reconciliation-entry-table th:nth-child(5),
 .reconciliation-entry-table td:nth-child(5) {
   width: 84px;
-}
-
-.reconciliation-bank-table th:nth-child(6),
-.reconciliation-bank-table td:nth-child(6) {
-  width: 132px;
 }
 
 .reconciliation-entry-table th:nth-child(6),

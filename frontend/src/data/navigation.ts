@@ -4,6 +4,7 @@ export type MainNavChild = {
   path: string;
   title: string;
   description: string;
+  group?: string;
 };
 
 export type MainNavItem = {
@@ -195,7 +196,7 @@ export const mainNavigation: MainNavItem[] = [
     label: "Sistema",
     path: "/cadastros/contas",
     title: "Sistema",
-    description: "Administração, cadastros base, segurança, importações técnicas e auditoria.",
+    description: "Administração, cadastros base, segurança e importações técnicas.",
     children: [
       {
         key: "contas",
@@ -203,6 +204,7 @@ export const mainNavigation: MainNavItem[] = [
         path: "/cadastros/contas",
         title: "Contas",
         description: "Contas bancárias, caixas e configuração de OFX.",
+        group: "Base",
       },
       {
         key: "categorias",
@@ -210,6 +212,7 @@ export const mainNavigation: MainNavItem[] = [
         path: "/cadastros/categorias",
         title: "Categorias",
         description: "Tipos, grupos e categorias do financeiro.",
+        group: "Base",
       },
       {
         key: "clientes",
@@ -217,6 +220,7 @@ export const mainNavigation: MainNavItem[] = [
         path: "/cadastros/clientes",
         title: "Clientes e fornecedores",
         description: "Base Linx de clientes e fornecedores com visão das configurações de cobrança.",
+        group: "Linx",
       },
       {
         key: "produtos",
@@ -224,6 +228,7 @@ export const mainNavigation: MainNavItem[] = [
         path: "/cadastros/produtos",
         title: "Produtos",
         description: "Base Linx de produtos com custo, venda, fornecedor e coleção.",
+        group: "Linx",
       },
       {
         key: "movimentos",
@@ -231,6 +236,7 @@ export const mainNavigation: MainNavItem[] = [
         path: "/cadastros/movimentos",
         title: "Movimentos",
         description: "Espelho Linx detalhado por produto para vendas e compras relevantes ao lucro por coleção.",
+        group: "Linx",
       },
       {
         key: "faturas-receber",
@@ -238,6 +244,7 @@ export const mainNavigation: MainNavItem[] = [
         path: "/cadastros/faturas-a-receber",
         title: "Faturas a receber",
         description: "Espelho Linx das faturas em aberto do crediário, sem alterar a cobrança atual.",
+        group: "Linx",
       },
       {
         key: "regras",
@@ -245,27 +252,15 @@ export const mainNavigation: MainNavItem[] = [
         path: "/cadastros/regras",
         title: "Regras",
         description: "Regras recorrentes e padrões operacionais.",
-      },
-      {
-        key: "fornecedores",
-        label: "Fornecedores",
-        path: "/cadastros/fornecedores",
-        title: "Fornecedores",
-        description: "Cadastro dos fornecedores usados no módulo de compras.",
-      },
-      {
-        key: "usuarios",
-        label: "Usuários",
-        path: "/sistema/usuarios",
-        title: "Usuários",
-        description: "Usuários locais, perfis e acessos.",
+        group: "Base",
       },
       {
         key: "seguranca",
         label: "Segurança",
         path: "/sistema/seguranca",
         title: "Segurança",
-        description: "Políticas, proteção da base e continuidade.",
+        description: "Usuários, acessos, MFA, integrações e continuidade.",
+        group: "Administração",
       },
       {
         key: "importacoes-gerais",
@@ -273,13 +268,7 @@ export const mainNavigation: MainNavItem[] = [
         path: "/sistema/importacoes-gerais",
         title: "Importações gerais",
         description: "Histórico central de importações e cargas históricas do sistema.",
-      },
-      {
-        key: "auditoria",
-        label: "Auditoria",
-        path: "/sistema/auditoria",
-        title: "Auditoria",
-        description: "Histórico de eventos relevantes, importações e restaurações.",
+        group: "Administração",
       },
     ],
   },
@@ -296,7 +285,7 @@ export const legacySectionPathMap: Record<string, string> = {
   caixa: "/caixa-resultados/fluxo-caixa",
   relatorios: "/caixa-resultados/dre",
   cadastros: "/cadastros/contas",
-  seguranca: "/sistema/usuarios",
+  seguranca: "/sistema/seguranca",
 };
 
 export function findMainNavItem(pathname: string) {

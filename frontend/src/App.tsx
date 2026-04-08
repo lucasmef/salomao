@@ -356,9 +356,6 @@ const ResultsComparativesPage = lazy(() =>
   import("./pages/ResultsComparativesPage").then((module) => ({ default: module.ResultsComparativesPage })),
 );
 const SecurityPage = lazy(() => import("./pages/SecurityPage").then((module) => ({ default: module.SecurityPage })));
-const SystemAuditPage = lazy(() =>
-  import("./pages/SystemAuditPage").then((module) => ({ default: module.SystemAuditPage })),
-);
 const SystemImportsGeneralPage = lazy(() =>
   import("./pages/SystemImportsGeneralPage").then((module) => ({ default: module.SystemImportsGeneralPage })),
 );
@@ -451,9 +448,6 @@ function getLegacySectionsForPath(pathname: string): SectionId[] {
   if (currentPath === "/cadastros/contas" || currentPath === "/cadastros/categorias") {
     return ["cadastros"];
   }
-  if (currentPath === "/cadastros/fornecedores") {
-    return ["planejamento"];
-  }
   if (currentPath === "/cadastros/clientes") {
     return ["cadastros", "importacoes"];
   }
@@ -476,7 +470,7 @@ function getLegacySectionsForPath(pathname: string): SectionId[] {
     return ["importacoes"];
   }
   if (currentPath === "/sistema/auditoria") {
-    return ["importacoes", "seguranca"];
+    return ["importacoes"];
   }
   return ["overview"];
 }
@@ -2307,8 +2301,6 @@ function AppRuntime() {
   const systemTabs = systemNavigation.children;
   const systemAccountsTab = systemTabs.find((tab) => tab.key === "contas") ?? systemTabs[0];
   const systemCategoriesTab = systemTabs.find((tab) => tab.key === "categorias") ?? systemTabs[0];
-  const systemSuppliersTab = systemTabs.find((tab) => tab.key === "fornecedores") ?? systemTabs[0];
-  const systemUsersTab = systemTabs.find((tab) => tab.key === "usuarios") ?? systemTabs[0];
   const systemSecurityTab = systemTabs.find((tab) => tab.key === "seguranca") ?? systemTabs[0];
   const purchasePageProps = {
     embedded: true,
@@ -2484,7 +2476,6 @@ function AppRuntime() {
                 onApplyFilters={applyReconciliationFilters}
                 onChangeFilters={setReconciliationFilters}
                 onSyncInterStatement={syncInterStatementImport}
-                onUploadOfx={uploadOfxImport}
                 onQuickAction={reconciliationAction}
                 onReconcile={reconcile}
                 onSearchEntries={searchReconciliationEntries}
@@ -2573,7 +2564,7 @@ function AppRuntime() {
         <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/notas-fiscais" />
         <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/posicoes-compra" />
         <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/parcelas-previstas" />
-        <Route element={<Navigate replace to="/cadastros/fornecedores" />} path="/compras/fornecedores" />
+        <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/fornecedores" />
         <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/colecoes" />
 
         <Route
@@ -2807,55 +2798,8 @@ function AppRuntime() {
           element={<CadastrosRulesPage loans={loans} recurrences={recurrences} tabs={systemTabs} />}
           path="/cadastros/regras"
         />
-        <Route
-          element={
-            <SectionChrome
-              description={systemSuppliersTab.description}
-              sectionLabel="Sistema"
-              tabLabel={systemSuppliersTab.label}
-              tabs={systemTabs}
-              title={systemSuppliersTab.title}
-            >
-              <PurchasePlanningPage {...purchasePageProps} view="fornecedores" />
-            </SectionChrome>
-          }
-          path="/cadastros/fornecedores"
-        />
-
-        <Route
-          element={
-            <SectionChrome
-              description={systemUsersTab.description}
-              sectionLabel="Sistema"
-              tabLabel={systemUsersTab.label}
-              tabs={systemTabs}
-              title={systemUsersTab.title}
-            >
-              <SecurityPage
-                embedded
-                view="users"
-                backups={backups}
-                currentUser={session.user}
-                instanceInfo={instanceInfo}
-                linxSettings={linxSettings}
-                mfaStatus={mfaStatus}
-                activeMfaSetup={activeMfaSetup}
-                onCreateBackup={createBackup}
-                onCreateUser={createUser}
-                onDeactivateUser={deactivateUser}
-                onRestoreBackup={restoreBackup}
-                onStartMfaEnrollment={startMfaEnrollment}
-                onConfirmMfaEnrollment={confirmMfaEnrollment}
-                onResetMfa={resetUserMfa}
-                onUpdateCredentials={updateCredentials}
-                onUpdateLinxSettings={updateLinxSettings}
-                submitting={submitting}
-                users={users}
-              />
-            </SectionChrome>
-          }
-          path="/sistema/usuarios"
-        />
+        <Route element={<Navigate replace to="/compras/planejamento" />} path="/cadastros/fornecedores" />
+        <Route element={<Navigate replace to="/sistema/seguranca" />} path="/sistema/usuarios" />
         <Route element={<Navigate replace to="/sistema/seguranca" />} path="/sistema/backup" />
         <Route
           element={
@@ -2868,7 +2812,7 @@ function AppRuntime() {
             >
               <SecurityPage
                 embedded
-                view="security"
+                view="all"
                 backups={backups}
                 currentUser={session.user}
                 instanceInfo={instanceInfo}
@@ -2904,10 +2848,7 @@ function AppRuntime() {
           }
           path="/sistema/importacoes-gerais"
         />
-        <Route
-          element={<SystemAuditPage backups={backups} importSummary={importSummary} tabs={systemTabs} />}
-          path="/sistema/auditoria"
-        />
+        <Route element={<Navigate replace to="/sistema/importacoes-gerais" />} path="/sistema/auditoria" />
 
         <Route element={<Navigate replace to={activeChildSection.path} />} path="*" />
       </Routes>

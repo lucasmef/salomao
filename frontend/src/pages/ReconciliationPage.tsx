@@ -31,7 +31,6 @@ type Props = {
   submitting: boolean;
   onChangeFilters: (filters: ReconciliationFilters) => void;
   onApplyFilters: (filters?: ReconciliationFilters) => Promise<void>;
-  onUploadOfx: (file: File, accountId: string) => Promise<void>;
   onSyncInterStatement: () => Promise<void>;
   onReconcile: (
     bankTransactionIds: string[],
@@ -93,6 +92,61 @@ const RECONCILIATION_ENTRY_FETCH_LIMIT = 200;
 function compactSingleLine(value: string | null | undefined, fallback = "-") {
   const normalized = normalizeDisplayText(value)?.replace(/\s+/g, " ").trim();
   return normalized || fallback;
+}
+
+function normalizeStatementKey(value: string | null | undefined) {
+  return compactSingleLine(value, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function limitStatementPreview(value: string, maxLength: number) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, Math.max(0, maxLength - 1)).trimEnd()}...`;
+}
+
+function trimStatementDetail(detail: string, description: string) {
+  const normalizedDetail = normalizeStatementKey(detail);
+  const normalizedDescription = normalizeStatementKey(description);
+  if (!normalizedDetail || normalizedDetail === normalizedDescription) {
+    return "";
+  }
+
+  const escapedDescription = description.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const duplicateSuffixMatch = detail.match(new RegExp(`^(.+?)\\s*[:|-]\\s*["“]?${escapedDescription}["”]?$`, "i"));
+  if (duplicateSuffixMatch?.[1]) {
+    return compactSingleLine(duplicateSuffixMatch[1], "");
+  }
+
+  if (normalizedDetail.startsWith(normalizedDescription)) {
+    return compactSingleLine(detail.slice(description.length).replace(/^[\s:|,-]+/, ""), "");
+  }
+
+  return detail;
+}
+
+function buildStatementCell(item: ReconciliationWorklist["items"][number]) {
+  const memoParts = compactSingleLine(item.memo, "")
+    .split("|")
+    .map((part) => compactSingleLine(part, ""))
+    .filter(Boolean);
+  const description = compactSingleLine(item.name, "") || memoParts[0] || compactSingleLine(item.fit_id);
+  const details = memoParts
+    .map((part) => trimStatementDetail(part, description))
+    .filter((part) => normalizeStatementKey(part) !== normalizeStatementKey(description));
+  const fallbackDetails = !details.length ? trimStatementDetail(compactSingleLine(item.memo, ""), description) : "";
+  const fullDetails = [...details, fallbackDetails].filter(Boolean).join(" | ");
+  const tooltip = [description, fullDetails].filter(Boolean).join(" | ");
+
+  return {
+    description: limitStatementPreview(description, 52),
+    details: fullDetails ? limitStatementPreview(fullDetails, 72) : "",
+    tooltip: tooltip || undefined,
+  };
 }
 
 function formatReconciliationAmount(value: string | number | null | undefined) {
@@ -256,15 +310,6 @@ function CheckActionIcon() {
   );
 }
 
-function DocumentIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
-      <path d="M4 1.75h5.25L13 5.5v8.75a.75.75 0 0 1-.75.75h-8.5A.75.75 0 0 1 3 14.25v-11.75A.75.75 0 0 1 3.75 1.75H4Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.4" />
-      <path d="M9 1.75V5.5h3.75" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.4" />
-    </svg>
-  );
-}
-
 function ListIcon() {
   return (
     <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
@@ -360,7 +405,6 @@ export function ReconciliationPage({
   submitting,
   onChangeFilters,
   onApplyFilters,
-  onUploadOfx,
   onSyncInterStatement,
   onReconcile,
   onUnreconcile,
@@ -388,9 +432,6 @@ export function ReconciliationPage({
     search: string;
     status: string;
   } | null>(null);
-  const [ofxFile, setOfxFile] = useState<File | null>(null);
-  const [ofxAccountId, setOfxAccountId] = useState(filters.account_id);
-  const [ofxModalOpen, setOfxModalOpen] = useState(false);
   const [modal, setModal] = useState<ModalState>(null);
   const [createDraft, setCreateDraft] = useState<CreateDraft>(emptyDraft);
   const [reconcileAdjustmentDraft, setReconcileAdjustmentDraft] = useState<ReconcileAdjustmentDraft>(emptyAdjustmentDraft);
@@ -448,10 +489,6 @@ export function ReconciliationPage({
   );
   const allFilteredBankSelected = selectableFilteredBankIds.length > 0
     && selectableFilteredBankIds.every((id) => selectedBankIds.includes(id));
-  const latestOfxBatch = useMemo(
-    () => importSummary.import_batches.find((batch) => batch.source_type.startsWith("ofx:")) ?? null,
-    [importSummary.import_batches],
-  );
   const hasInterApiAccount = useMemo(
     () => accounts.some((account) => account.is_active && account.inter_api_enabled),
     [accounts],
@@ -713,10 +750,6 @@ export function ReconciliationPage({
     setSelectedEntryIds([]);
     setBankSearch("");
   }, [worklist]);
-
-  useEffect(() => {
-    setOfxAccountId((current) => current || filters.account_id);
-  }, [filters.account_id]);
 
   useEffect(() => {
     if (!hasMountedFilterAutoApplyRef.current) {
@@ -1014,15 +1047,6 @@ export function ReconciliationPage({
     setModal("transfer");
   }
 
-  async function handleOfxImport() {
-    if (!ofxFile || !ofxAccountId) {
-      return;
-    }
-    await onUploadOfx(ofxFile, ofxAccountId);
-    setOfxFile(null);
-    setOfxModalOpen(false);
-  }
-
   const reconciliationFiltersContent = (
     <div className="reconciliation-top-toolbar">
       <select
@@ -1180,9 +1204,6 @@ export function ReconciliationPage({
               >
                 <ListIcon />
               </button>
-              <button className="entries-toolbar-icon" type="button" onClick={() => setOfxModalOpen(true)} title="OFX">
-                <DocumentIcon />
-              </button>
               <button className="entries-toolbar-icon" disabled={submitting || !hasInterApiAccount} onClick={() => void onSyncInterStatement()} title="Atualizar extrato do Inter" type="button">
                 <RefreshIcon />
               </button>
@@ -1209,7 +1230,6 @@ export function ReconciliationPage({
                   </th>
                   <th>Data</th>
                   <th>Extrato</th>
-                  <th>Conta</th>
                   <th className="numeric-cell">Valor</th>
                   <th>Situação</th>
                 </tr>
@@ -1218,7 +1238,7 @@ export function ReconciliationPage({
                 {filteredBankItems.map((item) => {
                   const isMatched = item.reconciliation_status === "matched";
                   const entryTitles = item.applied_entries.map((entry) => compactSingleLine(entry.title)).join(", ");
-                  const historyLabel = compactSingleLine(item.name ?? item.memo ?? item.fit_id);
+                  const statementCell = buildStatementCell(item);
                   return (
                     <tr key={item.bank_transaction_id}>
                       <td className="checkbox-cell">
@@ -1230,10 +1250,12 @@ export function ReconciliationPage({
                         />
                       </td>
                       <td>{formatDate(item.posted_at)}</td>
-                      <td title={[historyLabel, compactSingleLine(item.memo ?? item.fit_id, "")].filter(Boolean).join(" | ") || undefined}>
-                        <span className="single-line-cell">{historyLabel}</span>
+                      <td title={statementCell.tooltip}>
+                        <div className="reconciliation-cell-stack">
+                          <span className="single-line-cell">{statementCell.description}</span>
+                          {statementCell.details ? <span className="compact-detail-line reconciliation-statement-detail">{statementCell.details}</span> : null}
+                        </div>
                       </td>
-                      <td title={compactSingleLine(item.account_name)}><span className="single-line-cell">{compactSingleLine(item.account_name)}</span></td>
                       <td className="numeric-cell compact-amount-cell">{formatReconciliationAmount(item.amount)}</td>
                       <td title={entryTitles || undefined}>
                         <div className="reconciliation-inline-status">
@@ -1250,7 +1272,7 @@ export function ReconciliationPage({
                 })}
                 {!filteredBankItems.length && (
                   <tr>
-                    <td colSpan={6} className="empty-cell">
+                    <td colSpan={5} className="empty-cell">
                       Nenhum movimento encontrado para o periodo.
                     </td>
                   </tr>
@@ -1623,49 +1645,6 @@ export function ReconciliationPage({
         </div>
       )}
 
-      {ofxModalOpen && (
-        <div className="modal-backdrop" role="presentation">
-          <div className="modal-card purchase-modal-card">
-            <div className="panel-title">
-              <h3>OFX</h3>
-              <button className="ghost-button" type="button" onClick={() => setOfxModalOpen(false)}>
-                Fechar
-              </button>
-            </div>
-            <div className="form-grid dense">
-              <label>
-                Conta
-                <select value={ofxAccountId} onChange={(event) => setOfxAccountId(event.target.value)}>
-                  <option value="">Selecionar conta</option>
-                  {ofxAccounts.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Arquivo OFX
-                <input type="file" accept=".ofx" onChange={(event) => setOfxFile(event.target.files?.[0] ?? null)} />
-              </label>
-            </div>
-            {!ofxAccounts.length && <div className="import-last-meta">Nenhuma conta com importacao OFX habilitada.</div>}
-            <div className="import-last-meta">
-              {latestOfxBatch ? `Ultima importacao: ${latestOfxBatch.filename} em ${formatDate(latestOfxBatch.created_at)}` : "Ultima importacao: nenhuma"}
-            </div>
-            <div className="action-row">
-              <button
-                className="primary-button"
-                disabled={submitting || !ofxFile || !ofxAccountId}
-                onClick={() => void handleOfxImport()}
-                type="button"
-              >
-                OFX
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

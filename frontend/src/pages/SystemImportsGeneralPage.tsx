@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 
 import { SectionChrome } from "../components/SectionChrome";
 import type { MainNavChild } from "../data/navigation";
-import { formatDate, formatEntryStatus } from "../lib/format";
+import { formatDateTime, formatEntryStatus } from "../lib/format";
 import type { Account, ImportSummary } from "../types";
 
 type Props = {
@@ -59,7 +59,7 @@ export function SystemImportsGeneralPage({
           <div className="compact-upload-box">
             <input type="file" accept=".xlsx" onChange={(event) => setHistoricalFile(event.target.files?.[0] ?? null)} />
             <div className="import-last-meta">
-              {latestHistoricalImport ? `Última importação: ${latestHistoricalImport.filename} em ${formatDate(latestHistoricalImport.created_at)}` : "Última importação: nenhuma"}
+              {latestHistoricalImport ? `Última importação: ${latestHistoricalImport.filename} em ${formatDateTime(latestHistoricalImport.created_at)}` : "Última importação: nenhuma"}
             </div>
             <button
               className="primary-button compact-action-button"
@@ -83,7 +83,7 @@ export function SystemImportsGeneralPage({
             )}
             <div className="import-last-meta">
               {latestInterStatementImport
-                ? `Última sincronização: ${latestInterStatementImport.filename} em ${formatDate(latestInterStatementImport.created_at)}`
+                ? `Última sincronização: ${latestInterStatementImport.filename} em ${formatDateTime(latestInterStatementImport.created_at)}`
                 : "Última sincronização: nenhuma"}
             </div>
             <button
@@ -103,11 +103,11 @@ export function SystemImportsGeneralPage({
         <div className="panel-title"><h3>Histórico de importações</h3></div>
         <div className="table-shell">
           <table className="erp-table">
-            <thead><tr><th>Data</th><th>Arquivo</th><th>Tipo</th><th>Processo</th><th>Status</th><th>Observação</th></tr></thead>
+            <thead><tr><th>Data/Hora</th><th>Arquivo</th><th>Tipo</th><th>Processo</th><th>Status</th><th>Observação</th></tr></thead>
             <tbody>
               {importSummary.import_batches.map((batch) => (
                 <tr key={batch.id}>
-                  <td>{formatDate(batch.created_at)}</td>
+                  <td>{formatDateTime(batch.created_at)}</td>
                   <td>{batch.filename}</td>
                   <td>{batch.source_type}</td>
                   <td>{batch.records_valid}/{batch.records_total}</td>

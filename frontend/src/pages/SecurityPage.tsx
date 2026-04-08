@@ -199,7 +199,7 @@ export function SecurityPage({
           </article>
         )}
 
-        {view === "security" && currentUser.role === "admin" && (
+        {(view === "all" || view === "security") && currentUser.role === "admin" && (
           <article className="panel-card">
             <div className="panel-heading">
               <p className="eyebrow">Integracao Linx</p>
