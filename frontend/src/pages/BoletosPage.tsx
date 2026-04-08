@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
+import { MoneyInput } from "../components/MoneyInput";
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
 import type { Account, BoletoAlertItem, BoletoClient, BoletoDashboard } from "../types";
 
@@ -25,6 +26,7 @@ type Props = {
   }) => Promise<void>;
   onDownloadStandaloneBoletoPdf: (boletoId: string) => Promise<void>;
   onMarkStandaloneBoletoDownloaded: (boletoId: string) => Promise<void>;
+  onCancelStandaloneBoleto: (boletoId: string) => Promise<void>;
   onSyncCustomers: () => Promise<void>;
   onSyncInterCharges: () => Promise<void>;
   onSyncReceivables: () => Promise<void>;
@@ -33,6 +35,7 @@ type Props = {
   onUploadBoletoInter: (file: File) => Promise<void>;
   onUploadBoletoC6: (file: File) => Promise<void>;
   onUploadClientData: (file: File) => Promise<void>;
+  showMissingExportFallback: boolean;
   onSaveClients: (payload: {
     clients: Array<{
       client_key: string;
@@ -246,6 +249,7 @@ export function BoletosPage({
   onCreateStandaloneBoleto,
   onDownloadStandaloneBoletoPdf,
   onMarkStandaloneBoletoDownloaded,
+  onCancelStandaloneBoleto,
   onSyncCustomers,
   onSyncInterCharges,
   onSyncReceivables,
@@ -254,6 +258,7 @@ export function BoletosPage({
   onUploadBoletoInter,
   onUploadBoletoC6,
   onUploadClientData,
+  showMissingExportFallback,
   onSaveClients,
 }: Props) {
   const [interFile, setInterFile] = useState<File | null>(null);
@@ -269,8 +274,8 @@ export function BoletosPage({
   const [openBoletoBankFilter, setOpenBoletoBankFilter] = useState("all");
   const [openReceivableSort, setOpenReceivableSort] = useState<OpenReceivableSort>("due_date");
   const [openReceivableSortDirection, setOpenReceivableSortDirection] = useState<SortDirection>("asc");
-  const [openBoletoSort, setOpenBoletoSort] = useState<OpenBoletoSort>("due_date");
-  const [openBoletoSortDirection, setOpenBoletoSortDirection] = useState<SortDirection>("asc");
+  const [openBoletoSort, setOpenBoletoSort] = useState<OpenBoletoSort>("issue_date");
+  const [openBoletoSortDirection, setOpenBoletoSortDirection] = useState<SortDirection>("desc");
   const [standaloneBoletoDraft, setStandaloneBoletoDraft] = useState<StandaloneBoletoDraft>({
     account_id: "",
     client_name: "",
@@ -506,6 +511,21 @@ export function BoletosPage({
     void onReceiveInterBoleto(boleto.id, "BOLETO");
   }
 
+  function canCancelStandaloneBoleto(boleto: BoletoDashboard["standalone_boletos"][number]) {
+    return Boolean(
+      boleto.bank === "INTER" &&
+      boleto.inter_codigo_solicitacao &&
+      !["Cancelado", "Recebido por boleto"].includes(boleto.status),
+    );
+  }
+
+  function handleCancelStandaloneBoleto(boleto: BoletoDashboard["standalone_boletos"][number]) {
+    if (!window.confirm(`Cancelar o boleto avulso ${boleto.document_id || boleto.inter_codigo_solicitacao}?`)) {
+      return;
+    }
+    void onCancelStandaloneBoleto(boleto.id);
+  }
+
   function renderBoletoActions(
     boletos: BoletoAlertItem["boletos"],
     options?: {
@@ -584,6 +604,14 @@ export function BoletosPage({
     setStandaloneBoletoModalOpen(false);
   }
 
+  async function handleIssueMissingBoletos() {
+    try {
+      await onIssueInterCharges(selectedMissingKeys);
+    } catch {
+      // A exibicao do XLSX de contingencia passa a depender da falha da emissao.
+    }
+  }
+
   function renderStandaloneBoletoModal() {
     if (!standaloneBoletoModalOpen) {
       return null;
@@ -601,102 +629,80 @@ export function BoletosPage({
             </button>
           </div>
 
-          <div className="billing-modal-copy">
-            <p>
-              Use este modal para emitir boletos avulsos fora da cobrança recorrente.
-            </p>
-            <p>
-              Eles não entram em faturas, boletos faltando, pagos ou em excesso. O controle fica só nesta aba, com
-              status do banco e baixa local no Salomão.
-            </p>
-            <p>
-              Informe apenas o nome do cliente, o valor, o vencimento e a observação. O restante do cadastro será
-              resolvido automaticamente pela base da API Linx.
-            </p>
-            {!interAccounts.length ? (
-              <p>
-                Nenhuma conta com API Inter ativa foi encontrada. Você ainda pode preencher os dados, mas a emissão só
-                será liberada depois que uma conta Inter estiver ativa no sistema.
-              </p>
-            ) : null}
-          </div>
+          {!interAccounts.length ? (
+            <div className="billing-modal-copy billing-modal-copy--warning">
+              <p>Nenhuma conta com API Inter ativa foi encontrada. A emissão será liberada quando houver uma conta Inter ativa.</p>
+            </div>
+          ) : null}
 
-          <div className="table-shell">
-            <table className="erp-table">
-              <tbody>
-                <tr>
-                  <td>Conta Inter</td>
-                  <td>
-                    <select
-                      value={standaloneBoletoDraft.account_id}
-                      onChange={(event) =>
-                        setStandaloneBoletoDraft((current) => ({ ...current, account_id: event.target.value }))
-                      }
-                    >
-                      <option value="">Selecione</option>
-                      {interAccounts.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Cliente</td>
-                  <td>
-                    <input
-                      list="standalone-boleto-clients"
-                      value={standaloneBoletoDraft.client_name}
-                      onChange={(event) =>
-                        setStandaloneBoletoDraft((current) => ({ ...current, client_name: event.target.value }))
-                      }
-                    />
-                    <datalist id="standalone-boleto-clients">
-                      {standaloneClientOptions.map((item) => (
-                        <option key={item} value={item} />
-                      ))}
-                    </datalist>
-                  </td>
-                </tr>
-                <tr>
-                  <td>Valor</td>
-                  <td>
-                    <input
-                      inputMode="decimal"
-                      value={standaloneBoletoDraft.amount}
-                      onChange={(event) =>
-                        setStandaloneBoletoDraft((current) => ({ ...current, amount: event.target.value }))
-                      }
-                    />
-                  </td>
-                </tr>
-                <tr>
-                  <td>Vencimento</td>
-                  <td>
-                    <input
-                      type="date"
-                      value={standaloneBoletoDraft.due_date}
-                      onChange={(event) =>
-                        setStandaloneBoletoDraft((current) => ({ ...current, due_date: event.target.value }))
-                      }
-                    />
-                  </td>
-                </tr>
-                <tr>
-                  <td>Observação</td>
-                  <td>
-                    <textarea
-                      rows={3}
-                      value={standaloneBoletoDraft.notes}
-                      onChange={(event) =>
-                        setStandaloneBoletoDraft((current) => ({ ...current, notes: event.target.value }))
-                      }
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="billing-standalone-form">
+            <label className="billing-standalone-form-field">
+              <span>Conta Inter</span>
+              <select
+                value={standaloneBoletoDraft.account_id}
+                onChange={(event) =>
+                  setStandaloneBoletoDraft((current) => ({ ...current, account_id: event.target.value }))
+                }
+              >
+                <option value="">Selecione</option>
+                {interAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="billing-standalone-form-field billing-standalone-form-field--wide">
+              <span>Cliente</span>
+              <input
+                list="standalone-boleto-clients"
+                placeholder="Nome do cliente"
+                value={standaloneBoletoDraft.client_name}
+                onChange={(event) =>
+                  setStandaloneBoletoDraft((current) => ({ ...current, client_name: event.target.value }))
+                }
+              />
+              <datalist id="standalone-boleto-clients">
+                {standaloneClientOptions.map((item) => (
+                  <option key={item} value={item} />
+                ))}
+              </datalist>
+            </label>
+
+            <label className="billing-standalone-form-field">
+              <span>Valor</span>
+              <MoneyInput
+                placeholder="0,00"
+                value={standaloneBoletoDraft.amount}
+                onValueChange={(value) =>
+                  setStandaloneBoletoDraft((current) => ({ ...current, amount: value }))
+                }
+              />
+            </label>
+
+            <label className="billing-standalone-form-field">
+              <span>Vencimento</span>
+              <input
+                type="date"
+                value={standaloneBoletoDraft.due_date}
+                onChange={(event) =>
+                  setStandaloneBoletoDraft((current) => ({ ...current, due_date: event.target.value }))
+                }
+              />
+            </label>
+
+            <label className="billing-standalone-form-field billing-standalone-form-field--full">
+              <span>Observação</span>
+              <textarea
+                rows={4}
+                placeholder="Descreva o motivo ou referência deste boleto"
+                value={standaloneBoletoDraft.notes}
+                onChange={(event) =>
+                  setStandaloneBoletoDraft((current) => ({ ...current, notes: event.target.value }))
+                }
+              />
+            </label>
           </div>
 
           <div className="action-row">
@@ -1278,18 +1284,20 @@ export function BoletosPage({
               />
               <span>Exibe todos boletos de clientes mensal</span>
             </label>
-            <button
-              className="ghost-button billing-secondary-action"
-              disabled={submitting || !selectedMissingKeys.length}
-              onClick={() => void onExportMissingBoletos(selectedMissingKeys)}
-              type="button"
-            >
-              Gerar XLSX
-            </button>
+            {showMissingExportFallback ? (
+              <button
+                className="ghost-button billing-secondary-action"
+                disabled={submitting || !selectedMissingKeys.length}
+                onClick={() => void onExportMissingBoletos(selectedMissingKeys)}
+                type="button"
+              >
+                Gerar XLSX
+              </button>
+            ) : null}
             <button
               className="primary-button"
               disabled={submitting || !selectedMissingKeys.length || !hasInterApiAccount}
-              onClick={() => void onIssueInterCharges(selectedMissingKeys)}
+              onClick={() => void handleIssueMissingBoletos()}
               type="button"
             >
               Emitir no Inter
@@ -1459,26 +1467,39 @@ export function BoletosPage({
                       <td className="numeric-cell">{formatMoney(item.amount)}</td>
                       <td>{item.bank}</td>
                       <td>{item.status}</td>
-                      <td>
-                        <div className="action-row">
+                      <td className="billing-open-boletos-actions-cell">
+                        <div className="billing-boleto-row-actions billing-boleto-row-actions--compact">
                           {item.pdf_available ? (
                             <button
-                              className="secondary-button"
+                              className="table-button icon-only-button"
                               disabled={submitting}
                               onClick={() => void onDownloadStandaloneBoletoPdf(item.id)}
+                              title="Baixar PDF do boleto avulso"
                               type="button"
                             >
-                              PDF
+                              <DownloadIcon />
                             </button>
                           ) : null}
                           <button
-                            className="primary-button"
+                            className="table-button icon-only-button"
                             disabled={submitting}
                             onClick={() => void onMarkStandaloneBoletoDownloaded(item.id)}
+                            title="Marcar boleto avulso como baixado"
                             type="button"
                           >
-                            Baixado
+                            <CheckIcon />
                           </button>
+                          {canCancelStandaloneBoleto(item) ? (
+                            <button
+                              className="table-button icon-only-button"
+                              disabled={submitting}
+                              onClick={() => handleCancelStandaloneBoleto(item)}
+                              title="Cancelar boleto avulso no Inter"
+                              type="button"
+                            >
+                              <CancelIcon />
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>

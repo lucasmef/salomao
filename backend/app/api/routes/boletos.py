@@ -25,6 +25,7 @@ from app.services.boletos import (
 from app.services.company_context import get_current_company
 from app.services.inter import (
     cancel_inter_charge,
+    cancel_standalone_inter_charge,
     create_standalone_inter_charge,
     download_inter_charge_pdf,
     download_inter_charge_pdfs_zip,
@@ -294,6 +295,25 @@ def download_standalone_boleto_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post("/standalone/{boleto_id}/cancel", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+def cancel_standalone_boleto(
+    boleto_id: str,
+    payload: BoletoInterCancelRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        return cancel_standalone_inter_charge(
+            db,
+            company,
+            boleto_id=boleto_id,
+            motivo_cancelamento=payload.motivo_cancelamento,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.post("/standalone/{boleto_id}/downloaded", status_code=status.HTTP_204_NO_CONTENT)

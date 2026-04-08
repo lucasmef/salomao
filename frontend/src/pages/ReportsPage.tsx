@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { ReportConfigModal } from "../components/ReportConfigModal";
 import { PageHeader } from "../components/PageHeader";
-import { formatDate, formatMoney } from "../lib/format";
+import { formatDate, formatMoneyNumber } from "../lib/format";
 import type {
   ImportSummary,
   ReportConfig,
@@ -63,6 +63,40 @@ function FilterFunnelIcon() {
   );
 }
 
+function SettingsIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
+      <path
+        d="M6.37 1.88c.22-.83 1.4-.83 1.62 0l.2.76a1.5 1.5 0 0 0 1.09 1.06l.77.2c.84.21.84 1.4 0 1.61l-.77.2a1.5 1.5 0 0 0-1.09 1.07l-.2.76c-.22.83-1.4.83-1.62 0l-.2-.76A1.5 1.5 0 0 0 5.08 5.7l-.76-.2c-.84-.21-.84-1.4 0-1.61l.76-.2a1.5 1.5 0 0 0 1.1-1.06l.19-.76Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M10.58 8.74c.17-.63 1.07-.63 1.24 0l.14.5c.09.34.36.6.7.7l.5.14c.64.17.64 1.07 0 1.24l-.5.14c-.34.1-.61.36-.7.7l-.14.5c-.17.64-1.07.64-1.24 0l-.14-.5a.97.97 0 0 0-.7-.7l-.5-.14c-.64-.17-.64-1.07 0-1.24l.5-.14c.34-.1.61-.36.7-.7l.14-.5Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
+}
+
+function ExpandRowsIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" strokeLinecap="round" strokeWidth="1.3" />
+      {expanded ? (
+        <path d="m6 6 2 2 2-2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.3" />
+      ) : (
+        <path d="m6 10 2-2 2 2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.3" />
+      )}
+    </svg>
+  );
+}
+
 function ReportStatementTable({ nodes, expandedKeys, onToggle }: StatementTableProps) {
   function renderRows(items: ReportTreeNode[], depth = 0) {
     return items.flatMap((node) => {
@@ -87,7 +121,7 @@ function ReportStatementTable({ nodes, expandedKeys, onToggle }: StatementTableP
                 </div>
               </div>
             </td>
-            <td className={`report-value-cell ${valueToneClass}`}>{formatMoney(node.amount)}</td>
+            <td className={`report-value-cell ${valueToneClass}`}>{formatMoneyNumber(node.amount)}</td>
             <td className={`report-value-cell ${valueToneClass}`}>{node.percent === null ? "" : `${Number(node.percent).toFixed(2)}%`}</td>
           </tr>
           {hasChildren && isExpanded ? renderRows(node.children, depth + 1) : null}
@@ -103,7 +137,7 @@ function ReportStatementTable({ nodes, expandedKeys, onToggle }: StatementTableP
         <thead>
           <tr>
             <th>Contas</th>
-            <th>Valor (R$)</th>
+            <th>Valor</th>
             <th>%</th>
           </tr>
         </thead>
@@ -249,75 +283,100 @@ export function ReportsPage({
 
   const reportFiltersContent = (
     <div className="reports-top-toolbar">
-      <div className="entries-period-group" ref={periodPopoverRef}>
-        <button
-          aria-expanded={showPeriodPopover}
-          aria-label="Selecionar periodo"
-          className={`entries-period-trigger ${showPeriodPopover ? "is-active" : ""}`}
-          disabled={loading}
-          onClick={() => {
-            setShowPresetMenu(false);
-            setShowPeriodPopover((current) => !current);
-          }}
-          type="button"
-        >
-          <CalendarRangeIcon />
-          <span>{formatRangeLabel(filters.start, filters.end)}</span>
-        </button>
-        {showPeriodPopover && (
-          <div className="entries-floating-panel entries-period-popover">
-            <div className="entries-period-fields">
-              <label>
-                Inicio
-                <input disabled={loading} type="date" value={filters.start} onChange={(event) => setDateRange(event.target.value, filters.end)} />
-              </label>
-              <label>
-                Fim
-                <input disabled={loading} type="date" value={filters.end} onChange={(event) => setDateRange(filters.start, event.target.value)} />
-              </label>
+      <div className="reports-top-toolbar-main">
+        <div className="entries-period-group" ref={periodPopoverRef}>
+          <button
+            aria-expanded={showPeriodPopover}
+            aria-label="Selecionar periodo"
+            className={`entries-period-trigger ${showPeriodPopover ? "is-active" : ""}`}
+            disabled={loading}
+            onClick={() => {
+              setShowPresetMenu(false);
+              setShowPeriodPopover((current) => !current);
+            }}
+            type="button"
+          >
+            <CalendarRangeIcon />
+            <span>{formatRangeLabel(filters.start, filters.end)}</span>
+          </button>
+          {showPeriodPopover && (
+            <div className="entries-floating-panel entries-period-popover">
+              <div className="entries-period-fields">
+                <label>
+                  Inicio
+                  <input disabled={loading} type="date" value={filters.start} onChange={(event) => setDateRange(event.target.value, filters.end)} />
+                </label>
+                <label>
+                  Fim
+                  <input disabled={loading} type="date" value={filters.end} onChange={(event) => setDateRange(filters.start, event.target.value)} />
+                </label>
+              </div>
+              <div className="entries-period-footer">
+                <button
+                  className="secondary-button compact-button"
+                  onClick={() => {
+                    setDateRange("", "");
+                    setShowPeriodPopover(false);
+                  }}
+                  type="button"
+                >
+                  Limpar
+                </button>
+                <button className="primary-button compact-button" onClick={() => setShowPeriodPopover(false)} type="button">
+                  Concluir
+                </button>
+              </div>
             </div>
-            <div className="entries-period-footer">
-              <button
-                className="secondary-button compact-button"
-                onClick={() => {
-                  setDateRange("", "");
-                  setShowPeriodPopover(false);
-                }}
-                type="button"
-              >
-                Limpar
-              </button>
-              <button className="primary-button compact-button" onClick={() => setShowPeriodPopover(false)} type="button">
-                Concluir
-              </button>
+          )}
+        </div>
+
+        <div className="entries-toolbar-icon-wrap" ref={presetMenuRef}>
+          <button
+            aria-expanded={showPresetMenu}
+            aria-label="Periodos pre-definidos"
+            className={`entries-toolbar-icon ${showPresetMenu ? "is-active" : ""}`}
+            disabled={loading}
+            onClick={() => {
+              setShowPeriodPopover(false);
+              setShowPresetMenu((current) => !current);
+            }}
+            title="Periodos pre-definidos"
+            type="button"
+          >
+            <FilterFunnelIcon />
+          </button>
+          {showPresetMenu && (
+            <div className="entries-floating-panel entries-icon-menu">
+              <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("today"); setShowPresetMenu(false); }} type="button">Hoje</button>
+              <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("current_month"); setShowPresetMenu(false); }} type="button">Mes atual</button>
+              <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("previous_month"); setShowPresetMenu(false); }} type="button">Mes anterior</button>
+              <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("current_year"); setShowPresetMenu(false); }} type="button">Ano atual</button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      <div className="entries-toolbar-icon-wrap" ref={presetMenuRef}>
+      <div className="reports-top-toolbar-actions">
         <button
-          aria-expanded={showPresetMenu}
-          aria-label="Periodos pre-definidos"
-          className={`entries-toolbar-icon ${showPresetMenu ? "is-active" : ""}`}
+          aria-label={`Configurar ${activeTab.toUpperCase()}`}
+          className="entries-toolbar-icon"
           disabled={loading}
-          onClick={() => {
-            setShowPeriodPopover(false);
-            setShowPresetMenu((current) => !current);
-          }}
-          title="Periodos pre-definidos"
+          onClick={() => void openConfigModal()}
+          title={`Configurar ${activeTab.toUpperCase()}`}
           type="button"
         >
-          <FilterFunnelIcon />
+          <SettingsIcon />
         </button>
-        {showPresetMenu && (
-          <div className="entries-floating-panel entries-icon-menu">
-            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("today"); setShowPresetMenu(false); }} type="button">Hoje</button>
-            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("current_month"); setShowPresetMenu(false); }} type="button">Mes atual</button>
-            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("previous_month"); setShowPresetMenu(false); }} type="button">Mes anterior</button>
-            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("current_year"); setShowPresetMenu(false); }} type="button">Ano atual</button>
-          </div>
-        )}
+        <button
+          aria-label={allExpanded ? "Fechar todos os lancamentos" : "Abrir todos os lancamentos"}
+          className="entries-toolbar-icon"
+          disabled={allExpandableKeys.length === 0}
+          onClick={toggleAllNodes}
+          title={allExpanded ? "Fechar todos os lancamentos" : "Abrir todos os lancamentos"}
+          type="button"
+        >
+          <ExpandRowsIcon expanded={allExpanded} />
+        </button>
       </div>
     </div>
   );
@@ -346,21 +405,6 @@ export function ReportsPage({
 
         {currentReport ? (
           <div className="page-layout">
-            <div className="report-period-header">
-              <div>
-                <p className="section-label">{activeTab === "dre" ? "Demonstracao do Resultado do Exercicio" : "Demonstrativo de Resultados Operacionais"}</p>
-                <h3>{currentReport.period_label}</h3>
-              </div>
-              <div className="report-period-actions">
-                <button className="secondary-button icon-button report-config-button" onClick={() => void openConfigModal()} title={`Configurar ${activeTab.toUpperCase()}`} type="button">
-                  <span className="button-icon">⚙</span>
-                </button>
-                <button className="secondary-button" disabled={allExpandableKeys.length === 0} onClick={toggleAllNodes} type="button">
-                  {allExpanded ? "Fechar todos os lancamentos" : "Abrir todos os lancamentos"}
-                </button>
-              </div>
-            </div>
-
             <ReportStatementTable expandedKeys={expandedKeys} nodes={currentNodes} onToggle={toggleNode} />
           </div>
         ) : (

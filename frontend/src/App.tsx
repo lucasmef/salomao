@@ -495,6 +495,7 @@ function AppRuntime() {
   const [routeLoading, setRouteLoading] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>({ tone: "info", message: "" });
   const [toast, setToast] = useState<FeedbackState | null>(null);
+  const [showMissingBoletosExportFallback, setShowMissingBoletosExportFallback] = useState(false);
   const [loadedSections, setLoadedSections] = useState<Record<SectionId, boolean>>({
     overview: false,
     cadastros: false,
@@ -1673,13 +1674,25 @@ function AppRuntime() {
 
   async function issueInterCharges(selectionKeys: string[]) {
     if (!session) return;
-    await runMutation(async () => {
+    setSubmitting(true);
+    try {
       await fetchJson<ImportResult>("/boletos/inter/issue", {
         method: "POST",
         token: session.token,
         body: JSON.stringify({ selection_keys: selectionKeys }),
       });
-    }, "Boletos emitidos no Inter.", { sections: ["boletos", "importacoes"] });
+      setShowMissingBoletosExportFallback(false);
+      for (const targetSection of ["boletos", "importacoes"] as const) {
+        await loadSectionData(session, targetSection, { force: true });
+      }
+      setFeedback({ tone: "success", message: "Boletos emitidos no Inter." });
+    } catch (error) {
+      setShowMissingBoletosExportFallback(true);
+      setFeedback({ tone: "error", message: parseApiError(error) });
+      throw error;
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function downloadInterBoletoPdf(boletoId: string) {
@@ -1753,6 +1766,17 @@ function AppRuntime() {
         body: JSON.stringify(payload),
       });
     }, "Boleto avulso emitido.", { sections: ["boletos", "importacoes"] });
+  }
+
+  async function cancelStandaloneBoleto(boletoId: string) {
+    if (!session) return;
+    await runMutation(async () => {
+      await fetchJson<ImportResult>(`/boletos/standalone/${boletoId}/cancel`, {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({ motivo_cancelamento: "Cancelado pelo ERP" }),
+      });
+    }, "Boleto avulso cancelado.", { sections: ["boletos", "importacoes"] });
   }
 
   async function syncStandaloneBoletos() {
@@ -2513,6 +2537,7 @@ function AppRuntime() {
                   accounts={accounts}
                   view={billingRoute.view}
                   onCancelInterBoleto={cancelInterBoleto}
+                  onCancelStandaloneBoleto={cancelStandaloneBoleto}
                   dashboard={boletoDashboard}
                   onDownloadInterBoletoPdf={downloadInterBoletoPdf}
                   onDownloadInterBoletoPdfBatch={downloadInterBoletoPdfBatch}
@@ -2531,6 +2556,7 @@ function AppRuntime() {
                   onUploadBoletoC6={uploadBoletoC6Import}
                   onUploadClientData={uploadBoletoCustomerDataImport}
                   onUploadBoletoInter={uploadBoletoInterImport}
+                  showMissingExportFallback={showMissingBoletosExportFallback}
                   showAllMonthlyMissingBoletos={showAllMonthlyMissingBoletos}
                   submitting={submitting}
                 />

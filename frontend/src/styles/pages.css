@@ -711,11 +711,30 @@ textarea {
 }
 
 .reports-top-toolbar {
-  display: grid;
-  grid-template-columns: minmax(220px, 320px) auto;
+  display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reports-top-toolbar-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.reports-top-toolbar-main .entries-period-group {
+  min-width: min(320px, 100%);
+  flex: 1 1 280px;
+}
+
+.reports-top-toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .reconciliation-top-select {
@@ -933,7 +952,16 @@ textarea {
   }
 
   .reports-top-toolbar {
-    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .reports-top-toolbar-main,
+  .reports-top-toolbar-actions {
+    width: 100%;
+  }
+
+  .reports-top-toolbar-actions {
+    justify-content: flex-start;
   }
 }
 
@@ -2443,6 +2471,52 @@ textarea {
   line-height: 1.4;
 }
 
+.billing-modal-copy--warning {
+  padding: 10px 12px;
+  border: 1px solid rgba(181, 126, 30, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 245, 212, 0.85);
+}
+
+.billing-standalone-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.billing-standalone-form-field {
+  display: grid;
+  gap: 6px;
+}
+
+.billing-standalone-form-field span {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-text);
+}
+
+.billing-standalone-form-field input,
+.billing-standalone-form-field select,
+.billing-standalone-form-field textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+.billing-standalone-form-field textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.billing-standalone-form-field--wide {
+  grid-column: span 2;
+}
+
+.billing-standalone-form-field--full {
+  grid-column: 1 / -1;
+}
+
 .billing-modal-upload-card {
   margin-bottom: 12px;
 }
@@ -2683,6 +2757,15 @@ textarea {
 
   .entries-filter-grid {
     grid-template-columns: 1fr;
+  }
+
+  .billing-standalone-form {
+    grid-template-columns: 1fr;
+  }
+
+  .billing-standalone-form-field--wide,
+  .billing-standalone-form-field--full {
+    grid-column: auto;
   }
 
   .form-grid.wide.entry-form-grid {

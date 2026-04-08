@@ -4,6 +4,7 @@ import type { DashboardRevenueComparison } from "../types";
 type Props = {
   title: string;
   comparison: DashboardRevenueComparison;
+  formatValue?: (value: string | number | null | undefined) => string;
 };
 
 type ChartPoint = {
@@ -27,7 +28,7 @@ function buildLinePath(points: Array<{ x: number; y: number }>) {
   return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
 }
 
-export function RevenueComparisonChart({ title, comparison }: Props) {
+export function RevenueComparisonChart({ title, comparison, formatValue = formatMoney }: Props) {
   const points = comparison.points ?? [];
   const width = 620;
   const height = 240;
@@ -117,10 +118,10 @@ export function RevenueComparisonChart({ title, comparison }: Props) {
           {chartPoints.map((point) => (
             <g key={`point-${point.label}`}>
               <circle className="revenue-point current-year" cx={point.x} cy={point.currentY} r={4.5}>
-                <title>{`${point.label} ${comparison.current_year}: ${formatMoney(String(point.currentValue))}`}</title>
+                <title>{`${point.label} ${comparison.current_year}: ${formatValue(String(point.currentValue))}`}</title>
               </circle>
               <circle className="revenue-point previous-year" cx={point.x} cy={point.previousY} r={4.5}>
-                <title>{`${point.label} ${comparison.previous_year}: ${formatMoney(String(point.previousValue))}`}</title>
+                <title>{`${point.label} ${comparison.previous_year}: ${formatValue(String(point.previousValue))}`}</title>
               </circle>
             </g>
           ))}

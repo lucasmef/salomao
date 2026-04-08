@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { PageHeader } from "../components/PageHeader";
-import { formatDate, formatMoney } from "../lib/format";
+import { formatDate, formatMoneyNumber } from "../lib/format";
 import type { Account, CashflowOverview } from "../types";
 
 type Props = {
@@ -67,6 +67,17 @@ function ChevronDownIcon({ expanded }: { expanded: boolean }) {
       <path d="m4 6 4 4 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
     </svg>
   );
+}
+
+function formatProjectionReference(reference: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(reference)) {
+    return formatDate(reference);
+  }
+  if (/^\d{4}-\d{2}$/.test(reference)) {
+    const [year, month] = reference.split("-");
+    return `01/${month}/${year}`;
+  }
+  return reference;
 }
 
 export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFilters, onApplyFilters, embedded = false }: Props) {
@@ -146,8 +157,7 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
 
   const cashflowFiltersContent = (
     <div className="cashflow-top-toolbar">
-      <label className="cashflow-top-select-field">
-        <span>Conta</span>
+      <div className="cashflow-top-select-field">
         <select
           aria-label="Conta do fluxo de caixa"
           className="reconciliation-top-select"
@@ -155,14 +165,14 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
           value={filters.account_id}
           onChange={(event) => onChangeFilters({ ...filters, account_id: event.target.value })}
         >
-          <option value="">Todas</option>
+          <option value="">Todas as contas</option>
           {accounts.map((account) => (
             <option key={account.id} value={account.id}>
               {account.name}
             </option>
           ))}
         </select>
-      </label>
+      </div>
 
       <div className="entries-period-group cashflow-period-group" ref={periodPopoverRef}>
         <button
@@ -265,7 +275,7 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
             type="button"
           >
             <span>Saldo por conta</span>
-            <strong>{formatMoney(cashflow?.current_balance)}</strong>
+            <strong>{formatMoneyNumber(cashflow?.current_balance)}</strong>
             <ChevronDownIcon expanded={showBalancePopover} />
           </button>
           {showBalancePopover && (
@@ -273,7 +283,7 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
               {(cashflow?.account_balances ?? []).map((item) => (
                 <div className="reconciliation-balance-row" key={item.account_id}>
                   <span title={`${item.account_name} | ${item.account_type}`}>{item.account_name}</span>
-                  <strong>{formatMoney(item.current_balance)}</strong>
+                  <strong>{formatMoneyNumber(item.current_balance)}</strong>
                 </div>
               ))}
               {!cashflow?.account_balances.length && (
@@ -301,11 +311,11 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
       </section>
 
       <section className="kpi-grid cashflow-kpi-grid">
-        <article className="kpi-card cashflow-kpi-card"><span>Saldo atual</span><strong>{formatMoney(cashflow?.current_balance)}</strong></article>
-        <article className="kpi-card cashflow-kpi-card"><span>Entradas previstas</span><strong>{formatMoney(cashflow?.projected_inflows)}</strong></article>
-        <article className="kpi-card cashflow-kpi-card"><span>Saidas previstas</span><strong>{formatMoney(cashflow?.projected_outflows)}</strong></article>
-        <article className="kpi-card cashflow-kpi-card"><span>Compras planejadas</span><strong>{formatMoney(cashflow?.planned_purchase_outflows)}</strong></article>
-        <article className="kpi-card cashflow-kpi-card emphasis"><span>Saldo projetado</span><strong>{formatMoney(cashflow?.projected_ending_balance)}</strong></article>
+        <article className="kpi-card cashflow-kpi-card"><span>Saldo atual</span><strong>{formatMoneyNumber(cashflow?.current_balance)}</strong></article>
+        <article className="kpi-card cashflow-kpi-card"><span>Entradas previstas</span><strong>{formatMoneyNumber(cashflow?.projected_inflows)}</strong></article>
+        <article className="kpi-card cashflow-kpi-card"><span>Saidas previstas</span><strong>{formatMoneyNumber(cashflow?.projected_outflows)}</strong></article>
+        <article className="kpi-card cashflow-kpi-card"><span>Compras planejadas</span><strong>{formatMoneyNumber(cashflow?.planned_purchase_outflows)}</strong></article>
+        <article className="kpi-card cashflow-kpi-card emphasis"><span>Saldo projetado</span><strong>{formatMoneyNumber(cashflow?.projected_ending_balance)}</strong></article>
       </section>
 
       {!!cashflow?.alerts.length && (
@@ -332,13 +342,13 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
             <tbody>
               {projection.map((point) => (
                 <tr key={point.reference}>
-                  <td>{point.reference}</td>
-                  <td>{formatMoney(point.opening_balance)}</td>
-                  <td>{formatMoney(point.crediario_inflows)}</td>
-                  <td>{formatMoney(point.card_inflows)}</td>
-                  <td>{formatMoney(point.launched_outflows)}</td>
-                  <td>{formatMoney(point.planned_purchase_outflows)}</td>
-                  <td>{formatMoney(point.closing_balance)}</td>
+                  <td>{formatProjectionReference(point.reference)}</td>
+                  <td>{formatMoneyNumber(point.opening_balance)}</td>
+                  <td>{formatMoneyNumber(point.crediario_inflows)}</td>
+                  <td>{formatMoneyNumber(point.card_inflows)}</td>
+                  <td>{formatMoneyNumber(point.launched_outflows)}</td>
+                  <td>{formatMoneyNumber(point.planned_purchase_outflows)}</td>
+                  <td>{formatMoneyNumber(point.closing_balance)}</td>
                 </tr>
               ))}
               {!projection.length && <tr><td colSpan={7} className="empty-cell">Sem pontos de projecao para o periodo informado.</td></tr>}

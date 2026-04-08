@@ -6,6 +6,14 @@ export function formatMoney(value: string | number | null | undefined) {
   }).format(Number.isFinite(numeric) ? numeric : 0);
 }
 
+export function formatMoneyNumber(value: string | number | null | undefined) {
+  const numeric = Number(value ?? 0);
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(numeric) ? numeric : 0);
+}
+
 export function formatDate(value: string | null | undefined) {
   if (!value) {
     return "Sem data";

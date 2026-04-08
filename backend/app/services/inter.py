@@ -82,6 +82,7 @@ INTER_BATCH_SOURCE_TYPES = {
     "charge_cancel": "inter_charge_cancel",
     "charge_receive": "inter_charge_receive",
     "standalone_charge_issue": "inter_standalone_charge_issue",
+    "standalone_charge_cancel": "inter_standalone_charge_cancel",
     "standalone_charge_sync": "inter_standalone_charge_sync",
 }
 
@@ -1721,6 +1722,52 @@ def _load_standalone_boleto_for_pdf(db: Session, company: Company, boleto_id: st
     if not boleto.inter_codigo_solicitacao:
         raise ValueError("Este boleto avulso nao possui codigo de solicitacao do Inter.")
     return boleto
+
+
+def cancel_standalone_inter_charge(
+    db: Session,
+    company: Company,
+    *,
+    boleto_id: str,
+    motivo_cancelamento: str,
+    transport: httpx.BaseTransport | None = None,
+) -> ImportResult:
+    boleto = _load_standalone_boleto_for_pdf(db, company, boleto_id)
+    account, config = _resolve_pdf_download_account(db, company, boleto)
+    batch = _start_sync_batch(
+        db,
+        company.id,
+        source_type=_resolve_batch_source_type("standalone_charge_cancel"),
+        filename=f"inter-boleto-avulso-cancelamento-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+    )
+    client = InterApiClient(config, transport=transport)
+    try:
+        client.cancel_charge(str(boleto.inter_codigo_solicitacao), motivo_cancelamento=motivo_cancelamento.strip())
+        detail = client.get_charge_detail(str(boleto.inter_codigo_solicitacao))
+        _upsert_standalone_boleto_record(
+            db,
+            company_id=company.id,
+            batch_id=batch.id,
+            account_id=account.id,
+            detail_payload=detail,
+            client_name=boleto.client_name,
+            tax_id=boleto.tax_id,
+            email=boleto.email,
+            description=boleto.description,
+            notes=boleto.notes,
+            local_status=boleto.local_status,
+            issue_date_override=boleto.issue_date,
+        )
+    finally:
+        client.close()
+
+    batch.records_total = 1
+    batch.records_valid = 1
+    batch.records_invalid = 0
+    batch.status = "processed"
+    db.commit()
+    db.refresh(batch)
+    return ImportResult(batch=batch, message="Boleto avulso do Inter cancelado com sucesso.")
 
 
 def download_inter_charge_pdf(
