@@ -21,7 +21,11 @@ from app.db.models.security import Company, User
 from app.schemas.imports import ImportResult
 from app.services.finance_ops import delete_entry
 from app.services.import_parsers import parse_purchase_payable_rows
-from app.services.purchase_planning import import_linx_purchase_payables
+from app.services.purchase_planning import (
+    LINX_PURCHASE_PAYABLES_API_MIN_ISSUE_DATE,
+    _normalize_linx_api_purchase_row,
+    import_linx_purchase_payables,
+)
 
 
 def _build_session() -> tuple[Session, Company, User]:
@@ -347,6 +351,36 @@ def test_import_linx_purchase_payables_with_empty_report_returns_clear_message()
         assert session.scalar(select(linx_models.PurchasePayableTitle)) is None
     finally:
         session.close()
+
+
+def test_normalize_linx_api_purchase_row_ignores_rows_issued_before_api_cutoff() -> None:
+    row = {
+        "receber_pagar": "P",
+        "data_emissao": "2026-03-09T00:00:00",
+        "codigo_fatura": "12345",
+        "empresa": "1",
+        "data_vencimento": "2026-04-10T00:00:00",
+        "ordem_parcela": "1",
+        "qtde_parcelas": "1",
+        "valor_fatura": "100.0000",
+        "valor_juros": "0.0000",
+        "valor_multa": "0.0000",
+        "taxa_financeira": "0.0000",
+        "valor_desconto": "0.0000",
+        "valor_abatimento": "0.0000",
+        "nome_cliente": "FORNECEDOR TESTE",
+        "cod_cliente": "100",
+        "documento": "NF123",
+        "serie": "1",
+        "cancelado": "N",
+        "excluido": "N",
+        "valor_pago": "0.0000",
+        "data_baixa": "",
+        "timestamp": "100",
+    }
+
+    assert LINX_PURCHASE_PAYABLES_API_MIN_ISSUE_DATE == date(2026, 3, 10)
+    assert _normalize_linx_api_purchase_row(row) is None
 
 
 def test_delete_open_linx_purchase_entry_keeps_history_without_reimporting() -> None:

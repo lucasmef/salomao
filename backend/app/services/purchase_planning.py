@@ -79,7 +79,8 @@ HISTORICAL_COLLECTION_START_YEAR = 2020
 LINX_PURCHASE_PAYABLES_API_SOURCE = "linx_purchase_payables_api"
 LINX_PURCHASE_PAYABLES_API_METHOD = "LinxFaturas"
 LINX_PURCHASE_PAYABLES_API_TAG = "linx_purchase_payables_api"
-LINX_PURCHASE_PAYABLES_API_FULL_LOAD_START = "2025-03-25 00:00:00"
+LINX_PURCHASE_PAYABLES_API_MIN_ISSUE_DATE = date(2026, 3, 10)
+LINX_PURCHASE_PAYABLES_API_FULL_LOAD_START = "2026-03-10 00:00:00"
 LINX_PURCHASE_PAYABLES_API_PAGE_LIMIT = 5000
 LINX_PURCHASE_PAYABLES_API_TIMEOUT_SECONDS = 90.0
 LINX_WS_USERNAME = "linx_export"
@@ -3150,7 +3151,7 @@ def _normalize_linx_api_purchase_row(row: dict[str, str]) -> LinxApiPurchasePaya
     if (_clean_linx_api_text(row.get("receber_pagar")) or "").upper() != "P":
         return None
     issue_date = _parse_linx_api_datetime(row.get("data_emissao"))
-    if issue_date is None or issue_date < date(2025, 3, 25):
+    if issue_date is None or issue_date < LINX_PURCHASE_PAYABLES_API_MIN_ISSUE_DATE:
         return None
     linx_code = _parse_linx_api_int(row.get("codigo_fatura"))
     if linx_code is None:
@@ -3818,7 +3819,10 @@ def sync_linx_purchase_payables(
     if ignored_non_purchase:
         errors.append(f"{ignored_non_purchase} titulo(s) a pagar nao eram nota de compra e foram ignorados.")
     if skipped_before_start:
-        errors.append(f"{skipped_before_start} titulo(s) anteriores a 25/03/2025 foram ignorados.")
+        errors.append(
+            f"{skipped_before_start} titulo(s) anteriores a "
+            f"{LINX_PURCHASE_PAYABLES_API_MIN_ISSUE_DATE.strftime('%d/%m/%Y')} foram ignorados."
+        )
     if duplicate_rows:
         errors.append(f"{duplicate_rows} linha(s) duplicadas foram consolidadas pelo maior timestamp.")
     batch.error_summary = " ".join(errors) or None
@@ -3842,7 +3846,10 @@ def sync_linx_purchase_payables(
     if not raw_rows:
         message_parts.append("Nenhuma fatura retornada pelo webservice da Linx.")
     elif not normalized_by_code:
-        message_parts.append("Nenhuma fatura de nota de compra encontrada a partir de 25/03/2025.")
+        message_parts.append(
+            "Nenhuma fatura de nota de compra encontrada a partir de "
+            f"{LINX_PURCHASE_PAYABLES_API_MIN_ISSUE_DATE.strftime('%d/%m/%Y')}."
+        )
     return ImportResult(batch=batch, message=" ".join(message_parts))
 
 
