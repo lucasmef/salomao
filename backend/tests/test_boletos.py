@@ -13,6 +13,8 @@ from app.db.models.imports import ImportBatch
 from app.db.models.linx import LinxCustomer, LinxOpenReceivable, ReceivableTitle
 from app.db.models.security import Company
 from app.services.boletos import (
+    ResolvedCustomerData,
+    _validate_export_client_config,
     build_boleto_dashboard,
     build_missing_boletos_export,
     import_boleto_report,
@@ -281,6 +283,37 @@ def test_build_missing_boletos_export_generates_excel_with_interest_and_fixed_te
     finally:
         session.close()
         engine.dispose()
+
+
+def test_validate_export_client_config_allows_missing_address_number() -> None:
+    customer_data = ResolvedCustomerData(
+        config=None,
+        linx_customer=None,
+        client_name="Cliente Exemplo",
+        client_code="1001",
+        uses_boleto=True,
+        mode="individual",
+        boleto_due_day=20,
+        include_interest=False,
+        notes=None,
+        address_street="Rua Exemplo",
+        address_number=None,
+        address_complement=None,
+        neighborhood="Centro",
+        city="Cidade Exemplo",
+        state="SC",
+        zip_code="99999999",
+        tax_id="12345678901",
+        state_registration=None,
+        phone_primary=None,
+        phone_secondary=None,
+        mobile=None,
+    )
+
+    missing = _validate_export_client_config(customer_data, "Cliente Exemplo")
+
+    assert "numero" not in missing
+    assert missing == []
 
 
 def test_build_missing_boletos_export_defaults_monthly_due_day_to_20_when_empty(monkeypatch) -> None:

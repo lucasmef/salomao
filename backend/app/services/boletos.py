@@ -2270,8 +2270,6 @@ def _validate_export_client_config(customer_data: ResolvedCustomerData | None, c
         missing.append("CPF/CNPJ")
     if not _truncate_text(customer_data.address_street, 200):
         missing.append("endereco")
-    if not _truncate_text(customer_data.address_number, 40):
-        missing.append("numero")
     if not _truncate_text(customer_data.neighborhood, 120):
         missing.append("bairro")
     if not _truncate_text(customer_data.city, 120):

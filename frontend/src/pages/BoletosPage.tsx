@@ -520,8 +520,8 @@ export function BoletosPage({
       <div className="billing-boleto-list">
         {boletos.map((boleto) => (
           <div key={boleto.id} className="billing-boleto-chip">
-            <span title={boleto.linha_digitavel || boleto.barcode || boleto.document_id}>
-              {`${boleto.bank} ${boleto.document_id || boleto.barcode || ""}`.trim()}
+            <span title={boleto.document_id || boleto.barcode || boleto.bank}>
+              {boleto.document_id || boleto.barcode || boleto.bank || "-"}
             </span>
             {showPdfAction && boleto.pdf_available && (
               <button
