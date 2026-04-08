@@ -7,6 +7,7 @@ import io
 import json
 import os
 import re
+import ssl
 import tempfile
 import zipfile
 from dataclasses import dataclass
@@ -191,6 +192,87 @@ def _resolve_batch_source_type(kind: str) -> str:
     return source_type
 
 
+def _extract_inter_error_detail(response: httpx.Response) -> str | None:
+    try:
+        payload = response.json()
+    except ValueError:
+        text = response.text.strip()
+        return text[:300] or None
+
+    details: list[str] = []
+    if isinstance(payload, dict):
+        for key in ("detail", "message", "title", "error_description", "error"):
+            value = _normalize_optional_text(str(payload.get(key) or ""))
+            if value and value not in details:
+                details.append(value)
+        violations = payload.get("violacoes") or payload.get("violations") or payload.get("errors")
+        if isinstance(violations, list):
+            for item in violations:
+                if isinstance(item, dict):
+                    text = _normalize_optional_text(
+                        str(item.get("razao") or item.get("mensagem") or item.get("message") or "")
+                    )
+                    if text and text not in details:
+                        details.append(text)
+                else:
+                    text = _normalize_optional_text(str(item))
+                    if text and text not in details:
+                        details.append(text)
+    elif isinstance(payload, list):
+        for item in payload:
+            text = _normalize_optional_text(str(item))
+            if text and text not in details:
+                details.append(text)
+    else:
+        text = _normalize_optional_text(str(payload))
+        if text:
+            details.append(text)
+
+    if not details:
+        return None
+    return " | ".join(details[:3])[:300]
+
+
+def _raise_inter_request_error(error: Exception, *, stage: str) -> None:
+    if isinstance(error, ssl.SSLError):
+        raise ValueError(
+            "Nao foi possivel carregar o certificado PEM ou a chave privada PEM do Inter. "
+            "Confira se ambos foram colados completos e no formato correto."
+        ) from error
+    if isinstance(error, httpx.TimeoutException):
+        raise ValueError(
+            f"A API do Banco Inter demorou demais para responder durante {stage}. Tente novamente."
+        ) from error
+    if isinstance(error, httpx.HTTPStatusError):
+        response = error.response
+        detail = _extract_inter_error_detail(response)
+        if response.status_code in {401, 403}:
+            message = (
+                "Banco Inter recusou a autenticacao da integracao. Confira client id, client secret, "
+                "certificado, chave privada e permissoes da aplicacao."
+            )
+        elif response.status_code == 400:
+            message = "Banco Inter rejeitou a requisicao enviada pela integracao."
+        elif response.status_code == 404:
+            message = (
+                "A integracao nao encontrou o endpoint do Banco Inter. Confira o ambiente "
+                "(producao/sandbox) e a URL base configurada."
+            )
+        elif response.status_code >= 500:
+            message = "Banco Inter retornou um erro interno ao processar a integracao."
+        else:
+            message = f"Falha na integracao com o Banco Inter (HTTP {response.status_code})."
+        if detail:
+            message = f"{message} Detalhe: {detail}"
+        raise ValueError(message) from error
+    if isinstance(error, httpx.RequestError):
+        raise ValueError(
+            f"Nao foi possivel conectar com a API do Banco Inter durante {stage}. "
+            "Confira a conexao, o ambiente configurado e os arquivos PEM."
+        ) from error
+    raise error
+
+
 def _load_inter_account_config(account: Account) -> InterAccountConfig:
     if not account.inter_api_enabled:
         raise ValueError("API do Inter nao esta habilitada para esta conta")
@@ -291,11 +373,15 @@ class InterApiClient:
         key_file.close()
         self._temp_paths.append(key_file.name)
 
-        return httpx.Client(
-            base_url=base_url,
-            timeout=30.0,
-            cert=(cert_file.name, key_file.name),
-        )
+        try:
+            return httpx.Client(
+                base_url=base_url,
+                timeout=30.0,
+                cert=(cert_file.name, key_file.name),
+            )
+        except ssl.SSLError as error:
+            self.close()
+            _raise_inter_request_error(error, stage="a configuracao do certificado")
 
     def close(self) -> None:
         for path in self._temp_paths:
@@ -308,16 +394,19 @@ class InterApiClient:
     def _ensure_token(self) -> str:
         if self._token:
             return self._token
-        with self._create_client() as client:
-            response = client.post(
-                "/oauth/v2/token",
-                data={
-                    "grant_type": "client_credentials",
-                    "scope": INTER_REQUIRED_SCOPES,
-                },
-                auth=(self.config.api_key, self.config.client_secret),
-            )
-        response.raise_for_status()
+        try:
+            with self._create_client() as client:
+                response = client.post(
+                    "/oauth/v2/token",
+                    data={
+                        "grant_type": "client_credentials",
+                        "scope": INTER_REQUIRED_SCOPES,
+                    },
+                    auth=(self.config.api_key, self.config.client_secret),
+                )
+            response.raise_for_status()
+        except (ssl.SSLError, httpx.RequestError, httpx.HTTPStatusError) as error:
+            _raise_inter_request_error(error, stage="a autenticacao com o Banco Inter")
         payload = response.json()
         token = str(payload.get("access_token") or "").strip()
         if not token:
@@ -331,12 +420,18 @@ class InterApiClient:
         headers.setdefault("Authorization", f"Bearer {token}")
         headers.setdefault("x-conta-corrente", self.config.account_number)
         headers.setdefault("x-inter-conta-corrente", self.config.account_number)
-        with self._create_client() as client:
-            response = client.request(method, path, headers=headers, **kwargs)
-        response.raise_for_status()
+        try:
+            with self._create_client() as client:
+                response = client.request(method, path, headers=headers, **kwargs)
+            response.raise_for_status()
+        except (ssl.SSLError, httpx.RequestError, httpx.HTTPStatusError) as error:
+            _raise_inter_request_error(error, stage="a chamada da API do Banco Inter")
         if response.status_code == 204 or not response.content:
             return {}
-        return response.json()
+        try:
+            return response.json()
+        except ValueError as error:
+            raise ValueError("Banco Inter retornou uma resposta invalida para a integracao.") from error
 
     def get_complete_statement(self, start_date: date, end_date: date) -> list[dict[str, Any]]:
         params: dict[str, Any] = {

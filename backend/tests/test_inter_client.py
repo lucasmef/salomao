@@ -5,6 +5,7 @@ from datetime import date
 from decimal import Decimal
 
 import httpx
+import pytest
 
 from app.core.crypto import encrypt_text
 from app.db.models.finance import Account
@@ -124,6 +125,29 @@ def test_get_charge_pdf_decodes_base64_payload() -> None:
     client = InterApiClient(_build_config(), transport=httpx.MockTransport(handler))
     try:
         assert client.get_charge_pdf("SOL-001") == b"%PDF-FAKE"
+    finally:
+        client.close()
+
+
+def test_inter_client_reports_invalid_pem_configuration() -> None:
+    client = InterApiClient(_build_config())
+    try:
+        with pytest.raises(ValueError, match="certificado PEM|chave privada PEM"):
+            client.get_complete_statement(start_date=date(2026, 3, 1), end_date=date(2026, 3, 31))
+    finally:
+        client.close()
+
+
+def test_inter_client_translates_authentication_http_errors() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            return httpx.Response(401, json={"detail": "certificado invalido"})
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    client = InterApiClient(_build_config(), transport=httpx.MockTransport(handler))
+    try:
+        with pytest.raises(ValueError, match="certificado invalido"):
+            client.get_complete_statement(start_date=date(2026, 3, 1), end_date=date(2026, 3, 31))
     finally:
         client.close()
 
