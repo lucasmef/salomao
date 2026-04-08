@@ -876,6 +876,71 @@ def test_build_boleto_dashboard_marks_unmatched_individual_boleto_as_excess() ->
         engine.dispose()
 
 
+def test_build_boleto_dashboard_matches_individual_boleto_by_configured_due_day() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+
+    try:
+        company = Company(legal_name="Salomao LTDA", trade_name="Salomao")
+        session.add(company)
+        session.flush()
+
+        client_key = normalize_text("Cliente Exemplo")
+        batch = _create_receivable_batch(session, company)
+        session.add(
+            BoletoCustomerConfig(
+                company_id=company.id,
+                client_key=client_key,
+                client_name="Cliente Exemplo",
+                uses_boleto=True,
+                mode="individual",
+                boleto_due_day=12,
+            )
+        )
+        session.add_all(
+            [
+                ReceivableTitle(
+                    company_id=company.id,
+                    source_batch_id=batch.id,
+                    issue_date=date(2026, 3, 1),
+                    due_date=date(2026, 3, 5),
+                    invoice_number="12345",
+                    company_code="1001",
+                    installment_label="001",
+                    original_amount=Decimal("250.00"),
+                    amount_with_interest=Decimal("250.00"),
+                    customer_name="Cliente Exemplo",
+                    document_reference="DOC-1",
+                    status="Em aberto",
+                ),
+                BoletoRecord(
+                    company_id=company.id,
+                    bank="INTER",
+                    client_key=client_key,
+                    client_name="Cliente Exemplo",
+                    document_id="BOL-DIA",
+                    issue_date=date(2026, 3, 2),
+                    due_date=date(2026, 3, 12),
+                    amount=Decimal("250.00"),
+                    paid_amount=Decimal("0.00"),
+                    status="A receber",
+                    barcode="111",
+                ),
+            ]
+        )
+        session.commit()
+
+        dashboard = build_boleto_dashboard(session, company)
+
+        assert dashboard.summary.missing_boleto_count == 0
+        assert dashboard.summary.excess_boleto_count == 0
+        assert dashboard.open_boletos[0].document_id == "BOL-DIA"
+    finally:
+        session.close()
+        engine.dispose()
+
+
 def test_build_boleto_dashboard_marks_active_boleto_for_client_that_no_longer_uses_boleto_as_excess() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)

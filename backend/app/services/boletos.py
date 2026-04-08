@@ -1055,10 +1055,56 @@ def _due_dates_within_tolerance(first_date: date | None, second_date: date | Non
     return abs((first_date - second_date).days) <= INDIVIDUAL_DUE_DATE_TOLERANCE_DAYS
 
 
+def _resolve_individual_candidate_due_dates(
+    receivable_due_date: date | None,
+    boleto_due_day: int | None,
+) -> list[date]:
+    if not receivable_due_date:
+        return []
+    candidates = [receivable_due_date]
+    if boleto_due_day and 1 <= boleto_due_day <= 31:
+        last_day = calendar.monthrange(receivable_due_date.year, receivable_due_date.month)[1]
+        configured_due_date = date(
+            receivable_due_date.year,
+            receivable_due_date.month,
+            min(boleto_due_day, last_day),
+        )
+        if configured_due_date not in candidates:
+            candidates.append(configured_due_date)
+    return candidates
+
+
+def _individual_due_dates_match(
+    receivable_due_date: date | None,
+    boleto_due_date: date | None,
+    boleto_due_day: int | None,
+) -> bool:
+    if not boleto_due_date:
+        return False
+    return any(
+        _due_dates_within_tolerance(candidate_due_date, boleto_due_date)
+        for candidate_due_date in _resolve_individual_candidate_due_dates(receivable_due_date, boleto_due_day)
+    )
+
+
+def _individual_due_date_distance(
+    receivable_due_date: date | None,
+    boleto_due_date: date | None,
+    boleto_due_day: int | None,
+) -> int:
+    if not boleto_due_date:
+        return 999999
+    candidate_due_dates = _resolve_individual_candidate_due_dates(receivable_due_date, boleto_due_day)
+    if not candidate_due_dates:
+        return 999999
+    return min(abs((candidate_due_date - boleto_due_date).days) for candidate_due_date in candidate_due_dates)
+
+
 def _find_individual_matches(
     receivable: ReceivableItem,
     boletos: list[BoletoRecord],
     *,
+    boleto_due_day: int | None = None,
     status_bucket: str | None = None,
     used_boleto_ids: set[str] | None = None,
 ) -> list[BoletoRecord]:
@@ -1072,7 +1118,7 @@ def _find_individual_matches(
             continue
         if not _within_cent(receivable.amount, Decimal(boleto.amount or 0)):
             continue
-        if not _due_dates_within_tolerance(receivable.due_date, boleto.due_date):
+        if not _individual_due_dates_match(receivable.due_date, boleto.due_date, boleto_due_day):
             continue
         if status_bucket and _boleto_status_bucket(boleto) != status_bucket:
             continue
@@ -1086,7 +1132,7 @@ def _find_individual_matches(
             else 1
             if _boleto_status_bucket(boleto) == "active"
             else 2,
-            abs(((boleto.due_date or date.max) - (receivable.due_date or date.max)).days),
+            _individual_due_date_distance(receivable.due_date, boleto.due_date, boleto_due_day),
             boleto.due_date or date.max,
             boleto.bank,
             boleto.document_id,
@@ -1098,9 +1144,15 @@ def _find_best_individual_match(
     receivable: ReceivableItem,
     boletos: list[BoletoRecord],
     *,
+    boleto_due_day: int | None = None,
     used_boleto_ids: set[str] | None = None,
 ) -> BoletoRecord | None:
-    matches = _find_individual_matches(receivable, boletos, used_boleto_ids=used_boleto_ids)
+    matches = _find_individual_matches(
+        receivable,
+        boletos,
+        boleto_due_day=boleto_due_day,
+        used_boleto_ids=used_boleto_ids,
+    )
     return matches[0] if matches else None
 
 
@@ -1613,6 +1665,7 @@ def build_boleto_dashboard(
                     matched_boleto = _find_best_individual_match(
                         receivable,
                         client_boletos,
+                        boleto_due_day=due_day,
                         used_boleto_ids=used_boleto_ids,
                     )
                     if not matched_boleto:
