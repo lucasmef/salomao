@@ -20,6 +20,7 @@ from app.services.linx_receivable_settlement import (
     _client_names_match,
     _page_matches_due_date,
     _parse_brl_amount,
+    _prepare_receivable_lookup_target,
     settle_paid_pending_inter_receivables,
 )
 
@@ -203,6 +204,45 @@ def test_page_matches_due_date_from_body_text() -> None:
         expected_due_date=date(2026, 4, 10),
         normalized_body="CLIENTE MARIA APARECIDA VENCIMENTO 10/04/2026 VALOR PAGO 170,50",
     )
+
+
+def test_prepare_receivable_lookup_target_retries_when_invoice_field_is_missing(monkeypatch) -> None:
+    class _Page:
+        def __init__(self) -> None:
+            self.wait_calls: list[int] = []
+
+        def wait_for_timeout(self, value: int) -> None:
+            self.wait_calls.append(value)
+
+    page = _Page()
+    opened_targets = ["segundo"]
+    fill_calls: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(
+        "app.services.linx_receivable_settlement._open_receivable_settlement_target",
+        lambda current_page, *, root_url: opened_targets.pop(0),
+    )
+
+    def fake_fill(target, selectors, value):
+        fill_calls.append((target, value))
+        if target == "primeiro":
+            raise ValueError("Nao foi possivel localizar o campo 'Numero da fatura' no Linx.")
+
+    monkeypatch.setattr(
+        "app.services.linx_receivable_settlement._fill_first_matching_locator",
+        fake_fill,
+    )
+
+    retried_target = _prepare_receivable_lookup_target(
+        page,
+        root_url="https://linx.example.test",
+        target="primeiro",
+        lookup_invoice="55048",
+    )
+
+    assert retried_target == "segundo"
+    assert fill_calls == [("primeiro", "55048"), ("segundo", "55048")]
+    assert page.wait_calls == [800]
 
 
 def test_build_settlement_candidates_sorts_clients_and_receivables_by_oldest_due_date() -> None:

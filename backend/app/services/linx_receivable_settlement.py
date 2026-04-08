@@ -357,9 +357,14 @@ def _settle_receivable_in_portal(
     expected_amount: Decimal,
     validate_only: bool = False,
 ) -> str:
-    target = _open_receivable_settlement_target(page, root_url=root_url)
     lookup_invoice = _build_lookup_invoice_number(invoice_number)
-    _fill_first_matching_locator(target, LINX_SETTLEMENT_INVOICE_SELECTORS, lookup_invoice)
+    target = _open_receivable_settlement_target(page, root_url=root_url)
+    target = _prepare_receivable_lookup_target(
+        page,
+        root_url=root_url,
+        target=target,
+        lookup_invoice=lookup_invoice,
+    )
     _click_first_matching_locator(target, LINX_SETTLEMENT_PROCEED_SELECTORS)
     _wait_for_page_idle(target)
     _wait_for_transition(page)
@@ -403,6 +408,28 @@ def _settle_receivable_in_portal(
     if not success_message:
         raise ValueError(f"O Linx nao confirmou a baixa da fatura {lookup_invoice}.")
     return success_message
+
+
+def _prepare_receivable_lookup_target(
+    page: Any,
+    *,
+    root_url: str,
+    target: Any,
+    lookup_invoice: str,
+) -> Any:
+    try:
+        _fill_first_matching_locator(target, LINX_SETTLEMENT_INVOICE_SELECTORS, lookup_invoice)
+        return target
+    except ValueError as error:
+        if "Numero da fatura" not in str(error):
+            raise
+    try:
+        page.wait_for_timeout(800)
+    except Exception:
+        pass
+    retried_target = _open_receivable_settlement_target(page, root_url=root_url)
+    _fill_first_matching_locator(retried_target, LINX_SETTLEMENT_INVOICE_SELECTORS, lookup_invoice)
+    return retried_target
 
 
 def _open_receivable_settlement_target(page: Any, *, root_url: str) -> Any:
