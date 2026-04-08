@@ -8,11 +8,11 @@ from app.services.linx_auto_sync import run_linx_auto_sync_cycle
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Executa a sincronizacao automatica do Linx.")
+    parser = argparse.ArgumentParser(description="Executa a sincronizacao automatica do Linx via API.")
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Executa imediatamente sem respeitar a janela automatica das 22h.",
+        help="Executa imediatamente sem respeitar a janela automatica das 06h as 22h.",
     )
     return parser
 
@@ -32,12 +32,14 @@ def main(argv: list[str] | None = None) -> int:
         if run.attempted:
             attempted += 1
         print(f"{run.company_name}: {run.status}")
-        if run.sales_message:
-            print(f"  faturamento: {run.sales_message}")
+        if run.customers_message:
+            print(f"  clientes: {run.customers_message}")
         if run.receivables_message:
             print(f"  faturas: {run.receivables_message}")
-        if run.purchase_payables_message:
-            print(f"  compras: {run.purchase_payables_message}")
+        if run.movements_message:
+            print(f"  movimentos: {run.movements_message}")
+        if run.products_message:
+            print(f"  produtos: {run.products_message}")
         if run.error_message:
             failure_found = True
             print(f"  erro: {run.error_message}")

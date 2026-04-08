@@ -115,6 +115,13 @@ export const mainNavigation: MainNavItem[] = [
         description: "Boletos pendentes de emissão.",
       },
       {
+        key: "boletos-avulsos",
+        label: "Boletos avulsos",
+        path: "/financeiro/cobranca/boletos-avulsos",
+        title: "Boletos avulsos",
+        description: "Área reservada para boletos emitidos manualmente, fora da cobrança recorrente.",
+      },
+      {
         key: "boletos-em-excesso",
         label: "Boletos em excesso",
         path: "/financeiro/cobranca/boletos-em-excesso",

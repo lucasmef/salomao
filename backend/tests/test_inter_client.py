@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 from datetime import date
 from decimal import Decimal
 
 import httpx
+import pytest
 
 from app.core.crypto import encrypt_text
 from app.db.models.finance import Account
@@ -83,6 +85,26 @@ def test_map_statement_payload_normalizes_amount_and_metadata() -> None:
     assert payload["bank_name"] == "Banco Inter"
 
 
+def test_map_statement_payload_bounds_long_inter_transaction_id() -> None:
+    transaction_id = "MDAxXzAwMDE5XzMzNTc5NjQ3OF8yMDI2LTAzLTA5XzcyODQxNDUyOQ==" * 2
+    payload = _map_statement_to_transaction_payload(
+        company_id="company-1",
+        batch_id="batch-1",
+        account_id="account-1",
+        transaction={
+            "idTransacao": transaction_id,
+            "dataTransacao": "2026-03-15",
+            "tipoTransacao": "PIX",
+            "tipoOperacao": "CREDITO",
+            "valor": "150.50",
+        },
+    )
+
+    assert payload["fit_id"] == f"INTER:{hashlib.sha1(transaction_id.encode('utf-8')).hexdigest()}"
+    assert len(payload["fit_id"]) <= 80
+    assert payload["reference_number"] == transaction_id[:50]
+
+
 def test_load_inter_account_config_decrypts_sensitive_values() -> None:
     account = Account(
         company_id="company-1",
@@ -124,6 +146,29 @@ def test_get_charge_pdf_decodes_base64_payload() -> None:
     client = InterApiClient(_build_config(), transport=httpx.MockTransport(handler))
     try:
         assert client.get_charge_pdf("SOL-001") == b"%PDF-FAKE"
+    finally:
+        client.close()
+
+
+def test_inter_client_reports_invalid_pem_configuration() -> None:
+    client = InterApiClient(_build_config())
+    try:
+        with pytest.raises(ValueError, match="certificado PEM|chave privada PEM"):
+            client.get_complete_statement(start_date=date(2026, 3, 1), end_date=date(2026, 3, 31))
+    finally:
+        client.close()
+
+
+def test_inter_client_translates_authentication_http_errors() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            return httpx.Response(401, json={"detail": "certificado invalido"})
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    client = InterApiClient(_build_config(), transport=httpx.MockTransport(handler))
+    try:
+        with pytest.raises(ValueError, match="certificado invalido"):
+            client.get_complete_statement(start_date=date(2026, 3, 1), end_date=date(2026, 3, 31))
     finally:
         client.close()
 

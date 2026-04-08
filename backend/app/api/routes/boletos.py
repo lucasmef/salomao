@@ -11,6 +11,7 @@ from app.schemas.boletos import (
     BoletoDashboardRead,
     BoletoMissingExportRequest,
     BoletoPdfBatchRequest,
+    StandaloneBoletoCreateRequest,
 )
 from app.schemas.inter import InterChargeIssueRequest, InterChargeSyncRequest
 from app.schemas.imports import ImportResult
@@ -24,10 +25,14 @@ from app.services.boletos import (
 from app.services.company_context import get_current_company
 from app.services.inter import (
     cancel_inter_charge,
+    create_standalone_inter_charge,
     download_inter_charge_pdf,
     download_inter_charge_pdfs_zip,
+    download_standalone_inter_charge_pdf,
     issue_inter_charges,
+    mark_standalone_boleto_downloaded,
     receive_inter_charge,
+    sync_standalone_inter_charges,
     sync_inter_charges,
 )
 
@@ -235,6 +240,70 @@ def receive_inter_boleto(
             boleto_id=boleto_id,
             pagar_com=payload.pagar_com,
         )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/standalone", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+def create_standalone_boleto(
+    payload: StandaloneBoletoCreateRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        return create_standalone_inter_charge(
+            db,
+            company,
+            account_id=payload.account_id,
+            client_name=payload.client_name,
+            amount=payload.amount,
+            due_date=payload.due_date,
+            notes=payload.notes,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/standalone/sync", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+def sync_standalone_boletos(
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        return sync_standalone_inter_charges(db, company)
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.get("/standalone/{boleto_id}/pdf")
+def download_standalone_boleto_pdf(
+    boleto_id: str,
+    db: DbSession,
+) -> StreamingResponse:
+    company = get_current_company(db)
+    try:
+        content, filename = download_standalone_inter_charge_pdf(db, company, boleto_id=boleto_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/standalone/{boleto_id}/downloaded", status_code=status.HTTP_204_NO_CONTENT)
+def set_standalone_boleto_downloaded(
+    boleto_id: str,
+    db: DbSession,
+) -> None:
+    company = get_current_company(db)
+    try:
+        mark_standalone_boleto_downloaded(db, company, boleto_id=boleto_id)
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error

@@ -18,7 +18,7 @@ import xml.etree.ElementTree as ET
 from sqlalchemy import delete, desc, select
 from sqlalchemy.orm import Session
 
-from app.db.models.boleto import BoletoCustomerConfig, BoletoRecord
+from app.db.models.boleto import BoletoCustomerConfig, BoletoRecord, StandaloneBoletoRecord
 from app.db.models.imports import ImportBatch
 from app.db.models.linx import LinxCustomer, LinxOpenReceivable, ReceivableTitle
 from app.db.models.security import Company
@@ -31,6 +31,7 @@ from app.schemas.boletos import (
     BoletoOverdueInvoiceSummaryRead,
     BoletoReceivableRead,
     BoletoRecordRead,
+    StandaloneBoletoRead,
     BoletoSummaryRead,
 )
 from app.schemas.imports import ImportResult
@@ -1181,6 +1182,32 @@ def _serialize_boleto(boleto: BoletoRecord) -> BoletoRecordRead:
     )
 
 
+def _serialize_standalone_boleto(boleto: StandaloneBoletoRecord) -> StandaloneBoletoRead:
+    return StandaloneBoletoRead(
+        id=boleto.id,
+        bank=boleto.bank,
+        client_name=boleto.client_name,
+        document_id=boleto.document_id,
+        issue_date=boleto.issue_date,
+        due_date=boleto.due_date,
+        amount=Decimal(boleto.amount or 0),
+        paid_amount=Decimal(boleto.paid_amount or 0),
+        status=boleto.status,
+        local_status=boleto.local_status,
+        description=boleto.description,
+        notes=boleto.notes,
+        tax_id=boleto.tax_id,
+        email=boleto.email,
+        barcode=boleto.barcode,
+        linha_digitavel=boleto.linha_digitavel,
+        pix_copia_e_cola=boleto.pix_copia_e_cola,
+        inter_codigo_solicitacao=boleto.inter_codigo_solicitacao,
+        inter_account_id=boleto.inter_account_id,
+        pdf_available=bool(boleto.bank == "INTER" and boleto.inter_codigo_solicitacao),
+        downloaded_at=boleto.downloaded_at.isoformat() if boleto.downloaded_at else None,
+    )
+
+
 def _serialize_receivable(receivable: ReceivableItem) -> BoletoReceivableRead:
     return BoletoReceivableRead(
         client_name=receivable.client_name,
@@ -1386,6 +1413,13 @@ def build_boleto_dashboard(
     today = date.today()
     receivables = _load_receivable_items(db, company.id)
     boleto_records = list(db.scalars(select(BoletoRecord).where(BoletoRecord.company_id == company.id)))
+    standalone_boleto_records = list(
+        db.scalars(
+            select(StandaloneBoletoRecord)
+            .where(StandaloneBoletoRecord.company_id == company.id)
+            .order_by(StandaloneBoletoRecord.local_status.asc(), StandaloneBoletoRecord.due_date.asc(), StandaloneBoletoRecord.client_name.asc())
+        )
+    )
     config_map = _load_customer_configs(db, company.id)
     customer_lookup = _build_linx_customer_lookup(db, company.id)
 
@@ -1738,6 +1772,7 @@ def build_boleto_dashboard(
         paid_pending=sorted(paid_pending, key=lambda item: (item.client_name, item.due_date or date.max, item.amount)),
         missing_boletos=sorted(missing_boletos, key=lambda item: (item.client_name, item.due_date or date.max, item.amount)),
         excess_boletos=sorted(excess_boletos, key=lambda item: (item.client_name, item.due_date or date.max, item.amount)),
+        standalone_boletos=[_serialize_standalone_boleto(item) for item in standalone_boleto_records],
     )
 
 

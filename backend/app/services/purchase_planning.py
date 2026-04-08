@@ -1,20 +1,22 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from xml.etree import ElementTree
 
+import httpx
 from fastapi import HTTPException
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models.finance import Category, FinancialEntry
 from app.db.models.imports import ImportBatch
-from app.db.models.linx import PurchasePayableTitle
+from app.db.models.linx import LinxMovement, LinxProduct, PurchasePayableTitle
 from app.db.models.purchasing import (
     CollectionSeason,
     PurchaseBrand,
@@ -45,6 +47,7 @@ from app.schemas.purchase_planning import (
     PurchaseInvoiceRead,
     PurchasePlanCreate,
     PurchasePlanningMonthlyProjection,
+    PurchasePlanningCostRow,
     PurchasePlanningOverview,
     PurchasePlanningRow,
     PurchasePlanningSummary,
@@ -69,9 +72,18 @@ from app.services.import_parsers import (
     parse_purchase_payable_rows,
 )
 from app.services.linx import download_linx_purchase_payables_report
+from app.services.linx import LinxApiSettings, load_linx_api_settings
 
 TWO_PLACES = Decimal("0.01")
 HISTORICAL_COLLECTION_START_YEAR = 2020
+LINX_PURCHASE_PAYABLES_API_SOURCE = "linx_purchase_payables_api"
+LINX_PURCHASE_PAYABLES_API_METHOD = "LinxFaturas"
+LINX_PURCHASE_PAYABLES_API_TAG = "linx_purchase_payables_api"
+LINX_PURCHASE_PAYABLES_API_FULL_LOAD_START = "2025-03-25 00:00:00"
+LINX_PURCHASE_PAYABLES_API_PAGE_LIMIT = 5000
+LINX_PURCHASE_PAYABLES_API_TIMEOUT_SECONDS = 90.0
+LINX_WS_USERNAME = "linx_export"
+LINX_WS_PASSWORD = "linx_export"
 SEASON_LABELS = {
     "summer": "Verao",
     "winter": "Inverno",
@@ -120,6 +132,31 @@ class PurchasePlanningFilters:
     supplier_id: str | None = None
     collection_id: str | None = None
     status: str | None = None
+
+
+@dataclass(slots=True)
+class LinxApiPurchasePayableRow:
+    linx_code: int
+    issue_date: date | None
+    payable_code: str | None
+    company_code: str | None
+    due_date: date | None
+    installment_label: str | None
+    installment_number: int | None
+    installments_total: int | None
+    original_amount: Decimal
+    amount_with_charges: Decimal
+    supplier_name: str
+    supplier_code: str | None
+    document_number: str | None
+    document_series: str | None
+    status: str
+    paid_amount: Decimal
+    settled_date: date | None
+    canceled: bool
+    excluded: bool
+    row_timestamp: int | None
+    observation: str | None
 
 
 def _money(value: Decimal | int | float | None) -> Decimal:
@@ -211,6 +248,26 @@ def _collection_name(collection: CollectionSeason | None) -> str | None:
     if collection is None:
         return None
     return _season_label(collection.season_type, collection.season_year) or collection.name
+
+
+def _normalize_collection_lookup_key(value: str | None) -> str:
+    normalized = normalize_label(value or "")
+    if normalized.startswith("1"):
+        normalized = normalized[1:].lstrip("-").strip()
+    return normalized
+
+
+def _resolve_reporting_collection_by_date(
+    collections: list[CollectionSeason],
+    reference_date: date | datetime | None,
+) -> CollectionSeason | None:
+    if reference_date is None:
+        return None
+    target_date = reference_date.date() if isinstance(reference_date, datetime) else reference_date
+    for collection in collections:
+        if collection.start_date <= target_date <= collection.end_date:
+            return collection
+    return None
 
 
 def _is_past_collection(collection: CollectionSeason | None, *, today: date) -> bool:
@@ -1887,20 +1944,6 @@ def _match_invoice_to_plan(
     return None
 
 
-def _match_purchase_return_to_plan(
-    purchase_return: PurchaseReturn,
-    *,
-    plan_supplier_ids: dict[str, set[str]],
-    plan_periods: dict[str, tuple[date, date]],
-) -> str | None:
-    for plan_id, (period_start, period_end) in plan_periods.items():
-        if purchase_return.return_date < period_start or purchase_return.return_date > period_end:
-            continue
-        if purchase_return.supplier_id in plan_supplier_ids.get(plan_id, set()):
-            return plan_id
-    return None
-
-
 def _match_entry_to_registered_supplier(
     entry: FinancialEntry,
     *,
@@ -1954,10 +1997,8 @@ def _build_plan_financial_totals(
     plan_supplier_ids: dict[str, set[str]] = {}
     plan_periods: dict[str, tuple[date, date]] = {}
     plan_collection_names: dict[str, str | None] = {}
-    past_plan_ids: set[str] = set()
     min_period_start: date | None = None
     max_period_end: date | None = None
-    today = _today()
     for plan in plans:
         totals_by_plan_id[plan.id] = {"received_amount": Decimal("0.00")}
         if not plan.collection:
@@ -1974,8 +2015,6 @@ def _build_plan_financial_totals(
         plan_supplier_ids[plan.id] = supplier_ids
         plan_periods[plan.id] = (plan.collection.start_date, plan.collection.end_date)
         plan_collection_names[plan.id] = _collection_name(plan.collection)
-        if _is_past_collection(plan.collection, today=today):
-            past_plan_ids.add(plan.id)
         min_period_start = plan.collection.start_date if min_period_start is None else min(min_period_start, plan.collection.start_date)
         max_period_end = plan.collection.end_date if max_period_end is None else max(max_period_end, plan.collection.end_date)
 
@@ -2023,34 +2062,6 @@ def _build_plan_financial_totals(
         if matched_plan_id:
             totals_by_plan_id.setdefault(matched_plan_id, {"received_amount": Decimal("0.00")})
             totals_by_plan_id[matched_plan_id]["received_amount"] += net_received_amount
-
-    plan_supplier_id_set = {supplier_id for supplier_ids in plan_supplier_ids.values() for supplier_id in supplier_ids}
-    if plan_supplier_id_set:
-        purchase_returns = list(
-            db.scalars(
-                select(PurchaseReturn).where(
-                    PurchaseReturn.company_id == company_id,
-                    PurchaseReturn.supplier_id.in_(plan_supplier_id_set),
-                    PurchaseReturn.return_date >= min_period_start,
-                    PurchaseReturn.return_date <= max_period_end,
-                )
-            )
-        )
-        for purchase_return in purchase_returns:
-            matched_plan_id = _match_purchase_return_to_plan(
-                purchase_return,
-                plan_supplier_ids=plan_supplier_ids,
-                plan_periods=plan_periods,
-            )
-            if matched_plan_id is None or matched_plan_id not in past_plan_ids:
-                continue
-            current_received = Decimal(
-                totals_by_plan_id.setdefault(matched_plan_id, {"received_amount": Decimal("0.00")})["received_amount"]
-            )
-            totals_by_plan_id[matched_plan_id]["received_amount"] = max(
-                current_received - _money(purchase_return.amount),
-                Decimal("0.00"),
-            )
 
     brand_linked_supplier_ids = set(
         db.scalars(
@@ -2964,6 +2975,423 @@ def _create_linx_purchase_invoice(
     return invoice
 
 
+def _clean_linx_api_text(value: str | None) -> str | None:
+    cleaned = (value or "").strip()
+    return cleaned or None
+
+
+def _parse_linx_api_datetime(value: str | None) -> date | None:
+    cleaned = _clean_linx_api_text(value)
+    if not cleaned:
+        return None
+    for format_string in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(cleaned, format_string).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _parse_linx_api_int(value: str | None) -> int | None:
+    cleaned = _clean_linx_api_text(value)
+    if not cleaned:
+        return None
+    try:
+        return int(cleaned)
+    except ValueError:
+        return None
+
+
+def _parse_linx_api_decimal(value: str | None) -> Decimal:
+    cleaned = _clean_linx_api_text(value)
+    if not cleaned:
+        return Decimal("0.00")
+    try:
+        return Decimal(cleaned)
+    except Exception:
+        return Decimal("0.00")
+
+
+def _split_linx_faturas_installment_pair(raw_value: str | None) -> tuple[str | None, int | None, int | None]:
+    label = _clean_linx_api_text(raw_value)
+    current = _parse_linx_api_int(raw_value)
+    total = None
+    return label, current, total
+
+
+def _normalize_linx_api_purchase_status(
+    *,
+    canceled: bool,
+    excluded: bool,
+    settled_date: date | None,
+) -> str:
+    if canceled or excluded:
+        return "Cancelado"
+    if settled_date is not None:
+        return "Baixado"
+    return "Em aberto"
+
+
+def _build_linx_api_purchase_title_source_reference(row: LinxApiPurchasePayableRow) -> str:
+    return (
+        f"{LINX_PURCHASE_PAYABLES_API_TAG}:{row.company_code or ''}:{row.payable_code or row.linx_code}"
+    )
+
+
+def _build_linx_api_purchase_invoice_note(rows: list[LinxApiPurchasePayableRow]) -> str:
+    payable_codes = sorted({row.payable_code for row in rows if row.payable_code})
+    suffix = f" Tag: {LINX_PURCHASE_PAYABLES_API_TAG}."
+    if payable_codes:
+        return (
+            "Incluido via API do Linx. "
+            f"Codigos da fatura Linx: {', '.join(payable_codes)}."
+            f"{suffix}"
+        )
+    return f"Incluido via API do Linx.{suffix}"
+
+
+def _build_linx_api_purchase_entry_note(row: LinxApiPurchasePayableRow) -> str:
+    details = [f"Incluido via API do Linx. Tag: {LINX_PURCHASE_PAYABLES_API_TAG}."]
+    if row.payable_code:
+        details.append(f"Codigo da fatura: {row.payable_code}.")
+    if row.installment_label:
+        details.append(f"Parcela: {row.installment_label}.")
+    if row.document_number:
+        details.append(f"Numero da nota: {row.document_number}.")
+    return " ".join(details)
+
+
+def _build_linx_faturas_rows(response_bytes: bytes) -> list[dict[str, str]]:
+    root = ElementTree.fromstring(response_bytes)
+    header = [
+        (node.text or "").strip()
+        for node in root.findall("./ResponseData/C/D")
+    ]
+    rows: list[dict[str, str]] = []
+    for row_node in root.findall("./ResponseData/R"):
+        values = [(node.text or "").strip() for node in row_node.findall("./D")]
+        rows.append(dict(zip(header, values)))
+    return rows
+
+
+def _fetch_linx_purchase_payable_rows_page(
+    settings: LinxApiSettings,
+    *,
+    timestamp_value: int,
+) -> tuple[bytes, list[dict[str, str]]]:
+    request_root = ElementTree.Element("LinxMicrovix")
+    ElementTree.SubElement(
+        request_root,
+        "Authentication",
+        attrib={"user": LINX_WS_USERNAME, "password": LINX_WS_PASSWORD},
+    )
+    ElementTree.SubElement(request_root, "ResponseFormat").text = "xml"
+    command = ElementTree.SubElement(request_root, "Command")
+    ElementTree.SubElement(command, "Name").text = LINX_PURCHASE_PAYABLES_API_METHOD
+    parameters = ElementTree.SubElement(command, "Parameters")
+    for param_id, param_value in (
+        ("chave", settings.api_key),
+        ("cnpjEmp", settings.cnpj),
+        ("data_inicial", LINX_PURCHASE_PAYABLES_API_FULL_LOAD_START),
+        ("data_fim", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        ("timestamp", str(timestamp_value)),
+    ):
+        param = ElementTree.SubElement(parameters, "Parameter", attrib={"id": param_id})
+        param.text = param_value
+
+    payload = ElementTree.tostring(request_root, encoding="utf-8", xml_declaration=True)
+    response = httpx.post(
+        settings.base_url,
+        content=payload,
+        headers={"Content-Type": "application/xml; charset=utf-8"},
+        timeout=LINX_PURCHASE_PAYABLES_API_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    return response.content, _build_linx_faturas_rows(response.content)
+
+
+def _collect_linx_purchase_payable_api_rows(
+    settings: LinxApiSettings,
+    *,
+    start_timestamp: int,
+) -> tuple[bytes, list[dict[str, str]]]:
+    responses: list[bytes] = []
+    rows: list[dict[str, str]] = []
+    current_timestamp = start_timestamp
+    while True:
+        response_bytes, page_rows = _fetch_linx_purchase_payable_rows_page(
+            settings,
+            timestamp_value=current_timestamp,
+        )
+        responses.append(response_bytes)
+        if not page_rows:
+            break
+        rows.extend(page_rows)
+        max_timestamp = max((_parse_linx_api_int(row.get("timestamp")) or current_timestamp) for row in page_rows)
+        if max_timestamp <= current_timestamp or len(page_rows) < LINX_PURCHASE_PAYABLES_API_PAGE_LIMIT:
+            break
+        current_timestamp = max_timestamp
+    return b"\n".join(responses), rows
+
+
+def _resolve_linx_api_purchase_amount(row: dict[str, str]) -> Decimal:
+    amount = _parse_linx_api_decimal(row.get("valor_fatura"))
+    amount += _parse_linx_api_decimal(row.get("valor_juros"))
+    amount += _parse_linx_api_decimal(row.get("valor_multa"))
+    amount += _parse_linx_api_decimal(row.get("taxa_financeira"))
+    amount -= _parse_linx_api_decimal(row.get("valor_desconto"))
+    amount -= _parse_linx_api_decimal(row.get("valor_abatimento"))
+    if amount <= Decimal("0.00"):
+        amount = _parse_linx_api_decimal(row.get("valor_fatura"))
+    return _money(amount)
+
+
+def _normalize_linx_api_purchase_row(row: dict[str, str]) -> LinxApiPurchasePayableRow | None:
+    if (_clean_linx_api_text(row.get("receber_pagar")) or "").upper() != "P":
+        return None
+    issue_date = _parse_linx_api_datetime(row.get("data_emissao"))
+    if issue_date is None or issue_date < date(2025, 3, 25):
+        return None
+    linx_code = _parse_linx_api_int(row.get("codigo_fatura"))
+    if linx_code is None:
+        return None
+    installment_label = _clean_linx_api_text(row.get("ordem_parcela"))
+    return LinxApiPurchasePayableRow(
+        linx_code=linx_code,
+        issue_date=issue_date,
+        payable_code=_clean_linx_api_text(row.get("codigo_fatura")),
+        company_code=_clean_linx_api_text(row.get("empresa")),
+        due_date=_parse_linx_api_datetime(row.get("data_vencimento")),
+        installment_label=installment_label,
+        installment_number=_parse_linx_api_int(row.get("ordem_parcela")),
+        installments_total=_parse_linx_api_int(row.get("qtde_parcelas")),
+        original_amount=_money(_parse_linx_api_decimal(row.get("valor_fatura"))),
+        amount_with_charges=_resolve_linx_api_purchase_amount(row),
+        supplier_name=_clean_linx_api_text(row.get("nome_cliente")) or f"Fornecedor {linx_code}",
+        supplier_code=_clean_linx_api_text(row.get("cod_cliente")),
+        document_number=_clean_linx_api_text(row.get("documento")),
+        document_series=_clean_linx_api_text(row.get("serie")),
+        status=_normalize_linx_api_purchase_status(
+            canceled=(_clean_linx_api_text(row.get("cancelado")) or "N").upper() == "S",
+            excluded=(_clean_linx_api_text(row.get("excluido")) or "N").upper() == "S",
+            settled_date=_parse_linx_api_datetime(row.get("data_baixa")),
+        ),
+        paid_amount=_money(_parse_linx_api_decimal(row.get("valor_pago"))),
+        settled_date=_parse_linx_api_datetime(row.get("data_baixa")),
+        canceled=(_clean_linx_api_text(row.get("cancelado")) or "N").upper() == "S",
+        excluded=(_clean_linx_api_text(row.get("excluido")) or "N").upper() == "S",
+        row_timestamp=_parse_linx_api_int(row.get("timestamp")),
+        observation=_clean_linx_api_text(row.get("observacao")),
+    )
+
+
+def _normalize_linx_lookup_part(value: str | int | None) -> str:
+    cleaned = str(value or "").strip()
+    return cleaned
+
+
+def _build_purchase_movement_lookup(
+    db: Session,
+    *,
+    company_id: str,
+) -> tuple[set[tuple[str, str, str, str, date | None]], set[tuple[str, str, str, str]]]:
+    exact_keys: set[tuple[str, str, str, str, date | None]] = set()
+    loose_keys: set[tuple[str, str, str, str]] = set()
+    rows = db.execute(
+        select(
+            LinxMovement.company_code,
+            LinxMovement.customer_code,
+            LinxMovement.document_number,
+            LinxMovement.document_series,
+            LinxMovement.issue_date,
+            LinxMovement.launch_date,
+        ).where(
+            LinxMovement.company_id == company_id,
+            LinxMovement.movement_type == "purchase",
+            LinxMovement.issue_date >= datetime(2025, 3, 25),
+        )
+    ).all()
+    for company_code, customer_code, document_number, document_series, issue_date, launch_date in rows:
+        company_key = _normalize_linx_lookup_part(company_code)
+        supplier_key = _normalize_linx_lookup_part(customer_code)
+        document_key = _normalize_linx_lookup_part(document_number)
+        series_key = _normalize_linx_lookup_part(document_series)
+        if not supplier_key or not document_key:
+            continue
+        loose_keys.add((company_key, supplier_key, document_key, series_key))
+        loose_keys.add((company_key, supplier_key, document_key, ""))
+        for movement_date in (
+            issue_date.date() if issue_date else None,
+            launch_date.date() if launch_date else None,
+        ):
+            exact_keys.add((company_key, supplier_key, document_key, series_key, movement_date))
+            exact_keys.add((company_key, supplier_key, document_key, "", movement_date))
+    return exact_keys, loose_keys
+
+
+def _row_matches_purchase_movement(
+    row: LinxApiPurchasePayableRow,
+    *,
+    exact_lookup: set[tuple[str, str, str, str, date | None]],
+    loose_lookup: set[tuple[str, str, str, str]],
+) -> bool:
+    company_key = _normalize_linx_lookup_part(row.company_code)
+    supplier_key = _normalize_linx_lookup_part(row.supplier_code)
+    document_key = _normalize_linx_lookup_part(row.document_number)
+    series_key = _normalize_linx_lookup_part(row.document_series)
+    if not supplier_key or not document_key:
+        return False
+    if (company_key, supplier_key, document_key, series_key, row.issue_date) in exact_lookup:
+        return True
+    if (company_key, supplier_key, document_key, "", row.issue_date) in exact_lookup:
+        return True
+    if (company_key, supplier_key, document_key, series_key) in loose_lookup:
+        return True
+    if (company_key, supplier_key, document_key, "") in loose_lookup:
+        return True
+    return False
+
+
+def _create_linx_api_financial_entry_for_installment(
+    db: Session,
+    *,
+    company_id: str,
+    supplier: Supplier,
+    invoice: PurchaseInvoice,
+    installment: PurchaseInstallment,
+    row: LinxApiPurchasePayableRow,
+    source_reference: str,
+) -> FinancialEntry:
+    purchase_category = _ensure_purchase_category(db, company_id)
+    issue_date = invoice.issue_date or installment.due_date
+    due_date = installment.due_date or invoice.issue_date
+    total_amount = _resolve_linx_purchase_payable_amount(row)
+    paid_amount = min(_money(row.paid_amount), total_amount)
+    if row.canceled or row.excluded:
+        status = "cancelled"
+        paid_amount = Decimal("0.00")
+        settled_at = None
+    elif row.settled_date is not None:
+        status = "settled"
+        if paid_amount <= Decimal("0.00"):
+            paid_amount = total_amount
+        settled_at = datetime.combine(row.settled_date, datetime.min.time(), tzinfo=timezone.utc)
+    elif paid_amount > Decimal("0.00"):
+        status = "partial"
+        settled_at = None
+    else:
+        status = "open"
+        settled_at = None
+
+    financial_entry = FinancialEntry(
+        company_id=company_id,
+        category_id=purchase_category.id,
+        supplier_id=invoice.supplier_id,
+        collection_id=invoice.collection_id,
+        season_phase=_normalize_season_phase(invoice.season_phase),
+        purchase_invoice_id=invoice.id,
+        purchase_installment_id=installment.id,
+        entry_type="expense",
+        status=status,
+        title=_build_purchase_installment_entry_title(supplier.name, invoice.invoice_number, installment),
+        description="Gerado automaticamente a partir da API de faturas a pagar do Linx.",
+        notes=_build_linx_api_purchase_entry_note(row),
+        counterparty_name=supplier.name,
+        document_number=invoice.invoice_number,
+        issue_date=issue_date,
+        competence_date=due_date,
+        due_date=due_date,
+        settled_at=settled_at,
+        principal_amount=total_amount,
+        total_amount=total_amount,
+        paid_amount=paid_amount,
+        external_source=LINX_PURCHASE_PAYABLES_API_TAG,
+        source_system=LINX_PURCHASE_PAYABLES_API_TAG,
+        source_reference=source_reference,
+    )
+    db.add(financial_entry)
+    db.flush()
+    installment.financial_entry_id = financial_entry.id
+    installment.financial_entry = financial_entry
+    installment.status = _sync_installment_status(installment)
+    return financial_entry
+
+
+def _create_linx_api_purchase_invoice(
+    db: Session,
+    *,
+    company: Company,
+    actor_user: User,
+    supplier: Supplier,
+    rows: list[LinxApiPurchasePayableRow],
+) -> PurchaseInvoice:
+    first_row = _sort_linx_purchase_rows(rows)[0]
+    supplier.has_purchase_invoices = True
+    brand = _brand_for_supplier(db, company.id, supplier.id)
+    collection = _resolve_collection(db, company.id, None, first_row.issue_date)
+    total_amount = sum((_resolve_linx_purchase_payable_amount(row) for row in rows), Decimal("0.00"))
+    payment_term = f"{max((row.installments_total or 1) for row in rows)}x"
+
+    invoice = PurchaseInvoice(
+        company_id=company.id,
+        brand_id=brand.id if brand else None,
+        supplier_id=supplier.id,
+        collection_id=collection.id if collection else None,
+        purchase_plan_id=None,
+        invoice_number=first_row.document_number,
+        series=first_row.document_series,
+        nfe_key=None,
+        issue_date=first_row.issue_date,
+        entry_date=first_row.issue_date,
+        total_amount=_money(total_amount),
+        payment_description="Linx API - Faturas de compra",
+        payment_term=payment_term,
+        payment_basis=supplier.payment_basis or "delivery",
+        season_phase="main",
+        raw_text=None,
+        raw_xml=None,
+        source_type="linx_api_payables",
+        status="open",
+        notes=_build_linx_api_purchase_invoice_note(rows),
+    )
+    db.add(invoice)
+    db.flush()
+
+    db.add(
+        PurchaseDelivery(
+            company_id=company.id,
+            brand_id=brand.id if brand else None,
+            supplier_id=supplier.id,
+            collection_id=collection.id if collection else None,
+            purchase_plan_id=None,
+            purchase_invoice_id=invoice.id,
+            delivery_date=first_row.issue_date,
+            amount=_money(total_amount),
+            season_phase="main",
+            source_type="linx_api_payables",
+            source_reference=first_row.document_number or first_row.payable_code,
+            notes=f"Entrega inferida via API de faturas de compra do Linx. Tag: {LINX_PURCHASE_PAYABLES_API_TAG}.",
+        )
+    )
+    db.flush()
+
+    write_audit_log(
+        db,
+        action="create_purchase_invoice",
+        entity_name="purchase_invoice",
+        entity_id=invoice.id,
+        company_id=company.id,
+        actor_user=actor_user,
+        after_state={
+            "supplier_name": supplier.name,
+            "invoice_number": invoice.invoice_number,
+            "total_amount": f"{invoice.total_amount:.2f}",
+            "source_type": invoice.source_type,
+        },
+    )
+    return invoice
+
+
 def import_linx_purchase_payables(
     db: Session,
     company: Company,
@@ -3131,13 +3559,291 @@ def import_linx_purchase_payables(
     return ImportResult(batch=batch, message=" ".join(message_parts))
 
 
-def sync_linx_purchase_payables(
+def sync_linx_purchase_payables_report(
     db: Session,
     company: Company,
     actor_user: User,
 ) -> ImportResult:
     filename, content = download_linx_purchase_payables_report(company)
     return import_linx_purchase_payables(db, company, filename, content, actor_user)
+
+
+def sync_linx_purchase_payables(
+    db: Session,
+    company: Company,
+    actor_user: User | None,
+) -> ImportResult:
+    settings = load_linx_api_settings(company)
+    start_timestamp = int(
+        db.scalar(
+            select(func.max(PurchasePayableTitle.linx_row_timestamp)).where(
+                PurchasePayableTitle.company_id == company.id,
+                PurchasePayableTitle.linx_row_timestamp.is_not(None),
+            )
+        )
+        or 0
+    )
+
+    response_bytes, raw_rows = _collect_linx_purchase_payable_api_rows(
+        settings,
+        start_timestamp=start_timestamp,
+    )
+    request_descriptor = json.dumps(
+        {
+            "method": LINX_PURCHASE_PAYABLES_API_METHOD,
+            "source": LINX_PURCHASE_PAYABLES_API_SOURCE,
+            "timestamp": start_timestamp,
+            "start_date": LINX_PURCHASE_PAYABLES_API_FULL_LOAD_START,
+        },
+        sort_keys=True,
+        ensure_ascii=True,
+    ).encode("utf-8")
+    batch, reused = _create_import_batch(
+        db,
+        company.id,
+        LINX_PURCHASE_PAYABLES_API_SOURCE,
+        f"{LINX_PURCHASE_PAYABLES_API_SOURCE}.xml",
+        request_descriptor + b"\n" + response_bytes,
+    )
+    if reused:
+        return ImportResult(
+            batch=batch,
+            message="Sincronizacao de faturas de compra Linx ja processada anteriormente.",
+        )
+
+    exact_lookup, loose_lookup = _build_purchase_movement_lookup(db, company_id=company.id)
+    normalized_by_code: dict[int, LinxApiPurchasePayableRow] = {}
+    ignored_non_purchase = 0
+    skipped_before_start = 0
+    duplicate_rows = 0
+
+    for raw_row in raw_rows:
+        normalized = _normalize_linx_api_purchase_row(raw_row)
+        if normalized is None:
+            if (_clean_linx_api_text(raw_row.get("receber_pagar")) or "").upper() == "P":
+                skipped_before_start += 1
+            continue
+        if not _row_matches_purchase_movement(
+            normalized,
+            exact_lookup=exact_lookup,
+            loose_lookup=loose_lookup,
+        ):
+            ignored_non_purchase += 1
+            continue
+        previous = normalized_by_code.get(normalized.linx_code)
+        if previous is not None:
+            duplicate_rows += 1
+            if int(normalized.row_timestamp or 0) <= int(previous.row_timestamp or 0):
+                continue
+        normalized_by_code[normalized.linx_code] = normalized
+
+    existing_titles = {
+        int(title.payable_code): title
+        for title in db.scalars(
+            select(PurchasePayableTitle).where(
+                PurchasePayableTitle.company_id == company.id,
+                PurchasePayableTitle.payable_code.in_([str(code) for code in normalized_by_code]),
+            )
+        )
+        if title.payable_code and str(title.payable_code).isdigit()
+    }
+
+    created_suppliers = 0
+    created_invoices = 0
+    created_installments = 0
+    created_entries = 0
+    updated_titles = 0
+    updated_entries = 0
+    updated_installments = 0
+
+    rows_by_group: dict[tuple[str, str, str], list[LinxApiPurchasePayableRow]] = defaultdict(list)
+    existing_rows: list[tuple[PurchasePayableTitle, LinxApiPurchasePayableRow]] = []
+
+    for row in normalized_by_code.values():
+        existing_title = existing_titles.get(row.linx_code)
+        if existing_title is not None:
+            existing_rows.append((existing_title, row))
+            continue
+        rows_by_group[_linx_purchase_invoice_group_key(row)].append(row)
+
+    for existing_title, row in existing_rows:
+        existing_title.last_seen_batch_id = batch.id
+        existing_title.issue_date = row.issue_date
+        existing_title.due_date = row.due_date
+        existing_title.company_code = row.company_code
+        existing_title.installment_label = row.installment_label
+        existing_title.installment_number = row.installment_number
+        existing_title.installments_total = row.installments_total
+        existing_title.original_amount = row.original_amount
+        existing_title.amount_with_charges = row.amount_with_charges
+        existing_title.supplier_name = row.supplier_name
+        existing_title.supplier_code = row.supplier_code
+        existing_title.document_number = row.document_number
+        existing_title.document_series = row.document_series
+        existing_title.status = row.status
+        existing_title.linx_row_timestamp = row.row_timestamp
+        updated_titles += 1
+
+        installment = (
+            db.get(PurchaseInstallment, existing_title.purchase_installment_id)
+            if existing_title.purchase_installment_id
+            else None
+        )
+        if installment is not None:
+            installment.installment_number = row.installment_number or installment.installment_number
+            installment.installment_label = row.installment_label
+            installment.due_date = row.due_date
+            installment.amount = _resolve_linx_purchase_payable_amount(row)
+            updated_installments += 1
+
+        entry = (
+            db.get(FinancialEntry, existing_title.financial_entry_id)
+            if existing_title.financial_entry_id
+            else None
+        )
+        if entry is not None:
+            total_amount = _resolve_linx_purchase_payable_amount(row)
+            entry.notes = _build_linx_api_purchase_entry_note(row)
+            entry.issue_date = row.issue_date
+            entry.competence_date = row.due_date
+            entry.due_date = row.due_date
+            entry.total_amount = total_amount
+            entry.principal_amount = total_amount
+            entry.document_number = row.document_number
+            if row.canceled or row.excluded:
+                entry.status = "cancelled"
+                entry.paid_amount = Decimal("0.00")
+                entry.settled_at = None
+            elif row.settled_date is not None:
+                entry.status = "settled"
+                entry.paid_amount = max(_money(row.paid_amount), total_amount)
+                entry.settled_at = datetime.combine(row.settled_date, datetime.min.time(), tzinfo=timezone.utc)
+            elif _money(row.paid_amount) > Decimal("0.00"):
+                entry.status = "partial"
+                entry.paid_amount = min(_money(row.paid_amount), total_amount)
+                entry.settled_at = None
+            else:
+                entry.status = "open"
+                entry.paid_amount = Decimal("0.00")
+                entry.settled_at = None
+            updated_entries += 1
+
+    for grouped_rows in rows_by_group.values():
+        rows = _sort_linx_purchase_rows(grouped_rows)
+        first_row = rows[0]
+        supplier, supplier_created = _get_or_create_supplier_for_linx_purchase(
+            db,
+            company.id,
+            first_row.supplier_name,
+        )
+        if supplier_created:
+            created_suppliers += 1
+        supplier.has_purchase_invoices = True
+
+        invoice = _find_matching_purchase_invoice_for_linx(db, company.id, supplier.id, first_row)
+        if invoice is None:
+            invoice = _create_linx_api_purchase_invoice(
+                db,
+                company=company,
+                actor_user=actor_user,
+                supplier=supplier,
+                rows=rows,
+            )
+            created_invoices += 1
+
+        for row in rows:
+            installment = _find_matching_purchase_installment_for_linx(invoice, row)
+            if installment is None:
+                installment = PurchaseInstallment(
+                    company_id=company.id,
+                    purchase_invoice_id=invoice.id,
+                    installment_number=row.installment_number or (len(invoice.installments) + 1),
+                    installment_label=row.installment_label,
+                    due_date=row.due_date,
+                    amount=_resolve_linx_purchase_payable_amount(row),
+                    status="planned",
+                )
+                db.add(installment)
+                db.flush()
+                invoice.installments.append(installment)
+                created_installments += 1
+
+            financial_entry = installment.financial_entry
+            if financial_entry is None and installment.financial_entry_id:
+                financial_entry = db.get(FinancialEntry, installment.financial_entry_id)
+            if financial_entry is None:
+                financial_entry = _create_linx_api_financial_entry_for_installment(
+                    db,
+                    company_id=company.id,
+                    supplier=supplier,
+                    invoice=invoice,
+                    installment=installment,
+                    row=row,
+                    source_reference=_build_linx_api_purchase_title_source_reference(row),
+                )
+                created_entries += 1
+
+            db.add(
+                PurchasePayableTitle(
+                    company_id=company.id,
+                    source_batch_id=batch.id,
+                    last_seen_batch_id=batch.id,
+                    source_reference=_build_linx_api_purchase_title_source_reference(row),
+                    issue_date=row.issue_date,
+                    due_date=row.due_date,
+                    payable_code=row.payable_code,
+                    company_code=row.company_code,
+                    installment_label=row.installment_label,
+                    installment_number=row.installment_number,
+                    installments_total=row.installments_total,
+                    original_amount=row.original_amount,
+                    amount_with_charges=row.amount_with_charges,
+                    supplier_name=row.supplier_name,
+                    supplier_code=row.supplier_code,
+                    document_number=row.document_number,
+                    document_series=row.document_series,
+                    status=row.status,
+                    linx_row_timestamp=row.row_timestamp,
+                    purchase_invoice_id=invoice.id,
+                    purchase_installment_id=installment.id,
+                    financial_entry_id=financial_entry.id,
+                )
+            )
+
+    batch.records_total = len(raw_rows)
+    batch.records_valid = len(normalized_by_code)
+    batch.records_invalid = ignored_non_purchase + skipped_before_start + duplicate_rows
+    batch.status = "processed"
+    errors: list[str] = []
+    if ignored_non_purchase:
+        errors.append(f"{ignored_non_purchase} titulo(s) a pagar nao eram nota de compra e foram ignorados.")
+    if skipped_before_start:
+        errors.append(f"{skipped_before_start} titulo(s) anteriores a 25/03/2025 foram ignorados.")
+    if duplicate_rows:
+        errors.append(f"{duplicate_rows} linha(s) duplicadas foram consolidadas pelo maior timestamp.")
+    batch.error_summary = " ".join(errors) or None
+
+    db.commit()
+    db.refresh(batch)
+
+    message_parts = [
+        "Faturas de compra via API Linx sincronizadas.",
+        f"{created_invoices} nota(s) nova(s) analisada(s).",
+        f"{created_installments} fatura(s) nova(s) incluida(s).",
+    ]
+    if updated_titles or updated_entries or updated_installments:
+        message_parts.append(
+            f"{updated_titles} titulo(s), {updated_installments} parcela(s) e {updated_entries} lancamento(s) atualizados."
+        )
+    if created_suppliers:
+        message_parts.append(f"{created_suppliers} fornecedor(es) criado(s).")
+    if created_entries:
+        message_parts.append(f"{created_entries} lancamento(s) aberto(s) criado(s).")
+    if not raw_rows:
+        message_parts.append("Nenhuma fatura retornada pelo webservice da Linx.")
+    elif not normalized_by_code:
+        message_parts.append("Nenhuma fatura de nota de compra encontrada a partir de 25/03/2025.")
+    return ImportResult(batch=batch, message=" ".join(message_parts))
 
 
 def cleanup_deleted_purchase_entry(
@@ -3808,6 +4514,108 @@ def _group_key(brand_name: str | None, collection_name: str | None) -> tuple[str
     return brand_name or "Sem marca", collection_name or "Sem colecao"
 
 
+def _build_purchase_cost_totals(
+    db: Session,
+    company: Company,
+    filters: PurchasePlanningFilters,
+    company_collections: list[CollectionSeason],
+) -> list[PurchasePlanningCostRow]:
+    join_condition = and_(
+        LinxProduct.company_id == LinxMovement.company_id,
+        LinxProduct.linx_code == LinxMovement.product_code,
+    )
+    stmt = (
+        select(
+            LinxMovement.movement_type,
+            LinxMovement.launch_date,
+            LinxMovement.issue_date,
+            LinxMovement.total_amount,
+            LinxMovement.net_amount,
+            LinxProduct.supplier_name,
+        )
+        .select_from(LinxMovement)
+        .outerjoin(LinxProduct, join_condition)
+        .where(
+            LinxMovement.company_id == company.id,
+            LinxMovement.movement_group == "purchase",
+        )
+    )
+
+    if filters.year:
+        period_start = datetime.combine(date(filters.year, 1, 1), datetime.min.time())
+        period_end = datetime.combine(date(filters.year, 12, 31), datetime.max.time())
+        stmt = stmt.where(
+            func.coalesce(LinxMovement.launch_date, LinxMovement.issue_date) >= period_start,
+            func.coalesce(LinxMovement.launch_date, LinxMovement.issue_date) <= period_end,
+        )
+
+    wanted_collection_id = None
+    if filters.collection_id:
+        collection = db.get(CollectionSeason, filters.collection_id)
+        if collection and collection.company_id == company.id:
+            wanted_collection_id = collection.id
+
+    wanted_supplier_keys: set[str] | None = None
+    if filters.supplier_id:
+        supplier = db.get(Supplier, filters.supplier_id)
+        if supplier and supplier.company_id == company.id:
+            wanted_supplier_keys = _supplier_lookup_keys(supplier.name)
+
+    totals_by_key: dict[tuple[str, str], dict[str, Decimal]] = {}
+
+    for movement_type, launch_date, issue_date, total_amount, net_amount, supplier_name in db.execute(stmt).all():
+        reference_date = launch_date or issue_date
+        reporting_collection = _resolve_reporting_collection_by_date(company_collections, reference_date)
+        if wanted_collection_id and (reporting_collection is None or reporting_collection.id != wanted_collection_id):
+            continue
+
+        collection_name = _collection_name(reporting_collection) or "Sem colecao"
+        resolved_supplier_name = str(supplier_name or "Sem fornecedor")
+        normalized_supplier_keys = _supplier_lookup_keys(resolved_supplier_name)
+        if wanted_supplier_keys and not (normalized_supplier_keys & wanted_supplier_keys):
+            continue
+
+        amount = _money(Decimal(total_amount if total_amount is not None else (net_amount or 0)))
+        if amount <= 0:
+            continue
+
+        group_key = (collection_name, resolved_supplier_name)
+        bucket = totals_by_key.setdefault(
+            group_key,
+            {
+                "purchase_cost_total": Decimal("0.00"),
+                "purchase_return_cost_total": Decimal("0.00"),
+            },
+        )
+        if movement_type == "purchase":
+            bucket["purchase_cost_total"] += amount
+        elif movement_type == "purchase_return":
+            bucket["purchase_return_cost_total"] += amount
+
+    rows: list[PurchasePlanningCostRow] = []
+    for (collection_name, supplier_name), totals in sorted(
+        totals_by_key.items(),
+        key=lambda item: (
+            item[0][0].lower(),
+            item[0][1].lower(),
+        ),
+    ):
+        purchase_amount = _money(totals["purchase_cost_total"])
+        purchase_return_amount = _money(totals["purchase_return_cost_total"])
+        if purchase_amount <= 0 and purchase_return_amount <= 0:
+            continue
+        rows.append(
+            PurchasePlanningCostRow(
+                collection_name=collection_name,
+                supplier_name=supplier_name,
+                purchase_cost_total=purchase_amount,
+                purchase_return_cost_total=purchase_return_amount,
+                net_cost_total=_money(purchase_amount - purchase_return_amount),
+            )
+        )
+    return rows
+
+
 def _last_day_of_month(year: int, month: int) -> date:
     if month == 12:
         return date(year, month, 31)
@@ -3830,18 +4638,45 @@ def _remaining_billing_months(today: date, billing_deadline: date | None) -> lis
     return month_ends
 
 
+def _remaining_collection_month_ends(
+    *,
+    today: date,
+    collection_start: date | None,
+    collection_end: date | None,
+) -> list[date]:
+    if collection_start is None or collection_end is None or collection_end < today:
+        return []
+
+    effective_start = max(today, collection_start)
+    cursor = date(effective_start.year, effective_start.month, 1)
+    end_cursor = date(collection_end.year, collection_end.month, 1)
+    month_ends: list[date] = []
+    while cursor <= end_cursor:
+        month_ends.append(_last_day_of_month(cursor.year, cursor.month))
+        if cursor.month == 12:
+            cursor = date(cursor.year + 1, 1, 1)
+        else:
+            cursor = date(cursor.year, cursor.month + 1, 1)
+    return month_ends
+
+
 def _simulate_remaining_purchase_installments(
     *,
     amount_to_receive: Decimal,
     payment_term: str | None,
-    billing_deadline: date | None,
+    collection_start: date | None,
+    collection_end: date | None,
     today: date,
 ) -> list[PurchaseInstallmentDraft]:
     amount_to_receive = _money(amount_to_receive)
     if amount_to_receive <= 0:
         return []
 
-    month_ends = _remaining_billing_months(today, billing_deadline)
+    month_ends = _remaining_collection_month_ends(
+        today=today,
+        collection_start=collection_start,
+        collection_end=collection_end,
+    )
     if not month_ends:
         return []
 
@@ -3857,8 +4692,8 @@ def _simulate_remaining_purchase_installments(
         remaining = _money(remaining - batch_amount)
         batch_installments = _build_installments_from_term(payment_term, batch_amount, month_end) or [
             PurchaseInstallmentDraft(
-                installment_number=1,
-                installment_label="1/1",
+                installment_number=index,
+                installment_label=f"{index}/{month_count}",
                 due_date=month_end,
                 amount=batch_amount,
             )
@@ -3867,22 +4702,99 @@ def _simulate_remaining_purchase_installments(
     return simulated
 
 
+def _build_plan_linx_received_totals(
+    db: Session,
+    company_id: str,
+    plans: list[PurchasePlan],
+    *,
+    company_collections: list[CollectionSeason],
+    today: date,
+) -> dict[str, Decimal]:
+    eligible_plans = [plan for plan in plans if plan.collection and not _is_past_collection(plan.collection, today=today)]
+    if not eligible_plans:
+        return {}
+
+    min_period_start = min(plan.collection.start_date for plan in eligible_plans if plan.collection)
+    max_period_end = max(plan.collection.end_date for plan in eligible_plans if plan.collection)
+    join_condition = and_(
+        LinxProduct.company_id == LinxMovement.company_id,
+        LinxProduct.linx_code == LinxMovement.product_code,
+    )
+    rows = db.execute(
+        select(
+            LinxMovement.movement_type,
+            LinxMovement.launch_date,
+            LinxMovement.issue_date,
+            LinxMovement.total_amount,
+            LinxMovement.net_amount,
+            LinxProduct.supplier_name,
+        )
+        .select_from(LinxMovement)
+        .outerjoin(LinxProduct, join_condition)
+        .where(
+            LinxMovement.company_id == company_id,
+            LinxMovement.movement_group == "purchase",
+            LinxMovement.movement_type == "purchase",
+            func.coalesce(LinxMovement.launch_date, LinxMovement.issue_date) >= datetime.combine(min_period_start, datetime.min.time()),
+            func.coalesce(LinxMovement.launch_date, LinxMovement.issue_date) <= datetime.combine(max_period_end, datetime.max.time()),
+        )
+    ).all()
+
+    movement_totals_by_group: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal("0.00"))
+    for movement_type, launch_date, issue_date, total_amount, net_amount, supplier_name in rows:
+        reference_date = launch_date or issue_date
+        reporting_collection = _resolve_reporting_collection_by_date(company_collections, reference_date)
+        if reporting_collection is None:
+            continue
+        resolved_supplier_name = str(supplier_name or "Sem fornecedor")
+        amount = _money(Decimal(total_amount if total_amount is not None else (net_amount or 0)))
+        if amount <= 0:
+            continue
+        if movement_type != "purchase":
+            continue
+        movement_totals_by_group[(reporting_collection.id, resolved_supplier_name)] += amount
+
+    received_by_plan_id: dict[str, Decimal] = {}
+    for plan in eligible_plans:
+        assert plan.collection is not None
+        supplier_keys = {
+            lookup_key
+            for supplier in _plan_suppliers(plan)
+            for lookup_key in _supplier_lookup_keys(supplier.name)
+        }
+        if not supplier_keys:
+            received_by_plan_id[plan.id] = Decimal("0.00")
+            continue
+
+        received_total = Decimal("0.00")
+        for (collection_id, supplier_name), total in movement_totals_by_group.items():
+            if collection_id != plan.collection.id:
+                continue
+            if _supplier_lookup_keys(supplier_name) & supplier_keys:
+                received_total += total
+        received_by_plan_id[plan.id] = _money(max(received_total, Decimal("0.00")))
+    return received_by_plan_id
+
+
 def _build_purchase_forecast_installments(
     plans: list[PurchasePlan],
-    plan_financial_totals: dict[str, dict[str, Decimal]],
+    plan_received_totals: dict[str, Decimal],
     *,
     today: date,
 ) -> list[PurchaseInstallmentDraft]:
     simulated_installments: list[PurchaseInstallmentDraft] = []
     for plan in plans:
-        financial_totals = plan_financial_totals.get(plan.id, {})
-        amount_to_receive = _money(financial_totals.get("amount_to_receive", plan.purchased_amount))
+        if plan.collection is None or _is_past_collection(plan.collection, today=today):
+            continue
+        received_amount = _money(plan_received_totals.get(plan.id, Decimal("0.00")))
+        amount_to_receive = _money(max(_money(plan.purchased_amount) - received_amount, Decimal("0.00")))
         payment_term = (plan.brand.default_payment_term if plan.brand and plan.brand.default_payment_term else None) or plan.payment_term
         simulated_installments.extend(
             _simulate_remaining_purchase_installments(
                 amount_to_receive=amount_to_receive,
                 payment_term=payment_term,
-                billing_deadline=plan.collection.end_date if plan.collection else None,
+                collection_start=plan.collection.start_date,
+                collection_end=plan.collection.end_date,
                 today=today,
             )
         )
@@ -4008,9 +4920,29 @@ def build_purchase_planning_overview(
     deliveries = list(db.scalars(delivery_stmt))
     entries = list(db.scalars(entry_stmt))
     plan_financial_totals, ungrouped_suppliers = _build_plan_financial_totals(db, company.id, plans)
+    cost_totals = _build_purchase_cost_totals(db, company, filters, company_collections)
     season_totals = _build_supplier_season_totals(db, company.id)
     cashflow_plans = _filter_cashflow_plans(db, company.id, plans)
-    simulated_installments = _build_purchase_forecast_installments(cashflow_plans, plan_financial_totals, today=_today())
+    plan_linx_received_totals = _build_plan_linx_received_totals(
+        db,
+        company.id,
+        cashflow_plans,
+        company_collections=company_collections,
+        today=today,
+    )
+    simulated_installments = _build_purchase_forecast_installments(
+        cashflow_plans,
+        plan_linx_received_totals,
+        today=today,
+    )
+    supplier_lookup_by_key: dict[str, Supplier] = {}
+    for supplier in db.scalars(select(Supplier).where(Supplier.company_id == company.id)):
+        for lookup_key in _supplier_lookup_keys(supplier.name):
+            supplier_lookup_by_key.setdefault(lookup_key, supplier)
+    collection_lookup_by_key = {
+        _normalize_collection_lookup_key(_collection_name(collection) or collection.name): collection
+        for collection in company_collections
+    }
 
     aggregates: dict[tuple[str, str], dict[str, Decimal | str | list[str] | date | None]] = {}
 
@@ -4222,36 +5154,50 @@ def build_purchase_planning_overview(
             if remaining_amount > 0:
                 open_installments.append(_serialize_installment(db, installment))
 
-    purchase_return_stmt = select(PurchaseReturn).where(PurchaseReturn.company_id == company.id).options(joinedload(PurchaseReturn.supplier))
-    if filters.year:
-        purchase_return_stmt = purchase_return_stmt.where(
-            PurchaseReturn.return_date >= date(filters.year, 1, 1),
-            PurchaseReturn.return_date <= date(filters.year, 12, 31),
-        )
-    if filters.supplier_id:
-        purchase_return_stmt = purchase_return_stmt.where(PurchaseReturn.supplier_id == filters.supplier_id)
-    purchase_returns = list(db.scalars(purchase_return_stmt))
-    for purchase_return in purchase_returns:
-        reporting_collection = resolve_reporting_collection(None, purchase_return.return_date)
-        if reporting_collection is None:
+    for cost_total in cost_totals:
+        collection_key = _normalize_collection_lookup_key(cost_total.collection_name)
+        collection = collection_lookup_by_key.get(collection_key)
+        if filters.collection_id and (collection is None or collection.id != filters.collection_id):
             continue
-        supplier_brand_id = resolve_brand_id_from_supplier(purchase_return.supplier_id)
-        supplier_brand_name = resolve_brand_name_from_supplier(purchase_return.supplier_id)
+
+        supplier = next(
+            (
+                supplier_lookup_by_key[lookup_key]
+                for lookup_key in _supplier_lookup_keys(cost_total.supplier_name)
+                if lookup_key in supplier_lookup_by_key
+            ),
+            None,
+        )
+        supplier_brand_id = resolve_brand_id_from_supplier(supplier.id if supplier else None)
+        supplier_brand_name = resolve_brand_name_from_supplier(supplier.id if supplier else None)
         if filters.brand_id and supplier_brand_id != filters.brand_id:
             continue
-        if filters.collection_id and reporting_collection.id != filters.collection_id:
+
+        matched_row = False
+        for row in aggregates.values():
+            row_collection_key = _normalize_collection_lookup_key(str(row["collection_name"]))
+            if row_collection_key != collection_key:
+                continue
+            supplier_names = row["supplier_names"] if isinstance(row["supplier_names"], list) else []
+            if supplier_names and not any(_supplier_lookup_keys(name) & _supplier_lookup_keys(cost_total.supplier_name) for name in supplier_names):
+                continue
+            row["returns_total"] = Decimal(row["returns_total"]) + _money(cost_total.purchase_return_cost_total)
+            matched_row = True
+
+        if matched_row or collection is None:
             continue
+
         row = ensure_row(
             supplier_brand_id,
             supplier_brand_name,
-            reporting_collection.id,
-            _collection_name(reporting_collection),
-            reporting_collection.season_year,
-            reporting_collection.season_type,
+            collection.id,
+            _collection_name(collection),
+            collection.season_year,
+            collection.season_type,
         )
-        attach_supplier(row, purchase_return.supplier.name if purchase_return.supplier else None, purchase_return.supplier_id)
-        attach_plan_metadata(row, billing_deadline=reporting_collection.end_date)
-        row["returns_total"] = Decimal(row["returns_total"]) + _money(purchase_return.amount)
+        attach_supplier(row, supplier.name if supplier else cost_total.supplier_name, supplier.id if supplier else None)
+        attach_plan_metadata(row, billing_deadline=collection.end_date)
+        row["returns_total"] = Decimal(row["returns_total"]) + _money(cost_total.purchase_return_cost_total)
 
     rows: list[PurchasePlanningRow] = []
     for item in aggregates.values():
@@ -4307,6 +5253,7 @@ def build_purchase_planning_overview(
     return PurchasePlanningOverview(
         summary=summary,
         rows=rows,
+        cost_totals=cost_totals,
         monthly_projection=monthly_points,
         invoices=[_serialize_invoice(db, item) for item in invoices] if not planning_mode else [],
         open_installments=sorted(
@@ -4331,6 +5278,14 @@ def build_purchase_planning_cashflow_events(
     company: Company,
     filters: PurchasePlanningFilters,
 ) -> list[PurchaseInstallmentDraft]:
+    today = _today()
+    company_collections = list(
+        db.scalars(
+            select(CollectionSeason)
+            .where(CollectionSeason.company_id == company.id)
+            .order_by(CollectionSeason.start_date.desc(), CollectionSeason.created_at.desc())
+        )
+    )
     plans = (
         db.execute(
             _apply_filters_to_plan_stmt(
@@ -4350,8 +5305,14 @@ def build_purchase_planning_cashflow_events(
         .all()
     )
     cashflow_plans = _filter_cashflow_plans(db, company.id, plans)
-    plan_financial_totals, _ = _build_plan_financial_totals(db, company.id, cashflow_plans)
-    return _build_purchase_forecast_installments(cashflow_plans, plan_financial_totals, today=_today())
+    plan_linx_received_totals = _build_plan_linx_received_totals(
+        db,
+        company.id,
+        cashflow_plans,
+        company_collections=company_collections,
+        today=today,
+    )
+    return _build_purchase_forecast_installments(cashflow_plans, plan_linx_received_totals, today=today)
 
 
 def build_purchase_planning_cashflow(

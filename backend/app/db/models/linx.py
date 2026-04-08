@@ -65,6 +65,7 @@ class PurchasePayableTitle(Base, IdMixin, TimestampMixin):
     document_number: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     document_series: Mapped[str | None] = mapped_column(String(20), nullable=True)
     status: Mapped[str] = mapped_column(String(30), default="open")
+    linx_row_timestamp: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     purchase_invoice_id: Mapped[str | None] = mapped_column(
         ForeignKey("purchase_invoices.id"),
         nullable=True,

@@ -150,6 +150,7 @@ const emptyPurchasePlanning: PurchasePlanningOverview = {
     outstanding_payable_total: "0.00",
   },
   rows: [],
+  cost_totals: [],
   monthly_projection: [],
   invoices: [],
   open_installments: [],
@@ -259,6 +260,7 @@ const emptyBoletoDashboard: BoletoDashboard = {
   paid_pending: [],
   missing_boletos: [],
   excess_boletos: [],
+  standalone_boletos: [],
 };
 const emptyLinxCustomerDirectory: LinxCustomerDirectory = {
   generated_at: "",
@@ -1742,6 +1744,60 @@ function AppRuntime() {
     }, "Baixa do boleto do Inter concluída.", { sections: ["boletos", "importacoes"] });
   }
 
+  async function createStandaloneBoleto(payload: {
+    account_id: string | null;
+    client_name: string;
+    amount: string;
+    due_date: string;
+    notes: string | null;
+  }) {
+    if (!session) return;
+    await runMutation(async () => {
+      await fetchJson<ImportResult>("/boletos/standalone", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify(payload),
+      });
+    }, "Boleto avulso emitido.", { sections: ["boletos", "importacoes"] });
+  }
+
+  async function syncStandaloneBoletos() {
+    if (!session) return;
+    await runMutation(async () => {
+      await fetchJson<ImportResult>("/boletos/standalone/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+    }, "Boletos avulsos sincronizados.", { sections: ["boletos", "importacoes"] });
+  }
+
+  async function downloadStandaloneBoletoPdf(boletoId: string) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await downloadFile(`/boletos/standalone/${boletoId}/pdf`, {
+        token: session.token,
+        filename: `boleto-avulso-${boletoId}.pdf`,
+      });
+      setFeedback({ tone: "success", message: "PDF do boleto avulso baixado." });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function markStandaloneBoletoDownloaded(boletoId: string) {
+    if (!session) return;
+    await runMutation(async () => {
+      await fetchJson<void>(`/boletos/standalone/${boletoId}/downloaded`, {
+        method: "POST",
+        token: session.token,
+      });
+    }, "Boleto avulso marcado como baixado.", { sections: ["boletos"] });
+  }
+
   async function importPurchaseInvoiceText(rawText: string) {
     if (!session) {
       return null as never;
@@ -2443,14 +2499,15 @@ function AppRuntime() {
         />
         <Route element={<Navigate replace to="/financeiro/cobranca/resumo" />} path="/financeiro/cobranca" />
         {[
-          { path: "/financeiro/cobranca/resumo", view: "summary" as const, index: 0 },
-          { path: "/financeiro/cobranca/faturas-em-aberto", view: "open" as const, index: 1 },
-          { path: "/financeiro/cobranca/boletos-em-aberto", view: "open-boletos" as const, index: 2 },
-          { path: "/financeiro/cobranca/atrasados", view: "overdue" as const, index: 3 },
-          { path: "/financeiro/cobranca/pagas-sem-baixa", view: "paid-pending" as const, index: 4 },
-          { path: "/financeiro/cobranca/boletos-faltando", view: "missing" as const, index: 5 },
-          { path: "/financeiro/cobranca/boletos-em-excesso", view: "excess" as const, index: 6 },
-        ].map((billingRoute) => (
+        { path: "/financeiro/cobranca/resumo", view: "summary" as const, index: 0 },
+        { path: "/financeiro/cobranca/faturas-em-aberto", view: "open" as const, index: 1 },
+        { path: "/financeiro/cobranca/boletos-em-aberto", view: "open-boletos" as const, index: 2 },
+        { path: "/financeiro/cobranca/atrasados", view: "overdue" as const, index: 3 },
+        { path: "/financeiro/cobranca/pagas-sem-baixa", view: "paid-pending" as const, index: 4 },
+        { path: "/financeiro/cobranca/boletos-faltando", view: "missing" as const, index: 5 },
+        { path: "/financeiro/cobranca/boletos-avulsos", view: "standalone" as const, index: 6 },
+        { path: "/financeiro/cobranca/boletos-em-excesso", view: "excess" as const, index: 7 },
+      ].map((billingRoute) => (
           <Route
             key={billingRoute.path}
             element={
@@ -2471,10 +2528,14 @@ function AppRuntime() {
                   onExportMissingBoletos={exportMissingBoletos}
                   onIssueInterCharges={issueInterCharges}
                   onReceiveInterBoleto={receiveInterBoleto}
+                  onCreateStandaloneBoleto={createStandaloneBoleto}
+                  onDownloadStandaloneBoletoPdf={downloadStandaloneBoletoPdf}
+                  onMarkStandaloneBoletoDownloaded={markStandaloneBoletoDownloaded}
                   onSaveClients={saveBoletoClients}
                   onSyncCustomers={syncLinxCustomersImport}
                   onSyncInterCharges={syncInterChargesImport}
                   onSyncReceivables={syncLinxReceivablesImport}
+                  onSyncStandaloneBoletos={syncStandaloneBoletos}
                   onToggleAllMonthlyMissingBoletos={toggleAllMonthlyMissingBoletos}
                   onUploadBoletoC6={uploadBoletoC6Import}
                   onUploadClientData={uploadBoletoCustomerDataImport}

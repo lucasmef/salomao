@@ -471,6 +471,29 @@ export type BoletoDashboard = {
   paid_pending: BoletoAlertItem[];
   missing_boletos: BoletoAlertItem[];
   excess_boletos: BoletoAlertItem[];
+  standalone_boletos: Array<{
+    id: string;
+    bank: string;
+    client_name: string;
+    document_id: string;
+    issue_date: string | null;
+    due_date: string | null;
+    amount: string;
+    paid_amount: string;
+    status: string;
+    local_status: string;
+    description: string | null;
+    notes: string | null;
+    tax_id: string | null;
+    email: string | null;
+    barcode: string | null;
+    linha_digitavel: string | null;
+    pix_copia_e_cola: string | null;
+    inter_codigo_solicitacao: string | null;
+    inter_account_id: string | null;
+    pdf_available: boolean;
+    downloaded_at: string | null;
+  }>;
 };
 
 export type AccountBalance = {
@@ -670,6 +693,14 @@ export type PurchasePlanningUngroupedSupplier = {
   total_amount: string;
 };
 
+export type PurchasePlanningCostRow = {
+  collection_name: string;
+  supplier_name: string;
+  purchase_cost_total: string;
+  purchase_return_cost_total: string;
+  net_cost_total: string;
+};
+
 export type PurchasePlanningOverview = {
   summary: {
     purchased_total: string;
@@ -681,6 +712,7 @@ export type PurchasePlanningOverview = {
     outstanding_payable_total: string;
   };
   rows: PurchasePlanningRow[];
+  cost_totals: PurchasePlanningCostRow[];
   monthly_projection: PurchasePlanningMonthlyProjection[];
   invoices: PurchaseInvoice[];
   open_installments: PurchaseInstallment[];

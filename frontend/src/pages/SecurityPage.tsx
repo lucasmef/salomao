@@ -286,7 +286,7 @@ export function SecurityPage({
                   onChange={(event) => setLinxForm({ ...linxForm, auto_sync_enabled: event.target.checked })}
                   type="checkbox"
                 />
-                Ativar sincronizacao automatica diaria do Linx
+                Ativar sincronizacao automatica horaria da API Linx
               </label>
               <label>
                 Email para aviso de falha
@@ -308,7 +308,7 @@ export function SecurityPage({
                 </div>
                 <div className="summary-row">
                   <span>Agendamento</span>
-                  <strong>{linxSettings?.auto_sync_enabled ? "Diario apos 22h" : "Inativo"}</strong>
+                  <strong>{linxSettings?.auto_sync_enabled ? "06h-22h de hora em hora" : "Inativo"}</strong>
                 </div>
                 <div className="summary-row">
                   <span>Ultima execucao</span>
