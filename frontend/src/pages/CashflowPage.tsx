@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { PageHeader } from "../components/PageHeader";
-import { formatMoney } from "../lib/format";
+import { formatDate, formatMoney } from "../lib/format";
 import type { Account, CashflowOverview } from "../types";
 
 type Props = {
@@ -28,9 +28,74 @@ type Props = {
 
 type ViewMode = "daily" | "weekly" | "monthly";
 
+function formatRangeLabel(start: string, end: string) {
+  if (!start && !end) {
+    return "Selecionar periodo";
+  }
+  if (start && end) {
+    return `${formatDate(start)} - ${formatDate(end)}`;
+  }
+  return start ? `${formatDate(start)} - ...` : `... - ${formatDate(end)}`;
+}
+
+function CalendarRangeIcon() {
+  return (
+    <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M4 1.75a.75.75 0 0 1 1.5 0V3h5V1.75a.75.75 0 0 1 1.5 0V3h.75A2.25 2.25 0 0 1 15 5.25v7.5A2.25 2.25 0 0 1 12.75 15h-9.5A2.25 2.25 0 0 1 1 12.75v-7.5A2.25 2.25 0 0 1 3.25 3H4V1.75ZM2.5 6.5v6.25c0 .414.336.75.75.75h9.5a.75.75 0 0 0 .75-.75V6.5h-11Zm11-1.5v-.75a.75.75 0 0 0-.75-.75h-.75v.5a.75.75 0 0 1-1.5 0v-.5h-5v.5a.75.75 0 0 1-1.5 0v-.5h-.75a.75.75 0 0 0-.75.75V5h11Z" />
+    </svg>
+  );
+}
+
+function FilterFunnelIcon() {
+  return (
+    <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M2 3.25C2 2.56 2.56 2 3.25 2h9.5a1.25 1.25 0 0 1 .965 2.045L10 8.56v3.19a1.25 1.25 0 0 1-.553 1.036l-1.75 1.167A.75.75 0 0 1 6.5 13.33V8.56L2.285 4.045A1.24 1.24 0 0 1 2 3.25Zm1.545.25L7.882 8.15a.75.75 0 0 1 .203.512v3.266L8.5 11.65V8.662a.75.75 0 0 1 .203-.512L12.455 3.5h-8.91Z" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height="14"
+      viewBox="0 0 16 16"
+      width="14"
+      style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.16s ease" }}
+    >
+      <path d="m4 6 4 4 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
 export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFilters, onApplyFilters, embedded = false }: Props) {
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
+  const [showPeriodPopover, setShowPeriodPopover] = useState(false);
+  const [showPresetMenu, setShowPresetMenu] = useState(false);
+  const [showBalancePopover, setShowBalancePopover] = useState(false);
   const hasMountedAutoApplyRef = useRef(false);
+  const periodPopoverRef = useRef<HTMLDivElement | null>(null);
+  const presetMenuRef = useRef<HTMLDivElement | null>(null);
+  const balancePopoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      if (showPeriodPopover && periodPopoverRef.current && !periodPopoverRef.current.contains(target)) {
+        setShowPeriodPopover(false);
+      }
+      if (showPresetMenu && presetMenuRef.current && !presetMenuRef.current.contains(target)) {
+        setShowPresetMenu(false);
+      }
+      if (showBalancePopover && balancePopoverRef.current && !balancePopoverRef.current.contains(target)) {
+        setShowBalancePopover(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showBalancePopover, showPeriodPopover, showPresetMenu]);
 
   useEffect(() => {
     if (!hasMountedAutoApplyRef.current) {
@@ -50,6 +115,177 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
     return cashflow?.daily_projection ?? [];
   }, [cashflow, viewMode]);
 
+  function setDateRange(start: string, end: string) {
+    onChangeFilters({ ...filters, start, end });
+  }
+
+  function applyPresetRange(kind: "today" | "current_month" | "previous_month" | "current_year") {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const formatValue = (value: Date) => value.toISOString().slice(0, 10);
+
+    if (kind === "today") {
+      const current = formatValue(today);
+      setDateRange(current, current);
+      return;
+    }
+
+    if (kind === "current_month") {
+      setDateRange(formatValue(new Date(year, month, 1)), formatValue(new Date(year, month + 1, 0)));
+      return;
+    }
+
+    if (kind === "previous_month") {
+      setDateRange(formatValue(new Date(year, month - 1, 1)), formatValue(new Date(year, month, 0)));
+      return;
+    }
+
+    setDateRange(formatValue(new Date(year, 0, 1)), formatValue(new Date(year, 11, 31)));
+  }
+
+  const cashflowFiltersContent = (
+    <div className="cashflow-top-toolbar">
+      <label className="cashflow-top-select-field">
+        <span>Conta</span>
+        <select
+          aria-label="Conta do fluxo de caixa"
+          className="reconciliation-top-select"
+          disabled={loading}
+          value={filters.account_id}
+          onChange={(event) => onChangeFilters({ ...filters, account_id: event.target.value })}
+        >
+          <option value="">Todas</option>
+          {accounts.map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="entries-period-group cashflow-period-group" ref={periodPopoverRef}>
+        <button
+          aria-expanded={showPeriodPopover}
+          aria-label="Selecionar periodo"
+          className={`entries-period-trigger ${showPeriodPopover ? "is-active" : ""}`}
+          disabled={loading}
+          onClick={() => {
+            setShowPresetMenu(false);
+            setShowPeriodPopover((current) => !current);
+          }}
+          type="button"
+        >
+          <CalendarRangeIcon />
+          <span>{formatRangeLabel(filters.start, filters.end)}</span>
+        </button>
+        {showPeriodPopover && (
+          <div className="entries-floating-panel entries-period-popover">
+            <div className="entries-period-fields">
+              <label>
+                Inicio
+                <input disabled={loading} type="date" value={filters.start} onChange={(event) => setDateRange(event.target.value, filters.end)} />
+              </label>
+              <label>
+                Fim
+                <input disabled={loading} type="date" value={filters.end} onChange={(event) => setDateRange(filters.start, event.target.value)} />
+              </label>
+            </div>
+            <div className="entries-period-footer">
+              <button
+                className="secondary-button compact-button"
+                onClick={() => {
+                  setDateRange("", "");
+                  setShowPeriodPopover(false);
+                }}
+                type="button"
+              >
+                Limpar
+              </button>
+              <button className="primary-button compact-button" onClick={() => setShowPeriodPopover(false)} type="button">
+                Concluir
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="entries-toolbar-icon-wrap" ref={presetMenuRef}>
+        <button
+          aria-expanded={showPresetMenu}
+          aria-label="Periodos pre-definidos"
+          className={`entries-toolbar-icon ${showPresetMenu ? "is-active" : ""}`}
+          disabled={loading}
+          onClick={() => {
+            setShowPeriodPopover(false);
+            setShowPresetMenu((current) => !current);
+          }}
+          title="Periodos pre-definidos"
+          type="button"
+        >
+          <FilterFunnelIcon />
+        </button>
+        {showPresetMenu && (
+          <div className="entries-floating-panel entries-icon-menu">
+            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("today"); setShowPresetMenu(false); }} type="button">Hoje</button>
+            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("current_month"); setShowPresetMenu(false); }} type="button">Mes atual</button>
+            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("previous_month"); setShowPresetMenu(false); }} type="button">Mes anterior</button>
+            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("current_year"); setShowPresetMenu(false); }} type="button">Ano atual</button>
+          </div>
+        )}
+      </div>
+
+      <div className="cashflow-toggle-group">
+        <label className="reconciliation-subtle-toggle">
+          <input
+            checked={filters.include_purchase_planning}
+            disabled={loading}
+            onChange={(event) => onChangeFilters({ ...filters, include_purchase_planning: event.target.checked })}
+            type="checkbox"
+          />
+          <span>Incluir compras planejadas</span>
+        </label>
+        <label className="reconciliation-subtle-toggle">
+          <input
+            checked={filters.include_crediario_receivables}
+            disabled={loading}
+            onChange={(event) => onChangeFilters({ ...filters, include_crediario_receivables: event.target.checked })}
+            type="checkbox"
+          />
+          <span>Incluir receitas crediario</span>
+        </label>
+      </div>
+
+      <div className="cashflow-inline-meta">
+        <div className="reconciliation-balance-wrap" ref={balancePopoverRef}>
+          <button
+            aria-expanded={showBalancePopover}
+            className={`reconciliation-balance-trigger ${showBalancePopover ? "is-active" : ""}`}
+            onClick={() => setShowBalancePopover((current) => !current)}
+            type="button"
+          >
+            <span>Saldo por conta</span>
+            <strong>{formatMoney(cashflow?.current_balance)}</strong>
+            <ChevronDownIcon expanded={showBalancePopover} />
+          </button>
+          {showBalancePopover && (
+            <div className="reconciliation-balance-popover">
+              {(cashflow?.account_balances ?? []).map((item) => (
+                <div className="reconciliation-balance-row" key={item.account_id}>
+                  <span title={`${item.account_name} | ${item.account_type}`}>{item.account_name}</span>
+                  <strong>{formatMoney(item.current_balance)}</strong>
+                </div>
+              ))}
+              {!cashflow?.account_balances.length && (
+                <div className="reconciliation-balance-empty">Nenhum saldo disponivel.</div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="page-layout">
       {!embedded && (
@@ -57,76 +293,19 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
           eyebrow="Financeiro"
           title="Fluxo de caixa"
           description="Leitura do caixa previsto e realizado por conta, com foco em saldo final e risco de aperto."
-          actions={
-            <div className="toolbar">
-              <label>Inicio<input type="date" value={filters.start} onChange={(event) => onChangeFilters({ ...filters, start: event.target.value })} /></label>
-              <label>Fim<input type="date" value={filters.end} onChange={(event) => onChangeFilters({ ...filters, end: event.target.value })} /></label>
-              <label>
-                Conta
-                <select value={filters.account_id} onChange={(event) => onChangeFilters({ ...filters, account_id: event.target.value })}>
-                  <option value="">Todas</option>
-                  {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                </select>
-              </label>
-              <label className="checkbox-line compact-inline">
-                <input
-                  type="checkbox"
-                  checked={filters.include_purchase_planning}
-                  onChange={(event) => onChangeFilters({ ...filters, include_purchase_planning: event.target.checked })}
-                />
-                Incluir compras planejadas
-              </label>
-              <label className="checkbox-line compact-inline">
-                <input
-                  type="checkbox"
-                  checked={filters.include_crediario_receivables}
-                  onChange={(event) => onChangeFilters({ ...filters, include_crediario_receivables: event.target.checked })}
-                />
-                Incluir receitas crediário
-              </label>
-            </div>
-          }
         />
       )}
 
-      {embedded && (
-        <section className="section-toolbar-panel">
-          <div className="section-toolbar-content compact-filter-layout">
-            <label>Inicio<input type="date" value={filters.start} onChange={(event) => onChangeFilters({ ...filters, start: event.target.value })} /></label>
-            <label>Fim<input type="date" value={filters.end} onChange={(event) => onChangeFilters({ ...filters, end: event.target.value })} /></label>
-            <label>
-              Conta
-              <select value={filters.account_id} onChange={(event) => onChangeFilters({ ...filters, account_id: event.target.value })}>
-                <option value="">Todas</option>
-                {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-              </select>
-            </label>
-            <label className="checkbox-line compact-inline compact-checkbox-chip">
-              <input
-                type="checkbox"
-                checked={filters.include_purchase_planning}
-                onChange={(event) => onChangeFilters({ ...filters, include_purchase_planning: event.target.checked })}
-              />
-              Incluir compras planejadas
-            </label>
-            <label className="checkbox-line compact-inline compact-checkbox-chip">
-              <input
-                type="checkbox"
-                checked={filters.include_crediario_receivables}
-                onChange={(event) => onChangeFilters({ ...filters, include_crediario_receivables: event.target.checked })}
-              />
-              Incluir receitas crediário
-            </label>
-          </div>
-        </section>
-      )}
+      <section className={`section-toolbar-panel cashflow-filter-panel ${embedded ? "reconciliation-filter-panel" : ""}`}>
+        {cashflowFiltersContent}
+      </section>
 
-      <section className="kpi-grid">
-        <article className="kpi-card"><span>Saldo atual</span><strong>{formatMoney(cashflow?.current_balance)}</strong></article>
-        <article className="kpi-card"><span>Entradas previstas</span><strong>{formatMoney(cashflow?.projected_inflows)}</strong></article>
-        <article className="kpi-card"><span>Saidas previstas</span><strong>{formatMoney(cashflow?.projected_outflows)}</strong></article>
-        <article className="kpi-card"><span>Compras planejadas</span><strong>{formatMoney(cashflow?.planned_purchase_outflows)}</strong></article>
-        <article className="kpi-card emphasis"><span>Saldo projetado</span><strong>{formatMoney(cashflow?.projected_ending_balance)}</strong></article>
+      <section className="kpi-grid cashflow-kpi-grid">
+        <article className="kpi-card cashflow-kpi-card"><span>Saldo atual</span><strong>{formatMoney(cashflow?.current_balance)}</strong></article>
+        <article className="kpi-card cashflow-kpi-card"><span>Entradas previstas</span><strong>{formatMoney(cashflow?.projected_inflows)}</strong></article>
+        <article className="kpi-card cashflow-kpi-card"><span>Saidas previstas</span><strong>{formatMoney(cashflow?.projected_outflows)}</strong></article>
+        <article className="kpi-card cashflow-kpi-card"><span>Compras planejadas</span><strong>{formatMoney(cashflow?.planned_purchase_outflows)}</strong></article>
+        <article className="kpi-card cashflow-kpi-card emphasis"><span>Saldo projetado</span><strong>{formatMoney(cashflow?.projected_ending_balance)}</strong></article>
       </section>
 
       {!!cashflow?.alerts.length && (
@@ -138,55 +317,6 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
         </section>
       )}
 
-      <section className="content-grid two-columns">
-        <article className="panel cashflow-account-panel">
-          <div className="panel-title"><h3>Saldos por conta</h3></div>
-          <div className="table-shell">
-            <table className="erp-table cashflow-account-table">
-              <thead><tr><th>Conta</th><th>Tipo</th><th>Saldo atual</th></tr></thead>
-              <tbody>
-                {(cashflow?.account_balances ?? []).map((item) => (
-                  <tr key={item.account_id}>
-                    <td>{item.account_name}</td>
-                    <td>{item.account_type}</td>
-                    <td>{formatMoney(item.current_balance)}</td>
-                  </tr>
-                ))}
-                {!cashflow?.account_balances.length && <tr><td colSpan={3} className="empty-cell">Nenhuma conta encontrada para o filtro atual.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </article>
-
-        <article className="panel cashflow-period-panel">
-          <div className="panel-title">
-            <h3>Leitura do periodo</h3>
-          </div>
-          <div className="summary-list cashflow-period-summary">
-            <div className="summary-row">
-              <span>Fonte das entradas</span>
-              <strong>{filters.include_crediario_receivables ? "Crediario importado dos boletos" : "Crediario desconsiderado"}</strong>
-            </div>
-            <div className="summary-row">
-              <span>Fonte das saidas</span>
-              <strong>{filters.include_purchase_planning ? "Despesas lancadas + previsao de compras" : "Despesas lancadas"}</strong>
-            </div>
-            <div className="summary-row">
-              <span>Base do saldo atual</span>
-              <strong>Lancamentos pagos e recebidos</strong>
-            </div>
-            <div className="summary-row">
-              <span>Conciliacao</span>
-              <strong>Extrato apenas vincula os lancamentos</strong>
-            </div>
-            <div className="summary-row">
-              <span>Conta filtrada</span>
-              <strong>{filters.account_id ? "Conta especifica" : "Consolidado"}</strong>
-            </div>
-          </div>
-        </article>
-      </section>
-
       <section className="panel cashflow-projection-panel">
         <div className="panel-title">
           <h3>Projecao por horizonte</h3>
@@ -196,7 +326,7 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
             <button className={viewMode === "monthly" ? "report-tab active" : "report-tab"} onClick={() => setViewMode("monthly")} type="button">Mensal</button>
           </div>
         </div>
-        <div className="table-shell tall">
+        <div className="table-shell cashflow-projection-shell">
           <table className="erp-table cashflow-projection-table">
             <thead><tr><th>Periodo</th><th>Saldo inicial</th><th>Crediario</th><th>Cartao</th><th>Despesas lancadas</th><th>Previsao de compras</th><th>Fechamento</th></tr></thead>
             <tbody>

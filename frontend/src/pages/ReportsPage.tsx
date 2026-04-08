@@ -4,11 +4,8 @@ import { ReportConfigModal } from "../components/ReportConfigModal";
 import { PageHeader } from "../components/PageHeader";
 import { formatDate, formatMoney } from "../lib/format";
 import type {
-  DreReport,
-  DroReport,
   ImportSummary,
   ReportConfig,
-  ReportDashboardCard,
   ReportTreeNode,
   ReportsOverview,
 } from "../types";
@@ -40,8 +37,30 @@ function collectExpandableKeys(nodes: ReportTreeNode[]): string[] {
   return nodes.flatMap((node) => (node.children.length > 0 ? [node.key, ...collectExpandableKeys(node.children)] : []));
 }
 
-function latestBatchFor(importSummary: ImportSummary, sourceType: string) {
-  return importSummary.import_batches.find((batch) => batch.source_type === sourceType) ?? null;
+function formatRangeLabel(start: string, end: string) {
+  if (!start && !end) {
+    return "Selecionar periodo";
+  }
+  if (start && end) {
+    return `${formatDate(start)} - ${formatDate(end)}`;
+  }
+  return start ? `${formatDate(start)} - ...` : `... - ${formatDate(end)}`;
+}
+
+function CalendarRangeIcon() {
+  return (
+    <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M4 1.75a.75.75 0 0 1 1.5 0V3h5V1.75a.75.75 0 0 1 1.5 0V3h.75A2.25 2.25 0 0 1 15 5.25v7.5A2.25 2.25 0 0 1 12.75 15h-9.5A2.25 2.25 0 0 1 1 12.75v-7.5A2.25 2.25 0 0 1 3.25 3H4V1.75ZM2.5 6.5v6.25c0 .414.336.75.75.75h9.5a.75.75 0 0 0 .75-.75V6.5h-11Zm11-1.5v-.75a.75.75 0 0 0-.75-.75h-.75v.5a.75.75 0 0 1-1.5 0v-.5h-5v.5a.75.75 0 0 1-1.5 0v-.5h-.75a.75.75 0 0 0-.75.75V5h11Z" />
+    </svg>
+  );
+}
+
+function FilterFunnelIcon() {
+  return (
+    <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M2 3.25C2 2.56 2.56 2 3.25 2h9.5a1.25 1.25 0 0 1 .965 2.045L10 8.56v3.19a1.25 1.25 0 0 1-.553 1.036l-1.75 1.167A.75.75 0 0 1 6.5 13.33V8.56L2.285 4.045A1.24 1.24 0 0 1 2 3.25Zm1.545.25L7.882 8.15a.75.75 0 0 1 .203.512v3.266L8.5 11.65V8.662a.75.75 0 0 1 .203-.512L12.455 3.5h-8.91Z" />
+    </svg>
+  );
 }
 
 function ReportStatementTable({ nodes, expandedKeys, onToggle }: StatementTableProps) {
@@ -94,22 +113,6 @@ function ReportStatementTable({ nodes, expandedKeys, onToggle }: StatementTableP
   );
 }
 
-function ReportDashboardSummary({ cards }: { cards: ReportDashboardCard[] }) {
-  if (!cards.length) {
-    return null;
-  }
-  return (
-    <section className="kpi-grid compact-kpis-four">
-      {cards.map((card) => (
-        <article className="kpi-card" key={card.key}>
-          <span>{card.label}</span>
-          <strong>{formatMoney(card.amount)}</strong>
-        </article>
-      ))}
-    </section>
-  );
-}
-
 export function ReportsPage({
   reports,
   importSummary,
@@ -130,9 +133,11 @@ export function ReportsPage({
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [configLoading, setConfigLoading] = useState(false);
   const [configSaving, setConfigSaving] = useState(false);
+  const [showPeriodPopover, setShowPeriodPopover] = useState(false);
+  const [showPresetMenu, setShowPresetMenu] = useState(false);
   const hasMountedAutoApplyRef = useRef(false);
-
-  const latestMovementsImport = useMemo(() => latestBatchFor(importSummary, "linx_movements"), [importSummary]);
+  const periodPopoverRef = useRef<HTMLDivElement | null>(null);
+  const presetMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (forcedTab) {
@@ -143,6 +148,21 @@ export function ReportsPage({
   useEffect(() => {
     setExpandedKeys(new Set());
   }, [activeTab, reports]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      if (showPeriodPopover && periodPopoverRef.current && !periodPopoverRef.current.contains(target)) {
+        setShowPeriodPopover(false);
+      }
+      if (showPresetMenu && presetMenuRef.current && !presetMenuRef.current.contains(target)) {
+        setShowPresetMenu(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showPeriodPopover, showPresetMenu]);
 
   useEffect(() => {
     if (!hasMountedAutoApplyRef.current) {
@@ -189,6 +209,35 @@ export function ReportsPage({
     }
   }
 
+  function setDateRange(start: string, end: string) {
+    onChangeFilters({ ...filters, start, end });
+  }
+
+  function applyPresetRange(kind: "today" | "current_month" | "previous_month" | "current_year") {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const formatValue = (value: Date) => value.toISOString().slice(0, 10);
+
+    if (kind === "today") {
+      const current = formatValue(today);
+      setDateRange(current, current);
+      return;
+    }
+
+    if (kind === "current_month") {
+      setDateRange(formatValue(new Date(year, month, 1)), formatValue(new Date(year, month + 1, 0)));
+      return;
+    }
+
+    if (kind === "previous_month") {
+      setDateRange(formatValue(new Date(year, month - 1, 1)), formatValue(new Date(year, month, 0)));
+      return;
+    }
+
+    setDateRange(formatValue(new Date(year, 0, 1)), formatValue(new Date(year, 11, 31)));
+  }
+
   const currentReport = activeTab === "dre" ? reports?.dre : reports?.dro;
   const currentNodes = currentReport?.statement ?? [];
   const allExpandableKeys = useMemo(() => collectExpandableKeys(currentNodes), [currentNodes]);
@@ -198,65 +247,93 @@ export function ReportsPage({
     setExpandedKeys(() => (allExpanded ? new Set() : new Set(allExpandableKeys)));
   }
 
+  const reportFiltersContent = (
+    <div className="reports-top-toolbar">
+      <div className="entries-period-group" ref={periodPopoverRef}>
+        <button
+          aria-expanded={showPeriodPopover}
+          aria-label="Selecionar periodo"
+          className={`entries-period-trigger ${showPeriodPopover ? "is-active" : ""}`}
+          disabled={loading}
+          onClick={() => {
+            setShowPresetMenu(false);
+            setShowPeriodPopover((current) => !current);
+          }}
+          type="button"
+        >
+          <CalendarRangeIcon />
+          <span>{formatRangeLabel(filters.start, filters.end)}</span>
+        </button>
+        {showPeriodPopover && (
+          <div className="entries-floating-panel entries-period-popover">
+            <div className="entries-period-fields">
+              <label>
+                Inicio
+                <input disabled={loading} type="date" value={filters.start} onChange={(event) => setDateRange(event.target.value, filters.end)} />
+              </label>
+              <label>
+                Fim
+                <input disabled={loading} type="date" value={filters.end} onChange={(event) => setDateRange(filters.start, event.target.value)} />
+              </label>
+            </div>
+            <div className="entries-period-footer">
+              <button
+                className="secondary-button compact-button"
+                onClick={() => {
+                  setDateRange("", "");
+                  setShowPeriodPopover(false);
+                }}
+                type="button"
+              >
+                Limpar
+              </button>
+              <button className="primary-button compact-button" onClick={() => setShowPeriodPopover(false)} type="button">
+                Concluir
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="entries-toolbar-icon-wrap" ref={presetMenuRef}>
+        <button
+          aria-expanded={showPresetMenu}
+          aria-label="Periodos pre-definidos"
+          className={`entries-toolbar-icon ${showPresetMenu ? "is-active" : ""}`}
+          disabled={loading}
+          onClick={() => {
+            setShowPeriodPopover(false);
+            setShowPresetMenu((current) => !current);
+          }}
+          title="Periodos pre-definidos"
+          type="button"
+        >
+          <FilterFunnelIcon />
+        </button>
+        {showPresetMenu && (
+          <div className="entries-floating-panel entries-icon-menu">
+            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("today"); setShowPresetMenu(false); }} type="button">Hoje</button>
+            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("current_month"); setShowPresetMenu(false); }} type="button">Mes atual</button>
+            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("previous_month"); setShowPresetMenu(false); }} type="button">Mes anterior</button>
+            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("current_year"); setShowPresetMenu(false); }} type="button">Ano atual</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="page-layout">
       {!embedded && (
         <PageHeader
           eyebrow="Relatorios"
           title="DRE e DRO"
-          description="Demonstrativos separados, com filtros obrigatórios por período e leitura expansível por nível de detalhe."
-          actions={
-            <div className="toolbar">
-              <label>Inicio<input type="date" value={filters.start} onChange={(event) => onChangeFilters({ ...filters, start: event.target.value })} /></label>
-              <label>Fim<input type="date" value={filters.end} onChange={(event) => onChangeFilters({ ...filters, end: event.target.value })} /></label>
-              <button className="secondary-button" disabled={loading} onClick={() => void onExport(activeTab, "pdf")} type="button">{activeTab.toUpperCase()} PDF</button>
-              <button className="secondary-button" disabled={loading} onClick={() => void onExport(activeTab, "xls")} type="button">{activeTab.toUpperCase()} XLS</button>
-              <button className="ghost-button" disabled={loading} onClick={() => void onExport(activeTab, "csv")} type="button">{activeTab.toUpperCase()} CSV</button>
-            </div>
-          }
+          description="Demonstrativos separados, com filtros obrigatorios por periodo e leitura expansivel por nivel de detalhe."
         />
       )}
 
-      {embedded && (
-        <section className="section-toolbar-panel">
-          <div className="section-toolbar-content compact-filter-layout">
-            <label>Inicio<input type="date" value={filters.start} onChange={(event) => onChangeFilters({ ...filters, start: event.target.value })} /></label>
-            <label>Fim<input type="date" value={filters.end} onChange={(event) => onChangeFilters({ ...filters, end: event.target.value })} /></label>
-            <button className="secondary-button" disabled={loading} onClick={() => void onExport(activeTab, "pdf")} type="button">{activeTab.toUpperCase()} PDF</button>
-            <button className="secondary-button" disabled={loading} onClick={() => void onExport(activeTab, "xls")} type="button">{activeTab.toUpperCase()} XLS</button>
-            <button className="ghost-button" disabled={loading} onClick={() => void onExport(activeTab, "csv")} type="button">{activeTab.toUpperCase()} CSV</button>
-          </div>
-        </section>
-      )}
-
-      <section className="content-grid two-columns">
-        <article className="panel compact-import-panel">
-          <div className="panel-heading compact-panel-heading">
-            <p className="eyebrow">Linx</p>
-            <h3>Movimentos Linx API</h3>
-          </div>
-          <div className="compact-upload-box">
-            <div className="import-last-meta">
-              {latestMovementsImport
-                ? `Ultima sincronizacao: ${latestMovementsImport.filename} em ${formatDate(latestMovementsImport.created_at)}`
-                : "Ultima sincronizacao: nenhuma"}
-            </div>
-            <p className="compact-muted">Faturamento, deducoes e CMV do DRE agora saem dos movimentos da API.</p>
-            <button className="primary-button compact-action-button" disabled={loading} onClick={() => void onSyncMovements()} type="button">
-              Atualizar Linx
-            </button>
-          </div>
-        </article>
-
-        <article className="panel">
-          <div className="panel-title"><h3>Bases utilizadas</h3></div>
-          <div className="summary-list">
-            <div className="summary-row"><span>Movimentos Linx API</span><strong>{latestMovementsImport ? formatDate(latestMovementsImport.created_at) : "Sem carga"}</strong></div>
-            <div className="summary-row"><span>Faturamento</span><strong>Total vendido API</strong></div>
-            <div className="summary-row"><span>Deducoes</span><strong>Devolucoes de venda API</strong></div>
-            <div className="summary-row"><span>CMV</span><strong>Preco de custo dos itens vendidos</strong></div>
-          </div>
-        </article>
+      <section className={`section-toolbar-panel reports-filter-panel ${embedded ? "reconciliation-filter-panel" : ""}`}>
+        {reportFiltersContent}
       </section>
 
       <section className="panel">
@@ -271,7 +348,7 @@ export function ReportsPage({
           <div className="page-layout">
             <div className="report-period-header">
               <div>
-                <p className="section-label">{activeTab === "dre" ? "Demonstração do Resultado do Exercício" : "Demonstrativo de Resultados Operacionais"}</p>
+                <p className="section-label">{activeTab === "dre" ? "Demonstracao do Resultado do Exercicio" : "Demonstrativo de Resultados Operacionais"}</p>
                 <h3>{currentReport.period_label}</h3>
               </div>
               <div className="report-period-actions">
@@ -279,17 +356,16 @@ export function ReportsPage({
                   <span className="button-icon">⚙</span>
                 </button>
                 <button className="secondary-button" disabled={allExpandableKeys.length === 0} onClick={toggleAllNodes} type="button">
-                  {allExpanded ? "Fechar todos os lançamentos" : "Abrir todos os lançamentos"}
+                  {allExpanded ? "Fechar todos os lancamentos" : "Abrir todos os lancamentos"}
                 </button>
               </div>
             </div>
 
-            <ReportDashboardSummary cards={currentReport.dashboard_cards} />
             <ReportStatementTable expandedKeys={expandedKeys} nodes={currentNodes} onToggle={toggleNode} />
           </div>
         ) : (
           <div className="empty-panel">
-            <p className="empty-state">Sem dados para o período selecionado.</p>
+            <p className="empty-state">Sem dados para o periodo selecionado.</p>
           </div>
         )}
       </section>
