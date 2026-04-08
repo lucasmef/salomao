@@ -43,6 +43,33 @@ INTER_BANK_CODE = "077"
 INTER_REQUIRED_SCOPES = "boleto-cobranca.read boleto-cobranca.write extrato.read"
 INTER_STATEMENT_FIT_ID_MAX_LENGTH = 80
 INTER_STATEMENT_REFERENCE_NUMBER_MAX_LENGTH = 50
+INTER_STATEMENT_MATCH_STOPWORDS = {
+    "A",
+    "API",
+    "BANCO",
+    "BOLETO",
+    "CARTAO",
+    "CC",
+    "CLIENTE",
+    "CONTA",
+    "CREDITO",
+    "DEBITO",
+    "DOC",
+    "EFETUADO",
+    "ENVIADO",
+    "EXTRATO",
+    "INTER",
+    "PAGAMENTO",
+    "PAGTO",
+    "PIX",
+    "RECEB",
+    "RECEBIDO",
+    "RECEBIMENTO",
+    "TED",
+    "TITULO",
+    "TRANSACAO",
+    "TRANSFERENCIA",
+}
 INTER_BATCH_SOURCE_TYPES = {
     "statement": "inter_statement",
     "charge_sync": "inter_charge_sync",
@@ -164,6 +191,70 @@ def _map_statement_to_transaction_payload(
         "name": title,
         "raw_payload": _json_dumps(transaction),
     }
+
+
+def _statement_match_tokens(*values: str | None) -> set[str]:
+    tokens: set[str] = set()
+    for value in values:
+        normalized = normalize_text(value or "")
+        for token in normalized.split():
+            if token in INTER_STATEMENT_MATCH_STOPWORDS:
+                continue
+            if len(token) < 3 and not token.isdigit():
+                continue
+            tokens.add(token)
+    return tokens
+
+
+def _statement_texts_match(existing: BankTransaction, payload: dict[str, Any]) -> bool:
+    existing_tokens = _statement_match_tokens(existing.name, existing.memo)
+    payload_tokens = _statement_match_tokens(
+        str(payload.get("name") or ""),
+        str(payload.get("memo") or ""),
+    )
+    if not existing_tokens or not payload_tokens:
+        return False
+    common_tokens = existing_tokens & payload_tokens
+    if existing_tokens.issubset(payload_tokens) or payload_tokens.issubset(existing_tokens):
+        return True
+    return len(common_tokens) >= 2
+
+
+def _find_existing_ofx_statement_match(
+    db: Session,
+    *,
+    account_id: str,
+    payload: dict[str, Any],
+) -> BankTransaction | None:
+    candidates = list(
+        db.scalars(
+            select(BankTransaction)
+            .join(ImportBatch, ImportBatch.id == BankTransaction.source_batch_id)
+            .where(
+                BankTransaction.account_id == account_id,
+                BankTransaction.posted_at == payload["posted_at"],
+                BankTransaction.amount == payload["amount"],
+                BankTransaction.fit_id != payload["fit_id"],
+                ImportBatch.source_type.like("ofx:%"),
+            )
+        )
+    )
+    matches = [candidate for candidate in candidates if _statement_texts_match(candidate, payload)]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _adopt_inter_statement_identity(existing: BankTransaction, payload: dict[str, Any]) -> None:
+    existing.fit_id = str(payload["fit_id"])
+    if not existing.reference_number and payload.get("reference_number"):
+        existing.reference_number = str(payload["reference_number"])
+    if not existing.check_number and payload.get("check_number"):
+        existing.check_number = str(payload["check_number"])
+    if not existing.name and payload.get("name"):
+        existing.name = str(payload["name"])
+    if not existing.memo and payload.get("memo"):
+        existing.memo = str(payload["memo"])
 
 
 def _map_charge_status(status: str | None) -> str:
@@ -621,6 +712,7 @@ def sync_inter_statement(
 
     inserted = 0
     duplicates = 0
+    linked = 0
     for transaction in transactions:
         payload = _map_statement_to_transaction_payload(company.id, batch.id, account.id, transaction)
         existing = db.scalar(
@@ -632,15 +724,25 @@ def sync_inter_statement(
         if existing:
             duplicates += 1
             continue
+        ofx_match = _find_existing_ofx_statement_match(db, account_id=account.id, payload=payload)
+        if ofx_match:
+            _adopt_inter_statement_identity(ofx_match, payload)
+            linked += 1
+            continue
         db.add(BankTransaction(**payload))
         inserted += 1
 
     batch.records_total = len(transactions)
-    batch.records_valid = inserted
+    batch.records_valid = inserted + linked
     batch.records_invalid = duplicates
     batch.status = "processed"
-    if duplicates:
-        batch.error_summary = f"{duplicates} lancamentos do Inter ja existiam para esta conta."
+    if duplicates or linked:
+        details = []
+        if duplicates:
+            details.append(f"{duplicates} lancamentos do Inter ja existiam para esta conta.")
+        if linked:
+            details.append(f"{linked} lancamentos do Inter foram vinculados a movimentos OFX existentes.")
+        batch.error_summary = " ".join(details)
     db.commit()
     db.refresh(batch)
     return ImportResult(batch=batch, message="Extrato do Inter sincronizado com sucesso.")
