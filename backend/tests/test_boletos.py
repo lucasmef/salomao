@@ -623,6 +623,84 @@ def test_build_boleto_dashboard_matches_monthly_by_exact_month_total_ignoring_du
         engine.dispose()
 
 
+def test_build_missing_boletos_export_forces_monthly_due_day_to_20_even_when_customer_has_custom_day(monkeypatch) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+
+    try:
+        class FrozenDate(date):
+            @classmethod
+            def today(cls) -> "FrozenDate":
+                return cls(2026, 3, 6)
+
+        monkeypatch.setattr("app.services.boletos._candidate_template_paths", lambda: [])
+        monkeypatch.setattr("app.services.boletos.date", FrozenDate)
+
+        company = Company(legal_name="Salomao LTDA", trade_name="Salomao")
+        session.add(company)
+        session.flush()
+
+        customer = BoletoCustomerConfig(
+            company_id=company.id,
+            client_key=normalize_text("Cliente Exemplo"),
+            client_name="Cliente Exemplo",
+            client_code="1001",
+            uses_boleto=True,
+            mode="mensal",
+            boleto_due_day=12,
+            include_interest=True,
+            address_street="Rua Exemplo",
+            address_number="330",
+            neighborhood="Centro",
+            city="Cidade Exemplo",
+            state="SC",
+            zip_code="99999999",
+            tax_id="12345678901",
+            mobile="48999990000",
+        )
+        batch = _create_receivable_batch(session, company)
+        receivable = ReceivableTitle(
+            company_id=company.id,
+            source_batch_id=batch.id,
+            issue_date=date(2026, 3, 1),
+            due_date=date(2026, 3, 12),
+            invoice_number="12345",
+            company_code="1001",
+            installment_label="001",
+            original_amount=Decimal("250.00"),
+            amount_with_interest=Decimal("250.00"),
+            customer_name="Cliente Exemplo",
+            document_reference="DOC-1",
+            status="Em aberto",
+        )
+        session.add_all([customer, receivable])
+        session.commit()
+
+        dashboard = build_boleto_dashboard(session, company, include_all_monthly_missing=True)
+        content, _filename = build_missing_boletos_export(
+            session,
+            company,
+            [dashboard.missing_boletos[0].selection_key],
+        )
+
+        with zipfile.ZipFile(io.BytesIO(content)) as workbook:
+            sheet_root = ET.fromstring(workbook.read("xl/worksheets/sheet2.xml"))
+
+        namespace = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+        row = next(item for item in sheet_root.findall("a:sheetData/a:row", namespace) if item.attrib.get("r") == "4")
+        due_date_value = next(
+            cell.findtext("a:v", default="", namespaces=namespace)
+            for cell in row.findall("a:c", namespace)
+            if cell.attrib["r"] == "T4"
+        )
+
+        assert due_date_value == "20032026"
+    finally:
+        session.close()
+        engine.dispose()
+
+
 def test_build_boleto_dashboard_matches_monthly_inter_boletos_by_document_competence() -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     Base.metadata.create_all(engine)
@@ -936,6 +1014,71 @@ def test_build_boleto_dashboard_matches_individual_boleto_by_configured_due_day(
         assert dashboard.summary.missing_boleto_count == 0
         assert dashboard.summary.excess_boleto_count == 0
         assert dashboard.open_boletos[0].document_id == "BOL-DIA"
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_build_boleto_dashboard_matches_individual_boleto_by_day_20_when_customer_has_no_due_day() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+
+    try:
+        company = Company(legal_name="Salomao LTDA", trade_name="Salomao")
+        session.add(company)
+        session.flush()
+
+        client_key = normalize_text("Cliente Exemplo")
+        batch = _create_receivable_batch(session, company)
+        session.add(
+            BoletoCustomerConfig(
+                company_id=company.id,
+                client_key=client_key,
+                client_name="Cliente Exemplo",
+                uses_boleto=True,
+                mode="individual",
+                boleto_due_day=None,
+            )
+        )
+        session.add_all(
+            [
+                ReceivableTitle(
+                    company_id=company.id,
+                    source_batch_id=batch.id,
+                    issue_date=date(2026, 3, 1),
+                    due_date=date(2026, 3, 5),
+                    invoice_number="12345",
+                    company_code="1001",
+                    installment_label="001",
+                    original_amount=Decimal("250.00"),
+                    amount_with_interest=Decimal("250.00"),
+                    customer_name="Cliente Exemplo",
+                    document_reference="DOC-1",
+                    status="Em aberto",
+                ),
+                BoletoRecord(
+                    company_id=company.id,
+                    bank="INTER",
+                    client_key=client_key,
+                    client_name="Cliente Exemplo",
+                    document_id="BOL-DIA-20",
+                    issue_date=date(2026, 3, 2),
+                    due_date=date(2026, 3, 20),
+                    amount=Decimal("250.00"),
+                    paid_amount=Decimal("0.00"),
+                    status="A receber",
+                    barcode="111",
+                ),
+            ]
+        )
+        session.commit()
+
+        dashboard = build_boleto_dashboard(session, company)
+
+        assert dashboard.summary.missing_boleto_count == 0
+        assert dashboard.summary.excess_boleto_count == 0
+        assert dashboard.open_boletos[0].document_id == "BOL-DIA-20"
     finally:
         session.close()
         engine.dispose()

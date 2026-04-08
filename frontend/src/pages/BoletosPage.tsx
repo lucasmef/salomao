@@ -506,7 +506,13 @@ export function BoletosPage({
     void onReceiveInterBoleto(boleto.id, "BOLETO");
   }
 
-  function renderBoletoActions(boletos: BoletoAlertItem["boletos"]) {
+  function renderBoletoActions(
+    boletos: BoletoAlertItem["boletos"],
+    options?: {
+      showPdfAction?: boolean;
+    },
+  ) {
+    const showPdfAction = options?.showPdfAction ?? true;
     if (!boletos.length) {
       return "-";
     }
@@ -517,7 +523,7 @@ export function BoletosPage({
             <span title={boleto.linha_digitavel || boleto.barcode || boleto.document_id}>
               {`${boleto.bank} ${boleto.document_id || boleto.barcode || ""}`.trim()}
             </span>
-            {boleto.pdf_available && (
+            {showPdfAction && boleto.pdf_available && (
               <button
                 className="table-button icon-only-button"
                 disabled={submitting}
@@ -810,8 +816,8 @@ export function BoletosPage({
               </button>
             </div>
           </div>
-          <div className="table-shell tall">
-            <table className="erp-table">
+          <div className="table-shell billing-table-shell billing-table-shell--expanded">
+            <table className="erp-table billing-compact-table">
               <thead>
                 <tr>
                   <th>Cliente</th>
@@ -933,8 +939,8 @@ export function BoletosPage({
             <h3>Faturas em aberto</h3>
             <span>{openReceivables.length}</span>
           </div>
-          <div className="table-shell tall">
-            <table className="erp-table">
+          <div className="table-shell billing-table-shell billing-table-shell--expanded">
+            <table className="erp-table billing-compact-table">
               <thead>
                 <tr>
                   <th>{renderSortButton("Vencimento", "due_date", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("due_date"))}</th>
@@ -975,8 +981,8 @@ export function BoletosPage({
             <h3>Boletos atrasados</h3>
             <span>{dashboard.overdue_boletos.length}</span>
           </div>
-          <div className="table-shell tall">
-            <table className="erp-table">
+          <div className="table-shell billing-table-shell billing-table-shell--expanded">
+            <table className="erp-table billing-compact-table">
               <thead>
                 <tr>
                   <th>Cliente</th>
@@ -1025,8 +1031,8 @@ export function BoletosPage({
             <h3>Pagas sem baixa</h3>
             <span>{dashboard.paid_pending.length}</span>
           </div>
-          <div className="table-shell tall">
-            <table className="erp-table">
+          <div className="table-shell billing-table-shell billing-table-shell--expanded">
+            <table className="erp-table billing-compact-table">
               <thead>
                 <tr>
                   <th>Tipo</th>
@@ -1047,7 +1053,7 @@ export function BoletosPage({
                     <td>{item.competence || "-"}</td>
                     <td className="numeric-cell">{formatMoney(item.amount)}</td>
                     <td>{renderReceivableDetails(item)}</td>
-                    <td>{renderBoletoActions(item.boletos)}</td>
+                    <td>{renderBoletoActions(item.boletos, { showPdfAction: false })}</td>
                   </tr>
                 ))}
                 {!dashboard.paid_pending.length && (
@@ -1152,7 +1158,7 @@ export function BoletosPage({
               <span className="billing-open-boletos-count">{filteredOpenBoletos.length}</span>
             </div>
           </div>
-          <div className="table-shell tall billing-open-boletos-table-shell">
+          <div className="table-shell billing-table-shell billing-table-shell--expanded billing-open-boletos-table-shell">
             <table className="erp-table billing-open-boletos-table">
               <thead>
                 <tr>
@@ -1194,10 +1200,7 @@ export function BoletosPage({
                     </td>
                     <td>{item.client_name}</td>
                     <td>
-                      <div className="billing-boleto-main-cell">
-                        <strong>{item.document_id}</strong>
-                        <small className="compact-muted">{item.linha_digitavel || item.barcode || "-"}</small>
-                      </div>
+                      <strong>{item.document_id || "-"}</strong>
                     </td>
                     <td>{formatDate(item.issue_date)}</td>
                     <td>{formatDate(item.due_date)}</td>
@@ -1276,7 +1279,7 @@ export function BoletosPage({
               <span>Exibe todos boletos de clientes mensal</span>
             </label>
             <button
-              className="primary-button"
+              className="ghost-button billing-secondary-action"
               disabled={submitting || !selectedMissingKeys.length}
               onClick={() => void onExportMissingBoletos(selectedMissingKeys)}
               type="button"
@@ -1284,7 +1287,7 @@ export function BoletosPage({
               Gerar XLSX
             </button>
             <button
-              className="secondary-button"
+              className="primary-button"
               disabled={submitting || !selectedMissingKeys.length || !hasInterApiAccount}
               onClick={() => void onIssueInterCharges(selectedMissingKeys)}
               type="button"
@@ -1294,8 +1297,8 @@ export function BoletosPage({
             <span>{dashboard.missing_boletos.length}</span>
           </div>
         </div>
-        <div className="table-shell tall">
-          <table className="erp-table">
+        <div className="table-shell billing-table-shell billing-table-shell--expanded">
+          <table className="erp-table billing-compact-table">
             <thead>
               <tr>
                 <th>

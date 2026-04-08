@@ -98,7 +98,13 @@ def _lookup_ip_country(client_ip: str) -> dict[str, str] | None:
     }
 
 
-def send_email(subject: str, body: str, *, recipients: list[str] | None = None) -> None:
+def send_email(
+    subject: str,
+    body: str,
+    *,
+    recipients: list[str] | None = None,
+    html_body: str | None = None,
+) -> None:
     settings = get_settings()
     if not settings.security_alert_email_enabled:
         return
@@ -118,6 +124,8 @@ def send_email(subject: str, body: str, *, recipients: list[str] | None = None) 
     message["From"] = sender
     message["To"] = ", ".join(resolved_recipients)
     message.set_content(body)
+    if html_body:
+        message.add_alternative(html_body, subtype="html")
 
     smtp_cls = smtplib.SMTP_SSL if settings.smtp_use_ssl else smtplib.SMTP
     with smtp_cls(settings.smtp_host, settings.smtp_port, timeout=10) as smtp:

@@ -5,6 +5,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from html import escape
 from typing import Any
 
 from sqlalchemy import delete
@@ -199,12 +200,13 @@ def settle_paid_pending_inter_receivables(
 
     email_error: str | None = None
     if results and not validate_only:
-        subject, body = _build_success_email(company, results)
+        subject, body, html_body = _build_success_email(company, results)
         try:
             send_email(
                 subject,
                 body,
                 recipients=_split_recipients(company.linx_auto_sync_alert_email),
+                html_body=html_body,
             )
         except Exception as error:  # pragma: no cover
             email_error = str(error)
@@ -831,7 +833,7 @@ def _remove_open_receivable_from_local_dashboard(db: Session, *, company_id: str
 def _build_success_email(
     company: Company,
     results: list[LinxSettlementInvoiceResult],
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     settled_results = [item for item in results if item.success]
     company_name = company.trade_name or company.legal_name or company.id
     subject = f"[Linx] Baixa automatica de faturas - {company_name}"
@@ -844,22 +846,70 @@ def _build_success_email(
         ).append(result)
 
     lines: list[str] = []
+    html_sections: list[str] = []
     total_settled = 0
+    total_settled_amount = Decimal("0.00")
+    client_totals: dict[str, tuple[int, Decimal]] = {}
     for (client_name, boleto_amount, _group_token), client_results in grouped.items():
         invoice_numbers = ", ".join(result.invoice_number for result in client_results)
+        client_total_amount = sum((Decimal(result.amount or 0) for result in client_results), Decimal("0.00"))
+        total_settled += len(client_results)
+        total_settled_amount += client_total_amount
+        current_count, current_amount = client_totals.get(client_name, (0, Decimal("0.00")))
+        client_totals[client_name] = (
+            current_count + len(client_results),
+            current_amount + client_total_amount,
+        )
+
         lines.append(
             f"{client_name} pagou boleto no valor {boleto_amount} referente a faturas {invoice_numbers}"
         )
-        lines.append("faturas baixadas automaticamente no linx:")
+        lines.append("Faturas baixadas automaticamente no Linx:")
+        lines.append("Fatura | Vencimento | Valor")
         for result in client_results:
             due_date = result.due_date.strftime("%d/%m/%Y") if result.due_date else "-"
             lines.append(
-                f"fatura {result.invoice_number}, vcto {due_date}, valor { _format_brl(result.amount) }"
+                f"{result.invoice_number} | {due_date} | {_format_brl(result.amount)}"
             )
         lines.append("")
-        lines.append(f"total de faturas baixadas do cliente {client_name}: {len(client_results)}")
+        lines.append(
+            f"Total do cliente {client_name}: {len(client_results)} fatura(s) | {_format_brl(client_total_amount)}"
+        )
         lines.append("")
-        total_settled += len(client_results)
+
+        html_rows = "".join(
+            (
+                "<tr>"
+                f"<td>{escape(result.invoice_number)}</td>"
+                f"<td>{escape(result.due_date.strftime('%d/%m/%Y') if result.due_date else '-')}</td>"
+                f"<td style='text-align:right'>{escape(_format_brl(result.amount))}</td>"
+                "</tr>"
+            )
+            for result in client_results
+        )
+        html_sections.append(
+            "".join(
+                [
+                    f"<h3 style='margin:20px 0 8px;font-size:16px;color:#1f2937'>{escape(client_name)}</h3>",
+                    (
+                        f"<p style='margin:0 0 10px;color:#4b5563'>"
+                        f"Pagou boleto no valor <strong>{escape(boleto_amount)}</strong> "
+                        f"referente a faturas {escape(invoice_numbers)}."
+                        "</p>"
+                    ),
+                    _build_email_table(
+                        headers=("Fatura", "Vencimento", "Valor"),
+                        rows=html_rows,
+                    ),
+                    (
+                        f"<p style='margin:10px 0 0;color:#111827'>"
+                        f"<strong>Total do cliente:</strong> {len(client_results)} fatura(s) | "
+                        f"{escape(_format_brl(client_total_amount))}"
+                        "</p>"
+                    ),
+                ]
+            )
+        )
 
     failed_results = [item for item in results if not item.success]
     if failed_results:
@@ -868,8 +918,78 @@ def _build_success_email(
             lines.append(f"{result.client_name} / fatura {result.invoice_number}: {result.message}")
         lines.append("")
 
-    lines.append(f"total de faturas baixadas: {total_settled}")
-    return subject, "\n".join(lines)
+        failure_rows = "".join(
+            (
+                "<tr>"
+                f"<td>{escape(result.client_name)}</td>"
+                f"<td>{escape(result.invoice_number)}</td>"
+                f"<td>{escape(result.message)}</td>"
+                "</tr>"
+            )
+            for result in failed_results
+        )
+        html_sections.append(
+            "".join(
+                [
+                    "<h3 style='margin:24px 0 8px;font-size:16px;color:#991b1b'>Falhas encontradas</h3>",
+                    _build_email_table(
+                        headers=("Cliente", "Fatura", "Detalhe"),
+                        rows=failure_rows,
+                    ),
+                ]
+            )
+        )
+
+    lines.append(
+        f"Total de faturas baixadas: {total_settled} fatura(s) | {_format_brl(total_settled_amount)}"
+    )
+
+    summary_rows = "".join(
+        (
+            "<tr>"
+            f"<td>{escape(client_name)}</td>"
+            f"<td style='text-align:center'>{count}</td>"
+            f"<td style='text-align:right'>{escape(_format_brl(amount))}</td>"
+            "</tr>"
+        )
+        for client_name, (count, amount) in sorted(client_totals.items())
+    )
+    html_body = "".join(
+        [
+            "<html><body style='font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111827'>",
+            f"<h2 style='margin:0 0 12px'>{escape(subject)}</h2>",
+            (
+                f"<p style='margin:0 0 16px'>"
+                f"<strong>Total de faturas baixadas:</strong> {total_settled} fatura(s) | "
+                f"{escape(_format_brl(total_settled_amount))}"
+                "</p>"
+            ),
+            (
+                _build_email_table(
+                    headers=("Cliente", "Quantidade", "Valor total"),
+                    rows=summary_rows,
+                )
+                if client_totals
+                else ""
+            ),
+            "".join(html_sections),
+            "</body></html>",
+        ]
+    )
+    return subject, "\n".join(lines), html_body
+
+
+def _build_email_table(*, headers: tuple[str, ...], rows: str) -> str:
+    header_html = "".join(
+        f"<th style='padding:8px 10px;border:1px solid #d1d5db;background:#f3f4f6;text-align:left'>{escape(header)}</th>"
+        for header in headers
+    )
+    return (
+        "<table style='border-collapse:collapse;width:100%;margin:8px 0 12px'>"
+        f"<thead><tr>{header_html}</tr></thead>"
+        f"<tbody>{rows}</tbody>"
+        "</table>"
+    )
 
 
 def _format_brl(value: Decimal) -> str:

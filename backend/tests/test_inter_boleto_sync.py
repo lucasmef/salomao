@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 import httpx
 from sqlalchemy import create_engine
@@ -11,13 +12,16 @@ from app.core.crypto import encrypt_text
 from app.db.base import Base
 from app.db.models.boleto import BoletoRecord
 from app.db.models.finance import Account
-from app.db.models.linx import LinxOpenReceivable
+from app.db.models.boleto import BoletoCustomerConfig
+from app.db.models.linx import LinxCustomer, LinxOpenReceivable
 from app.db.models.security import Company
 from app.services.boletos import normalize_text
 from app.services.inter import (
     INTER_CHARGE_FULL_SYNC_DUE_END,
     INTER_CHARGE_FULL_SYNC_START,
     INTER_CHARGE_INCREMENTAL_LOOKBACK_DAYS,
+    _build_inter_charge_payload,
+    _build_standalone_charge_payload,
     cancel_inter_charge,
     receive_inter_charge,
     sync_inter_charges,
@@ -180,6 +184,79 @@ def test_sync_inter_charges_updates_existing_record_and_creates_new_one() -> Non
         assert created.inter_nosso_numero == "NOSSO-2"
     finally:
         session.close()
+
+
+def test_build_inter_charge_payload_defaults_missing_address_number_to_zero_and_omits_contact_fields() -> None:
+    config = BoletoCustomerConfig(
+        company_id="company-1",
+        client_key="CLIENTE EXEMPLO",
+        client_name="Cliente Exemplo",
+        client_code="1001",
+        uses_boleto=True,
+        mode="individual",
+        boleto_due_day=12,
+        include_interest=True,
+        address_street="Rua Exemplo",
+        address_number=None,
+        neighborhood="Centro",
+        city="Cidade Exemplo",
+        state="SC",
+        zip_code="99999999",
+        tax_id="12345678901",
+        mobile="48999990000",
+        phone_primary="4833334444",
+        phone_secondary="4833335555",
+    )
+    item = SimpleNamespace(
+        client_name="Cliente Exemplo",
+        amount=Decimal("250.00"),
+        due_date=date(2026, 3, 12),
+        type="individual",
+        competence=None,
+        receivables=[SimpleNamespace(invoice_number="12345")],
+        selection_key="boleto-12345",
+    )
+
+    payload = _build_inter_charge_payload(item, config, today=date(2026, 3, 1))
+
+    assert payload["pagador"]["numero"] == "0"
+    assert "email" not in payload["pagador"]
+    assert "ddd" not in payload["pagador"]
+    assert "telefone" not in payload["pagador"]
+
+
+def test_build_standalone_charge_payload_defaults_missing_address_number_to_zero_and_omits_contact_fields() -> None:
+    customer = LinxCustomer(
+        company_id="company-1",
+        linx_code=1001,
+        display_name="Lais de Oliveira Goncalves",
+        legal_name="Lais de Oliveira Goncalves",
+        document_number="12345678901",
+        person_type="F",
+        address_street="Rua Exemplo",
+        address_number=None,
+        neighborhood="Centro",
+        city="Cidade Exemplo",
+        state="SC",
+        zip_code="99999999",
+        mobile="48999990000",
+        phone_primary="4833334444",
+        email="cliente@example.com",
+        registration_type="C",
+        is_active=True,
+    )
+
+    payload = _build_standalone_charge_payload(
+        customer=customer,
+        amount=Decimal("170.50"),
+        due_date=date(2026, 4, 10),
+        note="Boleto avulso",
+    )
+
+    assert payload["pagador"]["numero"] == "0"
+    assert "email" not in payload["pagador"]
+    assert "ddd" not in payload["pagador"]
+    assert "telefone" not in payload["pagador"]
 
 
 def test_sync_inter_charges_triggers_linx_settlement_for_processed_codes(monkeypatch) -> None:

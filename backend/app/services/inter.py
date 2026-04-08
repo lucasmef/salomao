@@ -1204,24 +1204,9 @@ def _load_boleto_config_map(db: Session, company_id: str) -> dict[str, BoletoCus
     }
 
 
-def _build_phone_payload(config: BoletoCustomerConfig) -> dict[str, str]:
-    phone_digits = _digits_only(config.mobile or config.phone_primary or config.phone_secondary)
-    if len(phone_digits) < 10:
-        return {}
-    return {
-        "ddd": phone_digits[:2],
-        "telefone": phone_digits[2:11],
-    }
-
-
-def _build_standalone_phone_payload(phone: str | None) -> dict[str, str]:
-    phone_digits = _digits_only(phone)
-    if len(phone_digits) < 10:
-        return {}
-    return {
-        "ddd": phone_digits[:2],
-        "telefone": phone_digits[2:11],
-    }
+def _resolve_inter_address_number(raw_value: str | None) -> str:
+    resolved = _truncate_text(raw_value, 40)
+    return resolved or "0"
 
 
 def _build_standalone_charge_code(
@@ -1256,8 +1241,6 @@ def _build_standalone_charge_payload(
         raise ValueError("O cliente selecionado nao possui CPF/CNPJ valido na base Linx.")
     if not _truncate_text(customer.address_street, 200):
         raise ValueError("O cliente selecionado nao possui endereco valido na base Linx.")
-    if not _truncate_text(customer.address_number, 40):
-        raise ValueError("O cliente selecionado nao possui numero valido na base Linx.")
     if not _truncate_text(customer.neighborhood, 120):
         raise ValueError("O cliente selecionado nao possui bairro valido na base Linx.")
     if not _truncate_text(customer.city, 120):
@@ -1284,20 +1267,17 @@ def _build_standalone_charge_payload(
             "nome": resolved_name,
             "cpfCnpj": normalized_tax_id,
             "endereco": _truncate_text(customer.address_street, 200),
-            "numero": _truncate_text(customer.address_number, 40),
+            "numero": _resolve_inter_address_number(customer.address_number),
             "complemento": _truncate_text(customer.address_complement, 160) or None,
             "bairro": _truncate_text(customer.neighborhood, 120),
             "cidade": _truncate_text(customer.city, 120),
             "uf": _truncate_text(customer.state, 2).upper(),
             "cep": zip_code[:8],
-            **_build_standalone_phone_payload(customer.mobile or customer.phone_primary),
         },
         "mensagem": {
             "linha1": _truncate_text(description, 100),
         },
     }
-    if customer.email and customer.email.strip():
-        payload["pagador"]["email"] = customer.email.strip()[:160]
     return payload
 
 
@@ -1344,13 +1324,12 @@ def _build_inter_charge_payload(item: Any, config: BoletoCustomerConfig, *, toda
             "nome": _truncate_text(item.client_name, 100),
             "cpfCnpj": tax_id,
             "endereco": _truncate_text(config.address_street, 200),
-            "numero": _truncate_text(config.address_number, 40),
+            "numero": _resolve_inter_address_number(config.address_number),
             "complemento": _truncate_text(config.address_complement, 160) or None,
             "bairro": _truncate_text(config.neighborhood, 120),
             "cidade": _truncate_text(config.city, 120),
             "uf": _truncate_text(config.state, 2).upper(),
             "cep": _digits_only(config.zip_code)[:8],
-            **_build_phone_payload(config),
         },
     }
     return payload

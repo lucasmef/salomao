@@ -71,6 +71,7 @@ OPEN_RECEIVABLE_STATUS_KEYWORDS = ("aberto", "a receber", "vencido", "em aberto"
 PAID_RECEIVABLE_STATUS_KEYWORDS = ("recebido", "pago", "quitado", "baixado")
 CANCELLED_RECEIVABLE_STATUS_KEYWORDS = ("cancelado",)
 INDIVIDUAL_DUE_DATE_TOLERANCE_DAYS = 5
+DEFAULT_BOLETO_DUE_DAY = 20
 EXCEL_NS = {
     "a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
     "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
@@ -1062,12 +1063,13 @@ def _resolve_individual_candidate_due_dates(
     if not receivable_due_date:
         return []
     candidates = [receivable_due_date]
-    if boleto_due_day and 1 <= boleto_due_day <= 31:
+    resolved_due_day = boleto_due_day if boleto_due_day and 1 <= boleto_due_day <= 31 else DEFAULT_BOLETO_DUE_DAY
+    if 1 <= resolved_due_day <= 31:
         last_day = calendar.monthrange(receivable_due_date.year, receivable_due_date.month)[1]
         configured_due_date = date(
             receivable_due_date.year,
             receivable_due_date.month,
-            min(boleto_due_day, last_day),
+            min(resolved_due_day, last_day),
         )
         if configured_due_date not in candidates:
             candidates.append(configured_due_date)
@@ -2285,10 +2287,10 @@ def _resolve_export_due_date(item: BoletoMatchItem, customer_data: ResolvedCusto
     reference_due_date = item.due_date or today
     resolved_due_day: int | None = None
     if customer_data and customer_data.mode != "individual":
-        if customer_data.boleto_due_day:
+        if customer_data.mode == "mensal":
+            resolved_due_day = DEFAULT_BOLETO_DUE_DAY
+        elif customer_data.boleto_due_day:
             resolved_due_day = customer_data.boleto_due_day
-        elif customer_data.mode == "mensal":
-            resolved_due_day = 20
 
     if resolved_due_day:
         last_day = calendar.monthrange(reference_due_date.year, reference_due_date.month)[1]

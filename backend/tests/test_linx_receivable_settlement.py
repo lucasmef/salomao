@@ -16,6 +16,7 @@ from app.services.boletos import normalize_text
 from app.services.linx_receivable_settlement import (
     LinxSettlementInvoiceResult,
     _build_settlement_candidates,
+    _build_success_email,
     _client_names_match,
     _page_matches_due_date,
     _parse_brl_amount,
@@ -92,7 +93,7 @@ def test_settle_paid_pending_inter_receivables_removes_open_receivable_and_sends
     )
     monkeypatch.setattr(
         "app.services.linx_receivable_settlement.send_email",
-        lambda subject, body, *, recipients=None: email_calls.append((subject, body, recipients)),
+        lambda subject, body, *, recipients=None, html_body=None: email_calls.append((subject, body, recipients, html_body)),
     )
 
     try:
@@ -104,7 +105,8 @@ def test_settle_paid_pending_inter_receivables_removes_open_receivable_and_sends
         assert summary.client_count == 1
         assert email_calls[0][2] == ["financeiro@example.com"]
         assert "MARIA APARECIDA pagou boleto no valor R$ 170,50 referente a faturas 56418" in email_calls[0][1]
-        assert "total de faturas baixadas: 1" in email_calls[0][1]
+        assert "Total de faturas baixadas: 1 fatura(s) | R$ 170,50" in email_calls[0][1]
+        assert "<table" in (email_calls[0][3] or "")
         assert session.scalar(select(LinxOpenReceivable.id).where(LinxOpenReceivable.company_id == company.id)) is None
     finally:
         session.close()
@@ -279,3 +281,38 @@ def test_build_settlement_candidates_sorts_clients_and_receivables_by_oldest_due
 
 def test_parse_brl_amount_accepts_integer_values_from_hidden_linx_fields() -> None:
     assert _parse_brl_amount("195") == Decimal("195.00")
+
+
+def test_build_success_email_includes_quantity_and_value_totals_and_html_tables() -> None:
+    company = Company(legal_name="Empresa Teste Ltda", trade_name="Salomao")
+    results = [
+        LinxSettlementInvoiceResult(
+            client_name="Cliente Exemplo",
+            boleto_amount=Decimal("300.00"),
+            invoice_number="1001",
+            due_date=date(2026, 4, 10),
+            amount=Decimal("100.00"),
+            success=True,
+            message="ok",
+            group_token="grupo-1",
+        ),
+        LinxSettlementInvoiceResult(
+            client_name="Cliente Exemplo",
+            boleto_amount=Decimal("300.00"),
+            invoice_number="1002",
+            due_date=date(2026, 4, 20),
+            amount=Decimal("200.00"),
+            success=True,
+            message="ok",
+            group_token="grupo-1",
+        ),
+    ]
+
+    subject, body, html_body = _build_success_email(company, results)
+
+    assert subject == "[Linx] Baixa automatica de faturas - Salomao"
+    assert "Total do cliente Cliente Exemplo: 2 fatura(s) | R$ 300,00" in body
+    assert "Total de faturas baixadas: 2 fatura(s) | R$ 300,00" in body
+    assert "<table" in html_body
+    assert "Valor total" in html_body
+    assert "Cliente Exemplo" in html_body

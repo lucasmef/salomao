@@ -2354,6 +2354,24 @@ textarea {
   padding: 8px 10px;
 }
 
+.billing-table-shell {
+  max-height: none;
+  overflow: visible;
+}
+
+.billing-table-shell--expanded {
+  max-height: none;
+  overflow: visible;
+}
+
+.billing-compact-table th,
+.billing-compact-table td {
+  padding-top: 5px;
+  padding-bottom: 5px;
+  line-height: 1.15;
+  vertical-align: middle;
+}
+
 .billing-open-boletos-header {
   margin-bottom: 6px;
   gap: 10px;
@@ -2431,7 +2449,7 @@ textarea {
 
 .billing-boleto-list {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .billing-boleto-row-actions {
@@ -2445,6 +2463,7 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-height: 20px;
 }
 
 .billing-boleto-chip span {
@@ -2452,6 +2471,7 @@ textarea {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.15;
 }
 
 .billing-boleto-main-cell {
@@ -2461,6 +2481,8 @@ textarea {
 
 .billing-open-boletos-table-shell {
   margin-top: 2px;
+  max-height: none;
+  overflow: visible;
 }
 
 .billing-open-boletos-table th,
@@ -2477,6 +2499,10 @@ textarea {
 
 .billing-open-boletos-table td {
   font-size: 0.74rem;
+}
+
+.billing-open-boletos-table td strong {
+  line-height: 1.1;
 }
 
 .billing-open-boletos-table .table-sort-button span {
@@ -2504,6 +2530,13 @@ textarea {
 
 .billing-open-boletos-table .billing-boleto-main-cell small {
   font-size: 0.67rem;
+}
+
+.billing-secondary-action {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 .billing-open-boletos-actions-cell {
