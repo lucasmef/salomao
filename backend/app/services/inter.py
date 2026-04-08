@@ -36,6 +36,7 @@ from app.services.boletos import (
     build_boleto_dashboard,
     normalize_text,
 )
+from app.services.linx_receivable_settlement import settle_paid_pending_inter_receivables
 
 INTER_PRODUCTION_BASE_URL = "https://cdpj.partners.bancointer.com.br"
 INTER_SANDBOX_BASE_URL = "https://cdpj-sandbox.partners.uatinter.co"
@@ -1091,6 +1092,7 @@ def sync_inter_charges(
         filename=batch_filename,
     )
     client = InterApiClient(config, transport=transport)
+    processed_charge_codes: set[str] = set()
     try:
         summaries, full_sync_detail = _collect_inter_charge_summaries(
             client,
@@ -1101,7 +1103,6 @@ def sync_inter_charges(
         created_count = 0
         updated_count = 0
         refreshed_pending_count = 0
-        processed_charge_codes: set[str] = set()
         for summary in summaries:
             normalized_summary = _coerce_charge_detail_payload(summary)
             codigo_solicitacao = _extract_charge_summary_code(normalized_summary)
@@ -1148,6 +1149,24 @@ def sync_inter_charges(
     finally:
         client.close()
 
+    settlement_message: str | None = None
+    settlement_warning: str | None = None
+    if processed_charge_codes:
+        try:
+            settlement_summary = settle_paid_pending_inter_receivables(
+                db,
+                company,
+                filter_charge_codes=processed_charge_codes,
+            )
+            if settlement_summary.attempted_invoice_count:
+                settlement_message = settlement_summary.message
+            if settlement_summary.failed_invoice_count:
+                settlement_warning = "; ".join(settlement_summary.failure_messages)
+            elif settlement_summary.email_error:
+                settlement_warning = f"Resumo de baixa automatica nao enviado: {settlement_summary.email_error}"
+        except Exception as error:
+            settlement_warning = f"Baixa automatica no Linx nao executada: {error}"
+
     batch.records_total = len(summaries) + refreshed_pending_count
     batch.records_valid = created_count + updated_count
     batch.records_invalid = 0
@@ -1165,6 +1184,10 @@ def sync_inter_charges(
         details.append(
             f"{refreshed_pending_count} boleto(s) pendente(s) foram conferidos individualmente no Inter."
         )
+    if settlement_message:
+        details.append(settlement_message)
+    if settlement_warning:
+        details.append(settlement_warning)
     if details:
         batch.error_summary = " ".join(details)
     db.commit()

@@ -22,6 +22,7 @@ from app.services.inter import (
     receive_inter_charge,
     sync_inter_charges,
 )
+from app.services.linx_receivable_settlement import LinxSettlementSummary
 
 
 def _build_session() -> Session:
@@ -177,6 +178,79 @@ def test_sync_inter_charges_updates_existing_record_and_creates_new_one() -> Non
         assert created.inter_account_id == account.id
         assert created.barcode == "999888777"
         assert created.inter_nosso_numero == "NOSSO-2"
+    finally:
+        session.close()
+
+
+def test_sync_inter_charges_triggers_linx_settlement_for_processed_codes(monkeypatch) -> None:
+    session = _build_session()
+    settlement_calls: list[set[str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            return httpx.Response(200, json={"access_token": "token-123"})
+        if request.url.path == "/cobranca/v3/cobrancas":
+            return httpx.Response(
+                200,
+                json={
+                    "cobrancas": [
+                        {
+                            "cobranca": {
+                                "codigoSolicitacao": "SOL-001",
+                                "seuNumero": "SEU-001",
+                            }
+                        }
+                    ]
+                },
+            )
+        if request.url.path == "/cobranca/v3/cobrancas/SOL-001":
+            return httpx.Response(
+                200,
+                json={
+                    "cobranca": {
+                        "codigoSolicitacao": "SOL-001",
+                        "seuNumero": "SEU-001",
+                        "situacao": "RECEBIDO",
+                        "dataEmissao": "2026-03-01",
+                        "dataVencimento": "2026-03-10",
+                        "valorNominal": "250.00",
+                        "valorTotalRecebido": "250.00",
+                        "pagador": {"nome": "Cliente Exemplo", "cpfCnpj": "12345678901"},
+                    },
+                    "boleto": {
+                        "codigoBarras": "111222333",
+                        "linhaDigitavel": "111.222.333",
+                        "nossoNumero": "NOSSO-1",
+                    },
+                },
+            )
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    monkeypatch.setattr(
+        "app.services.inter.settle_paid_pending_inter_receivables",
+        lambda db, company, *, filter_charge_codes=None: settlement_calls.append(set(filter_charge_codes or set()))
+        or LinxSettlementSummary(
+            attempted_invoice_count=1,
+            settled_invoice_count=1,
+            failed_invoice_count=0,
+            client_count=1,
+        ),
+    )
+
+    try:
+        company, account = _build_company_and_account(session)
+
+        result = sync_inter_charges(
+            session,
+            company,
+            account_id=account.id,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            transport=httpx.MockTransport(handler),
+        )
+
+        assert settlement_calls == [{"SOL-001"}]
+        assert "Baixa automatica no Linx concluida" in (result.batch.error_summary or "")
     finally:
         session.close()
 

@@ -16,6 +16,7 @@ from app.services.linx_auto_sync import (
     run_linx_auto_sync_cycle,
     run_linx_auto_sync_for_company,
 )
+from app.services.linx_receivable_settlement import LinxSettlementSummary
 from app.services.purchase_planning import LINX_PURCHASE_PAYABLES_API_SOURCE
 
 
@@ -97,6 +98,15 @@ def test_linx_auto_sync_runs_api_syncs_and_suppresses_success_email(monkeypatch)
         ),
     )
     monkeypatch.setattr(
+        "app.services.linx_auto_sync.settle_paid_pending_inter_receivables",
+        lambda db, current_company: LinxSettlementSummary(
+            attempted_invoice_count=2,
+            settled_invoice_count=2,
+            failed_invoice_count=0,
+            client_count=1,
+        ),
+    )
+    monkeypatch.setattr(
         "app.services.linx_auto_sync.sync_linx_purchase_payables",
         lambda db, current_company, actor_user=None: _result(
             "Faturas de compra via API Linx sincronizadas. 1 fatura(s) nova(s) incluida(s)."
@@ -121,6 +131,7 @@ def test_linx_auto_sync_runs_api_syncs_and_suppresses_success_email(monkeypatch)
         assert result.summary.products_changed_count == 6
         assert result.summary.receivables_changed_count == 9
         assert result.products_message is not None
+        assert "Baixa automatica no Linx concluida" in (result.receivables_message or "")
         assert email_calls == []
         session.refresh(company)
         assert company.linx_auto_sync_last_status == "success"

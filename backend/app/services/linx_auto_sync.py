@@ -13,6 +13,7 @@ from app.db.models.linx import LinxMovement
 from app.db.models.security import Company
 from app.services.audit import write_audit_log
 from app.services.backup import ensure_pre_import_backup
+from app.services.linx_receivable_settlement import settle_paid_pending_inter_receivables
 from app.services.linx_customers import sync_linx_customers
 from app.services.linx_movements import sync_linx_movements
 from app.services.linx_open_receivables import sync_linx_open_receivables
@@ -330,6 +331,28 @@ def run_linx_auto_sync_for_company(
         except Exception as error:  # pragma: no cover
             db.rollback()
             errors.append(f"Faturas a receber: {error}")
+        else:
+            try:
+                settlement_summary = settle_paid_pending_inter_receivables(db, company)
+                if settlement_summary.attempted_invoice_count:
+                    receivables_message = (
+                        f"{receivables_message} {settlement_summary.message}"
+                        if receivables_message
+                        else settlement_summary.message
+                    )
+                if settlement_summary.failed_invoice_count:
+                    errors.append(
+                        "Baixas automaticas Linx: "
+                        + "; ".join(settlement_summary.failure_messages)
+                    )
+                elif settlement_summary.email_error:
+                    errors.append(
+                        "Baixas automaticas Linx: "
+                        + f"Resumo por email nao enviado: {settlement_summary.email_error}"
+                    )
+            except Exception as error:  # pragma: no cover
+                db.rollback()
+                errors.append(f"Baixas automaticas Linx: {error}")
 
         if _should_run_purchase_payables_now(
             db,
