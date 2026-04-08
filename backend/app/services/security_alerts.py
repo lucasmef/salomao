@@ -127,8 +127,24 @@ def send_email(
     if html_body:
         message.add_alternative(html_body, subtype="html")
 
+    retryable_errors = (TimeoutError, socket.timeout, smtplib.SMTPException, OSError)
+    last_error: Exception | None = None
+    for attempt in range(2):
+        try:
+            _deliver_email(message)
+            return
+        except retryable_errors as error:
+            last_error = error
+            if attempt == 1:
+                raise
+    if last_error is not None:
+        raise last_error
+
+
+def _deliver_email(message: EmailMessage) -> None:
+    settings = get_settings()
     smtp_cls = smtplib.SMTP_SSL if settings.smtp_use_ssl else smtplib.SMTP
-    with smtp_cls(settings.smtp_host, settings.smtp_port, timeout=10) as smtp:
+    with smtp_cls(settings.smtp_host, settings.smtp_port, timeout=settings.smtp_timeout_seconds) as smtp:
         if settings.smtp_use_tls and not settings.smtp_use_ssl:
             smtp.starttls()
         if settings.smtp_username and settings.smtp_password:

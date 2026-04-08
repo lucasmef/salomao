@@ -412,6 +412,14 @@ def test_parse_brl_amount_accepts_integer_values_from_hidden_linx_fields() -> No
     assert _parse_brl_amount("195") == Decimal("195.00")
 
 
+def test_parse_brl_amount_accepts_single_decimal_digit_from_linx_inputs() -> None:
+    assert _parse_brl_amount("29,8") == Decimal("29.80")
+
+
+def test_parse_brl_amount_accepts_thousands_without_decimal_part() -> None:
+    assert _parse_brl_amount("1.234") == Decimal("1234.00")
+
+
 def test_build_success_email_includes_quantity_and_value_totals_and_html_tables() -> None:
     company = Company(legal_name="Empresa Teste Ltda", trade_name="Salomao")
     results = [

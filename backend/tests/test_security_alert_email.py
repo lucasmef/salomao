@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import socket
+
 from app.core.config import get_settings
 from app.services.security_alerts import _send_email
 
@@ -35,6 +37,7 @@ def _configure_smtp(monkeypatch, *, use_ssl: bool, use_tls: bool) -> None:
     monkeypatch.setenv("SECURITY_ALERT_EMAIL_FROM", "alerts@example.invalid")
     monkeypatch.setenv("SMTP_HOST", "mail.example.invalid")
     monkeypatch.setenv("SMTP_PORT", "465" if use_ssl else "587")
+    monkeypatch.setenv("SMTP_TIMEOUT_SECONDS", "30")
     monkeypatch.setenv("SMTP_USERNAME", "alerts@example.invalid")
     monkeypatch.setenv("SMTP_PASSWORD", "secret")
     monkeypatch.setenv("SMTP_USE_SSL", "true" if use_ssl else "false")
@@ -61,6 +64,7 @@ def test_send_email_uses_ssl_client_when_requested(monkeypatch) -> None:
     assert instances[0].started_tls is False
     assert instances[0].logged_in is True
     assert instances[0].sent is True
+    assert instances[0].timeout == 30
 
 
 def test_send_email_uses_starttls_when_configured(monkeypatch) -> None:
@@ -82,3 +86,28 @@ def test_send_email_uses_starttls_when_configured(monkeypatch) -> None:
     assert instances[0].started_tls is True
     assert instances[0].logged_in is True
     assert instances[0].sent is True
+    assert instances[0].timeout == 30
+
+
+def test_send_email_retries_once_after_timeout(monkeypatch) -> None:
+    _configure_smtp(monkeypatch, use_ssl=False, use_tls=True)
+    instances: list[_DummySmtp] = []
+
+    class _FlakySmtp(_DummySmtp):
+        def send_message(self, message) -> None:
+            self.sent = True
+            if len(instances) == 1:
+                raise socket.timeout("timed out")
+
+    def _smtp(host: str, port: int, *, timeout: int) -> _DummySmtp:
+        smtp = _FlakySmtp(host, port, timeout=timeout)
+        instances.append(smtp)
+        return smtp
+
+    monkeypatch.setattr("app.services.security_alerts.smtplib.SMTP", _smtp)
+    monkeypatch.setattr("app.services.security_alerts.smtplib.SMTP_SSL", lambda *args, **kwargs: None)
+
+    _send_email("Assunto", "Corpo")
+
+    assert len(instances) == 2
+    assert all(item.sent for item in instances)

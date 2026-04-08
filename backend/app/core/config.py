@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     security_alert_email_to: str | None = None
     smtp_host: str | None = None
     smtp_port: int = 587
+    smtp_timeout_seconds: int = 30
     smtp_username: str | None = None
     smtp_password: str | None = None
     smtp_use_tls: bool = True

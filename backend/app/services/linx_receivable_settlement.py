@@ -845,9 +845,13 @@ def _parse_brl_amount(raw_value: str | None) -> Decimal | None:
     text = (raw_value or "").strip()
     if not text:
         return None
-    match = re.search(r"(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[\,\.]\d{2}|\d+)", text)
+    match = re.search(r"(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+,\d{1,2}|\d+\.\d{1,2}|\d+)", text)
     normalized = match.group(1) if match else text
-    normalized = normalized.replace("R$", "").replace(" ", "").replace(".", "").replace(",", ".")
+    normalized = normalized.replace("R$", "").replace(" ", "")
+    if "," in normalized:
+        normalized = normalized.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"\d{1,3}(?:\.\d{3})+", normalized):
+        normalized = normalized.replace(".", "")
     try:
         return Decimal(normalized).quantize(Decimal("0.01"))
     except Exception:
