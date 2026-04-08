@@ -358,6 +358,7 @@ def _settle_receivable_in_portal(
     _fill_first_matching_locator(target, LINX_SETTLEMENT_INVOICE_SELECTORS, lookup_invoice)
     _click_first_matching_locator(target, LINX_SETTLEMENT_PROCEED_SELECTORS)
     _wait_for_page_idle(target)
+    _wait_for_transition(page)
     target = _current_receivable_settlement_target(page, fallback=target)
 
     _validate_receivable_confirmation_context(
@@ -387,9 +388,11 @@ def _settle_receivable_in_portal(
 
     _click_first_matching_locator(target, LINX_SETTLEMENT_CONFIRM_SELECTORS)
     _wait_for_page_idle(target)
+    _wait_for_transition(page)
     target = _current_receivable_settlement_target(page, fallback=target)
     _click_first_matching_locator(target, LINX_SETTLEMENT_RATEIO_SELECTORS, required=False)
     _wait_for_page_idle(target)
+    _wait_for_transition(page)
     target = _current_receivable_settlement_target(page, fallback=target)
 
     success_message = _extract_success_message(target, lookup_invoice)
@@ -524,6 +527,13 @@ def _find_first_locator(page: Any, selectors: tuple[str, ...]) -> Any | None:
 def _wait_for_page_idle(page: Any) -> None:
     try:
         page.wait_for_load_state("networkidle")
+    except Exception:
+        return
+
+
+def _wait_for_transition(page: Any) -> None:
+    try:
+        page.wait_for_timeout(1_000)
     except Exception:
         return
 
