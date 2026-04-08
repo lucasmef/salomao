@@ -844,7 +844,7 @@ def _load_receivable_items(db: Session, company_id: str) -> list[ReceivableItem]
                     client_key=normalize_text(receivable.customer_name or f"Cliente {receivable.linx_code}"),
                     issue_date=issue_date,
                     due_date=due_date,
-                    invoice_number=receivable.document_number or str(receivable.linx_code),
+                    invoice_number=str(receivable.linx_code),
                     installment=installment_label,
                     amount=amount,
                     corrected_amount=max(amount + interest_amount - discount_amount, Decimal("0")),

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import httpx
@@ -11,6 +11,7 @@ from app.core.crypto import encrypt_text
 from app.db.base import Base
 from app.db.models.boleto import BoletoRecord
 from app.db.models.finance import Account
+from app.db.models.linx import LinxOpenReceivable
 from app.db.models.security import Company
 from app.services.boletos import normalize_text
 from app.services.inter import (
@@ -350,6 +351,78 @@ def test_sync_inter_charges_keeps_distinct_records_when_inter_reuses_seu_numero(
         assert {item.inter_codigo_solicitacao for item in records} == {"SOL-REUSE-1", "SOL-REUSE-2"}
         assert all(item.inter_seu_numero == "305" for item in records)
         assert {item.status for item in records} == {"A receber", "Recebido por boleto"}
+    finally:
+        session.close()
+
+
+def test_sync_inter_charges_uses_linx_fatura_code_as_document_id_when_available() -> None:
+    session = _build_session()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            return httpx.Response(200, json={"access_token": "token-123"})
+        if request.url.path == "/cobranca/v3/cobrancas":
+            return httpx.Response(
+                200,
+                json={"cobrancas": [{"cobranca": {"codigoSolicitacao": "SOL-LINX", "seuNumero": "325/001/008"}}]},
+            )
+        if request.url.path == "/cobranca/v3/cobrancas/SOL-LINX":
+            return httpx.Response(
+                200,
+                json={
+                    "cobranca": {
+                        "codigoSolicitacao": "SOL-LINX",
+                        "seuNumero": "325/001/008",
+                        "situacao": "A_RECEBER",
+                        "dataEmissao": "2026-08-01",
+                        "dataVencimento": "2026-08-10",
+                        "valorNominal": "170.50",
+                        "valorTotalRecebido": "0.00",
+                        "pagador": {"nome": "Rosana Camilo da Rosa", "cpfCnpj": "12345678901"},
+                    },
+                    "boleto": {
+                        "codigoBarras": "111222333",
+                        "linhaDigitavel": "111.222.333",
+                        "nossoNumero": "NOSSO-1",
+                    },
+                },
+            )
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    try:
+        company, account = _build_company_and_account(session)
+        session.add(
+            LinxOpenReceivable(
+                company_id=company.id,
+                linx_code=56569,
+                customer_code=1001,
+                customer_name="Rosana Camilo da Rosa",
+                issue_date=datetime(2026, 8, 1),
+                due_date=datetime(2026, 8, 10),
+                amount=Decimal("170.50"),
+                interest_amount=Decimal("0.00"),
+                discount_amount=Decimal("0.00"),
+                document_number="325",
+                document_series="D",
+                installment_number=1,
+                installment_count=8,
+            )
+        )
+        session.commit()
+
+        result = sync_inter_charges(
+            session,
+            company,
+            account_id=account.id,
+            start_date=date(2026, 8, 1),
+            end_date=date(2026, 8, 31),
+            transport=httpx.MockTransport(handler),
+        )
+
+        record = session.query(BoletoRecord).filter_by(inter_codigo_solicitacao="SOL-LINX").one()
+        assert result.batch.records_valid == 1
+        assert record.document_id == "56569"
+        assert record.inter_seu_numero == "325/001/008"
     finally:
         session.close()
 

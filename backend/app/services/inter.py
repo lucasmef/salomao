@@ -11,7 +11,7 @@ import ssl
 import tempfile
 import zipfile
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -24,7 +24,7 @@ from app.db.models.banking import BankTransaction
 from app.db.models.boleto import BoletoCustomerConfig, BoletoRecord, StandaloneBoletoRecord
 from app.db.models.finance import Account
 from app.db.models.imports import ImportBatch
-from app.db.models.linx import LinxCustomer
+from app.db.models.linx import LinxCustomer, LinxOpenReceivable
 from app.db.models.security import Company
 from app.schemas.imports import ImportResult
 from app.services.boletos import (
@@ -836,6 +836,61 @@ def _find_existing_boleto_record(
     )
 
 
+def _find_matching_linx_receivable_code(
+    db: Session,
+    *,
+    company_id: str,
+    client_name: str,
+    due_date: date | None,
+    amount: Decimal | None,
+) -> str | None:
+    if not due_date or amount is None:
+        return None
+    due_start = datetime.combine(due_date, time.min)
+    due_end = due_start + timedelta(days=1)
+    client_key = normalize_text(client_name)
+    matches = [
+        item
+        for item in db.scalars(
+            select(LinxOpenReceivable).where(
+                LinxOpenReceivable.company_id == company_id,
+                LinxOpenReceivable.due_date >= due_start,
+                LinxOpenReceivable.due_date < due_end,
+                LinxOpenReceivable.amount == amount,
+            )
+        )
+        if normalize_text(item.customer_name) == client_key
+    ]
+    if len(matches) == 1:
+        return str(matches[0].linx_code)
+    return None
+
+
+def _resolve_inter_charge_document_id(
+    db: Session,
+    *,
+    company_id: str,
+    client_name: str,
+    due_date: date | None,
+    amount: Decimal | None,
+    current_document_id: str | None,
+    codigo_solicitacao: str | None,
+    seu_numero: str | None,
+) -> str:
+    matched_linx_code = _find_matching_linx_receivable_code(
+        db,
+        company_id=company_id,
+        client_name=client_name,
+        due_date=due_date,
+        amount=amount,
+    )
+    if matched_linx_code:
+        return matched_linx_code
+    if current_document_id:
+        return current_document_id
+    return seu_numero or codigo_solicitacao or f"INTER-{datetime.now().timestamp()}"
+
+
 def _find_legacy_boleto_record_by_business_key(
     db: Session,
     *,
@@ -908,16 +963,27 @@ def _upsert_boleto_record(
             bank="INTER",
             client_key=normalize_text(client_name),
             client_name=client_name,
-            document_id=seu_numero or codigo_solicitacao or f"INTER-{datetime.now().timestamp()}",
+            document_id="",
         )
         db.add(record)
+
+    resolved_document_id = _resolve_inter_charge_document_id(
+        db,
+        company_id=company_id,
+        client_name=client_name,
+        due_date=due_date,
+        amount=amount,
+        current_document_id=_normalize_optional_text(record.document_id),
+        codigo_solicitacao=codigo_solicitacao,
+        seu_numero=seu_numero,
+    )
 
     record.source_batch_id = batch_id
     record.bank = "INTER"
     record.inter_account_id = account_id
     record.client_name = client_name
     record.client_key = normalize_text(client_name)
-    record.document_id = seu_numero or codigo_solicitacao or record.document_id
+    record.document_id = resolved_document_id
     record.issue_date = _parse_date(str(cobranca.get("dataEmissao") or ""))
     record.due_date = due_date
     record.amount = amount
