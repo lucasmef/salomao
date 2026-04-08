@@ -115,6 +115,13 @@ export const mainNavigation: MainNavItem[] = [
         description: "Boletos pendentes de emissão.",
       },
       {
+        key: "boletos-avulsos",
+        label: "Boletos avulsos",
+        path: "/financeiro/cobranca/boletos-avulsos",
+        title: "Boletos avulsos",
+        description: "Área reservada para boletos emitidos manualmente, fora da cobrança recorrente.",
+      },
+      {
         key: "boletos-em-excesso",
         label: "Boletos em excesso",
         path: "/financeiro/cobranca/boletos-em-excesso",
@@ -206,10 +213,31 @@ export const mainNavigation: MainNavItem[] = [
       },
       {
         key: "clientes",
-        label: "Clientes",
+        label: "Clientes e fornecedores",
         path: "/cadastros/clientes",
-        title: "Clientes",
-        description: "Cadastro-base de clientes e configurações de cobrança.",
+        title: "Clientes e fornecedores",
+        description: "Base Linx de clientes e fornecedores com visão das configurações de cobrança.",
+      },
+      {
+        key: "produtos",
+        label: "Produtos",
+        path: "/cadastros/produtos",
+        title: "Produtos",
+        description: "Base Linx de produtos com custo, venda, fornecedor e coleção.",
+      },
+      {
+        key: "movimentos",
+        label: "Movimentos",
+        path: "/cadastros/movimentos",
+        title: "Movimentos",
+        description: "Espelho Linx detalhado por produto para vendas e compras relevantes ao lucro por coleção.",
+      },
+      {
+        key: "faturas-receber",
+        label: "Faturas a receber",
+        path: "/cadastros/faturas-a-receber",
+        title: "Faturas a receber",
+        description: "Espelho Linx das faturas em aberto do crediário, sem alterar a cobrança atual.",
       },
       {
         key: "regras",

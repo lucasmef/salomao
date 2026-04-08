@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -15,7 +15,7 @@ from fastapi import HTTPException
 from app.db.base import Base
 from app.db.models.banking import BankTransaction
 from app.db.models.finance import Account, Category, FinancialEntry
-from app.db.models.linx import SalesSnapshot
+from app.db.models.linx import LinxMovement, SalesSnapshot
 from app.db.models.purchasing import CollectionSeason, PurchasePlan, Supplier
 from app.db.models.security import Company, User
 from app.schemas.reconciliation import ReconciliationCreate
@@ -194,6 +194,31 @@ class FinancialCalculationsTestCase(unittest.TestCase):
         self.db.commit()
         return snapshot
 
+    def _add_linx_movement(
+        self,
+        *,
+        movement_date: date,
+        movement_type: str,
+        total_amount: str,
+        quantity: str = "1.00",
+        cost_price: str = "0.00",
+    ) -> LinxMovement:
+        movement = LinxMovement(
+            company_id=self.company.id,
+            linx_transaction=int(datetime.combine(movement_date, datetime.min.time()).timestamp()),
+            movement_group="sale",
+            movement_type=movement_type,
+            launch_date=datetime.combine(movement_date, datetime.min.time()),
+            issue_date=datetime.combine(movement_date, datetime.min.time()),
+            quantity=Decimal(quantity),
+            cost_price=Decimal(cost_price),
+            total_amount=Decimal(total_amount),
+            net_amount=Decimal(total_amount),
+        )
+        self.db.add(movement)
+        self.db.commit()
+        return movement
+
     def test_current_balance_uses_partial_expense_paid_amount(self) -> None:
         account = self._add_account("Caixa", "1000.00")
         self._add_entry(
@@ -343,10 +368,12 @@ class FinancialCalculationsTestCase(unittest.TestCase):
             report_group="Receitas",
             report_subgroup="Receitas",
         )
-        self._add_sales_snapshot(
-            snapshot_date=date(2026, 3, 23),
-            gross_revenue="1000.00",
-            markup="100.00",
+        self._add_linx_movement(
+            movement_date=date(2026, 3, 23),
+            movement_type="sale",
+            total_amount="1000.00",
+            quantity="2.00",
+            cost_price="250.00",
         )
         self._add_entry(
             account=account,

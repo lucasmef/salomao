@@ -13,6 +13,7 @@ from app.db.models.security import Company
 from app.schemas.company_settings import LinxSettingsRead, LinxSettingsUpdate
 
 DEFAULT_LINX_BASE_URL = "https://erp.microvix.com.br"
+DEFAULT_LINX_API_BASE_URL = "https://webapi.microvix.com.br/1.0/api/integracao"
 DEFAULT_LINX_SALES_VIEW_NAME = "FATURAMENTO SALOMAO"
 DEFAULT_LINX_RECEIVABLES_VIEW_NAME = "CREDIARIO SALOMAO"
 DEFAULT_LINX_PAYABLES_VIEW_NAME = "LANCAR NOTAS SALOMAO"
@@ -64,16 +65,26 @@ class LinxSettings:
     payables_view_name: str
 
 
+@dataclass(frozen=True)
+class LinxApiSettings:
+    base_url: str
+    cnpj: str
+    api_key: str
+
+
 def serialize_linx_settings(company: Company) -> LinxSettingsRead:
     return LinxSettingsRead(
         base_url=(company.linx_base_url or DEFAULT_LINX_BASE_URL).strip(),
         username=(company.linx_username or "").strip(),
+        api_base_url=(company.linx_api_base_url or DEFAULT_LINX_API_BASE_URL).strip(),
+        api_cnpj=(company.linx_api_cnpj or company.document or "").strip() or None,
         sales_view_name=(company.linx_sales_view_name or DEFAULT_LINX_SALES_VIEW_NAME).strip(),
         receivables_view_name=(
             company.linx_receivables_view_name or DEFAULT_LINX_RECEIVABLES_VIEW_NAME
         ).strip(),
         payables_view_name=(company.linx_payables_view_name or DEFAULT_LINX_PAYABLES_VIEW_NAME).strip(),
         has_password=bool(company.linx_password_encrypted),
+        has_api_key=bool(company.linx_api_key_encrypted),
         auto_sync_enabled=bool(company.linx_auto_sync_enabled),
         auto_sync_alert_email=(company.linx_auto_sync_alert_email or "").strip() or None,
         auto_sync_last_run_at=company.linx_auto_sync_last_run_at,
@@ -85,6 +96,10 @@ def serialize_linx_settings(company: Company) -> LinxSettingsRead:
 def apply_linx_settings(company: Company, payload: LinxSettingsUpdate) -> None:
     company.linx_base_url = payload.base_url
     company.linx_username = payload.username
+    if payload.api_base_url is not None:
+        company.linx_api_base_url = payload.api_base_url
+    if payload.api_cnpj is not None:
+        company.linx_api_cnpj = payload.api_cnpj
     company.linx_sales_view_name = payload.sales_view_name
     company.linx_receivables_view_name = payload.receivables_view_name
     company.linx_payables_view_name = payload.payables_view_name
@@ -92,6 +107,8 @@ def apply_linx_settings(company: Company, payload: LinxSettingsUpdate) -> None:
     company.linx_auto_sync_alert_email = payload.auto_sync_alert_email
     if payload.password is not None:
         company.linx_password_encrypted = encrypt_text(payload.password)
+    if payload.api_key is not None:
+        company.linx_api_key_encrypted = encrypt_text(payload.api_key)
 
 
 def _load_linx_settings(company: Company) -> LinxSettings:
@@ -112,6 +129,22 @@ def _load_linx_settings(company: Company) -> LinxSettings:
         sales_view_name=configured.sales_view_name,
         receivables_view_name=configured.receivables_view_name,
         payables_view_name=configured.payables_view_name,
+    )
+
+
+def load_linx_api_settings(company: Company) -> LinxApiSettings:
+    configured = serialize_linx_settings(company)
+    api_key = decrypt_text(company.linx_api_key_encrypted)
+    cnpj = (configured.api_cnpj or "").strip()
+    if not cnpj or not api_key:
+        raise ValueError(
+            "Configure CNPJ e chave da API Linx nas configuracoes da empresa "
+            "para habilitar a sincronizacao via webservice."
+        )
+    return LinxApiSettings(
+        base_url=configured.api_base_url.rstrip("/"),
+        cnpj=cnpj,
+        api_key=api_key,
     )
 
 

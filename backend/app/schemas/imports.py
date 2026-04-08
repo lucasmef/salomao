@@ -40,3 +40,27 @@ class LinxSyncRequest(BaseModel):
         if self.start_date and self.end_date and self.start_date > self.end_date:
             raise ValueError("start_date nao pode ser maior que end_date")
         return self
+
+
+class LinxCustomerSyncRequest(BaseModel):
+    start_date: date | None = None
+    end_date: date | None = None
+    full_refresh: bool = False
+
+    @model_validator(mode="after")
+    def validate_period(self) -> "LinxCustomerSyncRequest":
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise ValueError("start_date nao pode ser maior que end_date")
+        return self
+
+
+class LinxProductSyncRequest(BaseModel):
+    full_refresh: bool = False
+
+
+class LinxOpenReceivableSyncRequest(BaseModel):
+    full_refresh: bool = False
+
+
+class LinxMovementSyncRequest(BaseModel):
+    full_refresh: bool = False

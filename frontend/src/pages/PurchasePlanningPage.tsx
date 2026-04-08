@@ -717,9 +717,17 @@ export function PurchasePlanningPage({
       return haystack.includes(normalizedFilter);
     });
   }, [normalizedPurchaseReturnVisibleStatuses, purchaseReturnDateFrom, purchaseReturnDateTo, purchaseReturnFilter, purchaseReturns]);
-  const plannedTotal = useMemo(
-    () => overview.monthly_projection.reduce((sum, item) => sum + Number(item.planned_outflows), 0),
-    [overview.monthly_projection],
+  const purchaseCostTotal = useMemo(
+    () => overview.cost_totals.reduce((sum, item) => sum + Number(item.purchase_cost_total), 0),
+    [overview.cost_totals],
+  );
+  const purchaseReturnCostTotal = useMemo(
+    () => overview.cost_totals.reduce((sum, item) => sum + Number(item.purchase_return_cost_total), 0),
+    [overview.cost_totals],
+  );
+  const netPurchaseCostTotal = useMemo(
+    () => overview.cost_totals.reduce((sum, item) => sum + Number(item.net_cost_total), 0),
+    [overview.cost_totals],
   );
   const currentCollection = useMemo(() => {
     const matchedCurrent = collectionsChronological.find((collection) => collection.start_date <= today && collection.end_date >= today);
@@ -1881,8 +1889,9 @@ export function PurchasePlanningPage({
         {renderSummaryFilters()}
 
         <section className="kpi-grid compact-kpis-four">
-          {renderMetricCard("Comprado", formatPurchaseDisplayAmount(overview.summary.purchased_total))}
-          {renderMetricCard("Previsto", formatPurchaseDisplayAmount(plannedTotal))}
+          {renderMetricCard("Compras custo", formatPurchaseDisplayAmount(purchaseCostTotal))}
+          {renderMetricCard("Devoluções", formatPurchaseDisplayAmount(purchaseReturnCostTotal))}
+          {renderMetricCard("Custo líquido", formatPurchaseDisplayAmount(netPurchaseCostTotal))}
           {renderMetricCard("Pago", formatPurchaseDisplayAmount(overview.summary.paid_total))}
           {renderMetricCard("Em aberto", formatPurchaseDisplayAmount(overview.summary.outstanding_payable_total))}
         </section>
@@ -1945,6 +1954,44 @@ export function PurchasePlanningPage({
                 <span>ColeÃ§Ãµes ativas</span>
                 <strong>{collections.filter((collection) => collection.is_active).length}</strong>
               </div>
+            </div>
+          </article>
+        </section>
+
+        <section className="purchase-full-width-section">
+          <article className="panel-card">
+            <div className="purchase-panel-heading">
+              <h3>Totalizações por coleção / fornecedor / custo</h3>
+            </div>
+            <div className="table-shell tall">
+              <table className="erp-table">
+                <thead>
+                  <tr>
+                    <th>Coleção</th>
+                    <th>Fornecedor</th>
+                    <th className="numeric-cell">Compras</th>
+                    <th className="numeric-cell">Devoluções</th>
+                    <th className="numeric-cell">Custo líquido</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {overview.cost_totals.length ? (
+                    overview.cost_totals.map((item) => (
+                      <tr key={`${item.collection_name}-${item.supplier_name}`}>
+                        <td>{item.collection_name}</td>
+                        <td>{item.supplier_name}</td>
+                        <td className="numeric-cell">{formatPurchaseDisplayAmount(item.purchase_cost_total)}</td>
+                        <td className="numeric-cell">{formatPurchaseDisplayAmount(item.purchase_return_cost_total)}</td>
+                        <td className="numeric-cell">{formatPurchaseDisplayAmount(item.net_cost_total)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5}>Nenhuma totalização por coleção e fornecedor encontrada.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </article>
         </section>
@@ -2234,7 +2281,7 @@ export function PurchasePlanningPage({
                     <th>ColeÃ§Ã£o</th>
                     <th>Ano</th>
                     <th>Inicio</th>
-                    <th>Fim / prazo faturamento</th>
+                    <th>Fim da coleção</th>
                     <th className="numeric-cell">Pedidos totais</th>
                     <th>Status</th>
                     <th>AÃ§Ãµes</th>
@@ -2485,11 +2532,11 @@ export function PurchasePlanningPage({
           <div className="content-grid">
             <section className="panel">
               <div className="purchase-panel-heading">
-                <h3>Sincronizar do Linx</h3>
+                <h3>Faturas de compra via API Linx</h3>
               </div>
               <p className="empty-state">
-                Busca a visao configurada no Linx, compara com as faturas ja vistas e inclui somente os
-                lancamentos novos em aberto.
+                Busca as faturas de compra na API da Linx, compara com os titulos ja vistos e inclui
+                somente os lancamentos novos ou alterados em aberto.
               </p>
               {linxSyncFeedback && (
                 <div
@@ -2508,7 +2555,9 @@ export function PurchasePlanningPage({
                   disabled={syncingLinxInvoices}
                   aria-busy={syncingLinxInvoices}
                 >
-                  {syncingLinxInvoices ? "Sincronizando notas do Linx..." : "Sincronizar notas do Linx"}
+                  {syncingLinxInvoices
+                    ? "Sincronizando faturas de compra..."
+                    : "Atualizar faturas de compra"}
                 </button>
               </div>
             </section>
@@ -3294,7 +3343,7 @@ export function PurchasePlanningPage({
               />
             </label>
             <label>
-              Fim / prazo faturamento
+              Fim da coleção
               <input
                 type="date"
                 value={collectionModal.end_date}

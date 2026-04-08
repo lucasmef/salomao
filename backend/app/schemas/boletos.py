@@ -33,6 +33,18 @@ class BoletoInterReceiveRequest(BaseModel):
     pagar_com: str = Field(default="BOLETO", pattern="^(BOLETO|PIX)$")
 
 
+class StandaloneBoletoCreateRequest(BaseModel):
+    account_id: str | None = Field(default=None, min_length=1)
+    client_name: str = Field(min_length=3, max_length=200)
+    amount: Decimal = Field(gt=0)
+    due_date: date
+    notes: str | None = None
+
+
+class StandaloneBoletoStatusRequest(BaseModel):
+    local_status: str = Field(pattern="^(open|downloaded)$")
+
+
 class BoletoFileRead(BaseModel):
     source_type: str
     name: str
@@ -110,6 +122,30 @@ class BoletoRecordRead(BaseModel):
     pdf_available: bool = False
 
 
+class StandaloneBoletoRead(BaseModel):
+    id: str
+    bank: str
+    client_name: str
+    document_id: str
+    issue_date: date | None = None
+    due_date: date | None = None
+    amount: Decimal
+    paid_amount: Decimal
+    status: str
+    local_status: str
+    description: str | None = None
+    notes: str | None = None
+    tax_id: str | None = None
+    email: str | None = None
+    barcode: str | None = None
+    linha_digitavel: str | None = None
+    pix_copia_e_cola: str | None = None
+    inter_codigo_solicitacao: str | None = None
+    inter_account_id: str | None = None
+    pdf_available: bool = False
+    downloaded_at: str | None = None
+
+
 class BoletoMatchItem(BaseModel):
     selection_key: str
     client_key: str
@@ -148,3 +184,4 @@ class BoletoDashboardRead(BaseModel):
     paid_pending: list[BoletoMatchItem]
     missing_boletos: list[BoletoMatchItem]
     excess_boletos: list[BoletoMatchItem]
+    standalone_boletos: list[StandaloneBoletoRead] = []

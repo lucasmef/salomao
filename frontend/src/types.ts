@@ -471,6 +471,29 @@ export type BoletoDashboard = {
   paid_pending: BoletoAlertItem[];
   missing_boletos: BoletoAlertItem[];
   excess_boletos: BoletoAlertItem[];
+  standalone_boletos: Array<{
+    id: string;
+    bank: string;
+    client_name: string;
+    document_id: string;
+    issue_date: string | null;
+    due_date: string | null;
+    amount: string;
+    paid_amount: string;
+    status: string;
+    local_status: string;
+    description: string | null;
+    notes: string | null;
+    tax_id: string | null;
+    email: string | null;
+    barcode: string | null;
+    linha_digitavel: string | null;
+    pix_copia_e_cola: string | null;
+    inter_codigo_solicitacao: string | null;
+    inter_account_id: string | null;
+    pdf_available: boolean;
+    downloaded_at: string | null;
+  }>;
 };
 
 export type AccountBalance = {
@@ -670,6 +693,14 @@ export type PurchasePlanningUngroupedSupplier = {
   total_amount: string;
 };
 
+export type PurchasePlanningCostRow = {
+  collection_name: string;
+  supplier_name: string;
+  purchase_cost_total: string;
+  purchase_return_cost_total: string;
+  net_cost_total: string;
+};
+
 export type PurchasePlanningOverview = {
   summary: {
     purchased_total: string;
@@ -681,6 +712,7 @@ export type PurchasePlanningOverview = {
     outstanding_payable_total: string;
   };
   rows: PurchasePlanningRow[];
+  cost_totals: PurchasePlanningCostRow[];
   monthly_projection: PurchasePlanningMonthlyProjection[];
   invoices: PurchaseInvoice[];
   open_installments: PurchaseInstallment[];
@@ -929,10 +961,13 @@ export type UserCredentialsUpdatePayload = {
 export type LinxSettings = {
   base_url: string;
   username: string;
+  api_base_url: string;
+  api_cnpj: string | null;
   sales_view_name: string;
   receivables_view_name: string;
   payables_view_name: string;
   has_password: boolean;
+  has_api_key: boolean;
   auto_sync_enabled: boolean;
   auto_sync_alert_email: string | null;
   auto_sync_last_run_at: string | null;
@@ -944,11 +979,175 @@ export type LinxSettingsUpdatePayload = {
   base_url: string;
   username: string;
   password?: string;
+  api_base_url: string;
+  api_cnpj?: string;
+  api_key?: string;
   sales_view_name: string;
   receivables_view_name: string;
   payables_view_name: string;
   auto_sync_enabled: boolean;
   auto_sync_alert_email?: string;
+};
+
+export type LinxCustomerDirectorySummary = {
+  total_count: number;
+  client_count: number;
+  supplier_count: number;
+  transporter_count: number;
+  active_count: number;
+  boleto_enabled_count: number;
+};
+
+export type LinxCustomerDirectoryItem = {
+  id: string;
+  linx_code: number;
+  legal_name: string;
+  display_name: string | null;
+  document_number: string | null;
+  registration_type: string | null;
+  registration_type_label: string;
+  person_type: string | null;
+  person_type_label: string;
+  is_active: boolean;
+  city: string | null;
+  state: string | null;
+  email: string | null;
+  phone_primary: string | null;
+  mobile: string | null;
+  uses_boleto: boolean;
+  mode: string;
+  boleto_due_day: number | null;
+  include_interest: boolean;
+  notes: string | null;
+  supports_boleto_config: boolean;
+  has_boleto_config: boolean;
+  missing_boleto_fields: string[];
+  linx_updated_at: string | null;
+};
+
+export type LinxCustomerDirectory = {
+  generated_at: string;
+  summary: LinxCustomerDirectorySummary;
+  items: LinxCustomerDirectoryItem[];
+};
+
+export type LinxProductDirectorySummary = {
+  total_count: number;
+  active_count: number;
+  inactive_count: number;
+  with_supplier_count: number;
+  with_collection_count: number;
+};
+
+export type LinxProductListItem = {
+  id: string;
+  linx_code: number;
+  description: string;
+  reference: string | null;
+  barcode: string | null;
+  unit: string | null;
+  brand_name: string | null;
+  line_name: string | null;
+  sector_name: string | null;
+  supplier_code: number | null;
+  supplier_name: string | null;
+  collection_id: number | null;
+  collection_name: string | null;
+  collection_name_raw: string | null;
+  price_cost: string | null;
+  price_sale: string | null;
+  stock_quantity: string | null;
+  is_active: boolean;
+  linx_updated_at: string | null;
+};
+
+export type LinxProductDirectory = {
+  generated_at: string;
+  summary: LinxProductDirectorySummary;
+  items: LinxProductListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type LinxOpenReceivableDirectorySummary = {
+  total_count: number;
+  overdue_count: number;
+  due_today_count: number;
+  total_amount: string;
+};
+
+export type LinxOpenReceivableListItem = {
+  id: string;
+  linx_code: number;
+  customer_code: number | null;
+  customer_name: string;
+  issue_date: string | null;
+  due_date: string | null;
+  amount: string | null;
+  paid_amount: string | null;
+  document_number: string | null;
+  document_series: string | null;
+  installment_number: number | null;
+  installment_count: number | null;
+  identifier: string | null;
+  payment_method_name: string | null;
+  payment_plan_code: number | null;
+  linx_row_timestamp: number | null;
+};
+
+export type LinxOpenReceivableDirectory = {
+  generated_at: string;
+  summary: LinxOpenReceivableDirectorySummary;
+  items: LinxOpenReceivableListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type LinxMovementDirectorySummary = {
+  total_count: number;
+  sales_total_amount: string;
+  sales_return_total_amount: string;
+  purchases_total_amount: string;
+  purchase_returns_total_amount: string;
+};
+
+export type LinxMovementListItem = {
+  id: string;
+  linx_transaction: number;
+  movement_group: string;
+  movement_type: string;
+  document_number: string | null;
+  document_series: string | null;
+  identifier: string | null;
+  issue_date: string | null;
+  launch_date: string | null;
+  customer_code: number | null;
+  product_code: number | null;
+  product_description: string | null;
+  product_reference: string | null;
+  collection_name: string | null;
+  quantity: string | null;
+  cost_price: string | null;
+  unit_price: string | null;
+  net_amount: string | null;
+  total_amount: string | null;
+  item_discount_amount: string | null;
+  nature_code: string | null;
+  nature_description: string | null;
+  cfop_description: string | null;
+  linx_updated_at: string | null;
+  linx_row_timestamp: number | null;
+};
+
+export type LinxMovementDirectory = {
+  generated_at: string;
+  summary: LinxMovementDirectorySummary;
+  items: LinxMovementListItem[];
+  total: number;
+  page: number;
+  page_size: number;
 };
 
 export type FeedbackState = {

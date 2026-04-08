@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, time
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models.finance import Category, FinancialEntry
-from app.db.models.linx import SalesSnapshot
+from app.db.models.linx import LinxMovement
 from app.db.models.security import Company
 from app.schemas.reports import (
     DreReport,
@@ -202,15 +202,26 @@ def _should_include_operating_income_in_dre(entry: FinancialEntry) -> bool:
     return False
 
 
-def _cmv_from_snapshot(snapshot: SalesSnapshot) -> Decimal:
-    markup = _safe_decimal(snapshot.markup)
-    net_revenue = _safe_decimal(snapshot.gross_revenue)
-    if markup <= Decimal("-100"):
+def _movement_reference_date(movement: LinxMovement) -> date | None:
+    if movement.launch_date:
+        return movement.launch_date.date()
+    if movement.issue_date:
+        return movement.issue_date.date()
+    return None
+
+
+def _movement_total_amount(movement: LinxMovement) -> Decimal:
+    if movement.total_amount is not None:
+        return _safe_decimal(movement.total_amount)
+    return _safe_decimal(movement.net_amount)
+
+
+def _movement_cost_amount(movement: LinxMovement) -> Decimal:
+    quantity = abs(_safe_decimal(movement.quantity))
+    cost_price = _safe_decimal(movement.cost_price)
+    if quantity == ZERO or cost_price == ZERO:
         return ZERO
-    multiplier = Decimal("1.00") + (markup / Decimal("100.00"))
-    if multiplier == ZERO:
-        return ZERO
-    return net_revenue / multiplier
+    return _money(quantity * cost_price)
 
 
 def _macro_for_category(category: Category | None) -> tuple[str | None, str]:
@@ -464,7 +475,7 @@ def _build_dre_context(
     *,
     start: date,
     end: date,
-    snapshots: list[SalesSnapshot],
+    movements: list[LinxMovement],
     entries: list[FinancialEntry],
 ) -> ReportContext:
     gross_revenue = ZERO
@@ -478,12 +489,16 @@ def _build_dre_context(
     taxes_on_profit = ZERO
     profit_distribution = ZERO
 
-    for snapshot in snapshots:
-        imported_net = _safe_decimal(snapshot.gross_revenue)
-        snapshot_deductions = -_safe_decimal(snapshot.discount_or_surcharge)
-        gross_revenue += imported_net + snapshot_deductions
-        deductions += snapshot_deductions
-        cmv += _cmv_from_snapshot(snapshot)
+    for movement in movements:
+        movement_date = _movement_reference_date(movement)
+        if movement_date is None or movement_date < start or movement_date > end:
+            continue
+
+        if movement.movement_type == "sale":
+            gross_revenue += _movement_total_amount(movement)
+            cmv += _movement_cost_amount(movement)
+        elif movement.movement_type == "sale_return":
+            deductions += _movement_total_amount(movement)
 
     income_items: list[dict[str, object]] = []
     non_operating_income_items: list[dict[str, object]] = []
@@ -551,9 +566,9 @@ def _build_dre_context(
                 operating_expense_items.append(_clone_item(item))
     return ReportContext(
         special_sources={
-            "faturamento_bruto": SourceDefinition(amount=gross_revenue, items=[]),
-            "deducoes_faturamento": SourceDefinition(amount=deductions, items=[], detail_label="Descontos, abatimentos e acrescimos"),
-            "cmv_faturamento": SourceDefinition(amount=cmv, items=[], detail_label="Custo das Mercadorias Vendidas"),
+            "faturamento_bruto": SourceDefinition(amount=gross_revenue, items=[], detail_label="Total vendido na API Linx"),
+            "deducoes_faturamento": SourceDefinition(amount=deductions, items=[], detail_label="Devolucoes de venda da API Linx"),
+            "cmv_faturamento": SourceDefinition(amount=cmv, items=[], detail_label="Preco de custo dos itens vendidos"),
         },
         group_items=_build_group_items(entries, start=start, end=end, date_basis="competence", use_paid_amount=False),
     )
@@ -842,12 +857,27 @@ def build_reports_overview(
     dre_config = get_or_create_report_config(db, company, "dre")
     dro_config = get_or_create_report_config(db, company, "dro")
 
-    snapshots = list(
+    period_start_dt = datetime.combine(period_start, time.min)
+    period_end_dt = datetime.combine(period_end, time.max)
+
+    dre_movements = list(
         db.scalars(
-            select(SalesSnapshot).where(
-                SalesSnapshot.company_id == company.id,
-                SalesSnapshot.snapshot_date >= period_start,
-                SalesSnapshot.snapshot_date <= period_end,
+            select(LinxMovement).where(
+                LinxMovement.company_id == company.id,
+                LinxMovement.movement_group == "sale",
+                or_(
+                    and_(
+                        LinxMovement.launch_date.is_not(None),
+                        LinxMovement.launch_date >= period_start_dt,
+                        LinxMovement.launch_date <= period_end_dt,
+                    ),
+                    and_(
+                        LinxMovement.launch_date.is_(None),
+                        LinxMovement.issue_date.is_not(None),
+                        LinxMovement.issue_date >= period_start_dt,
+                        LinxMovement.issue_date <= period_end_dt,
+                    ),
+                ),
             )
         )
     )
@@ -884,7 +914,7 @@ def build_reports_overview(
         )
     )
 
-    dre_context = _build_dre_context(start=period_start, end=period_end, snapshots=snapshots, entries=dre_entries)
+    dre_context = _build_dre_context(start=period_start, end=period_end, movements=dre_movements, entries=dre_entries)
     dro_context = _build_dro_context(start=period_start, end=period_end, entries=dro_entries)
     dre_lines, dre_metrics = _evaluate_lines(lines=dre_config.lines, context=dre_context)
     dro_lines, dro_metrics = _evaluate_lines(lines=dro_config.lines, context=dro_context)
