@@ -126,6 +126,13 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
     await onApplyFilters(filterDraft);
   }
 
+  function handleImmediateFilterChange(updater: (current: CashflowFilters) => CashflowFilters) {
+    const nextFilters = updater(filters);
+    setFilterDraft(nextFilters);
+    onChangeFilters(nextFilters);
+    void onApplyFilters(nextFilters);
+  }
+
   function applyPresetRange(kind: "today" | "current_month" | "previous_month" | "current_year") {
     const today = new Date();
     const year = today.getFullYear();
@@ -159,7 +166,7 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
           className="reconciliation-top-select"
           disabled={loading}
           value={filterDraft.account_id}
-          onChange={(event) => setFilterDraft((current) => ({ ...current, account_id: event.target.value }))}
+          onChange={(event) => handleImmediateFilterChange((current) => ({ ...current, account_id: event.target.value }))}
         >
           <option value="">Todas as contas</option>
           {accounts.map((account) => (
@@ -205,13 +212,14 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
                   setShowPeriodPopover(false);
                 }}
                 type="button"
-              >
-                Limpar
-              </button>
+                >
+                  Limpar
+                </button>
               <button className="primary-button compact-button" onClick={() => {
                 setShowPeriodPopover(false);
+                void applyDraftFilters();
               }} type="button">
-                Concluir
+                Aplicar
               </button>
             </div>
           </div>
@@ -248,7 +256,9 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
           <input
             checked={filterDraft.include_purchase_planning}
             disabled={loading}
-            onChange={(event) => setFilterDraft((current) => ({ ...current, include_purchase_planning: event.target.checked }))}
+            onChange={(event) =>
+              handleImmediateFilterChange((current) => ({ ...current, include_purchase_planning: event.target.checked }))
+            }
             type="checkbox"
           />
           <span>Incluir compras planejadas</span>
@@ -257,16 +267,14 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
           <input
             checked={filterDraft.include_crediario_receivables}
             disabled={loading}
-            onChange={(event) => setFilterDraft((current) => ({ ...current, include_crediario_receivables: event.target.checked }))}
+            onChange={(event) =>
+              handleImmediateFilterChange((current) => ({ ...current, include_crediario_receivables: event.target.checked }))
+            }
             type="checkbox"
           />
           <span>Incluir receitas crediario</span>
         </label>
       </div>
-
-      <button className="primary-button compact-button" disabled={loading} onClick={() => void applyDraftFilters()} type="button">
-        Aplicar
-      </button>
 
       <div className="cashflow-inline-meta">
         <div className="reconciliation-balance-wrap" ref={balancePopoverRef}>

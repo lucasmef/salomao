@@ -314,11 +314,11 @@ export function ReportsPage({
                 </label>
               </div>
               <div className="entries-period-footer">
-                <button
-                  className="secondary-button compact-button"
-                  onClick={() => {
-                    setDateRange("", "");
-                    setShowPeriodPopover(false);
+              <button
+                className="secondary-button compact-button"
+                onClick={() => {
+                  setDateRange("", "");
+                  setShowPeriodPopover(false);
                   }}
                   type="button"
                 >
@@ -326,8 +326,9 @@ export function ReportsPage({
                 </button>
                 <button className="primary-button compact-button" onClick={() => {
                   setShowPeriodPopover(false);
+                  void applyDraftFilters();
                 }} type="button">
-                  Concluir
+                  Aplicar
                 </button>
               </div>
             </div>
@@ -361,9 +362,6 @@ export function ReportsPage({
       </div>
 
       <div className="reports-top-toolbar-actions">
-        <button className="primary-button compact-button" disabled={loading} onClick={() => void applyDraftFilters()} type="button">
-          Aplicar
-        </button>
         <button
           aria-label={`Configurar ${activeTab.toUpperCase()}`}
           className="entries-toolbar-icon"
