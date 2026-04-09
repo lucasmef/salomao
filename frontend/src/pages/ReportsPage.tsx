@@ -161,6 +161,7 @@ export function ReportsPage({
   embedded = false,
   forcedTab = null,
 }: Props) {
+  const [periodDraft, setPeriodDraft] = useState(() => ({ start: filters.start, end: filters.end }));
   const [activeTab, setActiveTab] = useState<ReportTab>(forcedTab ?? "dre");
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const [configByKind, setConfigByKind] = useState<Record<ReportTab, ReportConfig | null>>({ dre: null, dro: null });
@@ -170,8 +171,24 @@ export function ReportsPage({
   const [showPeriodPopover, setShowPeriodPopover] = useState(false);
   const [showPresetMenu, setShowPresetMenu] = useState(false);
   const hasMountedAutoApplyRef = useRef(false);
+  const latestFiltersRef = useRef(filters);
+  const periodCommitTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const periodPopoverRef = useRef<HTMLDivElement | null>(null);
   const presetMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    latestFiltersRef.current = filters;
+  }, [filters]);
+
+  useEffect(() => {
+    setPeriodDraft({ start: filters.start, end: filters.end });
+  }, [filters.end, filters.start]);
+
+  useEffect(() => () => {
+    if (periodCommitTimerRef.current) {
+      clearTimeout(periodCommitTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (forcedTab) {
@@ -243,8 +260,32 @@ export function ReportsPage({
     }
   }
 
-  function setDateRange(start: string, end: string) {
-    onChangeFilters({ ...filters, start, end });
+  function commitDateRange(start: string, end: string) {
+    onChangeFilters({ ...latestFiltersRef.current, start, end });
+  }
+
+  function scheduleDateRangeCommit(start: string, end: string) {
+    if (periodCommitTimerRef.current) {
+      clearTimeout(periodCommitTimerRef.current);
+    }
+    if ((start && start.length < 10) || (end && end.length < 10)) {
+      return;
+    }
+    periodCommitTimerRef.current = window.setTimeout(() => {
+      commitDateRange(start, end);
+    }, 450);
+  }
+
+  function setDateRange(start: string, end: string, immediate = false) {
+    setPeriodDraft({ start, end });
+    if (immediate) {
+      if (periodCommitTimerRef.current) {
+        clearTimeout(periodCommitTimerRef.current);
+      }
+      commitDateRange(start, end);
+      return;
+    }
+    scheduleDateRangeCommit(start, end);
   }
 
   function applyPresetRange(kind: "today" | "current_month" | "previous_month" | "current_year") {
@@ -255,21 +296,21 @@ export function ReportsPage({
 
     if (kind === "today") {
       const current = formatValue(today);
-      setDateRange(current, current);
+      setDateRange(current, current, true);
       return;
     }
 
     if (kind === "current_month") {
-      setDateRange(formatValue(new Date(year, month, 1)), formatValue(new Date(year, month + 1, 0)));
+      setDateRange(formatValue(new Date(year, month, 1)), formatValue(new Date(year, month + 1, 0)), true);
       return;
     }
 
     if (kind === "previous_month") {
-      setDateRange(formatValue(new Date(year, month - 1, 1)), formatValue(new Date(year, month, 0)));
+      setDateRange(formatValue(new Date(year, month - 1, 1)), formatValue(new Date(year, month, 0)), true);
       return;
     }
 
-    setDateRange(formatValue(new Date(year, 0, 1)), formatValue(new Date(year, 11, 31)));
+    setDateRange(formatValue(new Date(year, 0, 1)), formatValue(new Date(year, 11, 31)), true);
   }
 
   const currentReport = activeTab === "dre" ? reports?.dre : reports?.dro;
@@ -297,32 +338,35 @@ export function ReportsPage({
             type="button"
           >
             <CalendarRangeIcon />
-            <span>{formatRangeLabel(filters.start, filters.end)}</span>
+            <span>{formatRangeLabel(periodDraft.start, periodDraft.end)}</span>
           </button>
           {showPeriodPopover && (
             <div className="entries-floating-panel entries-period-popover">
               <div className="entries-period-fields">
                 <label>
                   Inicio
-                  <input disabled={loading} type="date" value={filters.start} onChange={(event) => setDateRange(event.target.value, filters.end)} />
+                  <input disabled={loading} type="date" value={periodDraft.start} onChange={(event) => setDateRange(event.target.value, periodDraft.end)} />
                 </label>
                 <label>
                   Fim
-                  <input disabled={loading} type="date" value={filters.end} onChange={(event) => setDateRange(filters.start, event.target.value)} />
+                  <input disabled={loading} type="date" value={periodDraft.end} onChange={(event) => setDateRange(periodDraft.start, event.target.value)} />
                 </label>
               </div>
               <div className="entries-period-footer">
                 <button
                   className="secondary-button compact-button"
                   onClick={() => {
-                    setDateRange("", "");
+                    setDateRange("", "", true);
                     setShowPeriodPopover(false);
                   }}
                   type="button"
                 >
                   Limpar
                 </button>
-                <button className="primary-button compact-button" onClick={() => setShowPeriodPopover(false)} type="button">
+                <button className="primary-button compact-button" onClick={() => {
+                  setDateRange(periodDraft.start, periodDraft.end, true);
+                  setShowPeriodPopover(false);
+                }} type="button">
                   Concluir
                 </button>
               </div>
