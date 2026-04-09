@@ -127,6 +127,7 @@ class ParsedBoleto:
     document_id: str
     issue_date: date | None
     due_date: date | None
+    payment_date: date | None
     amount: Decimal
     paid_amount: Decimal
     status: str
@@ -539,6 +540,7 @@ def _load_inter_report(content: bytes, *, password_candidates: list[str] | None 
                 document_id=_pick_header(item, "COD COBRANCA", "CÓD. COBRANCA", "COD. COBRANCA").strip(),
                 issue_date=parse_br_date(_pick_header(item, "EMISSAO", "EMISSÃO")),
                 due_date=parse_br_date(_pick_header(item, "VENCIMENTO")),
+                payment_date=parse_br_date(_pick_header(item, "DATA PAGAMENTO", "DT PAGAMENTO", "PAGAMENTO")),
                 amount=parse_brl(_pick_header(item, "VALOR")),
                 paid_amount=parse_brl(_pick_header(item, "VALOR RECEBIDO")),
                 status=_pick_header(item, "STATUS").strip(),
@@ -565,6 +567,7 @@ def _load_c6_report(content: bytes) -> list[ParsedBoleto]:
                 document_id=_pick_header(item, "Numero do documento").strip(),
                 issue_date=parse_br_date(_pick_header(item, "Data de emissao")),
                 due_date=parse_br_date(_pick_header(item, "Data de vencimento")),
+                payment_date=parse_br_date(_pick_header(item, "Data de pagamento/cancelamento")),
                 amount=parse_brl(_pick_header(item, "Valor da Emissao")),
                 paid_amount=parse_brl(_pick_header(item, "Valor de Liquidacao")),
                 status=_pick_header(item, "Status").strip(),
@@ -675,6 +678,7 @@ def import_boleto_report(
                 document_id=row.document_id,
                 issue_date=row.issue_date,
                 due_date=row.due_date,
+                payment_date=row.payment_date,
                 amount=row.amount,
                 paid_amount=row.paid_amount,
                 status=row.status,

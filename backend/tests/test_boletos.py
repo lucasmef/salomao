@@ -78,6 +78,14 @@ def _wrap_zip(entry_name: str, entry_content: bytes) -> bytes:
     return content.getvalue()
 
 
+def _build_c6_csv_bytes() -> bytes:
+    lines = [
+        "Quem pagara o boleto;Numero do documento;Data de emissao;Data de vencimento;Data de pagamento/cancelamento;Valor da Emissao;Valor de Liquidacao;Status;Codigo de barras",
+        "Cliente Exemplo;C6-123;01/03/2026;12/03/2026;15/03/2026;250,00;250,00;Pago;1234567890",
+    ]
+    return "\n".join(lines).encode("utf-8")
+
+
 def _create_receivable_batch(session: Session, company: Company, *, filename: str = "receivaveis.xlsx") -> ImportBatch:
     batch = ImportBatch(
         company_id=company.id,
@@ -192,6 +200,36 @@ def test_import_boleto_inter_report_accepts_outer_zip_with_excel_inside() -> Non
         assert imported_record.status == "A receber"
         assert imported_record.amount == Decimal("250.00")
         assert result.message == "Relatorio de boletos INTER importado com sucesso."
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_import_boleto_c6_report_persists_payment_date() -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+
+    try:
+        company = Company(legal_name="Salomao LTDA", trade_name="Salomao")
+        session.add(company)
+        session.flush()
+
+        result = import_boleto_report(
+            session,
+            company,
+            bank="C6",
+            filename="relatorio-c6.csv",
+            content=_build_c6_csv_bytes(),
+        )
+
+        imported_record = session.query(BoletoRecord).one()
+        assert imported_record.client_name == "Cliente Exemplo"
+        assert imported_record.document_id == "C6-123"
+        assert imported_record.status == "Pago"
+        assert imported_record.amount == Decimal("250.00")
+        assert imported_record.payment_date == date(2026, 3, 15)
+        assert result.message == "Relatorio de boletos C6 importado com sucesso."
     finally:
         session.close()
         engine.dispose()
