@@ -1516,18 +1516,16 @@ def sync_standalone_inter_charges(
     *,
     transport: httpx.BaseTransport | None = None,
 ) -> ImportResult:
-    open_records = list(
+    standalone_records = list(
         db.scalars(
             select(StandaloneBoletoRecord).where(
                 StandaloneBoletoRecord.company_id == company.id,
-                StandaloneBoletoRecord.local_status == "open",
                 StandaloneBoletoRecord.bank == "INTER",
                 StandaloneBoletoRecord.inter_codigo_solicitacao.is_not(None),
-                StandaloneBoletoRecord.status != "Recebido por boleto",
             )
         )
     )
-    if not open_records:
+    if not standalone_records:
         batch = _start_sync_batch(
             db,
             company.id,
@@ -1540,7 +1538,7 @@ def sync_standalone_inter_charges(
         batch.status = "processed"
         db.commit()
         db.refresh(batch)
-        return ImportResult(batch=batch, message="Nenhum boleto avulso em aberto para sincronizar.")
+        return ImportResult(batch=batch, message="Nenhum boleto avulso cadastrado para sincronizar.")
 
     batch = _start_sync_batch(
         db,
@@ -1549,7 +1547,7 @@ def sync_standalone_inter_charges(
         filename=f"inter-boleto-avulso-sync-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
     )
     updated_count = 0
-    for record in open_records:
+    for record in standalone_records:
         account, config = _resolve_pdf_download_account(db, company, record)
         client = InterApiClient(config, transport=transport)
         try:
@@ -1572,7 +1570,7 @@ def sync_standalone_inter_charges(
         finally:
             client.close()
 
-    batch.records_total = len(open_records)
+    batch.records_total = len(standalone_records)
     batch.records_valid = updated_count
     batch.records_invalid = 0
     batch.status = "processed"

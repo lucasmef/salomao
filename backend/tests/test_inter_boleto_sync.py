@@ -1060,3 +1060,70 @@ def test_sync_standalone_inter_charges_reopens_cancelled_record_when_inter_still
         assert boleto.local_status == "open"
     finally:
         session.close()
+
+
+def test_sync_standalone_inter_charges_updates_downloaded_record_bank_status() -> None:
+    session = _build_session()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            return httpx.Response(200, json={"access_token": "token-123"})
+        if request.url.path == "/cobranca/v3/cobrancas/SOL-AVL-003":
+            return httpx.Response(
+                200,
+                json={
+                    "cobranca": {
+                        "codigoSolicitacao": "SOL-AVL-003",
+                        "seuNumero": "AVL-003",
+                        "situacao": "RECEBIDO",
+                        "dataEmissao": "2026-04-01",
+                        "dataSituacao": "2026-04-12",
+                        "dataVencimento": "2026-04-10",
+                        "valorNominal": "79.90",
+                        "valorTotalRecebido": "79.90",
+                        "pagador": {"nome": "Cliente Avulso", "cpfCnpj": "12345678901"},
+                    },
+                    "boleto": {
+                        "codigoBarras": "777888999",
+                        "linhaDigitavel": "777.888.999",
+                        "nossoNumero": "NOSSO-AVL-3",
+                    },
+                },
+            )
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    try:
+        company, account = _build_company_and_account(session)
+        session.add(
+            StandaloneBoletoRecord(
+                company_id=company.id,
+                bank="INTER",
+                client_key=normalize_text("Cliente Avulso"),
+                client_name="Cliente Avulso",
+                document_id="AVL-003",
+                issue_date=date(2026, 4, 1),
+                due_date=date(2026, 4, 10),
+                amount=Decimal("79.90"),
+                paid_amount=Decimal("0.00"),
+                status="A receber",
+                local_status="downloaded",
+                inter_account_id=account.id,
+                inter_codigo_solicitacao="SOL-AVL-003",
+                description="Boleto avulso",
+            )
+        )
+        session.commit()
+
+        result = sync_standalone_inter_charges(
+            session,
+            company,
+            transport=httpx.MockTransport(handler),
+        )
+
+        boleto = session.query(StandaloneBoletoRecord).one()
+        assert result.message == "Boletos avulsos sincronizados com sucesso."
+        assert boleto.status == "Recebido por boleto"
+        assert boleto.local_status == "downloaded"
+        assert boleto.paid_amount == Decimal("79.90")
+    finally:
+        session.close()
