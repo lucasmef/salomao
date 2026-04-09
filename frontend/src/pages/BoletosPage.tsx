@@ -1,5 +1,4 @@
 ﻿import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
 
 import { MoneyInput } from "../components/MoneyInput";
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
@@ -27,12 +26,8 @@ type Props = {
   onDownloadStandaloneBoletoPdf: (boletoId: string) => Promise<void>;
   onMarkStandaloneBoletoDownloaded: (boletoId: string) => Promise<void>;
   onCancelStandaloneBoleto: (boletoId: string) => Promise<void>;
-  onSyncCustomers: () => Promise<void>;
-  onSyncInterCharges: () => Promise<void>;
-  onSyncReceivables: () => Promise<void>;
   onSyncStandaloneBoletos: () => Promise<void>;
   onToggleAllMonthlyMissingBoletos: (showAll: boolean) => Promise<void>;
-  onUploadBoletoInter: (file: File) => Promise<void>;
   onUploadBoletoC6: (file: File) => Promise<void>;
   onUploadClientData: (file: File) => Promise<void>;
   showMissingExportFallback: boolean;
@@ -57,7 +52,7 @@ type StandaloneBoletoDraft = {
   notes: string;
 };
 export type InvoiceFilter = "open" | "open-boletos" | "overdue" | "paid-pending" | "missing" | "excess";
-export type BillingView = "summary" | "standalone" | InvoiceFilter;
+export type BillingView = "standalone" | InvoiceFilter;
 type OpenReceivableSort = "due_date" | "client_name" | "document" | "status" | "amount";
 type OpenBoletoSort = "due_date" | "issue_date" | "client_name" | "bank" | "amount" | "document_id";
 type StandaloneBoletoFilter = "all" | "open" | "paid" | "downloaded" | "cancelled";
@@ -112,30 +107,12 @@ function renderReceivableDetails(item: BoletoAlertItem) {
     .join(", ");
 }
 
-function UploadIcon() {
-  return (
-    <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
-      <path d="M10 13V4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M6.75 7.75 10 4.5l3.25 3.25" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M4 14.5v.75A1.75 1.75 0 0 0 5.75 17h8.5A1.75 1.75 0 0 0 16 15.25v-.75" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function DownloadIcon() {
   return (
     <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
       <path d="M10 4.5v8.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M6.75 10 10 13.25 13.25 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M4 15.25h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function RefreshIcon() {
-  return (
-    <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
-      <path d="M14.75 6.25V3.75m0 0h-2.5m2.5 0L12.5 6A5.75 5.75 0 1 0 14 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -153,86 +130,6 @@ function CheckIcon() {
     <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
       <path d="m5.5 10.5 3 3 6-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
-  );
-}
-
-type UploadCardProps = {
-  id: string;
-  title: string;
-  accept: string;
-  selectedFile: File | null;
-  submitting: boolean;
-  onChange: (file: File | null) => void;
-  onSubmit: () => void;
-  secondaryLabel?: string;
-  onSecondaryAction?: () => void;
-  secondaryDisabled?: boolean;
-  meta: ReactNode;
-};
-
-function UploadCard({
-  id,
-  title,
-  accept,
-  selectedFile,
-  submitting,
-  onChange,
-  onSubmit,
-  secondaryLabel,
-  onSecondaryAction,
-  secondaryDisabled = false,
-  meta,
-}: UploadCardProps) {
-  return (
-    <div className="compact-import-card billing-import-card">
-      <div className="billing-import-header">
-        <strong>{title}</strong>
-        <button
-          className="primary-button icon-button"
-          disabled={submitting || !selectedFile}
-          onClick={onSubmit}
-          title={`Importar ${title}`}
-          type="button"
-        >
-          <UploadIcon />
-        </button>
-      </div>
-      <input
-        id={id}
-        className="hidden-file-input"
-        type="file"
-        accept={accept}
-        onChange={(event) => onChange(event.target.files?.[0] ?? null)}
-      />
-      <div className="billing-file-picker-row">
-        <label className="secondary-button compact-file-trigger" htmlFor={id}>
-          Selecionar
-        </label>
-        {selectedFile ? (
-          <span className="compact-file-name" title={selectedFile.name}>
-            {selectedFile.name}
-          </span>
-        ) : null}
-      </div>
-      <div className="billing-import-meta">
-        {meta}
-        {onSecondaryAction ? (
-          <button
-            className="secondary-button compact-action-button"
-            disabled={submitting || secondaryDisabled}
-            onClick={onSecondaryAction}
-            type="button"
-          >
-            {secondaryLabel ?? "Sincronizar"}
-          </button>
-        ) : null}
-        {selectedFile ? (
-          <small className="compact-muted" title={selectedFile.name}>
-            Novo arquivo: {selectedFile.name}
-          </small>
-        ) : null}
-      </div>
-    </div>
   );
 }
 
@@ -280,19 +177,15 @@ export function BoletosPage({
   onDownloadStandaloneBoletoPdf,
   onMarkStandaloneBoletoDownloaded,
   onCancelStandaloneBoleto,
-  onSyncCustomers,
-  onSyncInterCharges,
-  onSyncReceivables,
   onSyncStandaloneBoletos,
   onToggleAllMonthlyMissingBoletos,
-  onUploadBoletoInter,
   onUploadBoletoC6,
   onUploadClientData,
   showMissingExportFallback,
   onSaveClients,
 }: Props) {
-  const [interFile, setInterFile] = useState<File | null>(null);
   const [c6File, setC6File] = useState<File | null>(null);
+  const [c6ModalOpen, setC6ModalOpen] = useState(false);
   const [customerDataFile, setCustomerDataFile] = useState<File | null>(null);
   const [customerDataModalOpen, setCustomerDataModalOpen] = useState(false);
   const [clientsModalOpen, setClientsModalOpen] = useState(false);
@@ -314,7 +207,7 @@ export function BoletosPage({
     notes: "",
   });
   const [standaloneBoletoFilter, setStandaloneBoletoFilter] = useState<StandaloneBoletoFilter>("open");
-  const invoiceFilter = view === "summary" || view === "standalone" ? "open" : view;
+  const invoiceFilter = view === "standalone" ? "open" : view;
   const visibleStandaloneBoletos = useMemo(
     () =>
       [...dashboard.standalone_boletos]
@@ -337,10 +230,6 @@ export function BoletosPage({
     setSelectedOpenBoletoIds((current) => current.filter((item) => visibleIds.has(item)));
   }, [dashboard.open_boletos]);
 
-  const topClients = useMemo(
-    () => [...dashboard.clients].sort((left, right) => Number(right.total_amount) - Number(left.total_amount)).slice(0, 8),
-    [dashboard.clients],
-  );
   const standaloneClientOptions = useMemo(() => uniqueStandaloneClientNames(dashboard.clients), [dashboard.clients]);
   const filesBySource = useMemo(
     () => Object.fromEntries(dashboard.files.map((item) => [item.source_type, item] as const)) as Record<string, BoletoDashboard["files"][number]>,
@@ -420,6 +309,8 @@ export function BoletosPage({
 
   useEffect(() => {
     setClientsModalOpen(false);
+    setC6ModalOpen(false);
+    setC6File(null);
     setCustomerDataModalOpen(false);
     setStandaloneBoletoModalOpen(false);
     setCustomerDataFile(null);
@@ -599,6 +490,14 @@ export function BoletosPage({
     setCustomerDataFile(null);
   }
 
+  function closeC6Modal() {
+    if (submitting) {
+      return;
+    }
+    setC6ModalOpen(false);
+    setC6File(null);
+  }
+
   function closeStandaloneBoletoModal() {
     if (submitting) {
       return;
@@ -641,6 +540,15 @@ export function BoletosPage({
     } catch {
       // A exibicao do XLSX de contingencia passa a depender da falha da emissao.
     }
+  }
+
+  async function handleUploadC6() {
+    if (!c6File) {
+      return;
+    }
+    await onUploadBoletoC6(c6File);
+    setC6File(null);
+    setC6ModalOpen(false);
   }
 
   function renderStandaloneBoletoModal() {
@@ -823,6 +731,60 @@ export function BoletosPage({
               Importar etiquetas
             </button>
             <button className="ghost-button" onClick={closeCustomerDataModal} type="button">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderC6UploadModal() {
+    if (!c6ModalOpen) {
+      return null;
+    }
+
+    return (
+      <div className="modal-backdrop" role="presentation">
+        <div className="modal-card billing-customer-modal">
+          <div className="panel-title compact-title-row">
+            <h3>Importar relatório C6</h3>
+            <button className="ghost-button" type="button" onClick={closeC6Modal}>
+              Fechar
+            </button>
+          </div>
+
+          <div className="billing-modal-copy">
+            <p>Envie o arquivo CSV do C6 para atualizar os registros usados na conferência de boletos faltando.</p>
+            {renderFileMeta("boletos:c6")}
+          </div>
+
+          <div className="compact-import-card billing-modal-upload-card">
+            <input
+              id="boletos-c6-file"
+              className="hidden-file-input"
+              type="file"
+              accept=".csv"
+              onChange={(event) => setC6File(event.target.files?.[0] ?? null)}
+            />
+            <div className="billing-file-picker-row">
+              <label className="secondary-button compact-file-trigger" htmlFor="boletos-c6-file">
+                Selecionar relatório
+              </label>
+              {c6File ? (
+                <span className="compact-file-name" title={c6File.name}>
+                  {c6File.name}
+                </span>
+              ) : null}
+            </div>
+            <small className="compact-muted">Após a importação, esta aba refletirá os dados processados do arquivo.</small>
+          </div>
+
+          <div className="action-row">
+            <button className="primary-button" disabled={submitting || !c6File} onClick={() => void handleUploadC6()} type="button">
+              Importar arquivo
+            </button>
+            <button className="ghost-button" onClick={closeC6Modal} type="button">
               Cancelar
             </button>
           </div>
@@ -1306,6 +1268,12 @@ export function BoletosPage({
             <small className="compact-muted">{selectedMissingKeys.length} selecionado(s)</small>
           </div>
           <div className="action-row">
+            <button className="secondary-button" disabled={submitting} onClick={() => setClientsModalOpen(true)} type="button">
+              Clientes
+            </button>
+            <button className="secondary-button" disabled={submitting} onClick={() => setC6ModalOpen(true)} type="button">
+              Relatório C6
+            </button>
             <label className="checkbox-line compact-inline">
               <input
                 checked={showAllMonthlyMissingBoletos}
@@ -1512,167 +1480,6 @@ export function BoletosPage({
         </>
       )}
 
-      {view === "summary" && (
-        <>
-          <section className="content-grid billing-summary-grid">
-            <article className="panel-card compact-panel-card billing-summary-panel">
-              <div className="panel-title compact-title-row">
-                <h3>Importação rápida</h3>
-              </div>
-              <div className="action-row billing-summary-actions">
-                <button className="secondary-button" disabled={submitting} onClick={() => setClientsModalOpen(true)} type="button">
-                  Clientes
-                </button>
-              </div>
-              <div className="compact-import-grid billing-import-grid">
-                <div className="compact-import-card billing-import-card">
-                  <div className="billing-import-header">
-                    <strong>Faturas Linx API</strong>
-                    <button
-                      className="primary-button icon-button"
-                      disabled={submitting}
-                      onClick={() => void onSyncReceivables()}
-                      title="Atualizar faturas em aberto da API Linx"
-                      type="button"
-                    >
-                      <RefreshIcon />
-                    </button>
-                  </div>
-                  <div className="billing-import-meta">
-                    {renderFileMeta("linx_open_receivables")}
-                    <small className="compact-muted">Usa a base espelho da API para a cobrança.</small>
-                  </div>
-                </div>
-                <div className="compact-import-card billing-import-card">
-                  <div className="billing-import-header">
-                    <strong>Clientes Linx API</strong>
-                    <button
-                      className="primary-button icon-button"
-                      disabled={submitting}
-                      onClick={() => void onSyncCustomers()}
-                      title="Atualizar clientes do Linx"
-                      type="button"
-                    >
-                      <RefreshIcon />
-                    </button>
-                  </div>
-                  <div className="billing-import-meta">
-                    {renderFileMeta("linx_customers")}
-                    <small className="compact-muted">Cadastro usado para nome e dados de boleto.</small>
-                  </div>
-                </div>
-                <UploadCard
-                  id="boletos-inter-file"
-                  title="Relatório Inter"
-                  accept=".zip"
-                  selectedFile={interFile}
-                  submitting={submitting}
-                  onChange={setInterFile}
-                  onSubmit={() => interFile && void onUploadBoletoInter(interFile)}
-                  meta={renderFileMeta("boletos:inter")}
-                />
-                <UploadCard
-                  id="boletos-c6-file"
-                  title="Relatório C6"
-                  accept=".csv"
-                  selectedFile={c6File}
-                  submitting={submitting}
-                  onChange={setC6File}
-                  onSubmit={() => c6File && void onUploadBoletoC6(c6File)}
-                  meta={renderFileMeta("boletos:c6")}
-                />
-                <div className="compact-import-card billing-import-card">
-                  <div className="billing-import-header">
-                    <strong>Inter</strong>
-                    <button
-                      className="primary-button icon-button"
-                      disabled={submitting || !hasInterApiAccount}
-                      onClick={() => void onSyncInterCharges()}
-                      title="Atualizar cobranças do Inter"
-                      type="button"
-                    >
-                      <RefreshIcon />
-                    </button>
-                  </div>
-                  <div className="billing-import-meta">
-                    {renderFileMeta("inter_charge_sync")}
-                    {!hasInterApiAccount && (
-                      <small className="compact-muted">Cadastre a chave da API do Inter na conta para habilitar.</small>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </article>
-          </section>
-
-          <section className="kpi-grid compact-kpis billing-summary-kpis">
-            <article className="kpi-card"><span>Faturas abertas</span><strong>{dashboard.summary.receivable_count}</strong></article>
-            <article className="kpi-card"><span>Valor em aberto</span><strong>{formatMoney(dashboard.summary.receivable_total)}</strong></article>
-            <article className="kpi-card"><span>Boletos vencidos</span><strong>{dashboard.summary.overdue_boleto_count}</strong></article>
-            <article className="kpi-card"><span>Clientes em atraso</span><strong>{dashboard.summary.overdue_invoice_client_count}</strong></article>
-            <article className="kpi-card"><span>Pagas sem baixa</span><strong>{dashboard.summary.paid_pending_count}</strong></article>
-            <article className="kpi-card"><span>Boletos faltando</span><strong>{dashboard.summary.missing_boleto_count}</strong></article>
-            <article className="kpi-card"><span>Boletos em excesso</span><strong>{dashboard.summary.excess_boleto_count}</strong></article>
-          </section>
-
-          <section className="content-grid two-columns">
-            <article className="panel">
-              <div className="panel-title">
-                <h3>Maiores clientes por valor em aberto</h3>
-              </div>
-              <div className="table-shell">
-                <table className="erp-table">
-                  <thead>
-                    <tr>
-                      <th>Cliente</th>
-                      <th>Faturas</th>
-                      <th className="numeric-cell">Valor</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topClients.map((client) => (
-                      <tr key={client.client_key}>
-                        <td><span className="single-line-cell">{client.client_name}</span></td>
-                        <td>{client.receivable_count}</td>
-                        <td className="numeric-cell">{formatMoney(client.total_amount)}</td>
-                      </tr>
-                    ))}
-                    {!topClients.length && (
-                      <tr>
-                        <td colSpan={3}>Nenhum cliente encontrado.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </article>
-
-            <article className="panel">
-              <div className="panel-title">
-                <h3>Pendências principais</h3>
-              </div>
-              <div className="table-shell">
-                <table className="erp-table">
-                  <thead>
-                    <tr>
-                      <th>Indicador</th>
-                      <th className="numeric-cell">Quantidade</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td>Clientes com boleto</td><td className="numeric-cell">{dashboard.summary.boleto_clients_count}</td></tr>
-                    <tr><td>Boletos vencidos</td><td className="numeric-cell">{dashboard.summary.overdue_boleto_count}</td></tr>
-                    <tr><td>Pagas sem baixa</td><td className="numeric-cell">{dashboard.summary.paid_pending_count}</td></tr>
-                    <tr><td>Boletos faltando</td><td className="numeric-cell">{dashboard.summary.missing_boleto_count}</td></tr>
-                    <tr><td>Boletos em excesso</td><td className="numeric-cell">{dashboard.summary.excess_boleto_count}</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </article>
-          </section>
-        </>
-      )}
-
       {false && (
         <section className="panel compact-panel-card">
           <div className="panel-title compact-title-row">
@@ -1799,13 +1606,14 @@ export function BoletosPage({
         </section>
       )}
 
-      {view !== "summary" && view !== "standalone" && (
+      {view !== "standalone" && (
         <>
           {renderInvoicePanel()}
         </>
       )}
 
       {renderClientsModal()}
+      {renderC6UploadModal()}
       {renderCustomerDataModal()}
       {renderStandaloneBoletoModal()}
     </div>

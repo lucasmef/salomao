@@ -2520,26 +2520,29 @@ function AppRuntime() {
           }
           path="/financeiro/conciliacao"
         />
-        <Route element={<Navigate replace to="/financeiro/cobranca/resumo" />} path="/financeiro/cobranca" />
+        <Route element={<Navigate replace to="/financeiro/cobranca/boletos-faltando" />} path="/financeiro/cobranca" />
+        <Route element={<Navigate replace to="/financeiro/cobranca/boletos-faltando" />} path="/financeiro/cobranca/resumo" />
         {[
-        { path: "/financeiro/cobranca/resumo", view: "summary" as const, index: 0 },
-        { path: "/financeiro/cobranca/faturas-em-aberto", view: "open" as const, index: 1 },
-        { path: "/financeiro/cobranca/boletos-em-aberto", view: "open-boletos" as const, index: 2 },
-        { path: "/financeiro/cobranca/atrasados", view: "overdue" as const, index: 3 },
-        { path: "/financeiro/cobranca/pagas-sem-baixa", view: "paid-pending" as const, index: 4 },
-        { path: "/financeiro/cobranca/boletos-faltando", view: "missing" as const, index: 5 },
-        { path: "/financeiro/cobranca/boletos-avulsos", view: "standalone" as const, index: 6 },
-        { path: "/financeiro/cobranca/boletos-em-excesso", view: "excess" as const, index: 7 },
-      ].map((billingRoute) => (
+        { key: "faturas-em-aberto", path: "/financeiro/cobranca/faturas-em-aberto", view: "open" as const },
+        { key: "boletos-em-aberto", path: "/financeiro/cobranca/boletos-em-aberto", view: "open-boletos" as const },
+        { key: "atrasados", path: "/financeiro/cobranca/atrasados", view: "overdue" as const },
+        { key: "pagas-sem-baixa", path: "/financeiro/cobranca/pagas-sem-baixa", view: "paid-pending" as const },
+        { key: "boletos-faltando", path: "/financeiro/cobranca/boletos-faltando", view: "missing" as const },
+        { key: "boletos-avulsos", path: "/financeiro/cobranca/boletos-avulsos", view: "standalone" as const },
+        { key: "boletos-em-excesso", path: "/financeiro/cobranca/boletos-em-excesso", view: "excess" as const },
+      ].map((billingRoute) => {
+          const billingTab =
+            billingNavigation.children.find((item) => item.key === billingRoute.key) ?? billingNavigation.children[0];
+          return (
           <Route
             key={billingRoute.path}
             element={
               <SectionChrome
-                description={billingNavigation.children[billingRoute.index].description}
+                description={billingTab.description}
                 sectionLabel="Cobrança"
-                tabLabel={billingNavigation.children[billingRoute.index].label}
+                tabLabel={billingTab.label}
                 tabs={billingNavigation.children}
-                title={billingNavigation.children[billingRoute.index].title}
+                title={billingTab.title}
               >
                 <BoletosPage
                   accounts={accounts}
@@ -2556,14 +2559,10 @@ function AppRuntime() {
                   onDownloadStandaloneBoletoPdf={downloadStandaloneBoletoPdf}
                   onMarkStandaloneBoletoDownloaded={markStandaloneBoletoDownloaded}
                   onSaveClients={saveBoletoClients}
-                  onSyncCustomers={syncLinxCustomersImport}
-                  onSyncInterCharges={syncInterChargesImport}
-                  onSyncReceivables={syncLinxReceivablesImport}
                   onSyncStandaloneBoletos={syncStandaloneBoletos}
                   onToggleAllMonthlyMissingBoletos={toggleAllMonthlyMissingBoletos}
                   onUploadBoletoC6={uploadBoletoC6Import}
                   onUploadClientData={uploadBoletoCustomerDataImport}
-                  onUploadBoletoInter={uploadBoletoInterImport}
                   showMissingExportFallback={showMissingBoletosExportFallback}
                   showAllMonthlyMissingBoletos={showAllMonthlyMissingBoletos}
                   submitting={submitting}
@@ -2572,7 +2571,7 @@ function AppRuntime() {
             }
             path={billingRoute.path}
           />
-        ))}
+        )})}
         <Route element={<Navigate replace to="/sistema/importacoes-gerais" />} path="/financeiro/importacoes" />
 
         <Route
@@ -2874,7 +2873,11 @@ function AppRuntime() {
             <SystemImportsGeneralPage
               accounts={accounts}
               importSummary={importSummary}
+              onSyncCustomers={syncLinxCustomersImport}
+              onSyncInterCharges={syncInterChargesImport}
               onSyncInterStatement={syncInterStatementImport}
+              onSyncReceivables={syncLinxReceivablesImport}
+              onUploadBoletoInter={uploadBoletoInterImport}
               onUploadHistorical={uploadHistoricalCashbookImport}
               submitting={submitting}
               tabs={systemTabs}
