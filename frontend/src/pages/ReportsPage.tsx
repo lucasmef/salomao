@@ -15,10 +15,10 @@ type ReportTab = "dre" | "dro";
 type Props = {
   reports: ReportsOverview | null;
   importSummary: ImportSummary;
-  filters: { start: string; end: string };
+  filters: ReportFilters;
   loading: boolean;
-  onChangeFilters: (filters: { start: string; end: string }) => void;
-  onApplyFilters: () => Promise<void>;
+  onChangeFilters: (filters: ReportFilters) => void;
+  onApplyFilters: (filters?: ReportFilters) => Promise<void>;
   onExport: (kind: "dre" | "dro", format: "pdf" | "csv" | "xls") => Promise<void>;
   onSyncMovements: () => Promise<void>;
   onLoadConfig: (kind: "dre" | "dro") => Promise<ReportConfig>;
@@ -32,6 +32,7 @@ type StatementTableProps = {
   expandedKeys: Set<string>;
   onToggle: (key: string) => void;
 };
+type ReportFilters = { start: string; end: string };
 
 function collectExpandableKeys(nodes: ReportTreeNode[]): string[] {
   return nodes.flatMap((node) => (node.children.length > 0 ? [node.key, ...collectExpandableKeys(node.children)] : []));
@@ -161,7 +162,7 @@ export function ReportsPage({
   embedded = false,
   forcedTab = null,
 }: Props) {
-  const [periodDraft, setPeriodDraft] = useState(() => ({ start: filters.start, end: filters.end }));
+  const [filterDraft, setFilterDraft] = useState<ReportFilters>(filters);
   const [activeTab, setActiveTab] = useState<ReportTab>(forcedTab ?? "dre");
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const [configByKind, setConfigByKind] = useState<Record<ReportTab, ReportConfig | null>>({ dre: null, dro: null });
@@ -170,25 +171,12 @@ export function ReportsPage({
   const [configSaving, setConfigSaving] = useState(false);
   const [showPeriodPopover, setShowPeriodPopover] = useState(false);
   const [showPresetMenu, setShowPresetMenu] = useState(false);
-  const hasMountedAutoApplyRef = useRef(false);
-  const latestFiltersRef = useRef(filters);
-  const periodCommitTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const periodPopoverRef = useRef<HTMLDivElement | null>(null);
   const presetMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    latestFiltersRef.current = filters;
+    setFilterDraft(filters);
   }, [filters]);
-
-  useEffect(() => {
-    setPeriodDraft({ start: filters.start, end: filters.end });
-  }, [filters.end, filters.start]);
-
-  useEffect(() => () => {
-    if (periodCommitTimerRef.current) {
-      clearTimeout(periodCommitTimerRef.current);
-    }
-  }, []);
 
   useEffect(() => {
     if (forcedTab) {
@@ -214,14 +202,6 @@ export function ReportsPage({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showPeriodPopover, showPresetMenu]);
-
-  useEffect(() => {
-    if (!hasMountedAutoApplyRef.current) {
-      hasMountedAutoApplyRef.current = true;
-      return;
-    }
-    void onApplyFilters();
-  }, [filters.end, filters.start]);
 
   function toggleNode(key: string) {
     setExpandedKeys((current) => {
@@ -260,32 +240,13 @@ export function ReportsPage({
     }
   }
 
-  function commitDateRange(start: string, end: string) {
-    onChangeFilters({ ...latestFiltersRef.current, start, end });
+  function setDateRange(start: string, end: string) {
+    setFilterDraft({ start, end });
   }
 
-  function scheduleDateRangeCommit(start: string, end: string) {
-    if (periodCommitTimerRef.current) {
-      clearTimeout(periodCommitTimerRef.current);
-    }
-    if ((start && start.length < 10) || (end && end.length < 10)) {
-      return;
-    }
-    periodCommitTimerRef.current = window.setTimeout(() => {
-      commitDateRange(start, end);
-    }, 450);
-  }
-
-  function setDateRange(start: string, end: string, immediate = false) {
-    setPeriodDraft({ start, end });
-    if (immediate) {
-      if (periodCommitTimerRef.current) {
-        clearTimeout(periodCommitTimerRef.current);
-      }
-      commitDateRange(start, end);
-      return;
-    }
-    scheduleDateRangeCommit(start, end);
+  async function applyDraftFilters() {
+    onChangeFilters(filterDraft);
+    await onApplyFilters(filterDraft);
   }
 
   function applyPresetRange(kind: "today" | "current_month" | "previous_month" | "current_year") {
@@ -296,21 +257,21 @@ export function ReportsPage({
 
     if (kind === "today") {
       const current = formatValue(today);
-      setDateRange(current, current, true);
+      setDateRange(current, current);
       return;
     }
 
     if (kind === "current_month") {
-      setDateRange(formatValue(new Date(year, month, 1)), formatValue(new Date(year, month + 1, 0)), true);
+      setDateRange(formatValue(new Date(year, month, 1)), formatValue(new Date(year, month + 1, 0)));
       return;
     }
 
     if (kind === "previous_month") {
-      setDateRange(formatValue(new Date(year, month - 1, 1)), formatValue(new Date(year, month, 0)), true);
+      setDateRange(formatValue(new Date(year, month - 1, 1)), formatValue(new Date(year, month, 0)));
       return;
     }
 
-    setDateRange(formatValue(new Date(year, 0, 1)), formatValue(new Date(year, 11, 31)), true);
+    setDateRange(formatValue(new Date(year, 0, 1)), formatValue(new Date(year, 11, 31)));
   }
 
   const currentReport = activeTab === "dre" ? reports?.dre : reports?.dro;
@@ -338,25 +299,25 @@ export function ReportsPage({
             type="button"
           >
             <CalendarRangeIcon />
-            <span>{formatRangeLabel(periodDraft.start, periodDraft.end)}</span>
+            <span>{formatRangeLabel(filterDraft.start, filterDraft.end)}</span>
           </button>
           {showPeriodPopover && (
             <div className="entries-floating-panel entries-period-popover">
               <div className="entries-period-fields">
                 <label>
                   Inicio
-                  <input disabled={loading} type="date" value={periodDraft.start} onChange={(event) => setDateRange(event.target.value, periodDraft.end)} />
+                  <input disabled={loading} type="date" value={filterDraft.start} onChange={(event) => setDateRange(event.target.value, filterDraft.end)} />
                 </label>
                 <label>
                   Fim
-                  <input disabled={loading} type="date" value={periodDraft.end} onChange={(event) => setDateRange(periodDraft.start, event.target.value)} />
+                  <input disabled={loading} type="date" value={filterDraft.end} onChange={(event) => setDateRange(filterDraft.start, event.target.value)} />
                 </label>
               </div>
               <div className="entries-period-footer">
                 <button
                   className="secondary-button compact-button"
                   onClick={() => {
-                    setDateRange("", "", true);
+                    setDateRange("", "");
                     setShowPeriodPopover(false);
                   }}
                   type="button"
@@ -364,7 +325,6 @@ export function ReportsPage({
                   Limpar
                 </button>
                 <button className="primary-button compact-button" onClick={() => {
-                  setDateRange(periodDraft.start, periodDraft.end, true);
                   setShowPeriodPopover(false);
                 }} type="button">
                   Concluir
@@ -401,6 +361,9 @@ export function ReportsPage({
       </div>
 
       <div className="reports-top-toolbar-actions">
+        <button className="primary-button compact-button" disabled={loading} onClick={() => void applyDraftFilters()} type="button">
+          Aplicar
+        </button>
         <button
           aria-label={`Configurar ${activeTab.toUpperCase()}`}
           className="entries-toolbar-icon"

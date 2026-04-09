@@ -7,26 +7,21 @@ import type { Account, CashflowOverview } from "../types";
 type Props = {
   cashflow: CashflowOverview | null;
   accounts: Account[];
-  filters: {
-    start: string;
-    end: string;
-    account_id: string;
-    include_purchase_planning: boolean;
-    include_crediario_receivables: boolean;
-  };
+  filters: CashflowFilters;
   loading: boolean;
-  onChangeFilters: (filters: {
-    start: string;
-    end: string;
-    account_id: string;
-    include_purchase_planning: boolean;
-    include_crediario_receivables: boolean;
-  }) => void;
-  onApplyFilters: () => Promise<void>;
+  onChangeFilters: (filters: CashflowFilters) => void;
+  onApplyFilters: (filters?: CashflowFilters) => Promise<void>;
   embedded?: boolean;
 };
 
 type ViewMode = "daily" | "weekly" | "monthly";
+type CashflowFilters = {
+  start: string;
+  end: string;
+  account_id: string;
+  include_purchase_planning: boolean;
+  include_crediario_receivables: boolean;
+};
 
 function formatRangeLabel(start: string, end: string) {
   if (!start && !end) {
@@ -81,31 +76,18 @@ function formatProjectionReference(reference: string) {
 }
 
 export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFilters, onApplyFilters, embedded = false }: Props) {
-  const [periodDraft, setPeriodDraft] = useState(() => ({ start: filters.start, end: filters.end }));
+  const [filterDraft, setFilterDraft] = useState<CashflowFilters>(filters);
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [showPeriodPopover, setShowPeriodPopover] = useState(false);
   const [showPresetMenu, setShowPresetMenu] = useState(false);
   const [showBalancePopover, setShowBalancePopover] = useState(false);
-  const hasMountedAutoApplyRef = useRef(false);
-  const latestFiltersRef = useRef(filters);
-  const periodCommitTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const periodPopoverRef = useRef<HTMLDivElement | null>(null);
   const presetMenuRef = useRef<HTMLDivElement | null>(null);
   const balancePopoverRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    latestFiltersRef.current = filters;
+    setFilterDraft(filters);
   }, [filters]);
-
-  useEffect(() => {
-    setPeriodDraft({ start: filters.start, end: filters.end });
-  }, [filters.end, filters.start]);
-
-  useEffect(() => () => {
-    if (periodCommitTimerRef.current) {
-      clearTimeout(periodCommitTimerRef.current);
-    }
-  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -125,14 +107,6 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showBalancePopover, showPeriodPopover, showPresetMenu]);
 
-  useEffect(() => {
-    if (!hasMountedAutoApplyRef.current) {
-      hasMountedAutoApplyRef.current = true;
-      return;
-    }
-    void onApplyFilters();
-  }, [filters.account_id, filters.end, filters.include_crediario_receivables, filters.include_purchase_planning, filters.start]);
-
   const projection = useMemo(() => {
     if (viewMode === "weekly") {
       return cashflow?.weekly_projection ?? [];
@@ -143,32 +117,13 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
     return cashflow?.daily_projection ?? [];
   }, [cashflow, viewMode]);
 
-  function commitDateRange(start: string, end: string) {
-    onChangeFilters({ ...latestFiltersRef.current, start, end });
+  function setDateRange(start: string, end: string) {
+    setFilterDraft((current) => ({ ...current, start, end }));
   }
 
-  function scheduleDateRangeCommit(start: string, end: string) {
-    if (periodCommitTimerRef.current) {
-      clearTimeout(periodCommitTimerRef.current);
-    }
-    if ((start && start.length < 10) || (end && end.length < 10)) {
-      return;
-    }
-    periodCommitTimerRef.current = window.setTimeout(() => {
-      commitDateRange(start, end);
-    }, 450);
-  }
-
-  function setDateRange(start: string, end: string, immediate = false) {
-    setPeriodDraft({ start, end });
-    if (immediate) {
-      if (periodCommitTimerRef.current) {
-        clearTimeout(periodCommitTimerRef.current);
-      }
-      commitDateRange(start, end);
-      return;
-    }
-    scheduleDateRangeCommit(start, end);
+  async function applyDraftFilters() {
+    onChangeFilters(filterDraft);
+    await onApplyFilters(filterDraft);
   }
 
   function applyPresetRange(kind: "today" | "current_month" | "previous_month" | "current_year") {
@@ -179,21 +134,21 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
 
     if (kind === "today") {
       const current = formatValue(today);
-      setDateRange(current, current, true);
+      setDateRange(current, current);
       return;
     }
 
     if (kind === "current_month") {
-      setDateRange(formatValue(new Date(year, month, 1)), formatValue(new Date(year, month + 1, 0)), true);
+      setDateRange(formatValue(new Date(year, month, 1)), formatValue(new Date(year, month + 1, 0)));
       return;
     }
 
     if (kind === "previous_month") {
-      setDateRange(formatValue(new Date(year, month - 1, 1)), formatValue(new Date(year, month, 0)), true);
+      setDateRange(formatValue(new Date(year, month - 1, 1)), formatValue(new Date(year, month, 0)));
       return;
     }
 
-    setDateRange(formatValue(new Date(year, 0, 1)), formatValue(new Date(year, 11, 31)), true);
+    setDateRange(formatValue(new Date(year, 0, 1)), formatValue(new Date(year, 11, 31)));
   }
 
   const cashflowFiltersContent = (
@@ -203,8 +158,8 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
           aria-label="Conta do fluxo de caixa"
           className="reconciliation-top-select"
           disabled={loading}
-          value={filters.account_id}
-          onChange={(event) => onChangeFilters({ ...filters, account_id: event.target.value })}
+          value={filterDraft.account_id}
+          onChange={(event) => setFilterDraft((current) => ({ ...current, account_id: event.target.value }))}
         >
           <option value="">Todas as contas</option>
           {accounts.map((account) => (
@@ -228,25 +183,25 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
           type="button"
         >
           <CalendarRangeIcon />
-          <span>{formatRangeLabel(periodDraft.start, periodDraft.end)}</span>
+          <span>{formatRangeLabel(filterDraft.start, filterDraft.end)}</span>
         </button>
         {showPeriodPopover && (
           <div className="entries-floating-panel entries-period-popover">
             <div className="entries-period-fields">
               <label>
                 Inicio
-                <input disabled={loading} type="date" value={periodDraft.start} onChange={(event) => setDateRange(event.target.value, periodDraft.end)} />
+                <input disabled={loading} type="date" value={filterDraft.start} onChange={(event) => setDateRange(event.target.value, filterDraft.end)} />
               </label>
               <label>
                 Fim
-                <input disabled={loading} type="date" value={periodDraft.end} onChange={(event) => setDateRange(periodDraft.start, event.target.value)} />
+                <input disabled={loading} type="date" value={filterDraft.end} onChange={(event) => setDateRange(filterDraft.start, event.target.value)} />
               </label>
             </div>
             <div className="entries-period-footer">
               <button
                 className="secondary-button compact-button"
                 onClick={() => {
-                  setDateRange("", "", true);
+                  setDateRange("", "");
                   setShowPeriodPopover(false);
                 }}
                 type="button"
@@ -254,7 +209,6 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
                 Limpar
               </button>
               <button className="primary-button compact-button" onClick={() => {
-                setDateRange(periodDraft.start, periodDraft.end, true);
                 setShowPeriodPopover(false);
               }} type="button">
                 Concluir
@@ -292,23 +246,27 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
       <div className="cashflow-toggle-group">
         <label className="reconciliation-subtle-toggle">
           <input
-            checked={filters.include_purchase_planning}
+            checked={filterDraft.include_purchase_planning}
             disabled={loading}
-            onChange={(event) => onChangeFilters({ ...filters, include_purchase_planning: event.target.checked })}
+            onChange={(event) => setFilterDraft((current) => ({ ...current, include_purchase_planning: event.target.checked }))}
             type="checkbox"
           />
           <span>Incluir compras planejadas</span>
         </label>
         <label className="reconciliation-subtle-toggle">
           <input
-            checked={filters.include_crediario_receivables}
+            checked={filterDraft.include_crediario_receivables}
             disabled={loading}
-            onChange={(event) => onChangeFilters({ ...filters, include_crediario_receivables: event.target.checked })}
+            onChange={(event) => setFilterDraft((current) => ({ ...current, include_crediario_receivables: event.target.checked }))}
             type="checkbox"
           />
           <span>Incluir receitas crediario</span>
         </label>
       </div>
+
+      <button className="primary-button compact-button" disabled={loading} onClick={() => void applyDraftFilters()} type="button">
+        Aplicar
+      </button>
 
       <div className="cashflow-inline-meta">
         <div className="reconciliation-balance-wrap" ref={balancePopoverRef}>

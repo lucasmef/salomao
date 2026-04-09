@@ -1256,11 +1256,15 @@ function AppRuntime() {
     }
   }
 
-  async function applyCashflowFilters() {
+  async function applyCashflowFilters(nextFilters?: typeof cashflowFilters) {
     if (!session) return;
     setSubmitting(true);
     try {
-      const response = await fetchJson<CashflowOverview>(`/cashflow/overview?${buildCashflowQuery(cashflowFilters)}`, { token: session.token });
+      const effectiveFilters = nextFilters ?? cashflowFilters;
+      const response = await fetchJson<CashflowOverview>(`/cashflow/overview?${buildCashflowQuery(effectiveFilters)}`, { token: session.token });
+      if (nextFilters) {
+        setCashflowFilters(effectiveFilters);
+      }
       setCashflow(response);
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });
@@ -1303,11 +1307,15 @@ function AppRuntime() {
     }
   }
 
-  async function applyReportFilters() {
+  async function applyReportFilters(nextFilters?: typeof reportFilters) {
     if (!session) return;
     setSubmitting(true);
     try {
-      const response = await fetchJson<ReportsOverview>(`/reports/overview?${buildQuery(reportFilters)}`, { token: session.token });
+      const effectiveFilters = nextFilters ?? reportFilters;
+      const response = await fetchJson<ReportsOverview>(`/reports/overview?${buildQuery(effectiveFilters)}`, { token: session.token });
+      if (nextFilters) {
+        setReportFilters(effectiveFilters);
+      }
       setReports(response);
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });

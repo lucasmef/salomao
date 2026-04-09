@@ -653,7 +653,7 @@ textarea {
 
 .cashflow-top-toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 0.88fr) minmax(220px, 1fr) auto minmax(320px, 1.25fr) auto;
+  grid-template-columns: minmax(180px, 0.88fr) minmax(220px, 1fr) auto minmax(320px, 1.25fr) auto auto;
   align-items: center;
   gap: 10px;
 }
@@ -928,7 +928,7 @@ textarea {
 
 @media (max-width: 1380px) {
   .cashflow-top-toolbar {
-    grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr) auto minmax(280px, 1.2fr);
+    grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr) auto minmax(280px, 1.2fr) auto;
   }
 
   .cashflow-inline-meta {
