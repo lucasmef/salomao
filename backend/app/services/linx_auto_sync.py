@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
@@ -13,6 +13,7 @@ from app.db.models.linx import LinxMovement
 from app.db.models.security import Company
 from app.services.audit import write_audit_log
 from app.services.backup import ensure_pre_import_backup
+from app.services.inter import sync_inter_charges, sync_inter_statement
 from app.services.linx_receivable_settlement import settle_paid_pending_inter_receivables
 from app.services.linx_customers import sync_linx_customers
 from app.services.linx_movements import sync_linx_movements
@@ -25,6 +26,8 @@ AUTO_SYNC_TIMEZONE = ZoneInfo("America/Sao_Paulo")
 AUTO_SYNC_WINDOW_START_TIME = time(hour=6, minute=0)
 AUTO_SYNC_WINDOW_END_HOUR = 22
 PRODUCTS_SYNC_START_HOUR = 7
+INTER_STATEMENT_LOOKBACK_DAYS = 30
+INTER_CHARGES_LOOKBACK_DAYS = 90
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,8 @@ class LinxAutoSyncRun:
     company_name: str
     status: str
     attempted: bool
+    inter_statement_message: str | None = None
+    inter_charges_message: str | None = None
     customers_message: str | None = None
     receivables_message: str | None = None
     movements_message: str | None = None
@@ -61,6 +66,18 @@ def _now_in_sao_paulo(now: datetime | None = None) -> datetime:
 
 def _split_recipients(raw_value: str | None) -> list[str]:
     return [item.strip() for item in (raw_value or "").split(",") if item.strip()]
+
+
+def _default_inter_statement_period(now: datetime) -> tuple[date, date]:
+    end_date = now.date()
+    start_date = end_date - timedelta(days=INTER_STATEMENT_LOOKBACK_DAYS)
+    return start_date, end_date
+
+
+def _default_inter_charges_period(now: datetime) -> tuple[date, date]:
+    end_date = now.date()
+    start_date = end_date - timedelta(days=INTER_CHARGES_LOOKBACK_DAYS)
+    return start_date, end_date
 
 
 def _should_run_now(company: Company, *, now: datetime, force: bool) -> tuple[bool, str]:
@@ -222,6 +239,8 @@ def _build_error_email(
     attempted_at: datetime,
     status: str,
     summary: LinxAutoSyncSummary,
+    inter_statement_message: str | None,
+    inter_charges_message: str | None,
     customers_message: str | None,
     receivables_message: str | None,
     movements_message: str | None,
@@ -246,6 +265,8 @@ def _build_error_email(
             f"- Faturas de compra alteradas: {summary.purchase_payables_changed_count}",
             "",
             "Detalhes dos retornos:",
+            f"- Extrato Inter: {inter_statement_message or 'nao executado'}",
+            f"- Boletos Inter: {inter_charges_message or 'nao executado'}",
             f"- Clientes/fornecedores: {customers_message or 'nao executado'}",
             f"- Faturas a receber: {receivables_message or 'nao executado'}",
             f"- Movimentos: {movements_message or 'nao executado'}",
@@ -279,6 +300,8 @@ def run_linx_auto_sync_for_company(
         )
 
     errors: list[str] = []
+    inter_statement_message: str | None = None
+    inter_charges_message: str | None = None
     customers_message: str | None = None
     receivables_message: str | None = None
     movements_message: str | None = None
@@ -291,6 +314,40 @@ def run_linx_auto_sync_for_company(
         db.rollback()
         errors.append(f"Preparacao do backup: {error}")
     else:
+        inter_statement_ok = False
+        inter_charges_ok = False
+        receivables_ok = False
+        statement_start_date, statement_end_date = _default_inter_statement_period(local_now)
+        charge_start_date, charge_end_date = _default_inter_charges_period(local_now)
+        try:
+            inter_statement_result = sync_inter_statement(
+                db,
+                company,
+                account_id=None,
+                start_date=statement_start_date,
+                end_date=statement_end_date,
+            )
+            inter_statement_message = inter_statement_result.message
+            inter_statement_ok = True
+        except Exception as error:  # pragma: no cover
+            db.rollback()
+            errors.append(f"Extrato Inter: {error}")
+
+        try:
+            inter_charges_result = sync_inter_charges(
+                db,
+                company,
+                account_id=None,
+                start_date=charge_start_date,
+                end_date=charge_end_date,
+                run_settlement=False,
+            )
+            inter_charges_message = inter_charges_result.message
+            inter_charges_ok = True
+        except Exception as error:  # pragma: no cover
+            db.rollback()
+            errors.append(f"Boletos Inter: {error}")
+
         try:
             customers_result = sync_linx_customers(db, company)
             customers_message = customers_result.message
@@ -328,10 +385,26 @@ def run_linx_auto_sync_for_company(
         try:
             receivables_result = sync_linx_open_receivables(db, company)
             receivables_message = receivables_result.message
+            receivables_ok = True
         except Exception as error:  # pragma: no cover
             db.rollback()
             errors.append(f"Faturas a receber: {error}")
-        else:
+
+        if _should_run_purchase_payables_now(
+            db,
+            company,
+            now=local_now,
+            force=force,
+            purchase_activity_found=purchase_activity_found,
+        ):
+            try:
+                purchase_payables_result = sync_linx_purchase_payables(db, company, actor_user=None)
+                purchase_payables_message = purchase_payables_result.message
+            except Exception as error:  # pragma: no cover
+                db.rollback()
+                errors.append(f"Faturas de compra: {error}")
+
+        if inter_charges_ok and receivables_ok:
             try:
                 settlement_summary = settle_paid_pending_inter_receivables(db, company)
                 if settlement_summary.attempted_invoice_count:
@@ -353,20 +426,6 @@ def run_linx_auto_sync_for_company(
             except Exception as error:  # pragma: no cover
                 db.rollback()
                 errors.append(f"Baixas automaticas Linx: {error}")
-
-        if _should_run_purchase_payables_now(
-            db,
-            company,
-            now=local_now,
-            force=force,
-            purchase_activity_found=purchase_activity_found,
-        ):
-            try:
-                purchase_payables_result = sync_linx_purchase_payables(db, company, actor_user=None)
-                purchase_payables_message = purchase_payables_result.message
-            except Exception as error:  # pragma: no cover
-                db.rollback()
-                errors.append(f"Faturas de compra: {error}")
 
     summary = _build_summary(
         customers_message=customers_message,
@@ -399,6 +458,8 @@ def run_linx_auto_sync_for_company(
         after_state={
             "trigger": reason,
             "status": status,
+            "inter_statement_message": inter_statement_message,
+            "inter_charges_message": inter_charges_message,
             "customers_message": customers_message,
             "receivables_message": receivables_message,
             "movements_message": movements_message,
@@ -423,6 +484,8 @@ def run_linx_auto_sync_for_company(
                 attempted_at=local_now,
                 status=status,
                 summary=summary,
+                inter_statement_message=inter_statement_message,
+                inter_charges_message=inter_charges_message,
                 customers_message=customers_message,
                 receivables_message=receivables_message,
                 movements_message=movements_message,
@@ -449,6 +512,8 @@ def run_linx_auto_sync_for_company(
         company_name=company_name,
         status=status,
         attempted=True,
+        inter_statement_message=inter_statement_message,
+        inter_charges_message=inter_charges_message,
         customers_message=customers_message,
         receivables_message=receivables_message,
         movements_message=movements_message,

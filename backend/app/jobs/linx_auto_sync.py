@@ -32,6 +32,10 @@ def main(argv: list[str] | None = None) -> int:
         if run.attempted:
             attempted += 1
         print(f"{run.company_name}: {run.status}")
+        if run.inter_statement_message:
+            print(f"  extrato inter: {run.inter_statement_message}")
+        if run.inter_charges_message:
+            print(f"  boletos inter: {run.inter_charges_message}")
         if run.customers_message:
             print(f"  clientes: {run.customers_message}")
         if run.receivables_message:

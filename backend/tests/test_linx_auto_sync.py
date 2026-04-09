@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -43,6 +44,22 @@ def _build_session() -> tuple[Session, Company]:
 
 def _result(message: str, batch_id: str = "batch-1") -> SimpleNamespace:
     return SimpleNamespace(batch=SimpleNamespace(id=batch_id), message=message)
+
+
+@pytest.fixture(autouse=True)
+def _stub_inter_auto_sync(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_inter_statement",
+        lambda db, current_company, account_id=None, start_date=None, end_date=None: _result(
+            "Extrato do Inter sincronizado com sucesso."
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_inter_charges",
+        lambda db, current_company, account_id=None, start_date=None, end_date=None, run_settlement=True: _result(
+            "Cobrancas do Inter sincronizadas com sucesso."
+        ),
+    )
 
 
 def test_linx_auto_sync_skips_before_6h() -> None:
@@ -130,6 +147,8 @@ def test_linx_auto_sync_runs_api_syncs_and_suppresses_success_email(monkeypatch)
         assert result.summary.movements_changed_count == 5
         assert result.summary.products_changed_count == 6
         assert result.summary.receivables_changed_count == 9
+        assert result.inter_statement_message == "Extrato do Inter sincronizado com sucesso."
+        assert result.inter_charges_message == "Cobrancas do Inter sincronizadas com sucesso."
         assert result.products_message is not None
         assert "Baixa automatica no Linx concluida" in (result.receivables_message or "")
         assert email_calls == []
@@ -190,6 +209,8 @@ def test_linx_auto_sync_sends_email_only_when_error_occurs(monkeypatch) -> None:
         assert len(email_calls) == 1
         assert email_calls[0][2] == ["alertas@example.com"]
         assert "chave API expirada" in email_calls[0][1]
+        assert "Extrato do Inter sincronizado com sucesso." in email_calls[0][1]
+        assert "Cobrancas do Inter sincronizadas com sucesso." in email_calls[0][1]
         session.refresh(company)
         assert company.linx_auto_sync_last_status == "partial_failure"
         assert company.linx_auto_sync_last_error == "Faturas a receber: chave API expirada"
@@ -497,5 +518,130 @@ def test_linx_auto_sync_still_skips_second_run_in_same_hour(monkeypatch) -> None
 
         assert result.attempted is False
         assert result.status == "already-ran"
+    finally:
+        session.close()
+
+
+def test_linx_auto_sync_runs_inter_before_settlement_and_disables_charge_inline_settlement(monkeypatch) -> None:
+    session, company = _build_session()
+    calls: list[str] = []
+    charge_sync_args: list[bool] = []
+
+    monkeypatch.setattr("app.services.linx_auto_sync.ensure_pre_import_backup", lambda source: None)
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_inter_statement",
+        lambda db, current_company, account_id=None, start_date=None, end_date=None: calls.append("inter_statement")
+        or _result("Extrato do Inter sincronizado com sucesso."),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_inter_charges",
+        lambda db, current_company, account_id=None, start_date=None, end_date=None, run_settlement=True: charge_sync_args.append(run_settlement)
+        or calls.append("inter_charges")
+        or _result("Cobrancas do Inter sincronizadas com sucesso."),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_customers",
+        lambda db, current_company: calls.append("customers") or _result("customers ok"),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_movements",
+        lambda db, current_company: calls.append("movements") or _result("movements ok", batch_id="mov-batch"),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync._count_touched_purchase_movements",
+        lambda db, *, company_id, batch_id: 0,
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync._should_run_products_now",
+        lambda *args, **kwargs: False,
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_open_receivables",
+        lambda db, current_company: calls.append("receivables")
+        or _result("Faturas a receber Linx sincronizadas com sucesso. 0 nova(s), 0 atualizada(s) e 0 removida(s) da base aberta."),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_purchase_payables",
+        lambda db, current_company, actor_user=None: _result("purchase payables ok"),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.settle_paid_pending_inter_receivables",
+        lambda db, current_company: calls.append("settlement")
+        or LinxSettlementSummary(
+            attempted_invoice_count=1,
+            settled_invoice_count=1,
+            failed_invoice_count=0,
+            client_count=1,
+        ),
+    )
+    monkeypatch.setattr("app.services.linx_auto_sync.send_email", lambda *args, **kwargs: None)
+
+    try:
+        result = run_linx_auto_sync_for_company(
+            session,
+            company,
+            now=datetime(2026, 4, 4, 10, 30, tzinfo=AUTO_SYNC_TIMEZONE),
+        )
+
+        assert result.status == "success"
+        assert charge_sync_args == [False]
+        assert calls.index("inter_statement") < calls.index("settlement")
+        assert calls.index("inter_charges") < calls.index("settlement")
+        assert calls.index("receivables") < calls.index("settlement")
+    finally:
+        session.close()
+
+
+def test_linx_auto_sync_emails_when_inter_sync_fails(monkeypatch) -> None:
+    session, company = _build_session()
+    email_calls: list[tuple[str, str, list[str] | None]] = []
+
+    monkeypatch.setattr("app.services.linx_auto_sync.ensure_pre_import_backup", lambda source: None)
+
+    def _fail_inter_charges(db, current_company, account_id=None, start_date=None, end_date=None, run_settlement=True):
+        raise ValueError("token Inter expirado")
+
+    monkeypatch.setattr("app.services.linx_auto_sync.sync_inter_charges", _fail_inter_charges)
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_customers",
+        lambda db, current_company: _result("customers ok"),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_movements",
+        lambda db, current_company: _result("movements ok", batch_id="mov-batch"),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync._count_touched_purchase_movements",
+        lambda db, *, company_id, batch_id: 0,
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync._should_run_products_now",
+        lambda *args, **kwargs: False,
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_open_receivables",
+        lambda db, current_company: _result("receivables ok"),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_purchase_payables",
+        lambda db, current_company, actor_user=None: _result("purchase payables ok"),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.send_email",
+        lambda subject, body, *, recipients=None: email_calls.append((subject, body, recipients)),
+    )
+
+    try:
+        result = run_linx_auto_sync_for_company(
+            session,
+            company,
+            now=datetime(2026, 4, 4, 11, 0, tzinfo=AUTO_SYNC_TIMEZONE),
+        )
+
+        assert result.status == "partial_failure"
+        assert result.error_message == "Boletos Inter: token Inter expirado"
+        assert len(email_calls) == 1
+        assert "token Inter expirado" in email_calls[0][1]
+        assert email_calls[0][2] == ["alertas@example.com"]
     finally:
         session.close()

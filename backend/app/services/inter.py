@@ -1080,6 +1080,7 @@ def sync_inter_charges(
     account_id: str | None,
     start_date: date,
     end_date: date,
+    run_settlement: bool = True,
     transport: httpx.BaseTransport | None = None,
 ) -> ImportResult:
     account, config = _resolve_inter_account(db, company, account_id)
@@ -1163,7 +1164,7 @@ def sync_inter_charges(
 
     settlement_message: str | None = None
     settlement_warning: str | None = None
-    if processed_charge_codes:
+    if run_settlement and processed_charge_codes:
         try:
             settlement_summary = settle_paid_pending_inter_receivables(
                 db,
