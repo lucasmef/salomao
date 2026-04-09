@@ -4,6 +4,7 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import DbSession
+from app.db.models.imports import ImportBatch
 from app.schemas.boletos import (
     BoletoClientConfigBulkUpdate,
     BoletoInterCancelRequest,
@@ -14,7 +15,7 @@ from app.schemas.boletos import (
     StandaloneBoletoCreateRequest,
 )
 from app.schemas.inter import InterChargeIssueRequest, InterChargeSyncRequest
-from app.schemas.imports import ImportResult
+from app.schemas.imports import ImportBatchRead, ImportResult
 from app.services.boletos import (
     build_boleto_dashboard,
     build_missing_boletos_export,
@@ -36,6 +37,7 @@ from app.services.inter import (
     sync_standalone_inter_charges,
     sync_inter_charges,
 )
+from app.services.linx_receivable_settlement import settle_paid_pending_inter_receivables
 
 router = APIRouter()
 
@@ -104,13 +106,40 @@ async def upload_c6_boletos(
     company = get_current_company(db)
     try:
         content = await file.read()
-        return import_boleto_report(
+        result = import_boleto_report(
             db,
             company,
             bank="C6",
             filename=file.filename or "relatorio-c6.csv",
             content=content,
         )
+        settlement_notes: list[str] = []
+        try:
+            settlement_summary = settle_paid_pending_inter_receivables(
+                db,
+                company,
+                filter_banks={"C6"},
+            )
+            if settlement_summary.attempted_invoice_count:
+                settlement_notes.append(settlement_summary.message)
+            if settlement_summary.failed_invoice_count:
+                settlement_notes.append("; ".join(settlement_summary.failure_messages))
+            elif settlement_summary.email_error:
+                settlement_notes.append(f"Resumo de baixa automatica nao enviado: {settlement_summary.email_error}")
+        except Exception as error:
+            settlement_notes.append(f"Baixa automatica no Linx nao executada: {error}")
+
+        if settlement_notes:
+            batch = db.get(ImportBatch, result.batch.id)
+            joined_notes = " ".join(note for note in settlement_notes if note).strip()
+            if batch:
+                current_summary = (batch.error_summary or "").strip()
+                batch.error_summary = " ".join(part for part in [current_summary, joined_notes] if part).strip() or None
+                db.commit()
+                db.refresh(batch)
+                result.batch = ImportBatchRead.model_validate(batch)
+            result.message = " ".join([result.message, joined_notes]).strip()
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error

@@ -151,11 +151,12 @@ class LinxSettlementSummary:
     validate_only: bool = False
     email_error: str | None = None
     failure_messages: tuple[str, ...] = ()
+    empty_scope_phrase: str = "do Inter"
 
     @property
     def message(self) -> str:
         if self.attempted_invoice_count == 0:
-            return "Nenhuma fatura paga sem baixa do Inter encontrada para baixar no Linx."
+            return f"Nenhuma fatura paga sem baixa {self.empty_scope_phrase} encontrada para baixar no Linx."
         if self.validate_only:
             return (
                 "Validacao automatica no Linx concluida. "
@@ -177,12 +178,16 @@ def settle_paid_pending_inter_receivables(
     company: Company,
     *,
     filter_charge_codes: set[str] | None = None,
+    filter_banks: set[str] | None = None,
     validate_only: bool = False,
 ) -> LinxSettlementSummary:
+    normalized_filter_banks = _normalize_bank_filters(filter_banks)
+    empty_scope_phrase = _build_empty_scope_phrase(normalized_filter_banks)
     dashboard = build_boleto_dashboard(db, company, include_all_monthly_missing=True)
     candidates, precheck_failures = _build_settlement_candidates(
         dashboard.paid_pending,
         filter_charge_codes=filter_charge_codes,
+        filter_banks=normalized_filter_banks,
     )
     if not candidates and not precheck_failures:
         return LinxSettlementSummary(
@@ -191,6 +196,7 @@ def settle_paid_pending_inter_receivables(
             failed_invoice_count=0,
             client_count=0,
             validate_only=validate_only,
+            empty_scope_phrase=empty_scope_phrase,
         )
 
     results = [*precheck_failures]
@@ -243,6 +249,7 @@ def settle_paid_pending_inter_receivables(
         validate_only=validate_only,
         email_error=email_error,
         failure_messages=tuple(item.message for item in failed_results),
+        empty_scope_phrase=empty_scope_phrase,
     )
 
 
@@ -250,22 +257,28 @@ def _build_settlement_candidates(
     items: list[BoletoMatchItem],
     *,
     filter_charge_codes: set[str] | None,
+    filter_banks: set[str] | None,
 ) -> tuple[list[LinxSettlementCandidate], list[LinxSettlementInvoiceResult]]:
     normalized_filter_codes = {item.strip() for item in (filter_charge_codes or set()) if item and item.strip()}
     candidates: list[LinxSettlementCandidate] = []
     failures: list[LinxSettlementInvoiceResult] = []
     for item in items:
-        if (item.bank or "").strip().upper() != "INTER":
+        bank = (item.bank or "").strip().upper()
+        if not bank:
             continue
-        charge_codes = tuple(
-            code
-            for code in {
-                (boleto.inter_codigo_solicitacao or "").strip()
-                for boleto in item.boletos
-            }
-            if code
-        )
-        if normalized_filter_codes and not (set(charge_codes) & normalized_filter_codes):
+        if filter_banks and bank not in filter_banks:
+            continue
+        charge_codes = ()
+        if bank == "INTER":
+            charge_codes = tuple(
+                code
+                for code in {
+                    (boleto.inter_codigo_solicitacao or "").strip()
+                    for boleto in item.boletos
+                }
+                if code
+            )
+        if normalized_filter_codes and (bank != "INTER" or not (set(charge_codes) & normalized_filter_codes)):
             continue
         receivables = tuple(sorted(item.receivables, key=_receivable_sort_key))
         if not receivables:
@@ -317,6 +330,20 @@ def _build_settlement_candidates(
         )
     candidates.sort(key=_candidate_sort_key)
     return candidates, failures
+
+
+def _normalize_bank_filters(filter_banks: set[str] | None) -> set[str]:
+    normalized = {(item or "").strip().upper() for item in (filter_banks or {"INTER"})}
+    normalized.discard("")
+    return normalized or {"INTER"}
+
+
+def _build_empty_scope_phrase(filter_banks: set[str]) -> str:
+    if filter_banks == {"INTER"}:
+        return "do Inter"
+    if filter_banks == {"C6"}:
+        return "do C6"
+    return "dos boletos selecionados"
 
 
 def _settle_candidates_in_portal(
