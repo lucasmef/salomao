@@ -38,15 +38,6 @@ const emptyAccount = {
   inter_client_secret: "",
   inter_certificate_pem: "",
   inter_private_key_pem: "",
-  c6_api_enabled: false,
-  c6_environment: "production",
-  c6_api_base_url: "",
-  c6_client_id: "",
-  c6_partner_software_name: "Gestor Financeiro",
-  c6_partner_software_version: "0.1.0",
-  c6_client_secret: "",
-  c6_certificate_pem: "",
-  c6_private_key_pem: "",
 };
 
 const emptyCategory = {
@@ -201,13 +192,6 @@ export function MasterDataPage({
       inter_client_secret: accountForm.inter_client_secret || null,
       inter_certificate_pem: accountForm.inter_certificate_pem || null,
       inter_private_key_pem: accountForm.inter_private_key_pem || null,
-      c6_api_base_url: accountForm.c6_api_base_url || null,
-      c6_client_id: accountForm.c6_client_id || null,
-      c6_partner_software_name: accountForm.c6_partner_software_name || null,
-      c6_partner_software_version: accountForm.c6_partner_software_version || null,
-      c6_client_secret: accountForm.c6_client_secret || null,
-      c6_certificate_pem: accountForm.c6_certificate_pem || null,
-      c6_private_key_pem: accountForm.c6_private_key_pem || null,
     };
     if (editingAccountId) {
       await onUpdateAccount(editingAccountId, payload);
@@ -415,99 +399,6 @@ export function MasterDataPage({
                   placeholder="Cole a chave privada da integracao Inter"
                 />
               </label>
-              <label className="checkbox-line">
-                <input
-                  type="checkbox"
-                  checked={accountForm.c6_api_enabled}
-                  onChange={(event) =>
-                    setAccountForm({ ...accountForm, c6_api_enabled: event.target.checked })
-                  }
-                />
-                API C6 Bank
-              </label>
-              <small className="compact-muted full-width">
-                Use esta configuracao para autenticar no sandbox do C6 e consultar boletos por ID. Esta primeira etapa
-                nao libera emissao.
-              </small>
-              <label>
-                Ambiente C6
-                <select
-                  value={accountForm.c6_environment}
-                  onChange={(event) => setAccountForm({ ...accountForm, c6_environment: event.target.value })}
-                >
-                  <option value="production">Producao</option>
-                  <option value="sandbox">Sandbox</option>
-                </select>
-              </label>
-              <label>
-                Client ID C6
-                <input
-                  value={accountForm.c6_client_id}
-                  onChange={(event) => setAccountForm({ ...accountForm, c6_client_id: event.target.value })}
-                  placeholder="Client ID da integracao C6"
-                />
-              </label>
-              <label>
-                Nome do software
-                <input
-                  value={accountForm.c6_partner_software_name}
-                  onChange={(event) =>
-                    setAccountForm({ ...accountForm, c6_partner_software_name: event.target.value })
-                  }
-                  placeholder="partner-software-name"
-                />
-              </label>
-              <label>
-                Versao do software
-                <input
-                  value={accountForm.c6_partner_software_version}
-                  onChange={(event) =>
-                    setAccountForm({ ...accountForm, c6_partner_software_version: event.target.value })
-                  }
-                  placeholder="partner-software-version"
-                />
-              </label>
-              <label className="full-width">
-                URL base C6
-                <input
-                  value={accountForm.c6_api_base_url}
-                  onChange={(event) => setAccountForm({ ...accountForm, c6_api_base_url: event.target.value })}
-                  placeholder="Opcional. Ex.: https://baas-api-sandbox.c6bank.info"
-                />
-              </label>
-              <label className="full-width">
-                Client secret C6
-                <textarea
-                  rows={3}
-                  value={accountForm.c6_client_secret}
-                  onChange={(event) =>
-                    setAccountForm({ ...accountForm, c6_client_secret: event.target.value })
-                  }
-                  placeholder="Deixe em branco para manter o secret ja salvo"
-                />
-              </label>
-              <label className="full-width">
-                Certificado PEM C6
-                <textarea
-                  rows={4}
-                  value={accountForm.c6_certificate_pem}
-                  onChange={(event) =>
-                    setAccountForm({ ...accountForm, c6_certificate_pem: event.target.value })
-                  }
-                  placeholder="Cole o certificado .crt em formato PEM"
-                />
-              </label>
-              <label className="full-width">
-                Chave privada PEM C6
-                <textarea
-                  rows={4}
-                  value={accountForm.c6_private_key_pem}
-                  onChange={(event) =>
-                    setAccountForm({ ...accountForm, c6_private_key_pem: event.target.value })
-                  }
-                  placeholder="Cole a chave privada .key em formato PEM"
-                />
-              </label>
               <div className="action-row">
                 <button className="primary-button" disabled={submitting} type="submit">
                   {editingAccountId ? "Salvar alteracoes" : "Criar conta"}
@@ -660,7 +551,6 @@ export function MasterDataPage({
                   <th>Saldo inicial</th>
                   <th>OFX</th>
                   <th>Inter</th>
-                  <th>C6</th>
                   <th>Status</th>
                   <th></th>
                 </tr>
@@ -675,13 +565,6 @@ export function MasterDataPage({
                     <td>
                       {account.inter_api_enabled
                         ? account.has_inter_client_secret && account.has_inter_certificate && account.has_inter_private_key
-                          ? "Configurado"
-                          : "Pendente"
-                        : "Desligado"}
-                    </td>
-                    <td>
-                      {account.c6_api_enabled
-                        ? account.has_c6_client_secret && account.has_c6_certificate && account.has_c6_private_key
                           ? "Configurado"
                           : "Pendente"
                         : "Desligado"}
@@ -710,15 +593,6 @@ export function MasterDataPage({
                             inter_client_secret: "",
                             inter_certificate_pem: "",
                             inter_private_key_pem: "",
-                            c6_api_enabled: account.c6_api_enabled ?? false,
-                            c6_environment: account.c6_environment ?? "production",
-                            c6_api_base_url: account.c6_api_base_url ?? "",
-                            c6_client_id: account.c6_client_id ?? "",
-                            c6_partner_software_name: account.c6_partner_software_name ?? "Gestor Financeiro",
-                            c6_partner_software_version: account.c6_partner_software_version ?? "0.1.0",
-                            c6_client_secret: "",
-                            c6_certificate_pem: "",
-                            c6_private_key_pem: "",
                           });
                         }}
                       >

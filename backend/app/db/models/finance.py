@@ -27,15 +27,6 @@ class Account(Base, IdMixin, TimestampMixin):
     inter_client_secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     inter_certificate_pem_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     inter_private_key_pem_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
-    c6_api_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    c6_environment: Mapped[str] = mapped_column(String(20), default="production")
-    c6_api_base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    c6_client_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
-    c6_partner_software_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
-    c6_partner_software_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
-    c6_client_secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
-    c6_certificate_pem_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
-    c6_private_key_pem_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class Category(Base, IdMixin, TimestampMixin):

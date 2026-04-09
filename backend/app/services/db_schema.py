@@ -351,15 +351,6 @@ def ensure_schema_updates(engine: Engine) -> None:
             "inter_client_secret_encrypted": "TEXT",
             "inter_certificate_pem_encrypted": "TEXT",
             "inter_private_key_pem_encrypted": "TEXT",
-            "c6_api_enabled": "BOOLEAN DEFAULT 0",
-            "c6_environment": "VARCHAR(20) DEFAULT 'production'",
-            "c6_api_base_url": "VARCHAR(255)",
-            "c6_client_id": "VARCHAR(160)",
-            "c6_partner_software_name": "VARCHAR(160)",
-            "c6_partner_software_version": "VARCHAR(40)",
-            "c6_client_secret_encrypted": "TEXT",
-            "c6_certificate_pem_encrypted": "TEXT",
-            "c6_private_key_pem_encrypted": "TEXT",
         }
         for column_name, sql_type in account_columns.items():
             _add_column_if_missing(connection, "accounts", column_name, sql_type)

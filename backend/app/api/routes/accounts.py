@@ -28,18 +28,9 @@ def _serialize_account(account: Account) -> AccountRead:
         inter_api_base_url=account.inter_api_base_url,
         inter_api_key=account.inter_api_key,
         inter_account_number=account.inter_account_number,
-        c6_api_enabled=account.c6_api_enabled,
-        c6_environment=account.c6_environment,
-        c6_api_base_url=account.c6_api_base_url,
-        c6_client_id=account.c6_client_id,
-        c6_partner_software_name=account.c6_partner_software_name,
-        c6_partner_software_version=account.c6_partner_software_version,
         has_inter_client_secret=bool(account.inter_client_secret_encrypted),
         has_inter_certificate=bool(account.inter_certificate_pem_encrypted),
         has_inter_private_key=bool(account.inter_private_key_pem_encrypted),
-        has_c6_client_secret=bool(account.c6_client_secret_encrypted),
-        has_c6_certificate=bool(account.c6_certificate_pem_encrypted),
-        has_c6_private_key=bool(account.c6_private_key_pem_encrypted),
     )
 
 
@@ -50,14 +41,7 @@ def _normalize_optional_text(value: str | None) -> str | None:
 
 def _apply_account_payload(account: Account, payload: AccountCreate, *, preserve_inter_secrets: bool) -> None:
     data = payload.model_dump(
-        exclude={
-            "inter_client_secret",
-            "inter_certificate_pem",
-            "inter_private_key_pem",
-            "c6_client_secret",
-            "c6_certificate_pem",
-            "c6_private_key_pem",
-        }
+        exclude={"inter_client_secret", "inter_certificate_pem", "inter_private_key_pem"}
     )
     for field_name, value in data.items():
         setattr(account, field_name, value)
@@ -65,9 +49,6 @@ def _apply_account_payload(account: Account, payload: AccountCreate, *, preserve
     secret_value = _normalize_optional_text(payload.inter_client_secret)
     certificate_value = _normalize_optional_text(payload.inter_certificate_pem)
     private_key_value = _normalize_optional_text(payload.inter_private_key_pem)
-    c6_secret_value = _normalize_optional_text(payload.c6_client_secret)
-    c6_certificate_value = _normalize_optional_text(payload.c6_certificate_pem)
-    c6_private_key_value = _normalize_optional_text(payload.c6_private_key_pem)
 
     if not preserve_inter_secrets or secret_value is not None:
         account.inter_client_secret_encrypted = encrypt_text(secret_value)
@@ -75,12 +56,6 @@ def _apply_account_payload(account: Account, payload: AccountCreate, *, preserve
         account.inter_certificate_pem_encrypted = encrypt_text(certificate_value)
     if not preserve_inter_secrets or private_key_value is not None:
         account.inter_private_key_pem_encrypted = encrypt_text(private_key_value)
-    if not preserve_inter_secrets or c6_secret_value is not None:
-        account.c6_client_secret_encrypted = encrypt_text(c6_secret_value)
-    if not preserve_inter_secrets or c6_certificate_value is not None:
-        account.c6_certificate_pem_encrypted = encrypt_text(c6_certificate_value)
-    if not preserve_inter_secrets or c6_private_key_value is not None:
-        account.c6_private_key_pem_encrypted = encrypt_text(c6_private_key_value)
 
 
 def _ensure_single_inter_account(db: DbSession, company_id: str, active_account_id: str) -> None:
@@ -90,19 +65,8 @@ def _ensure_single_inter_account(db: DbSession, company_id: str, active_account_
             Account.id != active_account_id,
             Account.inter_api_enabled.is_(True),
         )
-        ):
-            account.inter_api_enabled = False
-
-
-def _ensure_single_c6_account(db: DbSession, company_id: str, active_account_id: str) -> None:
-    for account in db.scalars(
-        select(Account).where(
-            Account.company_id == company_id,
-            Account.id != active_account_id,
-            Account.c6_api_enabled.is_(True),
-        )
     ):
-        account.c6_api_enabled = False
+        account.inter_api_enabled = False
 
 
 @router.get("", response_model=list[AccountRead])
@@ -127,8 +91,6 @@ def create_account(payload: AccountCreate, db: DbSession, current_user: CurrentU
     db.flush()
     if account.inter_api_enabled:
         _ensure_single_inter_account(db, company.id, account.id)
-    if account.c6_api_enabled:
-        _ensure_single_c6_account(db, company.id, account.id)
     write_audit_log(
         db,
         action="create_account",
@@ -168,8 +130,6 @@ def update_account(
     db.flush()
     if account.inter_api_enabled:
         _ensure_single_inter_account(db, company.id, account.id)
-    if account.c6_api_enabled:
-        _ensure_single_c6_account(db, company.id, account.id)
     write_audit_log(
         db,
         action="update_account",

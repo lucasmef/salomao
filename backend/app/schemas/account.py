@@ -17,12 +17,6 @@ class AccountBase(BaseModel):
     inter_api_base_url: str | None = Field(default=None, max_length=255)
     inter_api_key: str | None = Field(default=None, max_length=160)
     inter_account_number: str | None = Field(default=None, max_length=30)
-    c6_api_enabled: bool = False
-    c6_environment: str = Field(default="production", max_length=20)
-    c6_api_base_url: str | None = Field(default=None, max_length=255)
-    c6_client_id: str | None = Field(default=None, max_length=160)
-    c6_partner_software_name: str | None = Field(default=None, max_length=160)
-    c6_partner_software_version: str | None = Field(default=None, max_length=40)
 
     @field_validator("inter_environment")
     @classmethod
@@ -32,22 +26,11 @@ class AccountBase(BaseModel):
             raise ValueError("Ambiente Inter invalido")
         return normalized
 
-    @field_validator("c6_environment")
-    @classmethod
-    def validate_c6_environment(cls, value: str) -> str:
-        normalized = (value or "production").strip().lower()
-        if normalized not in {"production", "sandbox"}:
-            raise ValueError("Ambiente C6 invalido")
-        return normalized
-
 
 class AccountCreate(AccountBase):
     inter_client_secret: str | None = None
     inter_certificate_pem: str | None = None
     inter_private_key_pem: str | None = None
-    c6_client_secret: str | None = None
-    c6_certificate_pem: str | None = None
-    c6_private_key_pem: str | None = None
 
 
 class AccountRead(AccountBase):
@@ -56,8 +39,5 @@ class AccountRead(AccountBase):
     has_inter_client_secret: bool = False
     has_inter_certificate: bool = False
     has_inter_private_key: bool = False
-    has_c6_client_secret: bool = False
-    has_c6_certificate: bool = False
-    has_c6_private_key: bool = False
 
     model_config = {"from_attributes": True}
