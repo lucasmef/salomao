@@ -1400,73 +1400,6 @@ export function BoletosPage({
     <div className="page-layout">
       {view === "standalone" && (
         <>
-          <section className="content-grid two-columns">
-            <article className="panel compact-panel-card">
-              <div className="panel-title compact-title-row">
-                <div>
-                  <h3>Boletos avulsos</h3>
-                  <small className="compact-muted">Espaço reservado para emissões fora da cobrança recorrente.</small>
-                </div>
-                <div className="action-row">
-                  <button
-                    className="secondary-button"
-                    disabled={submitting || !hasInterApiAccount}
-                    onClick={() => void onSyncStandaloneBoletos()}
-                    type="button"
-                  >
-                    Atualizar Inter
-                  </button>
-                </div>
-              </div>
-              <div className="stacked-copy">
-                <p>
-                  Esta seção foi criada para concentrar os boletos emitidos manualmente, sem depender das faturas em aberto da cobrança.
-                </p>
-                <p>
-                  O botão <strong>Baixado</strong> serve só para encerrar o acompanhamento no Salomão. O status <strong>Pago</strong> continua vindo do banco.
-                </p>
-              </div>
-              <div className="action-row">
-                <button
-                  className="primary-button"
-                  disabled={submitting}
-                  onClick={openStandaloneBoletoModal}
-                  type="button"
-                >
-                  Novo boleto avulso
-                </button>
-              </div>
-            </article>
-
-            <article className="panel compact-panel-card">
-              <div className="panel-title compact-title-row">
-                <h3>Preparação da base</h3>
-              </div>
-              <div className="table-shell">
-                <table className="erp-table">
-                  <tbody>
-                    <tr>
-                      <td>Clientes Linx API</td>
-                      <td>{renderFileMeta("linx_customers")}</td>
-                    </tr>
-                    <tr>
-                      <td>Inter cobranças</td>
-                      <td>{renderFileMeta("inter_charge_sync")}</td>
-                    </tr>
-                    <tr>
-                      <td>Boletos em aberto hoje</td>
-                      <td>{dashboard.open_boletos.length}</td>
-                    </tr>
-                    <tr>
-                      <td>Avulsos visíveis</td>
-                      <td>{visibleStandaloneBoletos.length}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </article>
-          </section>
-
           <section className="panel compact-panel-card">
             <div className="panel-title compact-title-row">
               <h3>Controle dos boletos avulsos</h3>
@@ -1485,6 +1418,22 @@ export function BoletosPage({
                     <option value="all">Todos</option>
                   </select>
                 </label>
+                <button
+                  className="secondary-button"
+                  disabled={submitting || !hasInterApiAccount}
+                  onClick={() => void onSyncStandaloneBoletos()}
+                  type="button"
+                >
+                  Atualizar Inter
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={submitting}
+                  onClick={openStandaloneBoletoModal}
+                  type="button"
+                >
+                  Novo boleto avulso
+                </button>
                 <span>{visibleStandaloneBoletos.length}</span>
               </div>
             </div>
