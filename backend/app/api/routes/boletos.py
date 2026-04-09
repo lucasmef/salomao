@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import DbSession
 from app.db.models.imports import ImportBatch
+from app.schemas.c6 import C6AuthTestRequest, C6AuthTestResponse, C6BankSlipLookupResponse
 from app.schemas.boletos import (
     BoletoClientConfigBulkUpdate,
     BoletoInterCancelRequest,
@@ -23,6 +24,7 @@ from app.services.boletos import (
     import_boleto_report,
     update_boleto_configs,
 )
+from app.services.c6 import consult_c6_bank_slip, download_c6_bank_slip_pdf, test_c6_authentication
 from app.services.company_context import get_current_company
 from app.services.inter import (
     cancel_inter_charge,
@@ -343,6 +345,68 @@ def cancel_standalone_boleto(
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/c6/auth-test", response_model=C6AuthTestResponse)
+def trigger_c6_auth_test(
+    payload: C6AuthTestRequest,
+    db: DbSession,
+) -> C6AuthTestResponse:
+    company = get_current_company(db)
+    try:
+        config, token = test_c6_authentication(db, company, account_id=payload.account_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return C6AuthTestResponse(
+        account_id=config.account_id,
+        environment=config.environment,
+        token_type=token.token_type,
+        expires_in=token.expires_in,
+        scope=token.scope,
+    )
+
+
+@router.get("/c6/{bank_slip_id}", response_model=C6BankSlipLookupResponse)
+def get_c6_bank_slip(
+    bank_slip_id: str,
+    db: DbSession,
+    account_id: str | None = Query(default=None),
+) -> C6BankSlipLookupResponse:
+    company = get_current_company(db)
+    try:
+        config, payload = consult_c6_bank_slip(db, company, bank_slip_id=bank_slip_id, account_id=account_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return C6BankSlipLookupResponse(
+        account_id=config.account_id,
+        environment=config.environment,
+        bank_slip_id=bank_slip_id,
+        payload=payload,
+    )
+
+
+@router.get("/c6/{bank_slip_id}/pdf")
+def get_c6_bank_slip_pdf(
+    bank_slip_id: str,
+    db: DbSession,
+    account_id: str | None = Query(default=None),
+) -> StreamingResponse:
+    company = get_current_company(db)
+    try:
+        _config, content = download_c6_bank_slip_pdf(
+            db,
+            company,
+            bank_slip_id=bank_slip_id,
+            account_id=account_id,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return StreamingResponse(
+        BytesIO(content),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="boleto-c6-{bank_slip_id}.pdf"'},
+    )
 
 
 @router.post("/standalone/{boleto_id}/downloaded", status_code=status.HTTP_204_NO_CONTENT)

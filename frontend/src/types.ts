@@ -105,6 +105,15 @@ export type Account = {
   has_inter_client_secret?: boolean;
   has_inter_certificate?: boolean;
   has_inter_private_key?: boolean;
+  c6_api_enabled?: boolean;
+  c6_environment?: string;
+  c6_api_base_url?: string | null;
+  c6_client_id?: string | null;
+  c6_partner_software_name?: string | null;
+  c6_partner_software_version?: string | null;
+  has_c6_client_secret?: boolean;
+  has_c6_certificate?: boolean;
+  has_c6_private_key?: boolean;
 };
 
 export type Category = {
