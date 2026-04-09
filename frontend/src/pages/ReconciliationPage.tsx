@@ -459,7 +459,6 @@ export function ReconciliationPage({
 
   const selectedBankNetAmount = selectedBankItems.reduce((total, item) => total + Number(item.amount), 0);
   const selectedBankTotal = Math.abs(selectedBankNetAmount);
-  const selectedBankGrossAmount = selectedBankItems.reduce((total, item) => total + Math.abs(Number(item.amount)), 0);
   const overallPendingCount = worklist?.overall_unreconciled_count ?? 0;
   const selectableFilteredBankIds = useMemo(
     () =>
@@ -516,10 +515,6 @@ export function ReconciliationPage({
     () => new Set(selectedBankItems.map((item) => item.account_id).filter(Boolean)).size,
     [selectedBankItems],
   );
-  const selectedBankDirectionCount = useMemo(
-    () => new Set(selectedBankItems.map((item) => (Number(item.amount) >= 0 ? "in" : "out"))).size,
-    [selectedBankItems],
-  );
   const createEntryValidationMessage = useMemo(() => {
     if (!selectedBankItems.length) {
       return "";
@@ -530,11 +525,8 @@ export function ReconciliationPage({
     if (selectedBankAccountCount > 1) {
       return "Selecione apenas movimentos da mesma conta para criar um lançamento consolidado.";
     }
-    if (selectedBankDirectionCount > 1) {
-      return "Selecione apenas entradas ou apenas saídas para criar um lançamento consolidado.";
-    }
     return "";
-  }, [selectedBankAccountCount, selectedBankDirectionCount, selectedBankItems, selectedBankNetAmount]);
+  }, [selectedBankAccountCount, selectedBankItems, selectedBankNetAmount]);
   const selectedTransferItem = selectedBankItems[0] ?? null;
   const transferIsIncoming = selectedBankItems.length ? selectedBankNetAmount >= 0 : true;
   const selectedTransferAccountName = useMemo(() => {
@@ -1494,7 +1486,7 @@ export function ReconciliationPage({
             </div>
             <div className="modal-summary">
               <span>Movimentos selecionados: {selectedBankIds.length}</span>
-              <strong>{formatMoney(selectedBankDirectionCount > 1 ? selectedBankGrossAmount : selectedBankTotal)}</strong>
+              <strong>{formatMoney(selectedBankNetAmount)}</strong>
             </div>
             {!!createEntryValidationMessage && <div className="import-last-meta">{createEntryValidationMessage}</div>}
             <div className="action-row">

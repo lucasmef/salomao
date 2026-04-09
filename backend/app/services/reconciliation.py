@@ -112,7 +112,8 @@ def _build_grouped_transaction_title(transactions: list[BankTransaction]) -> str
         transaction = transactions[0]
         return transaction.memo or transaction.name or transaction.fit_id or "Lancamento bancario"
 
-    is_income = Decimal(transactions[0].amount) > 0
+    net_amount = sum(Decimal(transaction.amount) for transaction in transactions)
+    is_income = net_amount > 0
     base_title = "Recebimento agrupado" if is_income else "Pagamento agrupado"
     return f"{base_title} ({len(transactions)} movimentos)"
 
@@ -477,6 +478,13 @@ def create_reconciliation(
         raise ValueError("Data de vencimento obrigatoria para conciliar e baixar o lancamento")
     if any(_transaction_already_reconciled(db, transaction.id) for transaction in transactions if transaction):
         raise ValueError("Um dos movimentos bancarios ja foi conciliado")
+    transaction_signs = {Decimal(item.amount) > 0 for item in transactions if item and Decimal(item.amount) != Decimal("0.00")}
+    is_mixed_action_create_entry = (
+        payload.match_type == "action_create_entry"
+        and len(entries) == 1
+        and len(transactions) > 1
+        and len(transaction_signs) > 1
+    )
     total_transactions = sum(abs(Decimal(item.amount)) for item in transactions if item)
     if total_transactions <= Decimal("0.00"):
         raise ValueError("Os movimentos selecionados nao possuem valor valido para conciliacao")
@@ -514,11 +522,17 @@ def create_reconciliation(
             raise ValueError("Ajustes de principal, juros, multa ou desconto exigem 1 movimento e 1 lancamento")
         if total_remaining <= 0:
             raise ValueError("Os lancamentos selecionados nao possuem saldo aberto")
-        amount_difference = abs(total_transactions - total_remaining)
+        comparison_total = total_transactions
+        if is_mixed_action_create_entry:
+            comparison_total = abs(sum(Decimal(item.amount) for item in transactions if item))
+        amount_difference = abs(comparison_total - total_remaining)
         if amount_difference > TWO_PLACES:
             raise ValueError("Conciliacao multipla exige que a soma do extrato seja igual a soma dos lancamentos.")
 
-    confidence_score = min(float((min(total_transactions, total_remaining) / max(total_transactions, Decimal("0.01"))) * 100), 100.0)
+    confidence_base = total_transactions
+    if is_mixed_action_create_entry:
+        confidence_base = abs(sum(Decimal(item.amount) for item in transactions if item))
+    confidence_score = min(float((min(confidence_base, total_remaining) / max(confidence_base, Decimal("0.01"))) * 100), 100.0)
 
     group = ReconciliationGroup(
         company_id=company.id,
@@ -558,6 +572,35 @@ def create_reconciliation(
             line_entry.paid_amount = Decimal(line_entry.total_amount)
             line_entry.status = "settled"
             line_entry.settled_at = datetime.combine(transaction.posted_at, time.min, tzinfo=timezone.utc)
+    elif is_mixed_action_create_entry:
+        entry = entries[0]
+        settled_dates: list[date] = []
+        for transaction in transactions:
+            signed_amount = Decimal(transaction.amount)
+            if signed_amount == Decimal("0.00"):
+                transaction_remaining[transaction.id] = Decimal("0.00")
+                continue
+
+            db.add(
+                ReconciliationLine(
+                    company_id=company.id,
+                    reconciliation_group_id=group.id,
+                    bank_transaction_id=transaction.id,
+                    financial_entry_id=entry.id,
+                    amount_applied=signed_amount,
+                )
+            )
+            transaction_remaining[transaction.id] = Decimal("0.00")
+            settled_dates.append(transaction.posted_at)
+
+        entry.paid_amount = Decimal(entry.total_amount)
+        entry.status = "settled"
+        if settled_dates:
+            entry.settled_at = datetime.combine(max(settled_dates), time.min, tzinfo=timezone.utc)
+        if not entry.account_id:
+            matched_account_ids = [transaction.account_id for transaction in transactions if transaction.account_id]
+            if matched_account_ids:
+                entry.account_id = matched_account_ids[0]
     else:
         for entry in entries:
             open_amount = max(Decimal(entry.total_amount) - Decimal(entry.paid_amount or 0), Decimal("0.00"))
@@ -742,10 +785,6 @@ def create_entry_from_bank_transaction(
     account_ids = {transaction.account_id for transaction in transactions}
     if len(account_ids) != 1:
         raise ValueError("Selecione apenas movimentos da mesma conta para criar um lancamento consolidado")
-
-    amount_signs = {Decimal(transaction.amount) > 0 for transaction in transactions}
-    if len(amount_signs) != 1:
-        raise ValueError("Selecione movimentos apenas de entrada ou apenas de saida para criar um lancamento consolidado")
 
     entry_type = "income" if net_amount > 0 else "expense"
     title = payload.title or _build_grouped_transaction_title(transactions)
