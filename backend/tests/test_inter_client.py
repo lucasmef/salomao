@@ -133,6 +133,7 @@ def test_map_charge_status_preserves_dashboard_buckets() -> None:
     assert _map_charge_status("ATRASADO") == "A receber"
     assert _map_charge_status("RECEBIDO") == "Recebido por boleto"
     assert _map_charge_status("CANCELADO") == "Cancelado"
+    assert _map_charge_status("CANCELADA") == "Cancelado"
 
 
 def test_get_charge_pdf_decodes_base64_payload() -> None:

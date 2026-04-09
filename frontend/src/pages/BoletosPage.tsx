@@ -60,6 +60,7 @@ export type InvoiceFilter = "open" | "open-boletos" | "overdue" | "paid-pending"
 export type BillingView = "summary" | "standalone" | InvoiceFilter;
 type OpenReceivableSort = "due_date" | "client_name" | "document" | "status" | "amount";
 type OpenBoletoSort = "due_date" | "issue_date" | "client_name" | "bank" | "amount" | "document_id";
+type StandaloneBoletoFilter = "all" | "open" | "paid" | "downloaded" | "cancelled";
 type SortDirection = "asc" | "desc";
 
 function getTodayInputDate() {
@@ -70,6 +71,35 @@ function uniqueStandaloneClientNames(clients: BoletoClient[]) {
   return Array.from(new Set(clients.map((item) => item.client_name.trim()).filter(Boolean))).sort((left, right) =>
     left.localeCompare(right, "pt-BR"),
   );
+}
+
+function resolveStandaloneBoletoFilter(item: BoletoDashboard["standalone_boletos"][number]): StandaloneBoletoFilter {
+  if (item.local_status === "downloaded") {
+    return "downloaded";
+  }
+  if (item.status === "Recebido por boleto") {
+    return "paid";
+  }
+  if (item.status === "Cancelado") {
+    return "cancelled";
+  }
+  return "open";
+}
+
+function formatStandaloneBoletoFilterLabel(filter: StandaloneBoletoFilter) {
+  switch (filter) {
+    case "paid":
+      return "Pagos";
+    case "downloaded":
+      return "Baixados";
+    case "cancelled":
+      return "Cancelados";
+    case "all":
+      return "Todos";
+    case "open":
+    default:
+      return "Em aberto";
+  }
 }
 
 function renderReceivableDetails(item: BoletoAlertItem) {
@@ -283,13 +313,14 @@ export function BoletosPage({
     due_date: "",
     notes: "",
   });
+  const [standaloneBoletoFilter, setStandaloneBoletoFilter] = useState<StandaloneBoletoFilter>("open");
   const invoiceFilter = view === "summary" || view === "standalone" ? "open" : view;
   const visibleStandaloneBoletos = useMemo(
     () =>
       [...dashboard.standalone_boletos]
-        .filter((item) => item.local_status !== "downloaded")
+        .filter((item) => standaloneBoletoFilter === "all" || resolveStandaloneBoletoFilter(item) === standaloneBoletoFilter)
         .sort((left, right) => compareText(left.due_date, right.due_date) || compareText(left.client_name, right.client_name)),
-    [dashboard.standalone_boletos],
+    [dashboard.standalone_boletos, standaloneBoletoFilter],
   );
 
   useEffect(() => {
@@ -1439,7 +1470,23 @@ export function BoletosPage({
           <section className="panel compact-panel-card">
             <div className="panel-title compact-title-row">
               <h3>Controle dos boletos avulsos</h3>
-              <span>{visibleStandaloneBoletos.length}</span>
+              <div className="action-row">
+                <label className="compact-inline">
+                  <span>Status</span>
+                  <select
+                    disabled={submitting}
+                    onChange={(event) => setStandaloneBoletoFilter(event.target.value as StandaloneBoletoFilter)}
+                    value={standaloneBoletoFilter}
+                  >
+                    <option value="open">Em aberto</option>
+                    <option value="paid">Pagos</option>
+                    <option value="downloaded">Baixados</option>
+                    <option value="cancelled">Cancelados</option>
+                    <option value="all">Todos</option>
+                  </select>
+                </label>
+                <span>{visibleStandaloneBoletos.length}</span>
+              </div>
             </div>
             <div className="table-shell tall">
               <table className="erp-table">
@@ -1506,7 +1553,7 @@ export function BoletosPage({
                   ))}
                   {!visibleStandaloneBoletos.length && (
                     <tr>
-                      <td colSpan={9}>Nenhum boleto avulso pendente de controle.</td>
+                      <td colSpan={9}>Nenhum boleto avulso em {formatStandaloneBoletoFilterLabel(standaloneBoletoFilter).toLowerCase()}.</td>
                     </tr>
                   )}
                 </tbody>

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.crypto import encrypt_text
 from app.db.base import Base
-from app.db.models.boleto import BoletoRecord
+from app.db.models.boleto import BoletoRecord, StandaloneBoletoRecord
 from app.db.models.finance import Account
 from app.db.models.boleto import BoletoCustomerConfig
 from app.db.models.linx import LinxCustomer, LinxOpenReceivable
@@ -23,8 +23,10 @@ from app.services.inter import (
     _build_inter_charge_payload,
     _build_standalone_charge_payload,
     cancel_inter_charge,
+    cancel_standalone_inter_charge,
     receive_inter_charge,
     sync_inter_charges,
+    sync_standalone_inter_charges,
 )
 from app.services.linx_receivable_settlement import LinxSettlementSummary
 
@@ -921,5 +923,140 @@ def test_cancel_and_receive_inter_charge_update_boleto_status() -> None:
         assert receive_result.message == "Baixa do boleto do Inter concluida com sucesso."
         assert boleto.status == "Recebido por boleto"
         assert boleto.paid_amount == Decimal("250.00")
+    finally:
+        session.close()
+
+
+def test_cancel_standalone_inter_charge_marks_record_as_canceled_even_when_detail_is_stale() -> None:
+    session = _build_session()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            return httpx.Response(200, json={"access_token": "token-123"})
+        if request.url.path == "/cobranca/v3/cobrancas/SOL-AVL-001/cancelar":
+            return httpx.Response(202, json={})
+        if request.url.path == "/cobranca/v3/cobrancas/SOL-AVL-001":
+            return httpx.Response(
+                200,
+                json={
+                    "cobranca": {
+                        "codigoSolicitacao": "SOL-AVL-001",
+                        "seuNumero": "AVL-001",
+                        "situacao": "A_RECEBER",
+                        "dataEmissao": "2026-04-01",
+                        "dataVencimento": "2026-04-10",
+                        "valorNominal": "89.90",
+                        "valorTotalRecebido": "0.00",
+                        "pagador": {"nome": "Cliente Avulso", "cpfCnpj": "12345678901"},
+                    },
+                    "boleto": {
+                        "codigoBarras": "111222333",
+                        "linhaDigitavel": "111.222.333",
+                        "nossoNumero": "NOSSO-AVL-1",
+                    },
+                },
+            )
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    try:
+        company, account = _build_company_and_account(session)
+        session.add(
+            StandaloneBoletoRecord(
+                company_id=company.id,
+                bank="INTER",
+                client_key=normalize_text("Cliente Avulso"),
+                client_name="Cliente Avulso",
+                document_id="AVL-001",
+                issue_date=date(2026, 4, 1),
+                due_date=date(2026, 4, 10),
+                amount=Decimal("89.90"),
+                paid_amount=Decimal("0.00"),
+                status="A receber",
+                local_status="open",
+                inter_account_id=account.id,
+                inter_codigo_solicitacao="SOL-AVL-001",
+                description="Boleto avulso",
+            )
+        )
+        session.commit()
+
+        boleto = session.query(StandaloneBoletoRecord).one()
+        result = cancel_standalone_inter_charge(
+            session,
+            company,
+            boleto_id=boleto.id,
+            motivo_cancelamento="Cliente desistiu",
+            transport=httpx.MockTransport(handler),
+        )
+
+        session.refresh(boleto)
+        assert result.message == "Boleto avulso do Inter cancelado com sucesso."
+        assert boleto.status == "Cancelado"
+        assert boleto.local_status == "open"
+    finally:
+        session.close()
+
+
+def test_sync_standalone_inter_charges_reopens_cancelled_record_when_inter_still_reports_open() -> None:
+    session = _build_session()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            return httpx.Response(200, json={"access_token": "token-123"})
+        if request.url.path == "/cobranca/v3/cobrancas/SOL-AVL-002":
+            return httpx.Response(
+                200,
+                json={
+                    "cobranca": {
+                        "codigoSolicitacao": "SOL-AVL-002",
+                        "seuNumero": "AVL-002",
+                        "situacao": "A_RECEBER",
+                        "dataEmissao": "2026-04-01",
+                        "dataVencimento": "2026-04-10",
+                        "valorNominal": "109.90",
+                        "valorTotalRecebido": "0.00",
+                        "pagador": {"nome": "Cliente Avulso", "cpfCnpj": "12345678901"},
+                    },
+                    "boleto": {
+                        "codigoBarras": "444555666",
+                        "linhaDigitavel": "444.555.666",
+                        "nossoNumero": "NOSSO-AVL-2",
+                    },
+                },
+            )
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    try:
+        company, account = _build_company_and_account(session)
+        session.add(
+            StandaloneBoletoRecord(
+                company_id=company.id,
+                bank="INTER",
+                client_key=normalize_text("Cliente Avulso"),
+                client_name="Cliente Avulso",
+                document_id="AVL-002",
+                issue_date=date(2026, 4, 1),
+                due_date=date(2026, 4, 10),
+                amount=Decimal("109.90"),
+                paid_amount=Decimal("0.00"),
+                status="Cancelado",
+                local_status="open",
+                inter_account_id=account.id,
+                inter_codigo_solicitacao="SOL-AVL-002",
+                description="Boleto avulso",
+            )
+        )
+        session.commit()
+
+        result = sync_standalone_inter_charges(
+            session,
+            company,
+            transport=httpx.MockTransport(handler),
+        )
+
+        boleto = session.query(StandaloneBoletoRecord).one()
+        assert result.message == "Boletos avulsos sincronizados com sucesso."
+        assert boleto.status == "A receber"
+        assert boleto.local_status == "open"
     finally:
         session.close()

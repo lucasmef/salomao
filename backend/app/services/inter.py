@@ -278,11 +278,13 @@ def _adopt_inter_statement_identity(existing: BankTransaction, payload: dict[str
 
 def _map_charge_status(status: str | None) -> str:
     normalized = (status or "").strip().upper()
-    if normalized in {"RECEBIDO", "MARCADO_RECEBIDO"}:
+    if normalized in {"RECEBIDO", "MARCADO_RECEBIDO"} or normalized.endswith("_RECEBIDO"):
         return "Recebido por boleto"
-    if normalized in {"CANCELADO", "EXPIRADO", "FALHA_EMISSAO"}:
+    if normalized in {"EXPIRADO", "FALHA_EMISSAO"} or "CANCEL" in normalized:
         return "Cancelado"
-    if normalized in {"A_RECEBER", "ATRASADO", "EM_PROCESSAMENTO", "PROTESTO"}:
+    if normalized in {"A_RECEBER", "ATRASADO", "EM_PROCESSAMENTO", "PROTESTO"} or any(
+        marker in normalized for marker in {"RECEBER", "ATRAS", "PROCESS", "PROTEST"}
+    ):
         return "A receber"
     return status or ""
 
@@ -1521,6 +1523,7 @@ def sync_standalone_inter_charges(
                 StandaloneBoletoRecord.local_status == "open",
                 StandaloneBoletoRecord.bank == "INTER",
                 StandaloneBoletoRecord.inter_codigo_solicitacao.is_not(None),
+                StandaloneBoletoRecord.status != "Recebido por boleto",
             )
         )
     )
@@ -1744,7 +1747,7 @@ def cancel_standalone_inter_charge(
     try:
         client.cancel_charge(str(boleto.inter_codigo_solicitacao), motivo_cancelamento=motivo_cancelamento.strip())
         detail = client.get_charge_detail(str(boleto.inter_codigo_solicitacao))
-        _upsert_standalone_boleto_record(
+        record, _created = _upsert_standalone_boleto_record(
             db,
             company_id=company.id,
             batch_id=batch.id,
@@ -1758,6 +1761,8 @@ def cancel_standalone_inter_charge(
             local_status=boleto.local_status,
             issue_date_override=boleto.issue_date,
         )
+        record.status = "Cancelado"
+        record.paid_amount = Decimal("0.00")
     finally:
         client.close()
 
@@ -1841,13 +1846,15 @@ def cancel_inter_charge(
     try:
         client.cancel_charge(str(boleto.inter_codigo_solicitacao), motivo_cancelamento=motivo_cancelamento.strip())
         detail = client.get_charge_detail(str(boleto.inter_codigo_solicitacao))
-        _upsert_boleto_record(
+        record, _created = _upsert_boleto_record(
             db,
             company_id=company.id,
             batch_id=batch.id,
             account_id=account.id,
             detail_payload=detail,
         )
+        record.status = "Cancelado"
+        record.paid_amount = Decimal("0.00")
     finally:
         client.close()
 
