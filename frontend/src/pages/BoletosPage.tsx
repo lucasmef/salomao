@@ -57,6 +57,10 @@ type OpenReceivableSort = "due_date" | "client_name" | "document" | "status" | "
 type OpenBoletoSort = "due_date" | "issue_date" | "client_name" | "bank" | "amount" | "document_id";
 type StandaloneBoletoFilter = "all" | "open" | "paid" | "downloaded" | "cancelled";
 type SortDirection = "asc" | "desc";
+type OpenReceivableDateFilters = {
+  start: string;
+  end: string;
+};
 
 function getTodayInputDate() {
   return new Date().toISOString().slice(0, 10);
@@ -105,6 +109,32 @@ function renderReceivableDetails(item: BoletoAlertItem) {
     .slice(0, 3)
     .map((receivable) => `${receivable.invoice_number || "Sem numero"}/${receivable.installment || "-"}`)
     .join(", ");
+}
+
+function formatRangeLabel(start: string, end: string) {
+  if (!start && !end) {
+    return "Selecionar periodo";
+  }
+  if (start && end) {
+    return `${formatDate(start)} - ${formatDate(end)}`;
+  }
+  return start ? `${formatDate(start)} - ...` : `... - ${formatDate(end)}`;
+}
+
+function CalendarRangeIcon() {
+  return (
+    <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M4 1.75a.75.75 0 0 1 1.5 0V3h5V1.75a.75.75 0 0 1 1.5 0V3h.75A2.25 2.25 0 0 1 15 5.25v7.5A2.25 2.25 0 0 1 12.75 15h-9.5A2.25 2.25 0 0 1 1 12.75v-7.5A2.25 2.25 0 0 1 3.25 3H4V1.75ZM2.5 6.5v6.25c0 .414.336.75.75.75h9.5a.75.75 0 0 0 .75-.75V6.5h-11Zm11-1.5v-.75a.75.75 0 0 0-.75-.75h-.75v.5a.75.75 0 0 1-1.5 0v-.5h-5v.5a.75.75 0 0 1-1.5 0v-.5h-.75a.75.75 0 0 0-.75.75V5h11Z" />
+    </svg>
+  );
+}
+
+function FilterFunnelIcon() {
+  return (
+    <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M2 3.25C2 2.56 2.56 2 3.25 2h9.5a1.25 1.25 0 0 1 .965 2.045L10 8.56v3.19a1.25 1.25 0 0 1-.553 1.036l-1.75 1.167A.75.75 0 0 1 6.5 13.33V8.56L2.285 4.045A1.24 1.24 0 0 1 2 3.25Zm1.545.25L7.882 8.15a.75.75 0 0 1 .203.512v3.266L8.5 11.65V8.662a.75.75 0 0 1 .203-.512L12.455 3.5h-8.91Z" />
+    </svg>
+  );
 }
 
 function DownloadIcon() {
@@ -195,10 +225,14 @@ export function BoletosPage({
   const [selectedOpenBoletoIds, setSelectedOpenBoletoIds] = useState<string[]>([]);
   const [openBoletoSearch, setOpenBoletoSearch] = useState("");
   const [openBoletoBankFilter, setOpenBoletoBankFilter] = useState("all");
+  const [openReceivableFilterDraft, setOpenReceivableFilterDraft] = useState<OpenReceivableDateFilters>({ start: "", end: "" });
+  const [openReceivableFilters, setOpenReceivableFilters] = useState<OpenReceivableDateFilters>({ start: "", end: "" });
   const [openReceivableSort, setOpenReceivableSort] = useState<OpenReceivableSort>("due_date");
   const [openReceivableSortDirection, setOpenReceivableSortDirection] = useState<SortDirection>("asc");
   const [openBoletoSort, setOpenBoletoSort] = useState<OpenBoletoSort>("issue_date");
   const [openBoletoSortDirection, setOpenBoletoSortDirection] = useState<SortDirection>("desc");
+  const [showOpenReceivablePeriodPopover, setShowOpenReceivablePeriodPopover] = useState(false);
+  const [showOpenReceivablePresetMenu, setShowOpenReceivablePresetMenu] = useState(false);
   const [standaloneBoletoDraft, setStandaloneBoletoDraft] = useState<StandaloneBoletoDraft>({
     account_id: "",
     client_name: "",
@@ -239,6 +273,21 @@ export function BoletosPage({
     () =>
       [...dashboard.receivables]
         .filter((item) => Number(item.corrected_amount || item.amount) > 0)
+        .filter((item) => {
+          if (!openReceivableFilters.start && !openReceivableFilters.end) {
+            return true;
+          }
+          if (!item.due_date) {
+            return false;
+          }
+          if (openReceivableFilters.start && item.due_date < openReceivableFilters.start) {
+            return false;
+          }
+          if (openReceivableFilters.end && item.due_date > openReceivableFilters.end) {
+            return false;
+          }
+          return true;
+        })
         .sort((left, right) => {
           const result = (() => {
             switch (openReceivableSort) {
@@ -260,7 +309,7 @@ export function BoletosPage({
           })();
           return openReceivableSortDirection === "asc" ? result : -result;
         }),
-    [dashboard.receivables, openReceivableSort, openReceivableSortDirection],
+    [dashboard.receivables, openReceivableFilters.end, openReceivableFilters.start, openReceivableSort, openReceivableSortDirection],
   );
   const hasInterApiAccount = useMemo(
     () => accounts.some((account) => account.is_active && account.inter_api_enabled),
@@ -314,6 +363,8 @@ export function BoletosPage({
     setCustomerDataModalOpen(false);
     setStandaloneBoletoModalOpen(false);
     setCustomerDataFile(null);
+    setShowOpenReceivablePeriodPopover(false);
+    setShowOpenReceivablePresetMenu(false);
   }, [view]);
 
   function renderFileMeta(sourceType: string) {
@@ -371,6 +422,39 @@ export function BoletosPage({
     }
     setOpenBoletoSort(nextSort);
     setOpenBoletoSortDirection("asc");
+  }
+
+  function setOpenReceivableDateRange(start: string, end: string) {
+    setOpenReceivableFilterDraft({ start, end });
+  }
+
+  function applyOpenReceivableDateFilters() {
+    setOpenReceivableFilters(openReceivableFilterDraft);
+  }
+
+  function applyOpenReceivablePresetRange(kind: "today" | "current_month" | "previous_month" | "current_year") {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const formatValue = (value: Date) => value.toISOString().slice(0, 10);
+
+    if (kind === "today") {
+      const current = formatValue(today);
+      setOpenReceivableDateRange(current, current);
+      return;
+    }
+
+    if (kind === "current_month") {
+      setOpenReceivableDateRange(formatValue(new Date(year, month, 1)), formatValue(new Date(year, month + 1, 0)));
+      return;
+    }
+
+    if (kind === "previous_month") {
+      setOpenReceivableDateRange(formatValue(new Date(year, month - 1, 1)), formatValue(new Date(year, month, 0)));
+      return;
+    }
+
+    setOpenReceivableDateRange(formatValue(new Date(year, 0, 1)), formatValue(new Date(year, 11, 31)));
   }
 
   function renderSortButton(
@@ -936,7 +1020,91 @@ export function BoletosPage({
         <section className="panel compact-panel-card">
           <div className="panel-title compact-title-row">
             <h3>Faturas em aberto</h3>
-            <span>{openReceivables.length}</span>
+            <div className="action-row billing-open-boletos-actions">
+              <div className="entries-period-group">
+                <button
+                  aria-expanded={showOpenReceivablePeriodPopover}
+                  aria-label="Selecionar periodo"
+                  className={`entries-period-trigger ${showOpenReceivablePeriodPopover ? "is-active" : ""}`}
+                  disabled={submitting}
+                  onClick={() => {
+                    setShowOpenReceivablePresetMenu(false);
+                    setShowOpenReceivablePeriodPopover((current) => !current);
+                  }}
+                  type="button"
+                >
+                  <CalendarRangeIcon />
+                  <span>{formatRangeLabel(openReceivableFilterDraft.start, openReceivableFilterDraft.end)}</span>
+                </button>
+                {showOpenReceivablePeriodPopover && (
+                  <div className="entries-floating-panel entries-period-popover">
+                    <div className="entries-period-fields">
+                      <input
+                        aria-label="Data inicial"
+                        disabled={submitting}
+                        type="date"
+                        value={openReceivableFilterDraft.start}
+                        onChange={(event) => setOpenReceivableDateRange(event.target.value, openReceivableFilterDraft.end)}
+                      />
+                      <input
+                        aria-label="Data final"
+                        disabled={submitting}
+                        type="date"
+                        value={openReceivableFilterDraft.end}
+                        onChange={(event) => setOpenReceivableDateRange(openReceivableFilterDraft.start, event.target.value)}
+                      />
+                    </div>
+                    <div className="entries-period-footer">
+                      <button
+                        className="secondary-button compact-button"
+                        onClick={() => {
+                          setOpenReceivableDateRange("", "");
+                          setShowOpenReceivablePeriodPopover(false);
+                        }}
+                        type="button"
+                      >
+                        Limpar
+                      </button>
+                      <button
+                        className="primary-button compact-button"
+                        onClick={() => setShowOpenReceivablePeriodPopover(false)}
+                        type="button"
+                      >
+                        Concluir
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="entries-toolbar-icon-wrap">
+                <button
+                  aria-expanded={showOpenReceivablePresetMenu}
+                  aria-label="Periodos pre-definidos"
+                  className={`entries-toolbar-icon ${showOpenReceivablePresetMenu ? "is-active" : ""}`}
+                  disabled={submitting}
+                  onClick={() => {
+                    setShowOpenReceivablePeriodPopover(false);
+                    setShowOpenReceivablePresetMenu((current) => !current);
+                  }}
+                  title="Periodos pre-definidos"
+                  type="button"
+                >
+                  <FilterFunnelIcon />
+                </button>
+                {showOpenReceivablePresetMenu && (
+                  <div className="entries-floating-panel entries-icon-menu">
+                    <button className="entries-icon-menu-item" onClick={() => { applyOpenReceivablePresetRange("today"); setShowOpenReceivablePresetMenu(false); }} type="button">Hoje</button>
+                    <button className="entries-icon-menu-item" onClick={() => { applyOpenReceivablePresetRange("current_month"); setShowOpenReceivablePresetMenu(false); }} type="button">Mes atual</button>
+                    <button className="entries-icon-menu-item" onClick={() => { applyOpenReceivablePresetRange("previous_month"); setShowOpenReceivablePresetMenu(false); }} type="button">Mes anterior</button>
+                    <button className="entries-icon-menu-item" onClick={() => { applyOpenReceivablePresetRange("current_year"); setShowOpenReceivablePresetMenu(false); }} type="button">Ano atual</button>
+                  </div>
+                )}
+              </div>
+              <button className="primary-button compact-button" disabled={submitting} onClick={applyOpenReceivableDateFilters} type="button">
+                Aplicar
+              </button>
+              <span>{openReceivables.length}</span>
+            </div>
           </div>
           <div className="table-shell billing-table-shell billing-table-shell--expanded">
             <table className="erp-table billing-compact-table">
