@@ -5,6 +5,7 @@ import binascii
 import os
 import ssl
 import tempfile
+import unicodedata
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -62,6 +63,15 @@ def _normalize_c6_api_root(value: str | None) -> str | None:
             root = root[: -len(suffix)]
             break
     return root.rstrip("/") or None
+
+
+def _normalize_partner_header_value(value: str | None, *, fallback: str) -> str:
+    normalized = _normalize_optional_text(value) or fallback
+    ascii_value = (
+        unicodedata.normalize("NFKD", normalized).encode("ascii", "ignore").decode("ascii").strip()
+    )
+    ascii_value = " ".join(ascii_value.split())
+    return ascii_value or fallback
 
 
 def _extract_c6_error_detail(response: httpx.Response) -> str | None:
@@ -306,8 +316,14 @@ class C6ApiClient:
             "Authorization": f"Bearer {access_token}",
             "Content-Type": C6_REQUEST_CONTENT_TYPE,
         }
-        partner_name = self.config.partner_software_name or C6_DEFAULT_PARTNER_SOFTWARE_NAME
-        partner_version = self.config.partner_software_version or C6_DEFAULT_PARTNER_SOFTWARE_VERSION
+        partner_name = _normalize_partner_header_value(
+            self.config.partner_software_name,
+            fallback=C6_DEFAULT_PARTNER_SOFTWARE_NAME,
+        )
+        partner_version = _normalize_partner_header_value(
+            self.config.partner_software_version,
+            fallback=C6_DEFAULT_PARTNER_SOFTWARE_VERSION,
+        )
         headers["partner-software-name"] = partner_name
         headers["partner-software-version"] = partner_version
         return headers

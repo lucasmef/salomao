@@ -147,3 +147,23 @@ def test_c6_client_refreshes_expired_token() -> None:
         client.close()
 
     assert token_calls == 2
+
+
+def test_c6_client_normalizes_partner_headers_to_ascii() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/auth/":
+            return httpx.Response(200, json={"access_token": "token-123", "expires_in": 600})
+        if request.url.path == "/v1/bank_slips/BSL-001":
+            assert request.headers["partner-software-name"] == "Salomao ERP"
+            assert request.headers["partner-software-version"] == "v1.0"
+            return httpx.Response(200, json={"id": "BSL-001"})
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    config = _build_config()
+    config.partner_software_name = "Salomão ERP"
+    config.partner_software_version = "v1.0"
+    client = C6ApiClient(config, transport=httpx.MockTransport(handler))
+    try:
+        client.get_bank_slip("BSL-001")
+    finally:
+        client.close()
