@@ -2547,6 +2547,20 @@ textarea {
   vertical-align: middle;
 }
 
+.billing-missing-table {
+  border-collapse: collapse;
+}
+
+.billing-missing-table tbody tr {
+  border: 0;
+}
+
+.billing-missing-table tbody td {
+  border-top: 0;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: none;
+}
+
 .billing-open-boletos-header {
   margin-bottom: 6px;
   gap: 10px;

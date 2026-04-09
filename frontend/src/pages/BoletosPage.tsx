@@ -1473,7 +1473,7 @@ export function BoletosPage({
           </div>
         </div>
         <div className="table-shell billing-table-shell billing-table-shell--expanded">
-          <table className="erp-table billing-compact-table">
+          <table className="erp-table billing-compact-table billing-missing-table">
             <thead>
               <tr>
                 <th>
