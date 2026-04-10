@@ -8,7 +8,6 @@ import { SectionChrome } from "./components/SectionChrome";
 import { findChildNavItem, legacySectionPathMap, mainNavigation, overviewNavigationItem } from "./data/navigation";
 import { downloadFile, fetchJson } from "./lib/api";
 import { parseApiError } from "./lib/format";
-import { useNetworkActivityCount } from "./hooks/useNetworkActivityCount";
 import { LoginPage } from "./pages/LoginPage";
 import type {
   Account,
@@ -493,7 +492,6 @@ function App() {
 
 function AppRuntime() {
   const location = useLocation();
-  const networkActivityCount = useNetworkActivityCount();
   const autoLoadingSectionKeysRef = useRef<Set<string>>(new Set());
   const [session, setSession] = useState<SessionState | null>(null);
   const [pendingAuth, setPendingAuth] = useState<PendingAuthState | null>(null);
@@ -2408,13 +2406,12 @@ function AppRuntime() {
     suppliers,
   };
 
-  const hasNetworkActivity = networkActivityCount > 0;
-  const shellBusy = routeLoading || loading || submitting || hasNetworkActivity;
+  const shellBusy = routeLoading || loading || submitting;
   const shellBusyLabel = routeLoading
     ? "Abrindo modulo..."
     : submitting
       ? "Salvando e atualizando dados..."
-      : loading || hasNetworkActivity
+      : loading
         ? "Atualizando dados..."
         : "";
 
