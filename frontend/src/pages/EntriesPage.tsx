@@ -122,6 +122,12 @@ const entryFilterSelectStyles = {
 
 type QuickFilterOption = (typeof entryQuickFilterOptions)[number];
 type EntryFormOption = { value: string; label: string };
+type EntryTableColumnKey = "title" | "flow" | "account" | "category" | "status" | "due_date" | "total_amount";
+type EntryTableSortState = {
+  key: EntryTableColumnKey;
+  direction: "asc" | "desc";
+};
+type EntryTableFilters = Record<EntryTableColumnKey, string>;
 
 function CalendarRangeIcon() {
   return (
@@ -179,6 +185,42 @@ function MoreVerticalIcon() {
   );
 }
 
+function getEntrySortValue(entry: FinancialEntry, column: EntryTableColumnKey) {
+  switch (column) {
+    case "title":
+      return `${entry.title} ${entry.counterparty_name ?? ""} ${entry.document_number ?? ""} ${entry.source_system ?? ""}`.trim();
+    case "flow":
+      if (entry.transfer_id) {
+        if (entry.transfer_direction === "outflow") {
+          return "Saida";
+        }
+        if (entry.transfer_direction === "inflow") {
+          return "Entrada";
+        }
+        return "Transferencia";
+      }
+      if (entry.entry_type === "expense") {
+        return "Pagar";
+      }
+      if (entry.entry_type === "income") {
+        return "Receber";
+      }
+      return "Transferencia";
+    case "account":
+      return entry.account_name ?? "";
+    case "category":
+      return `${entry.category_name ?? ""} ${entry.category_group ?? ""}`.trim();
+    case "status":
+      return formatEntryStatus(entry.status);
+    case "due_date":
+      return entry.due_date ?? "";
+    case "total_amount":
+      return Number(entry.total_amount);
+    default:
+      return "";
+  }
+}
+
 export function EntriesPage({
   accounts,
   categories,
@@ -223,6 +265,16 @@ export function EntriesPage({
   const [settlementPrompt, setSettlementPrompt] = useState(emptySettlementPrompt);
   const [transferForm, setTransferForm] = useState(emptyTransferForm);
   const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
+  const [tableFilters, setTableFilters] = useState<EntryTableFilters>({
+    title: "",
+    flow: "",
+    account: "",
+    category: "",
+    status: "",
+    due_date: "",
+    total_amount: "",
+  });
+  const [tableSort, setTableSort] = useState<EntryTableSortState | null>(null);
   const [bulkCategoryId, setBulkCategoryId] = useState("");
   const [activeRowMenuId, setActiveRowMenuId] = useState<string | null>(null);
   const portalTarget = typeof document !== "undefined" ? document.body : null;
@@ -282,9 +334,42 @@ export function EntriesPage({
     () => categorySelectOptions.find((option) => option.value === form.category_id) ?? null,
     [categorySelectOptions, form.category_id],
   );
+  const filteredEntries = useMemo(
+    () =>
+      entryList.items.filter((entry) =>
+        (Object.entries(tableFilters) as Array<[EntryTableColumnKey, string]>).every(([column, rawFilter]) => {
+          const filterValue = rawFilter.trim().toLowerCase();
+          if (!filterValue) {
+            return true;
+          }
+          const entryValue = getEntrySortValue(entry, column);
+          if (column === "due_date") {
+            return String(entryValue).startsWith(filterValue);
+          }
+          return String(entryValue).toLowerCase().includes(filterValue);
+        }),
+      ),
+    [entryList.items, tableFilters],
+  );
+  const visibleEntries = useMemo(() => {
+    if (!tableSort) {
+      return filteredEntries;
+    }
+    const sortedEntries = [...filteredEntries];
+    sortedEntries.sort((left, right) => {
+      const leftValue = getEntrySortValue(left, tableSort.key);
+      const rightValue = getEntrySortValue(right, tableSort.key);
+      const result =
+        tableSort.key === "total_amount"
+          ? Number(leftValue) - Number(rightValue)
+          : String(leftValue).localeCompare(String(rightValue), "pt-BR", { numeric: true });
+      return tableSort.direction === "asc" ? result : -result;
+    });
+    return sortedEntries;
+  }, [filteredEntries, tableSort]);
   const selectedEntries = useMemo(
-    () => entryList.items.filter((entry) => selectedEntryIds.includes(entry.id)),
-    [entryList.items, selectedEntryIds],
+    () => visibleEntries.filter((entry) => selectedEntryIds.includes(entry.id)),
+    [selectedEntryIds, visibleEntries],
   );
   const selectedEntryKind = useMemo(() => {
     if (!selectedEntries.length) {
@@ -318,7 +403,19 @@ export function EntriesPage({
     [selectedEntries],
   );
   const selectedNonDeletableCount = selectedEntries.length - selectedDeletableEntries.length;
-  const allPageSelected = entryList.items.length > 0 && entryList.items.every((entry) => selectedEntryIds.includes(entry.id));
+  const allPageSelected = visibleEntries.length > 0 && visibleEntries.every((entry) => selectedEntryIds.includes(entry.id));
+  const visibleTotalAmount = useMemo(
+    () => visibleEntries.reduce((total, entry) => total + Number(entry.total_amount), 0),
+    [visibleEntries],
+  );
+  const visiblePaidAmount = useMemo(
+    () => visibleEntries.reduce((total, entry) => total + Number(entry.paid_amount), 0),
+    [visibleEntries],
+  );
+  const visibleOpenAmount = useMemo(
+    () => Math.max(visibleTotalAmount - visiblePaidAmount, 0).toFixed(2),
+    [visiblePaidAmount, visibleTotalAmount],
+  );
   const activeEntryTypes = useMemo(
     () =>
       String(filters.entry_types ?? filters.entry_type ?? "")
@@ -399,8 +496,8 @@ export function EntriesPage({
   }, [filters.search]);
 
   useEffect(() => {
-    setSelectedEntryIds((current) => current.filter((entryId) => entryList.items.some((entry) => entry.id === entryId)));
-  }, [entryList.items]);
+    setSelectedEntryIds((current) => current.filter((entryId) => visibleEntries.some((entry) => entry.id === entryId)));
+  }, [visibleEntries]);
 
   useEffect(() => {
     if (!bulkCategoryId) {
@@ -620,6 +717,36 @@ export function EntriesPage({
     await onApplyFilters();
   }
 
+  function updateTableFilter(column: EntryTableColumnKey, value: string) {
+    setTableFilters((current) => ({ ...current, [column]: value }));
+  }
+
+  function toggleTableSort(column: EntryTableColumnKey) {
+    setTableSort((current) => {
+      if (!current || current.key !== column) {
+        return { key: column, direction: "asc" };
+      }
+      if (current.direction === "asc") {
+        return { key: column, direction: "desc" };
+      }
+      return null;
+    });
+  }
+
+  function renderTableSortButton(label: string, column: EntryTableColumnKey, numeric = false) {
+    const indicator = tableSort?.key === column ? (tableSort.direction === "asc" ? "^" : "v") : "";
+    return (
+      <button
+        className={`table-sort-button ${numeric ? "numeric" : ""}`.trim()}
+        onClick={() => toggleTableSort(column)}
+        type="button"
+      >
+        <strong>{label}</strong>
+        <span>{indicator}</span>
+      </button>
+    );
+  }
+
   function toggleEntrySelection(entryId: string) {
     setSelectedEntryIds((current) =>
       current.includes(entryId) ? current.filter((item) => item !== entryId) : [...current, entryId],
@@ -629,11 +756,11 @@ export function EntriesPage({
   function toggleAllPageEntries() {
     if (allPageSelected) {
       setSelectedEntryIds((current) =>
-        current.filter((entryId) => !entryList.items.some((entry) => entry.id === entryId)),
+        current.filter((entryId) => !visibleEntries.some((entry) => entry.id === entryId)),
       );
       return;
     }
-    setSelectedEntryIds((current) => Array.from(new Set([...current, ...entryList.items.map((entry) => entry.id)])));
+    setSelectedEntryIds((current) => Array.from(new Set([...current, ...visibleEntries.map((entry) => entry.id)])));
   }
 
   function startEditing(entry: FinancialEntry) {
@@ -1025,7 +1152,7 @@ export function EntriesPage({
         <div className="panel-title is-column-mobile compact-title-row">
           <div>
             <h3>Lançamentos</h3>
-            <p className="panel-subtitle">Consulta paginada conforme o período e os filtros selecionados.</p>
+            <p className="panel-subtitle">Consulta paginada com ordenação e filtros por coluna nos registros carregados na página.</p>
           </div>
           <TablePagination
             loading={submitting}
@@ -1049,7 +1176,7 @@ export function EntriesPage({
           </p>
         )}
         <div className="table-shell entries-table-shell">
-          <table className="erp-table">
+          <table className="erp-table entries-list-table">
             <thead>
               <tr>
                 <th className="checkbox-cell">
@@ -1060,18 +1187,91 @@ export function EntriesPage({
                     type="checkbox"
                   />
                 </th>
-                <th>Título</th>
-                <th>Fluxo</th>
-                <th>Conta</th>
-                <th>Categoria</th>
-                <th>Status</th>
-                <th>Vencimento</th>
-                <th className="numeric-cell">Total</th>
+                <th>{renderTableSortButton("Título", "title")}</th>
+                <th>{renderTableSortButton("Fluxo", "flow")}</th>
+                <th>{renderTableSortButton("Conta", "account")}</th>
+                <th>{renderTableSortButton("Categoria", "category")}</th>
+                <th>{renderTableSortButton("Status", "status")}</th>
+                <th>{renderTableSortButton("Vencimento", "due_date")}</th>
+                <th className="numeric-cell">{renderTableSortButton("Total", "total_amount", true)}</th>
                 <th className="entries-actions-column">Ações</th>
+              </tr>
+              <tr className="entries-column-filter-row">
+                <th className="checkbox-cell" />
+                <th>
+                  <input
+                    aria-label="Filtrar título"
+                    className="entries-column-filter-input"
+                    placeholder="Filtrar"
+                    type="text"
+                    value={tableFilters.title}
+                    onChange={(event) => updateTableFilter("title", event.target.value)}
+                  />
+                </th>
+                <th>
+                  <input
+                    aria-label="Filtrar fluxo"
+                    className="entries-column-filter-input"
+                    placeholder="Filtrar"
+                    type="text"
+                    value={tableFilters.flow}
+                    onChange={(event) => updateTableFilter("flow", event.target.value)}
+                  />
+                </th>
+                <th>
+                  <input
+                    aria-label="Filtrar conta"
+                    className="entries-column-filter-input"
+                    placeholder="Filtrar"
+                    type="text"
+                    value={tableFilters.account}
+                    onChange={(event) => updateTableFilter("account", event.target.value)}
+                  />
+                </th>
+                <th>
+                  <input
+                    aria-label="Filtrar categoria"
+                    className="entries-column-filter-input"
+                    placeholder="Filtrar"
+                    type="text"
+                    value={tableFilters.category}
+                    onChange={(event) => updateTableFilter("category", event.target.value)}
+                  />
+                </th>
+                <th>
+                  <input
+                    aria-label="Filtrar status"
+                    className="entries-column-filter-input"
+                    placeholder="Filtrar"
+                    type="text"
+                    value={tableFilters.status}
+                    onChange={(event) => updateTableFilter("status", event.target.value)}
+                  />
+                </th>
+                <th>
+                  <input
+                    aria-label="Filtrar vencimento"
+                    className="entries-column-filter-input"
+                    type="date"
+                    value={tableFilters.due_date}
+                    onChange={(event) => updateTableFilter("due_date", event.target.value)}
+                  />
+                </th>
+                <th>
+                  <input
+                    aria-label="Filtrar total"
+                    className="entries-column-filter-input entries-column-filter-input--numeric"
+                    placeholder="Filtrar"
+                    type="text"
+                    value={tableFilters.total_amount}
+                    onChange={(event) => updateTableFilter("total_amount", event.target.value)}
+                  />
+                </th>
+                <th className="entries-actions-column" />
               </tr>
             </thead>
             <tbody>
-              {entryList.items.map((entry) => (
+              {visibleEntries.map((entry) => (
                 <tr key={entry.id}>
                   <td className="checkbox-cell">
                     <input
@@ -1179,27 +1379,27 @@ export function EntriesPage({
                   </td>
                 </tr>
               ))}
-              {!entryList.items.length && <tr><td colSpan={9} className="empty-cell">Nenhum lançamento encontrado para os filtros atuais.</td></tr>}
+              {!visibleEntries.length && <tr><td colSpan={9} className="empty-cell">Nenhum lançamento encontrado para os filtros atuais.</td></tr>}
             </tbody>
             <tfoot>
               <tr className="entries-total-row">
                 <td colSpan={9}>
                   <div className="entries-total-summary">
                     <div>
-                      <span>Total lançado</span>
-                      <strong>{formatMoney(entryList.total_amount)}</strong>
+                      <span>Total visível</span>
+                      <strong>{formatMoney(visibleTotalAmount.toFixed(2))}</strong>
                     </div>
                     <div>
-                      <span>Baixado</span>
-                      <strong>{formatMoney(entryList.paid_amount)}</strong>
+                      <span>Baixado visível</span>
+                      <strong>{formatMoney(visiblePaidAmount.toFixed(2))}</strong>
                     </div>
                     <div>
-                      <span>Em aberto</span>
-                      <strong>{formatMoney(openAmount)}</strong>
+                      <span>Em aberto visível</span>
+                      <strong>{formatMoney(visibleOpenAmount)}</strong>
                     </div>
                     <div>
-                      <span>Registros</span>
-                      <strong>{entryList.total}</strong>
+                      <span>Registros visíveis</span>
+                      <strong>{visibleEntries.length}</strong>
                     </div>
                   </div>
                 </td>

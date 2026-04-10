@@ -1474,6 +1474,35 @@ textarea {
   max-height: none;
 }
 
+.entries-list-table {
+  table-layout: fixed;
+}
+
+.entries-column-filter-row th {
+  position: sticky;
+  top: 31px;
+  z-index: 1;
+  background: #f8fafc;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.entries-column-filter-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid #d7e1ef;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 0.74rem;
+  color: #24364f;
+}
+
+.entries-column-filter-input--numeric {
+  text-align: right;
+}
+
 .entries-top-panel {
   display: grid;
   gap: 12px;
