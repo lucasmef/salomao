@@ -77,13 +77,23 @@
   cursor: pointer;
 }
 
-.table-sort-button span {
-  font-size: 0.76rem;
-  opacity: 0.72;
-}
-
 .table-sort-button.numeric {
   justify-content: flex-end;
+}
+
+.table-sort-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: #8a98ac;
+  opacity: 0.8;
+}
+
+.table-sort-indicator.is-active {
+  color: #2f5be7;
+  opacity: 1;
 }
 
 .erp-table td {
@@ -1478,13 +1488,67 @@ textarea {
   table-layout: fixed;
 }
 
-.entries-column-filter-row th {
-  position: sticky;
-  top: 31px;
-  z-index: 1;
-  background: #f8fafc;
-  padding-top: 6px;
-  padding-bottom: 6px;
+.entries-table-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.entries-table-header.is-numeric {
+  justify-content: flex-end;
+}
+
+.entries-column-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #8a98ac;
+}
+
+.entries-column-filter-trigger:hover {
+  border-color: #d7e1ef;
+  background: #f8fbff;
+  color: #3b4c63;
+}
+
+.entries-column-filter-trigger.is-active {
+  border-color: #bfd2ff;
+  background: #eef4ff;
+  color: #2f5be7;
+}
+
+.entries-column-filter-popover {
+  width: min(240px, calc(100vw - 48px));
+}
+
+.entries-column-filter-popover.is-numeric {
+  right: 0;
+  left: auto;
+}
+
+.entries-column-filter-popover-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #304254;
+}
+
+.entries-column-filter-popover-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .entries-column-filter-input {
@@ -3044,6 +3108,7 @@ textarea {
   }
 
   .entries-period-popover,
+  .entries-column-filter-popover,
   .entries-icon-menu,
   .entries-bulk-panel {
     position: static;

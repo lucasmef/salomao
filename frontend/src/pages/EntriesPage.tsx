@@ -128,6 +128,15 @@ type EntryTableSortState = {
   direction: "asc" | "desc";
 };
 type EntryTableFilters = Record<EntryTableColumnKey, string>;
+const entryTableColumnLabels: Record<EntryTableColumnKey, string> = {
+  title: "Título",
+  flow: "Fluxo",
+  account: "Conta",
+  category: "Categoria",
+  status: "Status",
+  due_date: "Vencimento",
+  total_amount: "Total",
+};
 
 function CalendarRangeIcon() {
   return (
@@ -181,6 +190,32 @@ function MoreVerticalIcon() {
   return (
     <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
       <path d="M8 3.5a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Zm0 5.75a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5ZM9.25 13.5a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function SortDirectionIcon({ direction }: { direction: "asc" | "desc" | null }) {
+  if (direction === "asc") {
+    return (
+      <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
+        <path d="M8 12V4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+        <path d="m4.75 7.25 3.25-3.25 3.25 3.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      </svg>
+    );
+  }
+  if (direction === "desc") {
+    return (
+      <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
+        <path d="M8 4v8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+        <path d="m4.75 8.75 3.25 3.25 3.25-3.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      </svg>
+    );
+  }
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
+      <path d="M8 12V4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
+      <path d="m5.3 6.2 2.7-2.7 2.7 2.7" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
+      <path d="m5.3 9.8 2.7 2.7 2.7-2.7" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
     </svg>
   );
 }
@@ -249,6 +284,7 @@ export function EntriesPage({
   const hasMountedAutoApplyRef = useRef(false);
   const hasMountedSearchAutoApplyRef = useRef(false);
   const periodPopoverRef = useRef<HTMLDivElement | null>(null);
+  const tableFilterPopoverRef = useRef<HTMLDivElement | null>(null);
   const presetMenuRef = useRef<HTMLDivElement | null>(null);
   const bulkMenuRef = useRef<HTMLDivElement | null>(null);
   const rowMenuRef = useRef<HTMLDivElement | null>(null);
@@ -275,6 +311,7 @@ export function EntriesPage({
     total_amount: "",
   });
   const [tableSort, setTableSort] = useState<EntryTableSortState | null>(null);
+  const [activeTableFilterColumn, setActiveTableFilterColumn] = useState<EntryTableColumnKey | null>(null);
   const [bulkCategoryId, setBulkCategoryId] = useState("");
   const [activeRowMenuId, setActiveRowMenuId] = useState<string | null>(null);
   const portalTarget = typeof document !== "undefined" ? document.body : null;
@@ -514,6 +551,13 @@ export function EntriesPage({
       if (showPeriodPopover && periodPopoverRef.current && !periodPopoverRef.current.contains(target)) {
         setShowPeriodPopover(false);
       }
+      if (
+        activeTableFilterColumn &&
+        tableFilterPopoverRef.current &&
+        !tableFilterPopoverRef.current.contains(target)
+      ) {
+        setActiveTableFilterColumn(null);
+      }
       if (showPresetMenu && presetMenuRef.current && !presetMenuRef.current.contains(target)) {
         setShowPresetMenu(false);
       }
@@ -527,7 +571,7 @@ export function EntriesPage({
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [activeRowMenuId, showBulkActions, showPeriodPopover, showPresetMenu]);
+  }, [activeRowMenuId, activeTableFilterColumn, showBulkActions, showPeriodPopover, showPresetMenu]);
 
   function normalizeText(value: string) {
     return value
@@ -721,6 +765,10 @@ export function EntriesPage({
     setTableFilters((current) => ({ ...current, [column]: value }));
   }
 
+  function clearTableFilter(column: EntryTableColumnKey) {
+    setTableFilters((current) => ({ ...current, [column]: "" }));
+  }
+
   function toggleTableSort(column: EntryTableColumnKey) {
     setTableSort((current) => {
       if (!current || current.key !== column) {
@@ -733,17 +781,77 @@ export function EntriesPage({
     });
   }
 
-  function renderTableSortButton(label: string, column: EntryTableColumnKey, numeric = false) {
-    const indicator = tableSort?.key === column ? (tableSort.direction === "asc" ? "^" : "v") : "";
+  function renderTableHeader(label: string, column: EntryTableColumnKey, numeric = false) {
+    const isFilterActive = tableFilters[column].trim().length > 0;
+    const isFilterOpen = activeTableFilterColumn === column;
+    const filterId = `entries-column-filter-${column}`;
+    const isDateColumn = column === "due_date";
+    const sortDirection = tableSort?.key === column ? tableSort.direction : null;
     return (
-      <button
-        className={`table-sort-button ${numeric ? "numeric" : ""}`.trim()}
-        onClick={() => toggleTableSort(column)}
-        type="button"
+      <div
+        className={`entries-table-header ${numeric ? "is-numeric" : ""}`.trim()}
+        ref={isFilterOpen ? tableFilterPopoverRef : null}
       >
-        <strong>{label}</strong>
-        <span>{indicator}</span>
-      </button>
+        <button
+          className={`table-sort-button ${numeric ? "numeric" : ""}`.trim()}
+          onClick={() => toggleTableSort(column)}
+          type="button"
+        >
+          <strong>{label}</strong>
+          <span className={`table-sort-indicator ${sortDirection ? "is-active" : ""}`.trim()}>
+            <SortDirectionIcon direction={sortDirection} />
+          </span>
+        </button>
+        <button
+          aria-controls={filterId}
+          aria-expanded={isFilterOpen}
+          aria-label={`Filtrar coluna ${label}`}
+          className={`entries-column-filter-trigger ${isFilterActive ? "is-active" : ""}`.trim()}
+          onClick={() =>
+            setActiveTableFilterColumn((current) => (current === column ? null : column))
+          }
+          title={isFilterActive ? `${label} filtrado` : `Filtrar ${label.toLowerCase()}`}
+          type="button"
+        >
+          <FilterFunnelIcon />
+        </button>
+        {isFilterOpen && (
+          <div
+            className={`entries-floating-panel entries-column-filter-popover ${numeric ? "is-numeric" : ""}`.trim()}
+            id={filterId}
+          >
+            <label className="entries-column-filter-popover-label" htmlFor={`${filterId}-input`}>
+              Filtrar {label.toLowerCase()}
+            </label>
+            <input
+              aria-label={`Filtrar ${label.toLowerCase()}`}
+              className={`entries-column-filter-input ${numeric ? "entries-column-filter-input--numeric" : ""}`.trim()}
+              id={`${filterId}-input`}
+              placeholder={isDateColumn ? undefined : "Digite para filtrar"}
+              type={isDateColumn ? "date" : "text"}
+              value={tableFilters[column]}
+              onChange={(event) => updateTableFilter(column, event.target.value)}
+            />
+            <div className="entries-column-filter-popover-actions">
+              <button
+                className="secondary-button compact-button"
+                disabled={!tableFilters[column]}
+                onClick={() => clearTableFilter(column)}
+                type="button"
+              >
+                Limpar
+              </button>
+              <button
+                className="ghost-button compact"
+                onClick={() => setActiveTableFilterColumn(null)}
+                type="button"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
 
@@ -1187,87 +1295,14 @@ export function EntriesPage({
                     type="checkbox"
                   />
                 </th>
-                <th>{renderTableSortButton("Título", "title")}</th>
-                <th>{renderTableSortButton("Fluxo", "flow")}</th>
-                <th>{renderTableSortButton("Conta", "account")}</th>
-                <th>{renderTableSortButton("Categoria", "category")}</th>
-                <th>{renderTableSortButton("Status", "status")}</th>
-                <th>{renderTableSortButton("Vencimento", "due_date")}</th>
-                <th className="numeric-cell">{renderTableSortButton("Total", "total_amount", true)}</th>
+                <th>{renderTableHeader(entryTableColumnLabels.title, "title")}</th>
+                <th>{renderTableHeader(entryTableColumnLabels.flow, "flow")}</th>
+                <th>{renderTableHeader(entryTableColumnLabels.account, "account")}</th>
+                <th>{renderTableHeader(entryTableColumnLabels.category, "category")}</th>
+                <th>{renderTableHeader(entryTableColumnLabels.status, "status")}</th>
+                <th>{renderTableHeader(entryTableColumnLabels.due_date, "due_date")}</th>
+                <th className="numeric-cell">{renderTableHeader(entryTableColumnLabels.total_amount, "total_amount", true)}</th>
                 <th className="entries-actions-column">Ações</th>
-              </tr>
-              <tr className="entries-column-filter-row">
-                <th className="checkbox-cell" />
-                <th>
-                  <input
-                    aria-label="Filtrar título"
-                    className="entries-column-filter-input"
-                    placeholder="Filtrar"
-                    type="text"
-                    value={tableFilters.title}
-                    onChange={(event) => updateTableFilter("title", event.target.value)}
-                  />
-                </th>
-                <th>
-                  <input
-                    aria-label="Filtrar fluxo"
-                    className="entries-column-filter-input"
-                    placeholder="Filtrar"
-                    type="text"
-                    value={tableFilters.flow}
-                    onChange={(event) => updateTableFilter("flow", event.target.value)}
-                  />
-                </th>
-                <th>
-                  <input
-                    aria-label="Filtrar conta"
-                    className="entries-column-filter-input"
-                    placeholder="Filtrar"
-                    type="text"
-                    value={tableFilters.account}
-                    onChange={(event) => updateTableFilter("account", event.target.value)}
-                  />
-                </th>
-                <th>
-                  <input
-                    aria-label="Filtrar categoria"
-                    className="entries-column-filter-input"
-                    placeholder="Filtrar"
-                    type="text"
-                    value={tableFilters.category}
-                    onChange={(event) => updateTableFilter("category", event.target.value)}
-                  />
-                </th>
-                <th>
-                  <input
-                    aria-label="Filtrar status"
-                    className="entries-column-filter-input"
-                    placeholder="Filtrar"
-                    type="text"
-                    value={tableFilters.status}
-                    onChange={(event) => updateTableFilter("status", event.target.value)}
-                  />
-                </th>
-                <th>
-                  <input
-                    aria-label="Filtrar vencimento"
-                    className="entries-column-filter-input"
-                    type="date"
-                    value={tableFilters.due_date}
-                    onChange={(event) => updateTableFilter("due_date", event.target.value)}
-                  />
-                </th>
-                <th>
-                  <input
-                    aria-label="Filtrar total"
-                    className="entries-column-filter-input entries-column-filter-input--numeric"
-                    placeholder="Filtrar"
-                    type="text"
-                    value={tableFilters.total_amount}
-                    onChange={(event) => updateTableFilter("total_amount", event.target.value)}
-                  />
-                </th>
-                <th className="entries-actions-column" />
               </tr>
             </thead>
             <tbody>
