@@ -63,15 +63,6 @@ type PendingAuthState = {
   mfaSetup: MfaSetup | null;
 };
 
-type CachedOverviewSnapshot = {
-  version: 1;
-  filters: { start: string; end: string };
-  saved_at: string;
-  payload: DashboardOverview;
-};
-
-const CURRENT_MONTH_OVERVIEW_STORAGE_KEY = "salomao:overview:current-month:v1";
-
 function toDateInput(value: Date) {
   return value.toISOString().slice(0, 10);
 }
@@ -82,61 +73,6 @@ function getCurrentMonthRange() {
     start: toDateInput(new Date(today.getFullYear(), today.getMonth(), 1)),
     end: toDateInput(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
   };
-}
-
-function isSameRange(
-  left: { start: string; end: string },
-  right: { start: string; end: string },
-) {
-  return left.start === right.start && left.end === right.end;
-}
-
-function isCurrentMonthRange(filters: { start: string; end: string }) {
-  return isSameRange(filters, getCurrentMonthRange());
-}
-
-function readCurrentMonthOverviewCache() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  try {
-    const rawValue = window.localStorage.getItem(CURRENT_MONTH_OVERVIEW_STORAGE_KEY);
-    if (!rawValue) {
-      return null;
-    }
-    const parsed = JSON.parse(rawValue) as CachedOverviewSnapshot;
-    if (parsed.version !== 1) {
-      window.localStorage.removeItem(CURRENT_MONTH_OVERVIEW_STORAGE_KEY);
-      return null;
-    }
-    if (!isCurrentMonthRange(parsed.filters)) {
-      window.localStorage.removeItem(CURRENT_MONTH_OVERVIEW_STORAGE_KEY);
-      return null;
-    }
-    return parsed;
-  } catch {
-    window.localStorage.removeItem(CURRENT_MONTH_OVERVIEW_STORAGE_KEY);
-    return null;
-  }
-}
-
-function writeCurrentMonthOverviewCache(
-  filters: { start: string; end: string },
-  payload: DashboardOverview,
-) {
-  if (typeof window === "undefined") {
-    return;
-  }
-  if (!isCurrentMonthRange(filters)) {
-    return;
-  }
-  const snapshot: CachedOverviewSnapshot = {
-    version: 1,
-    filters,
-    saved_at: new Date().toISOString(),
-    payload,
-  };
-  window.localStorage.setItem(CURRENT_MONTH_OVERVIEW_STORAGE_KEY, JSON.stringify(snapshot));
 }
 
 function getDefaultPurchasePlanningFilters() {
@@ -937,16 +873,6 @@ function AppRuntime() {
       return;
     }
     const isInitialSectionLoad = !loadedSections[targetSection];
-    if (targetSection === "overview" && isInitialSectionLoad) {
-      const effectiveOverviewFilters = getCurrentMonthRange();
-      const cachedOverview = readCurrentMonthOverviewCache();
-      if (cachedOverview && isSameRange(cachedOverview.filters, effectiveOverviewFilters)) {
-        setOverviewFilters(effectiveOverviewFilters);
-        setDashboard(cachedOverview.payload);
-        setLoadedSections((current) => ({ ...current, overview: true }));
-        return;
-      }
-    }
     setLoading(true);
     try {
       switch (targetSection) {
@@ -957,7 +883,6 @@ function AppRuntime() {
           }
           const dashboardData = await fetchOverviewSnapshot(activeSession, effectiveOverviewFilters);
           setDashboard(dashboardData);
-          writeCurrentMonthOverviewCache(effectiveOverviewFilters, dashboardData);
           break;
         }
         case "lancamentos": {
@@ -1380,7 +1305,6 @@ function AppRuntime() {
       const effectiveFilters = nextFilters ?? overviewFilters;
       const response = await fetchOverviewSnapshot(session, effectiveFilters);
       setDashboard(response);
-      writeCurrentMonthOverviewCache(effectiveFilters, response);
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });
     } finally {
@@ -1849,7 +1773,6 @@ function AppRuntime() {
         fetchCashflowSnapshot(session, cashflowFilters),
       ]);
       setDashboard(dashboardData);
-      writeCurrentMonthOverviewCache(overviewFilters, dashboardData);
       setReports(reportsData);
       setCashflow(cashflowData);
       setFeedback({ tone: "success", message: "Dados analiticos atualizados." });
