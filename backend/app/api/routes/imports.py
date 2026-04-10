@@ -12,6 +12,7 @@ from app.schemas.imports import (
     LinxSyncRequest,
 )
 from app.services.backup import ensure_pre_import_backup
+from app.services.cache_invalidation import refresh_finance_analytics_caches
 from app.services.company_context import get_current_company
 from app.services.imports import (
     build_import_summary,
@@ -46,7 +47,9 @@ async def upload_linx_sales(
     try:
         ensure_pre_import_backup("linx-sales")
         content = await file.read()
-        return import_linx_sales(db, company, file.filename or "linx-sales.xls", content)
+        result = import_linx_sales(db, company, file.filename or "linx-sales.xls", content)
+        refresh_finance_analytics_caches(db, company, include_sales_history=True)
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -60,12 +63,14 @@ def trigger_linx_sales_sync(
     company = get_current_company(db)
     try:
         ensure_pre_import_backup("linx-sales")
-        return sync_linx_sales(
+        result = sync_linx_sales(
             db,
             company,
             start_date=payload.start_date,
             end_date=payload.end_date,
         )
+        refresh_finance_analytics_caches(db, company, include_sales_history=True)
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -166,11 +171,13 @@ def trigger_linx_movements_sync(
     company = get_current_company(db)
     try:
         ensure_pre_import_backup("linx-movements")
-        return sync_linx_movements(
+        result = sync_linx_movements(
             db,
             company,
             full_refresh=payload.full_refresh,
         )
+        refresh_finance_analytics_caches(db, company)
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -209,7 +216,9 @@ async def upload_ofx(
     try:
         ensure_pre_import_backup("ofx")
         content = await file.read()
-        return import_ofx(db, company, account_id, file.filename or "extrato.ofx", content)
+        result = import_ofx(db, company, account_id, file.filename or "extrato.ofx", content)
+        refresh_finance_analytics_caches(db, company)
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -228,12 +237,14 @@ async def upload_historical_cashbook(
     try:
         ensure_pre_import_backup("historical-cashbook")
         content = await file.read()
-        return import_historical_cashbook(
+        result = import_historical_cashbook(
             db,
             company,
             file.filename or "livro-caixa-historico.xlsx",
             content,
         )
+        refresh_finance_analytics_caches(db, company)
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -246,13 +257,15 @@ def trigger_inter_statement_sync(
 ) -> ImportResult:
     company = get_current_company(db)
     try:
-        return sync_inter_statement(
+        result = sync_inter_statement(
             db,
             company,
             account_id=payload.account_id,
             start_date=payload.start_date,
             end_date=payload.end_date,
         )
+        refresh_finance_analytics_caches(db, company)
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error

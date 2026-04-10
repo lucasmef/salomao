@@ -13,6 +13,7 @@ from app.schemas.reconciliation import (
     ReconciliationRead,
     ReconciliationWorklist,
 )
+from app.services.cache_invalidation import refresh_finance_analytics_caches
 from app.services.company_context import get_current_company
 from app.services.reconciliation import (
     build_reconciliation_worklist,
@@ -61,6 +62,7 @@ def create_match(
     try:
         reconciliation = create_reconciliation(db, company, payload, current_user)
         db.commit()
+        refresh_finance_analytics_caches(db, company)
         db.refresh(reconciliation)
     except ValueError as error:
         db.rollback()
@@ -93,6 +95,7 @@ def create_action_from_bank(
     try:
         result = create_entry_from_bank_transaction(db, company, payload, current_user)
         db.commit()
+        refresh_finance_analytics_caches(db, company)
         return {key: str(value) for key, value in result.items()}
     except ValueError as error:
         db.rollback()
@@ -115,6 +118,7 @@ def undo_match(
             current_user,
         )
         db.commit()
+        refresh_finance_analytics_caches(db, company)
         return result
     except ValueError as error:
         db.rollback()

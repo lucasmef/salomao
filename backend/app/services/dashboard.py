@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from threading import Lock
 from time import monotonic
@@ -8,9 +8,8 @@ from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.banking import BankTransaction, Reconciliation, ReconciliationLine
-from app.db.models.finance import Account, Category, FinancialEntry, Transfer
-from app.db.models.imports import ImportBatch
-from app.db.models.linx import ReceivableTitle, SalesSnapshot
+from app.db.models.finance import FinancialEntry
+from app.db.models.linx import SalesSnapshot
 from app.db.models.security import Company
 from app.schemas.dashboard import (
     DashboardAccountBalance,
@@ -25,20 +24,31 @@ from app.services.cashflow import build_cashflow_overview
 from app.services.reports import get_cached_reports_overview
 
 MONTH_LABELS = ("Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez")
-CURRENT_MONTH_OVERVIEW_CACHE_TTL_SECONDS = 90
-HISTORICAL_MONTH_OVERVIEW_CACHE_TTL_SECONDS = 1800
+CURRENT_MONTH_OVERVIEW_CACHE_TTL_SECONDS = 1800
+HISTORICAL_MONTH_OVERVIEW_CACHE_TTL_SECONDS = 21600
 MAX_OVERVIEW_CACHE_ITEMS = 24
+HISTORICAL_REVENUE_COMPARISON_CACHE_TTL_SECONDS = 21600
+MAX_REVENUE_COMPARISON_CACHE_ITEMS = 12
 
 
 @dataclass(slots=True)
 class DashboardOverviewCacheEntry:
-    signature: tuple[str, ...]
     expires_at: float
     payload: DashboardOverview
 
 
 _dashboard_overview_cache: dict[tuple[str, str, str], DashboardOverviewCacheEntry] = {}
 _dashboard_overview_cache_lock = Lock()
+
+
+@dataclass(slots=True)
+class RevenueComparisonHistoryCacheEntry:
+    expires_at: float
+    totals_by_year_month: dict[tuple[int, int], Decimal]
+
+
+_revenue_comparison_history_cache: dict[tuple[str, int, str], RevenueComparisonHistoryCacheEntry] = {}
+_revenue_comparison_history_cache_lock = Lock()
 
 
 def _month_start(value: date) -> date:
@@ -69,48 +79,6 @@ def _overview_cache_ttl_seconds(start: date, end: date, *, today: date | None = 
 def _overview_cache_key(company_id: str, start: date, end: date) -> tuple[str, str, str]:
     return company_id, start.isoformat(), end.isoformat()
 
-
-def _table_version(
-    db: Session,
-    model: type,
-    company_id: str,
-    *extra_filters: object,
-) -> str:
-    updated_at, count = db.execute(
-        select(func.max(model.updated_at), func.count()).where(model.company_id == company_id, *extra_filters)
-    ).one()
-    updated_at_token = updated_at.isoformat() if updated_at else "-"
-    return f"{updated_at_token}:{int(count or 0)}"
-
-
-def _overview_cache_signature(db: Session, company_id: str, start: date, end: date) -> tuple[str, ...]:
-    previous_year = end.year - 1
-    return (
-        date.today().isoformat(),
-        _table_version(db, FinancialEntry, company_id),
-        _table_version(db, Account, company_id),
-        _table_version(db, Transfer, company_id),
-        _table_version(db, Category, company_id),
-        _table_version(db, BankTransaction, company_id),
-        _table_version(db, Reconciliation, company_id),
-        _table_version(db, ReconciliationLine, company_id),
-        _table_version(
-            db,
-            SalesSnapshot,
-            company_id,
-            SalesSnapshot.snapshot_date >= date(previous_year, 1, 1),
-            SalesSnapshot.snapshot_date <= date(end.year, 12, 31),
-        ),
-        _table_version(db, ReceivableTitle, company_id),
-        _table_version(
-            db,
-            ImportBatch,
-            company_id,
-            ImportBatch.source_type.in_(("linx_receivables", "linx_sales", "linx_movements")),
-        ),
-    )
-
-
 def _prune_dashboard_overview_cache(now: float) -> None:
     expired_keys = [key for key, entry in _dashboard_overview_cache.items() if entry.expires_at <= now]
     for key in expired_keys:
@@ -130,6 +98,114 @@ def clear_dashboard_overview_cache(company_id: str | None = None) -> None:
         keys_to_remove = [key for key in _dashboard_overview_cache if key[0] == company_id]
         for key in keys_to_remove:
             _dashboard_overview_cache.pop(key, None)
+
+
+def _revenue_comparison_history_cache_key(company_id: str, current_year: int, today: date) -> tuple[str, int, str]:
+    return company_id, current_year, today.isoformat()
+
+
+def _prune_revenue_comparison_history_cache(now: float) -> None:
+    expired_keys = [key for key, entry in _revenue_comparison_history_cache.items() if entry.expires_at <= now]
+    for key in expired_keys:
+        _revenue_comparison_history_cache.pop(key, None)
+    if len(_revenue_comparison_history_cache) <= MAX_REVENUE_COMPARISON_CACHE_ITEMS:
+        return
+    keys_by_expiry = sorted(_revenue_comparison_history_cache.items(), key=lambda item: item[1].expires_at)
+    for key, _entry in keys_by_expiry[: len(_revenue_comparison_history_cache) - MAX_REVENUE_COMPARISON_CACHE_ITEMS]:
+        _revenue_comparison_history_cache.pop(key, None)
+
+
+def clear_dashboard_revenue_comparison_cache(company_id: str | None = None) -> None:
+    with _revenue_comparison_history_cache_lock:
+        if company_id is None:
+            _revenue_comparison_history_cache.clear()
+            return
+        keys_to_remove = [key for key in _revenue_comparison_history_cache if key[0] == company_id]
+        for key in keys_to_remove:
+            _revenue_comparison_history_cache.pop(key, None)
+
+
+def _query_revenue_totals_by_year_month(
+    db: Session,
+    company_id: str,
+    *,
+    start_date: date,
+    end_date: date,
+) -> dict[tuple[int, int], Decimal]:
+    if end_date < start_date:
+        return {}
+    year_expr = extract("year", SalesSnapshot.snapshot_date)
+    month_expr = extract("month", SalesSnapshot.snapshot_date)
+    rows = db.execute(
+        select(
+            year_expr.label("year"),
+            month_expr.label("month"),
+            func.coalesce(func.sum(SalesSnapshot.gross_revenue), 0).label("amount"),
+        )
+        .where(
+            SalesSnapshot.company_id == company_id,
+            SalesSnapshot.snapshot_date >= start_date,
+            SalesSnapshot.snapshot_date <= end_date,
+        )
+        .group_by(year_expr, month_expr)
+    ).all()
+    return {
+        (int(row.year), int(row.month)): Decimal(row.amount or 0)
+        for row in rows
+        if row.year and row.month
+    }
+
+
+def _get_revenue_comparison_totals(
+    db: Session,
+    company_id: str,
+    current_year: int,
+    *,
+    today: date | None = None,
+) -> dict[tuple[int, int], Decimal]:
+    reference_day = today or date.today()
+    previous_year = current_year - 1
+    start_date = date(previous_year, 1, 1)
+    current_year_end = date(current_year, 12, 31)
+    cacheable_end = current_year_end
+    live_totals: dict[tuple[int, int], Decimal] = {}
+
+    if current_year == reference_day.year:
+        cacheable_end = min(current_year_end, reference_day - timedelta(days=1))
+        live_totals = _query_revenue_totals_by_year_month(
+            db,
+            company_id,
+            start_date=reference_day,
+            end_date=min(reference_day, current_year_end),
+        )
+
+    cache_key = _revenue_comparison_history_cache_key(company_id, current_year, reference_day)
+    current_time = monotonic()
+
+    with _revenue_comparison_history_cache_lock:
+        cached_entry = _revenue_comparison_history_cache.get(cache_key)
+        if cached_entry and cached_entry.expires_at > current_time:
+            historical_totals = dict(cached_entry.totals_by_year_month)
+        else:
+            historical_totals = _query_revenue_totals_by_year_month(
+                db,
+                company_id,
+                start_date=start_date,
+                end_date=cacheable_end,
+            )
+            _prune_revenue_comparison_history_cache(current_time)
+            _revenue_comparison_history_cache[cache_key] = RevenueComparisonHistoryCacheEntry(
+                expires_at=current_time + HISTORICAL_REVENUE_COMPARISON_CACHE_TTL_SECONDS,
+                totals_by_year_month=dict(historical_totals),
+            )
+
+    if not live_totals:
+        return historical_totals
+
+    combined_totals = dict(historical_totals)
+    for key, amount in live_totals.items():
+        combined_totals[key] = combined_totals.get(key, Decimal("0.00")) + amount
+    return combined_totals
 
 
 def build_dashboard_overview(
@@ -201,24 +277,7 @@ def build_dashboard_overview(
 
     current_year = end.year
     previous_year = current_year - 1
-    year_expr = extract("year", SalesSnapshot.snapshot_date)
-    month_expr = extract("month", SalesSnapshot.snapshot_date)
-    revenue_rows = db.execute(
-        select(
-            year_expr.label("year"),
-            month_expr.label("month"),
-            func.coalesce(func.sum(SalesSnapshot.gross_revenue), 0).label("amount"),
-        ).where(
-            SalesSnapshot.company_id == company.id,
-            SalesSnapshot.snapshot_date >= date(previous_year, 1, 1),
-            SalesSnapshot.snapshot_date <= date(current_year, 12, 31),
-        ).group_by(year_expr, month_expr)
-    ).all()
-    revenue_by_year_month = {
-        (int(row.year), int(row.month)): Decimal(row.amount or 0)
-        for row in revenue_rows
-        if row.year and row.month
-    }
+    revenue_by_year_month = _get_revenue_comparison_totals(db, company.id, current_year)
     revenue_comparison = DashboardRevenueComparison(
         current_year=current_year,
         previous_year=previous_year,
@@ -297,12 +356,11 @@ def get_cached_dashboard_overview(
         return build_dashboard_overview(db, company, start=start, end=end)
 
     cache_key = _overview_cache_key(company.id, start, end)
-    signature = _overview_cache_signature(db, company.id, start, end)
     current_time = monotonic()
 
     with _dashboard_overview_cache_lock:
         cached_entry = _dashboard_overview_cache.get(cache_key)
-        if cached_entry and cached_entry.signature == signature and cached_entry.expires_at > current_time:
+        if cached_entry and cached_entry.expires_at > current_time:
             return cached_entry.payload.model_copy(deep=True)
 
     overview = build_dashboard_overview(db, company, start=start, end=end)
@@ -310,7 +368,6 @@ def get_cached_dashboard_overview(
     with _dashboard_overview_cache_lock:
         _prune_dashboard_overview_cache(current_time)
         _dashboard_overview_cache[cache_key] = DashboardOverviewCacheEntry(
-            signature=signature,
             expires_at=current_time + ttl_seconds,
             payload=overview.model_copy(deep=True),
         )

@@ -43,14 +43,13 @@ INCOME_ENTRY_TYPES = {"income", "historical_receipt"}
 PURCHASE_RETURN_ENTRY_TYPES = {"historical_purchase_return"}
 CONTROL_RECEIVABLE_SOURCE = "linx_sales_control"
 SETTLEMENT_ADJUSTMENT_SOURCE = "settlement_adjustment"
-CURRENT_MONTH_REPORTS_CACHE_TTL_SECONDS = 90
-HISTORICAL_MONTH_REPORTS_CACHE_TTL_SECONDS = 1800
+CURRENT_MONTH_REPORTS_CACHE_TTL_SECONDS = 1800
+HISTORICAL_MONTH_REPORTS_CACHE_TTL_SECONDS = 21600
 MAX_REPORTS_CACHE_ITEMS = 24
 
 
 @dataclass(slots=True)
 class ReportsOverviewCacheEntry:
-    signature: tuple[str, ...]
     expires_at: float
     payload: ReportsOverview
 
@@ -182,70 +181,6 @@ def _reports_cache_ttl_seconds(start: date, end: date, *, today: date | None = N
 
 def _reports_cache_key(company_id: str, start: date, end: date) -> tuple[str, str, str]:
     return company_id, start.isoformat(), end.isoformat()
-
-
-def _version_token(updated_at: datetime | None, count: int | None) -> str:
-    updated_at_token = updated_at.isoformat() if updated_at else "-"
-    return f"{updated_at_token}:{int(count or 0)}"
-
-
-def _table_version(db: Session, model: type, company_id: str) -> str:
-    updated_at, count = db.execute(
-        select(func.max(model.updated_at), func.count()).where(model.company_id == company_id)
-    ).one()
-    return _version_token(updated_at, count)
-
-
-def _report_layout_version(db: Session, company_id: str) -> str:
-    updated_at, count = db.execute(
-        select(func.max(ReportLayout.updated_at), func.count()).where(ReportLayout.company_id == company_id)
-    ).one()
-    return _version_token(updated_at, count)
-
-
-def _report_layout_line_version(db: Session, company_id: str) -> str:
-    updated_at, count = db.execute(
-        select(func.max(ReportLayoutLine.updated_at), func.count())
-        .select_from(ReportLayoutLine)
-        .join(ReportLayout, ReportLayout.id == ReportLayoutLine.layout_id)
-        .where(ReportLayout.company_id == company_id)
-    ).one()
-    return _version_token(updated_at, count)
-
-
-def _report_layout_group_version(db: Session, company_id: str) -> str:
-    updated_at, count = db.execute(
-        select(func.max(ReportLayoutLineGroup.updated_at), func.count())
-        .select_from(ReportLayoutLineGroup)
-        .join(ReportLayoutLine, ReportLayoutLine.id == ReportLayoutLineGroup.line_id)
-        .join(ReportLayout, ReportLayout.id == ReportLayoutLine.layout_id)
-        .where(ReportLayout.company_id == company_id)
-    ).one()
-    return _version_token(updated_at, count)
-
-
-def _report_layout_formula_version(db: Session, company_id: str) -> str:
-    updated_at, count = db.execute(
-        select(func.max(ReportLayoutFormulaItem.updated_at), func.count())
-        .select_from(ReportLayoutFormulaItem)
-        .join(ReportLayoutLine, ReportLayoutLine.id == ReportLayoutFormulaItem.line_id)
-        .join(ReportLayout, ReportLayout.id == ReportLayoutLine.layout_id)
-        .where(ReportLayout.company_id == company_id)
-    ).one()
-    return _version_token(updated_at, count)
-
-
-def _reports_cache_signature(db: Session, company_id: str) -> tuple[str, ...]:
-    return (
-        date.today().isoformat(),
-        _table_version(db, FinancialEntry, company_id),
-        _table_version(db, Category, company_id),
-        _table_version(db, LinxMovement, company_id),
-        _report_layout_version(db, company_id),
-        _report_layout_line_version(db, company_id),
-        _report_layout_group_version(db, company_id),
-        _report_layout_formula_version(db, company_id),
-    )
 
 
 def _prune_reports_overview_cache(now: float) -> None:
@@ -1109,12 +1044,11 @@ def get_cached_reports_overview(
         return build_reports_overview(db, company, start=period_start, end=period_end)
 
     cache_key = _reports_cache_key(company.id, period_start, period_end)
-    signature = _reports_cache_signature(db, company.id)
     current_time = monotonic()
 
     with _reports_overview_cache_lock:
         cached_entry = _reports_overview_cache.get(cache_key)
-        if cached_entry and cached_entry.signature == signature and cached_entry.expires_at > current_time:
+        if cached_entry and cached_entry.expires_at > current_time:
             return cached_entry.payload.model_copy(deep=True)
 
     report = build_reports_overview(db, company, start=period_start, end=period_end)
@@ -1122,7 +1056,6 @@ def get_cached_reports_overview(
     with _reports_overview_cache_lock:
         _prune_reports_overview_cache(current_time)
         _reports_overview_cache[cache_key] = ReportsOverviewCacheEntry(
-            signature=signature,
             expires_at=current_time + ttl_seconds,
             payload=report.model_copy(deep=True),
         )
