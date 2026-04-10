@@ -315,6 +315,36 @@
   gap: 10px;
 }
 
+.app-shell-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: min(360px, 100%);
+}
+
+.app-shell-search input {
+  width: min(360px, 100%);
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #d6e0ef;
+  border-radius: 12px;
+  background: #f8fbff;
+  color: #22354e;
+  font-size: 0.8rem;
+}
+
+.app-shell-search-button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #d6e0ef;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #22354e;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .app-shell-user-actions {
   display: inline-flex;
   align-items: center;
@@ -395,6 +425,58 @@
   border-color: #d7e0ee;
   background: #f8fbff;
   color: #24344f;
+}
+
+.global-product-search-modal {
+  width: min(1180px, calc(100vw - 32px));
+}
+
+.global-product-search-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.global-product-search-header h3 {
+  margin: 0 0 4px;
+}
+
+.global-product-search-header p {
+  margin: 0;
+  color: #607087;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.global-product-search-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.global-product-search-toolbar input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #d6e0ef;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.global-product-search-summary {
+  margin-top: 0;
+}
+
+.global-product-search-summary span {
+  color: #607087;
+  font-size: 0.76rem;
+}
+
+.global-product-search-table {
+  min-width: 920px;
 }
 
 .app-shell-content {
@@ -523,6 +605,10 @@
     flex-wrap: wrap;
   }
 
+  .app-shell-search {
+    width: 100%;
+  }
+
   .app-shell-user-actions {
     width: 100%;
     justify-content: flex-end;
@@ -641,9 +727,13 @@
     grid-column: 1 / -1;
   }
 
-  .app-shell-search,
   .app-shell-user-action {
     width: 100%;
+  }
+
+  .app-shell-search {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .app-shell-user-action {
@@ -677,6 +767,12 @@
   .route-loading-card {
     padding: 18px 16px;
     border-radius: 16px;
+  }
+
+  .global-product-search-header,
+  .global-product-search-toolbar {
+    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 }
 

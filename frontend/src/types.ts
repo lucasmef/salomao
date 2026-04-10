@@ -1070,6 +1070,13 @@ export type LinxProductDirectory = {
   page_size: number;
 };
 
+export type LinxProductSearchResult = {
+  generated_at: string;
+  query: string;
+  total: number;
+  items: LinxProductListItem[];
+};
+
 export type LinxOpenReceivableDirectorySummary = {
   total_count: number;
   overdue_count: number;

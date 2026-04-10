@@ -20,8 +20,9 @@ from app.schemas.linx_products import (
     LinxProductDirectoryRead,
     LinxProductDirectorySummaryRead,
     LinxProductListItemRead,
+    LinxProductSearchRead,
 )
-from app.services.linx_products import list_linx_products, normalize_collection_name, sync_linx_products
+from app.services.linx_products import list_linx_products, normalize_collection_name, search_linx_products, sync_linx_products
 
 
 def _build_session() -> tuple[Session, Company, User]:
@@ -202,6 +203,46 @@ def test_list_linx_products_paginates_and_filters() -> None:
         session.close()
 
 
+def test_search_linx_products_matches_chunks_and_brand() -> None:
+    session, company, _ = _build_session()
+    try:
+        session.add_all(
+            [
+                LinxProduct(
+                    company_id=company.id,
+                    linx_code=101,
+                    description="Calca Maria Preta 38",
+                    reference="CAL-MAR-38",
+                    brand_name="Lafort",
+                    collection_name="Inverno 2026",
+                    stock_quantity=Decimal("5.0000"),
+                    price_sale=Decimal("199.9000"),
+                    is_active=True,
+                ),
+                LinxProduct(
+                    company_id=company.id,
+                    linx_code=102,
+                    description="Blusa Azul 40",
+                    reference="BLU-AZU-40",
+                    brand_name="Outra Marca",
+                    collection_name="Verao 2026",
+                    stock_quantity=Decimal("2.0000"),
+                    price_sale=Decimal("149.9000"),
+                    is_active=True,
+                ),
+            ]
+        )
+        session.commit()
+
+        for query in ("calca 38", "Mari preta 38", "Mari 38", "Mari Lafort 38"):
+            response = search_linx_products(session, company, query=query, limit=10)
+            assert response.total >= 1
+            assert response.items[0].linx_code == 101
+            assert response.items[0].brand_name == "Lafort"
+    finally:
+        session.close()
+
+
 def test_linx_products_endpoints_smoke(monkeypatch) -> None:
     session, company, user = _build_session()
     captured: dict[str, object] = {}
@@ -248,8 +289,30 @@ def test_linx_products_endpoints_smoke(monkeypatch) -> None:
             page_size=page_size,
         )
 
+    def fake_search_linx_products(db, current_company, *, query, limit=20):
+        captured["search"] = (db, current_company.id, query, limit)
+        return LinxProductSearchRead(
+            generated_at=datetime.now(timezone.utc),
+            query=query,
+            total=1,
+            items=[
+                LinxProductListItemRead(
+                    id="1",
+                    linx_code=26519,
+                    description="CALCA TESTE",
+                    reference="540281",
+                    brand_name="LAFORT",
+                    collection_name="Inverno 2026",
+                    stock_quantity=Decimal("3.0000"),
+                    price_sale=Decimal("217.7900"),
+                    is_active=True,
+                )
+            ],
+        )
+
     monkeypatch.setattr("app.api.routes.imports.sync_linx_products", fake_sync_linx_products)
     monkeypatch.setattr("app.api.routes.linx_products.list_linx_products", fake_list_linx_products)
+    monkeypatch.setattr("app.api.routes.linx_products.search_linx_products", fake_search_linx_products)
 
     app = FastAPI()
     app.include_router(api_router, prefix="/api/v1")
@@ -264,13 +327,17 @@ def test_linx_products_endpoints_smoke(monkeypatch) -> None:
     try:
         sync_response = client.post("/api/v1/imports/linx-products/sync", json={"full_refresh": True})
         list_response = client.get("/api/v1/linx-products?page=2&page_size=25&search=calca&status=active")
+        search_response = client.get("/api/v1/linx-products/search?q=mari%20lafort%2038&limit=15")
 
         assert sync_response.status_code == 201
         assert sync_response.json()["message"] == "products ok"
         assert list_response.status_code == 200
         assert list_response.json()["total"] == 1
+        assert search_response.status_code == 200
+        assert search_response.json()["items"][0]["brand_name"] == "LAFORT"
         assert captured["sync"] == (session, company.id, True)
         assert captured["list"] == (session, company.id, 2, 25, "calca", "active")
+        assert captured["search"] == (session, company.id, "mari lafort 38", 15)
     finally:
         client.close()
         session.close()

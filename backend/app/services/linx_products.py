@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from difflib import SequenceMatcher
 import hashlib
 import json
 import re
+import unicodedata
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
@@ -10,7 +12,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import httpx
-from sqlalchemy import String, case, cast, func, or_, select
+from sqlalchemy import String, and_, case, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.imports import ImportBatch
@@ -21,6 +23,7 @@ from app.schemas.linx_products import (
     LinxProductDirectoryRead,
     LinxProductDirectorySummaryRead,
     LinxProductListItemRead,
+    LinxProductSearchRead,
 )
 from app.services.linx import LinxApiSettings, load_linx_api_settings
 
@@ -35,6 +38,8 @@ LINX_FULL_LOAD_START = date(2000, 1, 1)
 LINX_FULL_LOAD_START_DATETIME = "2000-01-01 00:00:00"
 PRODUCTS_PAGE_LIMIT = 5000
 PRODUCT_DETAILS_PAGE_LIMIT = 5000
+MAX_PRODUCT_SEARCH_CANDIDATES = 800
+MAX_PRODUCT_SEARCH_RESULTS = 60
 
 
 @dataclass(frozen=True)
@@ -266,33 +271,53 @@ def list_linx_products(
             with_supplier_count=int(summary_row[3] or 0),
             with_collection_count=int(summary_row[4] or 0),
         ),
-        items=[
-            LinxProductListItemRead(
-                id=item.id,
-                linx_code=int(item.linx_code),
-                description=item.description,
-                reference=item.reference,
-                barcode=item.barcode,
-                unit=item.unit,
-                brand_name=item.brand_name,
-                line_name=item.line_name,
-                sector_name=item.sector_name,
-                supplier_code=item.supplier_code,
-                supplier_name=item.supplier_name,
-                collection_id=item.collection_id,
-                collection_name=item.collection_name,
-                collection_name_raw=item.collection_name_raw,
-                price_cost=item.price_cost,
-                price_sale=item.price_sale,
-                stock_quantity=item.stock_quantity,
-                is_active=item.is_active,
-                linx_updated_at=item.linx_updated_at,
-            )
-            for item in items
-        ],
+        items=[_serialize_linx_product(item) for item in items],
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+def search_linx_products(
+    db: Session,
+    company: Company,
+    *,
+    query: str,
+    limit: int = 20,
+) -> LinxProductSearchRead:
+    normalized_query = _normalize_search_text(query)
+    tokens = _tokenize_search_query(normalized_query)
+    safe_limit = min(max(limit, 1), MAX_PRODUCT_SEARCH_RESULTS)
+    if not normalized_query or not tokens:
+        return LinxProductSearchRead(
+            generated_at=datetime.now(timezone.utc),
+            query=query,
+            total=0,
+            items=[],
+        )
+
+    candidates = _load_search_candidates(db, company_id=company.id, tokens=tokens)
+    scored_candidates: list[tuple[float, LinxProduct]] = []
+    for candidate in candidates:
+        score = _score_product_search(candidate, normalized_query=normalized_query, tokens=tokens)
+        if score <= 0:
+            continue
+        scored_candidates.append((score, candidate))
+
+    scored_candidates.sort(
+        key=lambda item: (
+            -item[0],
+            0 if item[1].is_active else 1,
+            item[1].description.lower(),
+            int(item[1].linx_code),
+        )
+    )
+
+    return LinxProductSearchRead(
+        generated_at=datetime.now(timezone.utc),
+        query=query,
+        total=len(scored_candidates),
+        items=[_serialize_linx_product(item) for _score, item in scored_candidates[:safe_limit]],
     )
 
 
@@ -322,6 +347,162 @@ def _build_sync_plan(
         product_timestamp=product_timestamp,
         detail_timestamp=detail_timestamp,
     )
+
+
+def _serialize_linx_product(item: LinxProduct) -> LinxProductListItemRead:
+    return LinxProductListItemRead(
+        id=item.id,
+        linx_code=int(item.linx_code),
+        description=item.description,
+        reference=item.reference,
+        barcode=item.barcode,
+        unit=item.unit,
+        brand_name=item.brand_name,
+        line_name=item.line_name,
+        sector_name=item.sector_name,
+        supplier_code=item.supplier_code,
+        supplier_name=item.supplier_name,
+        collection_id=item.collection_id,
+        collection_name=item.collection_name,
+        collection_name_raw=item.collection_name_raw,
+        price_cost=item.price_cost,
+        price_sale=item.price_sale,
+        stock_quantity=item.stock_quantity,
+        is_active=item.is_active,
+        linx_updated_at=item.linx_updated_at,
+    )
+
+
+def _normalize_search_text(value: str | None) -> str:
+    if not value:
+        return ""
+    ascii_value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    cleaned = re.sub(r"[^a-zA-Z0-9]+", " ", ascii_value.lower()).strip()
+    return re.sub(r"\s+", " ", cleaned)
+
+
+def _tokenize_search_query(normalized_query: str) -> list[str]:
+    tokens = [token for token in normalized_query.split(" ") if token]
+    return [token for token in tokens if token.isdigit() or len(token) >= 2]
+
+
+def _search_patterns_for_token(token: str) -> list[str]:
+    patterns = [token]
+    if len(token) >= 4:
+        patterns.append(token[:3])
+    return list(dict.fromkeys(patterns))
+
+
+def _search_field_clauses(token: str) -> list[object]:
+    clauses: list[object] = []
+    for pattern_token in _search_patterns_for_token(token):
+        like_pattern = f"%{pattern_token}%"
+        clauses.extend(
+            [
+                cast(LinxProduct.linx_code, String).ilike(like_pattern),
+                LinxProduct.description.ilike(like_pattern),
+                LinxProduct.reference.ilike(like_pattern),
+                LinxProduct.brand_name.ilike(like_pattern),
+                LinxProduct.collection_name.ilike(like_pattern),
+                LinxProduct.barcode.ilike(like_pattern),
+                LinxProduct.supplier_name.ilike(like_pattern),
+            ]
+        )
+    return clauses
+
+
+def _load_search_candidates(db: Session, *, company_id: str, tokens: list[str]) -> list[LinxProduct]:
+    primary_filters = [or_(*_search_field_clauses(token)) for token in tokens]
+    primary_candidates = list(
+        db.scalars(
+            select(LinxProduct)
+            .where(LinxProduct.company_id == company_id, and_(*primary_filters))
+            .order_by(LinxProduct.is_active.desc(), LinxProduct.description.asc(), LinxProduct.linx_code.asc())
+            .limit(MAX_PRODUCT_SEARCH_CANDIDATES)
+        )
+    )
+    if primary_candidates:
+        return primary_candidates
+
+    fallback_candidates = list(
+        db.scalars(
+            select(LinxProduct)
+            .where(
+                LinxProduct.company_id == company_id,
+                or_(*[clause for token in tokens for clause in _search_field_clauses(token)]),
+            )
+            .order_by(LinxProduct.is_active.desc(), LinxProduct.description.asc(), LinxProduct.linx_code.asc())
+            .limit(MAX_PRODUCT_SEARCH_CANDIDATES)
+        )
+    )
+    return fallback_candidates
+
+
+def _field_token_score(token: str, field_words: list[str]) -> float:
+    best_score = 0.0
+    for word in field_words:
+        if token == word:
+            return 1.0
+        if word.startswith(token):
+            best_score = max(best_score, 0.94)
+            continue
+        if token in word:
+            best_score = max(best_score, 0.84)
+            continue
+        if len(token) < 4:
+            continue
+        ratio = SequenceMatcher(None, token, word).ratio()
+        if ratio >= 0.78:
+            best_score = max(best_score, ratio * 0.74)
+    return best_score
+
+
+def _score_product_search(product: LinxProduct, *, normalized_query: str, tokens: list[str]) -> float:
+    field_values = {
+        "description": _normalize_search_text(product.description),
+        "reference": _normalize_search_text(product.reference),
+        "brand_name": _normalize_search_text(product.brand_name),
+        "collection_name": _normalize_search_text(product.collection_name),
+        "barcode": _normalize_search_text(product.barcode),
+        "linx_code": _normalize_search_text(str(product.linx_code)),
+        "supplier_name": _normalize_search_text(product.supplier_name),
+    }
+    field_weights = {
+        "description": 1.35,
+        "brand_name": 1.15,
+        "reference": 1.0,
+        "collection_name": 0.9,
+        "barcode": 1.05,
+        "linx_code": 1.1,
+        "supplier_name": 0.7,
+    }
+    combined_text = " ".join(value for value in field_values.values() if value)
+    if not combined_text:
+        return 0.0
+
+    token_score_total = 0.0
+    for token in tokens:
+        best_token_score = 0.0
+        for field_name, field_value in field_values.items():
+            if not field_value:
+                continue
+            field_words = field_value.split(" ")
+            field_score = _field_token_score(token, field_words) * field_weights[field_name]
+            best_token_score = max(best_token_score, field_score)
+        if best_token_score <= 0:
+            return 0.0
+        token_score_total += best_token_score
+
+    score = token_score_total * 100
+    if normalized_query in combined_text:
+        score += 60
+    if field_values["description"] and normalized_query in field_values["description"]:
+        score += 24
+    if field_values["brand_name"] and any(token in field_values["brand_name"] for token in tokens):
+        score += 12
+    if product.is_active:
+        score += 4
+    return score
 
 
 def _collect_product_rows(

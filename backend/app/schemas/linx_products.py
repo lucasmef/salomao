@@ -41,3 +41,10 @@ class LinxProductDirectoryRead(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class LinxProductSearchRead(BaseModel):
+    generated_at: datetime
+    query: str
+    total: int
+    items: list[LinxProductListItemRead]

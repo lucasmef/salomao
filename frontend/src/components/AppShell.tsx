@@ -10,6 +10,9 @@ type Props = {
   mainNavigation: MainNavItem[];
   children: ReactNode;
   onLogout: () => void;
+  globalProductSearch: string;
+  onGlobalProductSearchChange: (value: string) => void;
+  onSubmitGlobalProductSearch: () => void;
   busy?: boolean;
   busyLabel?: string;
 };
@@ -19,6 +22,9 @@ export function AppShell({
   mainNavigation,
   children,
   onLogout,
+  globalProductSearch,
+  onGlobalProductSearchChange,
+  onSubmitGlobalProductSearch,
   busy = false,
   busyLabel = "",
 }: Props) {
@@ -71,6 +77,24 @@ export function AppShell({
         </nav>
 
         <div className="app-shell-header-tools">
+          <form
+            className="app-shell-search"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSubmitGlobalProductSearch();
+            }}
+          >
+            <input
+              aria-label="Busca global de produtos"
+              onChange={(event) => onGlobalProductSearchChange(event.target.value)}
+              placeholder="Buscar produto no sistema todo"
+              value={globalProductSearch}
+            />
+            <button className="app-shell-search-button" type="submit">
+              Buscar
+            </button>
+          </form>
+
           {busy && busyLabel ? (
             <div className="app-shell-status" role="status" aria-live="polite">
               <span aria-hidden="true" className="app-shell-status-dot" />

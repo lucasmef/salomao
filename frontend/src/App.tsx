@@ -2,6 +2,7 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "./components/AppShell";
+import { GlobalProductSearchModal } from "./components/GlobalProductSearchModal";
 import { RouteLoadingFallback } from "./components/RouteLoadingFallback";
 import { SectionChrome } from "./components/SectionChrome";
 import { findChildNavItem, legacySectionPathMap, mainNavigation, overviewNavigationItem } from "./data/navigation";
@@ -30,6 +31,7 @@ import type {
   LinxMovementDirectory,
   LinxOpenReceivableDirectory,
   LinxProductDirectory,
+  LinxProductSearchResult,
   LoanContract,
   LoginResponse,
   LinxSettings,
@@ -288,6 +290,12 @@ const emptyLinxProductDirectory: LinxProductDirectory = {
   page: 1,
   page_size: 50,
 };
+const emptyLinxProductSearchResult: LinxProductSearchResult = {
+  generated_at: "",
+  query: "",
+  total: 0,
+  items: [],
+};
 const emptyLinxMovementDirectory: LinxMovementDirectory = {
   generated_at: "",
   summary: {
@@ -525,6 +533,12 @@ function AppRuntime() {
   const [boletoDashboard, setBoletoDashboard] = useState<BoletoDashboard>(emptyBoletoDashboard);
   const [linxCustomerDirectory, setLinxCustomerDirectory] = useState<LinxCustomerDirectory>(emptyLinxCustomerDirectory);
   const [linxProductDirectory, setLinxProductDirectory] = useState<LinxProductDirectory>(emptyLinxProductDirectory);
+  const [globalProductSearchInput, setGlobalProductSearchInput] = useState("");
+  const [globalProductSearchResult, setGlobalProductSearchResult] = useState<LinxProductSearchResult>(
+    emptyLinxProductSearchResult,
+  );
+  const [globalProductSearchModalOpen, setGlobalProductSearchModalOpen] = useState(false);
+  const [globalProductSearchLoading, setGlobalProductSearchLoading] = useState(false);
   const [linxMovementDirectory, setLinxMovementDirectory] = useState<LinxMovementDirectory>(emptyLinxMovementDirectory);
   const [linxOpenReceivableDirectory, setLinxOpenReceivableDirectory] = useState<LinxOpenReceivableDirectory>(
     emptyLinxOpenReceivableDirectory,
@@ -748,6 +762,32 @@ function AppRuntime() {
     });
     setLinxProductDirectory(response);
     setLinxProductFilters(nextFilters);
+  }
+
+  async function searchProductsGlobally(rawQuery: string) {
+    if (!session) return;
+    const trimmedQuery = rawQuery.trim();
+    setGlobalProductSearchInput(rawQuery);
+    if (trimmedQuery.length < 2) {
+      setFeedback({ tone: "info", message: "Digite pelo menos 2 caracteres para buscar produtos." });
+      return;
+    }
+
+    setGlobalProductSearchModalOpen(true);
+    setGlobalProductSearchLoading(true);
+    try {
+      const query = new URLSearchParams();
+      query.set("q", trimmedQuery);
+      query.set("limit", "40");
+      const response = await fetchJson<LinxProductSearchResult>(`/linx-products/search?${query.toString()}`, {
+        token: session.token,
+      });
+      setGlobalProductSearchResult(response);
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setGlobalProductSearchLoading(false);
+    }
   }
 
   async function fetchLinxMovementDirectory(
@@ -2421,6 +2461,11 @@ function AppRuntime() {
     <AppShell
       user={session.user}
       mainNavigation={mainNavigation}
+      globalProductSearch={globalProductSearchInput}
+      onGlobalProductSearchChange={setGlobalProductSearchInput}
+      onSubmitGlobalProductSearch={() => {
+        void searchProductsGlobally(globalProductSearchInput);
+      }}
       onLogout={() => void handleLogout()}
       busy={shellBusy}
       busyLabel={shellBusyLabel}
@@ -2901,6 +2946,15 @@ function AppRuntime() {
           </button>
         </div>
       )}
+      <GlobalProductSearchModal
+        loading={globalProductSearchLoading}
+        onChangeSearchInput={setGlobalProductSearchInput}
+        onClose={() => setGlobalProductSearchModalOpen(false)}
+        onSearch={searchProductsGlobally}
+        open={globalProductSearchModalOpen}
+        result={globalProductSearchResult}
+        searchInput={globalProductSearchInput}
+      />
     </AppShell>
   );
 }
