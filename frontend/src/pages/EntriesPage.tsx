@@ -127,7 +127,6 @@ type EntryTableSortState = {
   key: EntryTableColumnKey;
   direction: "asc" | "desc";
 };
-type EntryTableFilters = Record<EntryTableColumnKey, string>;
 const entryTableColumnLabels: Record<EntryTableColumnKey, string> = {
   title: "Título",
   flow: "Fluxo",
@@ -136,6 +135,11 @@ const entryTableColumnLabels: Record<EntryTableColumnKey, string> = {
   status: "Status",
   due_date: "Vencimento",
   total_amount: "Total",
+};
+type EntryCategoryFilterOption = {
+  key: string;
+  label: string;
+  group: string;
 };
 
 function CalendarRangeIcon() {
@@ -220,6 +224,10 @@ function SortDirectionIcon({ direction }: { direction: "asc" | "desc" | null }) 
   );
 }
 
+function getEntryCategoryFilterKey(entry: FinancialEntry) {
+  return `${entry.category_name ?? "Sem categoria"}__${entry.category_group ?? ""}`;
+}
+
 function getEntrySortValue(entry: FinancialEntry, column: EntryTableColumnKey) {
   switch (column) {
     case "title":
@@ -284,7 +292,7 @@ export function EntriesPage({
   const hasMountedAutoApplyRef = useRef(false);
   const hasMountedSearchAutoApplyRef = useRef(false);
   const periodPopoverRef = useRef<HTMLDivElement | null>(null);
-  const tableFilterPopoverRef = useRef<HTMLDivElement | null>(null);
+  const categoryFilterPopoverRef = useRef<HTMLDivElement | null>(null);
   const presetMenuRef = useRef<HTMLDivElement | null>(null);
   const bulkMenuRef = useRef<HTMLDivElement | null>(null);
   const rowMenuRef = useRef<HTMLDivElement | null>(null);
@@ -301,17 +309,9 @@ export function EntriesPage({
   const [settlementPrompt, setSettlementPrompt] = useState(emptySettlementPrompt);
   const [transferForm, setTransferForm] = useState(emptyTransferForm);
   const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
-  const [tableFilters, setTableFilters] = useState<EntryTableFilters>({
-    title: "",
-    flow: "",
-    account: "",
-    category: "",
-    status: "",
-    due_date: "",
-    total_amount: "",
-  });
   const [tableSort, setTableSort] = useState<EntryTableSortState | null>(null);
-  const [activeTableFilterColumn, setActiveTableFilterColumn] = useState<EntryTableColumnKey | null>(null);
+  const [showCategoryFilter, setShowCategoryFilter] = useState(false);
+  const [selectedCategoryFilterKeys, setSelectedCategoryFilterKeys] = useState<string[]>([]);
   const [bulkCategoryId, setBulkCategoryId] = useState("");
   const [activeRowMenuId, setActiveRowMenuId] = useState<string | null>(null);
   const portalTarget = typeof document !== "undefined" ? document.body : null;
@@ -371,22 +371,41 @@ export function EntriesPage({
     () => categorySelectOptions.find((option) => option.value === form.category_id) ?? null,
     [categorySelectOptions, form.category_id],
   );
+  const entryCategoryFilterOptions = useMemo(() => {
+    const categoryMap = new Map<string, EntryCategoryFilterOption>();
+    entryList.items.forEach((entry) => {
+      const key = getEntryCategoryFilterKey(entry);
+      if (!categoryMap.has(key)) {
+        categoryMap.set(key, {
+          key,
+          label: entry.category_name ?? "Sem categoria",
+          group: entry.category_group ?? "",
+        });
+      }
+    });
+    return Array.from(categoryMap.values()).sort((left, right) => {
+      const labelComparison = left.label.localeCompare(right.label, "pt-BR", { numeric: true });
+      if (labelComparison !== 0) {
+        return labelComparison;
+      }
+      return left.group.localeCompare(right.group, "pt-BR", { numeric: true });
+    });
+  }, [entryList.items]);
+  const allCategoryFilterKeys = useMemo(
+    () => entryCategoryFilterOptions.map((option) => option.key),
+    [entryCategoryFilterOptions],
+  );
+  const allCategoriesSelected =
+    allCategoryFilterKeys.length === 0 || selectedCategoryFilterKeys.length === allCategoryFilterKeys.length;
   const filteredEntries = useMemo(
     () =>
-      entryList.items.filter((entry) =>
-        (Object.entries(tableFilters) as Array<[EntryTableColumnKey, string]>).every(([column, rawFilter]) => {
-          const filterValue = rawFilter.trim().toLowerCase();
-          if (!filterValue) {
-            return true;
-          }
-          const entryValue = getEntrySortValue(entry, column);
-          if (column === "due_date") {
-            return String(entryValue).startsWith(filterValue);
-          }
-          return String(entryValue).toLowerCase().includes(filterValue);
-        }),
-      ),
-    [entryList.items, tableFilters],
+      entryList.items.filter((entry) => {
+        if (!allCategoryFilterKeys.length) {
+          return true;
+        }
+        return selectedCategoryFilterKeys.includes(getEntryCategoryFilterKey(entry));
+      }),
+    [allCategoryFilterKeys.length, entryList.items, selectedCategoryFilterKeys],
   );
   const visibleEntries = useMemo(() => {
     if (!tableSort) {
@@ -512,6 +531,10 @@ export function EntriesPage({
   }, [form.entry_type, selectedCategory]);
 
   useEffect(() => {
+    setSelectedCategoryFilterKeys(allCategoryFilterKeys);
+  }, [allCategoryFilterKeys]);
+
+  useEffect(() => {
     if (!hasMountedAutoApplyRef.current) {
       hasMountedAutoApplyRef.current = true;
       return;
@@ -551,12 +574,8 @@ export function EntriesPage({
       if (showPeriodPopover && periodPopoverRef.current && !periodPopoverRef.current.contains(target)) {
         setShowPeriodPopover(false);
       }
-      if (
-        activeTableFilterColumn &&
-        tableFilterPopoverRef.current &&
-        !tableFilterPopoverRef.current.contains(target)
-      ) {
-        setActiveTableFilterColumn(null);
+      if (showCategoryFilter && categoryFilterPopoverRef.current && !categoryFilterPopoverRef.current.contains(target)) {
+        setShowCategoryFilter(false);
       }
       if (showPresetMenu && presetMenuRef.current && !presetMenuRef.current.contains(target)) {
         setShowPresetMenu(false);
@@ -571,7 +590,7 @@ export function EntriesPage({
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [activeRowMenuId, activeTableFilterColumn, showBulkActions, showPeriodPopover, showPresetMenu]);
+  }, [activeRowMenuId, showBulkActions, showCategoryFilter, showPeriodPopover, showPresetMenu]);
 
   function normalizeText(value: string) {
     return value
@@ -761,14 +780,6 @@ export function EntriesPage({
     await onApplyFilters();
   }
 
-  function updateTableFilter(column: EntryTableColumnKey, value: string) {
-    setTableFilters((current) => ({ ...current, [column]: value }));
-  }
-
-  function clearTableFilter(column: EntryTableColumnKey) {
-    setTableFilters((current) => ({ ...current, [column]: "" }));
-  }
-
   function toggleTableSort(column: EntryTableColumnKey) {
     setTableSort((current) => {
       if (!current || current.key !== column) {
@@ -781,16 +792,24 @@ export function EntriesPage({
     });
   }
 
+  function toggleAllCategoryFilters(checked: boolean) {
+    setSelectedCategoryFilterKeys(checked ? allCategoryFilterKeys : []);
+  }
+
+  function toggleCategoryFilterOption(categoryKey: string) {
+    setSelectedCategoryFilterKeys((current) =>
+      current.includes(categoryKey) ? current.filter((item) => item !== categoryKey) : [...current, categoryKey],
+    );
+  }
+
   function renderTableHeader(label: string, column: EntryTableColumnKey, numeric = false) {
-    const isFilterActive = tableFilters[column].trim().length > 0;
-    const isFilterOpen = activeTableFilterColumn === column;
-    const filterId = `entries-column-filter-${column}`;
-    const isDateColumn = column === "due_date";
     const sortDirection = tableSort?.key === column ? tableSort.direction : null;
+    const showCategoryFilterTrigger = column === "category";
+    const isCategoryFilterActive = !allCategoriesSelected;
     return (
       <div
         className={`entries-table-header ${numeric ? "is-numeric" : ""}`.trim()}
-        ref={isFilterOpen ? tableFilterPopoverRef : null}
+        ref={showCategoryFilterTrigger && showCategoryFilter ? categoryFilterPopoverRef : null}
       >
         <button
           className={`table-sort-button ${numeric ? "numeric" : ""}`.trim()}
@@ -802,55 +821,69 @@ export function EntriesPage({
             <SortDirectionIcon direction={sortDirection} />
           </span>
         </button>
-        <button
-          aria-controls={filterId}
-          aria-expanded={isFilterOpen}
-          aria-label={`Filtrar coluna ${label}`}
-          className={`entries-column-filter-trigger ${isFilterActive ? "is-active" : ""}`.trim()}
-          onClick={() =>
-            setActiveTableFilterColumn((current) => (current === column ? null : column))
-          }
-          title={isFilterActive ? `${label} filtrado` : `Filtrar ${label.toLowerCase()}`}
-          type="button"
-        >
-          <FilterFunnelIcon />
-        </button>
-        {isFilterOpen && (
-          <div
-            className={`entries-floating-panel entries-column-filter-popover ${numeric ? "is-numeric" : ""}`.trim()}
-            id={filterId}
-          >
-            <label className="entries-column-filter-popover-label" htmlFor={`${filterId}-input`}>
-              Filtrar {label.toLowerCase()}
-            </label>
-            <input
-              aria-label={`Filtrar ${label.toLowerCase()}`}
-              className={`entries-column-filter-input ${numeric ? "entries-column-filter-input--numeric" : ""}`.trim()}
-              id={`${filterId}-input`}
-              placeholder={isDateColumn ? undefined : "Digite para filtrar"}
-              type={isDateColumn ? "date" : "text"}
-              value={tableFilters[column]}
-              onChange={(event) => updateTableFilter(column, event.target.value)}
-            />
-            <div className="entries-column-filter-popover-actions">
-              <button
-                className="secondary-button compact-button"
-                disabled={!tableFilters[column]}
-                onClick={() => clearTableFilter(column)}
-                type="button"
-              >
-                Limpar
-              </button>
-              <button
-                className="ghost-button compact"
-                onClick={() => setActiveTableFilterColumn(null)}
-                type="button"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        )}
+        {showCategoryFilterTrigger ? (
+          <>
+            <button
+              aria-expanded={showCategoryFilter}
+              aria-label={`Filtrar coluna ${label}`}
+              className={`entries-column-filter-trigger ${isCategoryFilterActive ? "is-active" : ""}`.trim()}
+              onClick={() => setShowCategoryFilter((current) => !current)}
+              title={isCategoryFilterActive ? `${label} filtrada` : `Filtrar ${label.toLowerCase()}`}
+              type="button"
+            >
+              <FilterFunnelIcon />
+            </button>
+            {showCategoryFilter && (
+              <div className="entries-floating-panel entries-column-filter-popover" id="entries-category-filter">
+                <div className="entries-category-filter-head">
+                  <label className="entries-category-filter-option is-all">
+                    <input
+                      checked={allCategoriesSelected}
+                      onChange={(event) => toggleAllCategoryFilters(event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>Selecionar tudo</span>
+                  </label>
+                </div>
+                <div className="entries-category-filter-list">
+                  {entryCategoryFilterOptions.length ? (
+                    entryCategoryFilterOptions.map((option) => (
+                      <label className="entries-category-filter-option" key={option.key}>
+                        <input
+                          checked={selectedCategoryFilterKeys.includes(option.key)}
+                          onChange={() => toggleCategoryFilterOption(option.key)}
+                          type="checkbox"
+                        />
+                        <span className="entries-category-filter-text">
+                          <strong>{option.label}</strong>
+                          <small>{option.group || "Sem grupo"}</small>
+                        </span>
+                      </label>
+                    ))
+                  ) : (
+                    <p className="entries-category-filter-empty">Nenhuma categoria encontrada nesta página.</p>
+                  )}
+                </div>
+                <div className="entries-column-filter-popover-actions">
+                  <button
+                    className="secondary-button compact-button"
+                    onClick={() => toggleAllCategoryFilters(true)}
+                    type="button"
+                  >
+                    Restaurar
+                  </button>
+                  <button
+                    className="ghost-button compact"
+                    onClick={() => setShowCategoryFilter(false)}
+                    type="button"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        ) : null}
       </div>
     );
   }
