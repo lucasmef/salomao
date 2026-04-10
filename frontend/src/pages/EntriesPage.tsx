@@ -1295,7 +1295,7 @@ export function EntriesPage({
         <div className="panel-title is-column-mobile compact-title-row">
           <div>
             <h3>Lançamentos</h3>
-            <p className="panel-subtitle">Consulta paginada com ordenação e filtros por coluna nos registros carregados na página.</p>
+            <p className="panel-subtitle">Consulta paginada com ordenação e filtro por categoria nos registros carregados na página.</p>
           </div>
           <TablePagination
             loading={submitting}
@@ -1372,7 +1372,6 @@ export function EntriesPage({
                   <td className="entries-cell-category">
                     <div className="cell-stack">
                       <strong>{entry.category_name ?? "-"}</strong>
-                      <span>{entry.category_group ?? "-"}</span>
                     </div>
                   </td>
                   <td>{formatEntryStatus(entry.status)}</td>

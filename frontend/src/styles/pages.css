@@ -1491,10 +1491,18 @@ textarea {
 .entries-list-table th,
 .entries-list-table td {
   vertical-align: middle;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  line-height: 1.1;
+}
+
+.entries-list-table thead th {
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 .entries-list-table .table-sort-button {
-  min-height: 28px;
+  min-height: 24px;
   gap: 4px;
   white-space: nowrap;
 }
@@ -1510,19 +1518,19 @@ textarea {
 }
 
 .entries-col-title {
-  width: 24%;
+  width: 33%;
 }
 
 .entries-col-flow {
-  width: 8%;
+  width: 7%;
 }
 
 .entries-col-account {
-  width: 14%;
+  width: 10%;
 }
 
 .entries-col-category {
-  width: 19%;
+  width: 14%;
 }
 
 .entries-col-status {
@@ -1530,11 +1538,11 @@ textarea {
 }
 
 .entries-col-due-date {
-  width: 10%;
+  width: 7%;
 }
 
 .entries-col-total {
-  width: 10%;
+  width: 8%;
 }
 
 .entries-col-actions {
@@ -1548,7 +1556,7 @@ textarea {
   gap: 4px;
   width: 100%;
   min-width: 0;
-  min-height: 28px;
+  min-height: 24px;
 }
 
 .entries-table-header.is-numeric {
@@ -1559,9 +1567,9 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  min-width: 24px;
-  min-height: 24px;
+  width: 22px;
+  min-width: 22px;
+  min-height: 22px;
   padding: 0;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -1650,7 +1658,7 @@ textarea {
 .entries-list-table .cell-stack {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   white-space: nowrap;
 }
@@ -1664,16 +1672,20 @@ textarea {
 
 .entries-list-table .cell-stack span {
   color: #6b7a90;
+  font-size: 0.72rem;
 }
 
 .entries-cell-title .cell-stack strong {
   flex: 0 1 auto;
 }
 
-.entries-cell-title .cell-stack span,
-.entries-cell-category .cell-stack span {
+.entries-cell-title .cell-stack span {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.entries-cell-category .cell-stack {
+  gap: 0;
 }
 
 .entries-top-panel {
@@ -1887,9 +1899,9 @@ textarea {
 }
 
 .entries-row-menu-trigger {
-  width: 34px;
-  min-width: 34px;
-  min-height: 34px;
+  width: 30px;
+  min-width: 30px;
+  min-height: 30px;
   padding: 0;
   display: inline-flex;
   align-items: center;
