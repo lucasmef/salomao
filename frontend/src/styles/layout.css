@@ -318,12 +318,11 @@
 .app-shell-search {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   min-width: min(360px, 100%);
 }
 
 .app-shell-search input {
-  width: min(360px, 100%);
+  width: 100%;
   min-height: 36px;
   padding: 0 12px;
   border: 1px solid #d6e0ef;
@@ -333,16 +332,13 @@
   font-size: 0.8rem;
 }
 
-.app-shell-search-button {
-  min-height: 36px;
-  padding: 0 12px;
-  border: 1px solid #d6e0ef;
-  border-radius: 12px;
-  background: #ffffff;
-  color: #22354e;
-  font-size: 0.78rem;
-  font-weight: 700;
-  white-space: nowrap;
+.app-shell-search-mobile,
+.app-shell-mobile-menu-actions {
+  display: none;
+}
+
+.app-shell-search-desktop {
+  width: min(320px, 100%);
 }
 
 .app-shell-user-actions {
@@ -666,7 +662,7 @@
     flex-wrap: wrap;
   }
 
-  .app-shell-search {
+  .app-shell-search-desktop {
     width: 100%;
   }
 
@@ -716,13 +712,25 @@
   .app-shell-brand {
     width: 100%;
     min-width: 0;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
     gap: 12px;
+  }
+
+  .app-shell-brand-home {
+    min-width: 0;
   }
 
   .app-shell-brand-logo {
     width: 138px;
     max-height: 34px;
+  }
+
+  .app-shell-search-mobile {
+    display: inline-flex;
+    min-width: 0;
+    width: 100%;
   }
 
   .app-shell-mobile-menu-button {
@@ -735,12 +743,12 @@
   }
 
   .app-shell-header-tools {
-    display: grid;
+    display: none;
     gap: 10px;
     width: 100%;
   }
 
-  .app-shell-status,
+  .app-shell-search-desktop,
   .app-shell-user-actions {
     display: none;
   }
@@ -754,17 +762,9 @@
     padding: 0;
   }
 
-  .app-shell-header.mobile-menu-open .app-shell-header-tools {
-    padding-top: 10px;
-    border-top: 1px solid #e3ebf7;
-  }
-
-  .app-shell-header.mobile-menu-open .app-shell-status {
-    display: inline-flex;
-  }
-
-  .app-shell-header.mobile-menu-open .app-shell-user-actions {
+  .app-shell-header.mobile-menu-open .app-shell-mobile-menu-actions {
     display: grid;
+    width: 100%;
   }
 
   .app-shell-main-link {
@@ -790,27 +790,12 @@
   }
 
   .app-shell-header-tools,
-  .app-shell-user-actions {
+  .app-shell-mobile-menu-actions {
     width: 100%;
-  }
-
-  .app-shell-user-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .app-shell-user-actions > :only-child {
-    grid-column: 1 / -1;
   }
 
   .app-shell-user-action {
     width: 100%;
-  }
-
-  .app-shell-search {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .app-shell-search input,
@@ -870,15 +855,15 @@
     grid-template-columns: 1fr;
   }
 
-  .app-shell-search {
-    grid-template-columns: 1fr;
+  .app-shell-brand-logo {
+    width: 118px;
+    max-height: 30px;
   }
 
-  .app-shell-search-button {
-    width: 100%;
-  }
-
-  .app-shell-user-actions {
-    grid-template-columns: 1fr;
+  .app-shell-mobile-menu-button {
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 0.76rem;
   }
 }

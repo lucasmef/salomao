@@ -36,6 +36,23 @@ export function AppShell({
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
+  const renderSearchForm = (className: string) => (
+    <form
+      className={className}
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmitGlobalProductSearch();
+      }}
+    >
+      <input
+        aria-label="Busca global de produtos"
+        onChange={(event) => onGlobalProductSearchChange(event.target.value)}
+        placeholder="Buscar produto"
+        value={globalProductSearch}
+      />
+    </form>
+  );
+
   return (
     <div className="app-shell">
       <header className={`app-shell-header ${mobileMenuOpen ? "mobile-menu-open" : ""}`}>
@@ -48,6 +65,7 @@ export function AppShell({
           >
             <img alt="Salomao" className="app-shell-brand-logo" src={salomaoLogo} />
           </NavLink>
+          {renderSearchForm("app-shell-search app-shell-search-mobile")}
           <button
             aria-controls="app-shell-primary-navigation"
             aria-expanded={mobileMenuOpen}
@@ -76,24 +94,14 @@ export function AppShell({
           ))}
         </nav>
 
+        <div className="app-shell-mobile-menu-actions">
+          <button className="app-shell-user-action" onClick={onLogout} type="button">
+            Sair
+          </button>
+        </div>
+
         <div className="app-shell-header-tools">
-          <form
-            className="app-shell-search"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onSubmitGlobalProductSearch();
-            }}
-          >
-            <input
-              aria-label="Busca global de produtos"
-              onChange={(event) => onGlobalProductSearchChange(event.target.value)}
-              placeholder="Buscar produto"
-              value={globalProductSearch}
-            />
-            <button className="app-shell-search-button" type="submit">
-              Buscar
-            </button>
-          </form>
+          {renderSearchForm("app-shell-search app-shell-search-desktop")}
 
           {busy && busyLabel ? (
             <div className="app-shell-status" role="status" aria-live="polite">
