@@ -1127,8 +1127,8 @@ export function BoletosPage({
               <span>{openReceivables.length}</span>
             </div>
           </div>
-          <div className="table-shell billing-table-shell billing-table-shell--expanded billing-open-receivables-table-shell">
-            <table className="erp-table billing-compact-table billing-open-receivables-table">
+          <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell billing-open-receivables-table-shell">
+            <table className="erp-table entries-list-table billing-open-receivables-table">
               <colgroup>
                 <col className="billing-open-receivables-col-due-date" />
                 <col className="billing-open-receivables-col-client" />
