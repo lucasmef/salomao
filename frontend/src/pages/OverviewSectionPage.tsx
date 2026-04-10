@@ -59,18 +59,23 @@ export function OverviewSectionPage({
 }: Props) {
   const currentTab = tabs[0];
   const hasMountedAutoApplyRef = useRef(false);
+  const applyFiltersRef = useRef(onApplyFilters);
   const periodPopoverRef = useRef<HTMLDivElement | null>(null);
   const presetMenuRef = useRef<HTMLDivElement | null>(null);
   const [showPeriodPopover, setShowPeriodPopover] = useState(false);
   const [showPresetMenu, setShowPresetMenu] = useState(false);
 
   useEffect(() => {
+    applyFiltersRef.current = onApplyFilters;
+  }, [onApplyFilters]);
+
+  useEffect(() => {
     if (!hasMountedAutoApplyRef.current) {
       hasMountedAutoApplyRef.current = true;
       return;
     }
-    void onApplyFilters();
-  }, [filters.end, filters.start, onApplyFilters]);
+    void applyFiltersRef.current();
+  }, [filters.end, filters.start]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
