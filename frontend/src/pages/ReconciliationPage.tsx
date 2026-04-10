@@ -1098,6 +1098,7 @@ export function ReconciliationPage({
           type="button"
         >
           <FilterFunnelIcon />
+          <span className="entries-toolbar-icon-label">Atalhos</span>
         </button>
         {showPresetMenu && (
           <div className="entries-floating-panel entries-icon-menu">
@@ -1181,15 +1182,19 @@ export function ReconciliationPage({
                 type="button"
               >
                 <ListIcon />
+                <span className="entries-toolbar-icon-label">Conciliados</span>
               </button>
               <button className="entries-toolbar-icon" disabled={submitting || !hasInterApiAccount} onClick={() => void onSyncInterStatement()} title="Atualizar extrato do Inter" type="button">
                 <RefreshIcon />
+                <span className="entries-toolbar-icon-label">Atualizar</span>
               </button>
               <button aria-label="Nova transferência" className="entries-toolbar-icon" disabled={!selectedBankIds.length} onClick={openTransferModal} title="Nova transferência" type="button">
                 <TransferIcon />
+                <span className="entries-toolbar-icon-label">Transferir</span>
               </button>
               <button aria-label="Novo lançamento" className="entries-toolbar-icon" disabled={!selectedBankIds.length} onClick={openCreateModal} title="Novo lançamento" type="button">
                 <PlusSquareIcon />
+                <span className="entries-toolbar-icon-label">Novo</span>
               </button>
             </div>
           </div>
@@ -1287,6 +1292,7 @@ export function ReconciliationPage({
                 title={finderModeActive ? "Busca por extrato ativa" : "Encontrar fatura"}
               >
                 <SearchIcon />
+                <span className="entries-toolbar-icon-label">Buscar</span>
               </button>
               <button
                 aria-label="Conciliar lançamentos"
@@ -1297,6 +1303,7 @@ export function ReconciliationPage({
                 title="Conciliar lançamentos"
               >
                 <CheckActionIcon />
+                <span className="entries-toolbar-icon-label">Conciliar</span>
               </button>
             </div>
           </div>

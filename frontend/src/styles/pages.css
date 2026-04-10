@@ -1784,6 +1784,16 @@ textarea {
   color: #304254;
 }
 
+.entries-toolbar-icon svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.entries-toolbar-icon-label {
+  display: none;
+}
+
 .entries-toolbar-icon-primary {
   border-color: #2f5be7;
   background: #2f5be7;
@@ -3432,6 +3442,19 @@ textarea {
   .entries-toolbar-icon {
     width: 100%;
     min-height: 42px;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0 12px;
+  }
+
+  .entries-toolbar-icon-label {
+    display: inline;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.76rem;
+    font-weight: 700;
   }
 
   .entries-period-popover,
@@ -3600,6 +3623,8 @@ textarea {
   .reconciliation-balance-wrap,
   .reconciliation-balance-trigger,
   .billing-open-boletos-actions,
+  .billing-open-boletos-actions .entries-period-group,
+  .billing-open-boletos-actions .entries-toolbar-icon-wrap,
   .billing-open-boletos-actions .billing-search-field,
   .billing-open-boletos-actions .billing-search-field--compact,
   .purchase-unassigned-toolbar,
@@ -3627,6 +3652,14 @@ textarea {
     width: 100%;
     padding-top: 2px;
     text-align: right;
+  }
+
+  .purchase-filter-toggle-control {
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid #d7e1ef;
+    border-radius: 12px;
+    background: #ffffff;
   }
 
   .planning-brand-collection-line {

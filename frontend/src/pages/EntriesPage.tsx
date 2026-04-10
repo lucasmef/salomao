@@ -844,6 +844,7 @@ export function EntriesPage({
               type="button"
             >
               <FilterFunnelIcon />
+              <span className="entries-toolbar-icon-label">Atalhos</span>
             </button>
             {showCategoryFilter && (
               <div className="entries-floating-panel entries-column-filter-popover" id="entries-category-filter">
@@ -1166,6 +1167,7 @@ export function EntriesPage({
               type="button"
             >
               <SlidersIcon />
+              <span className="entries-toolbar-icon-label">Filtros</span>
             </button>
 
             <div className="entries-toolbar-icon-wrap" ref={bulkMenuRef}>
@@ -1178,6 +1180,7 @@ export function EntriesPage({
                 type="button"
               >
                 <StackEditIcon />
+                <span className="entries-toolbar-icon-label">Lote</span>
               </button>
               {showBulkActions && (
                 <div className="entries-floating-panel entries-bulk-panel">
@@ -1232,6 +1235,7 @@ export function EntriesPage({
               type="button"
             >
               <TransferIcon />
+              <span className="entries-toolbar-icon-label">Transferir</span>
             </button>
             <button
               aria-label="Novo lançamento"
@@ -1241,6 +1245,7 @@ export function EntriesPage({
               type="button"
             >
               <PlusSquareIcon />
+              <span className="entries-toolbar-icon-label">Novo</span>
             </button>
           </div>
         </div>

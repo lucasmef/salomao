@@ -1111,6 +1111,7 @@ export function BoletosPage({
                   type="button"
                 >
                   <FilterFunnelIcon />
+                  <span className="entries-toolbar-icon-label">Atalhos</span>
                 </button>
                 {showOpenReceivablePresetMenu && (
                   <div className="entries-floating-panel entries-icon-menu">
