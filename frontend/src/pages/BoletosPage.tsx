@@ -163,6 +163,23 @@ function CheckIcon() {
   );
 }
 
+function SortDirectionIcon({ direction }: { direction: SortDirection }) {
+  if (direction === "asc") {
+    return (
+      <svg aria-hidden="true" height="14" viewBox="0 0 16 16" width="14">
+        <path d="M8 12V4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+        <path d="m4.75 7.25 3.25-3.25 3.25 3.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      </svg>
+    );
+  }
+  return (
+    <svg aria-hidden="true" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M8 4v8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      <path d="m4.75 8.75 3.25 3.25 3.25-3.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
 function boletoMatchesQuery(
   boleto: BoletoDashboard["open_boletos"][number],
   query: string,
@@ -465,11 +482,15 @@ export function BoletosPage({
     onClick: () => void,
     numeric = false,
   ) {
-    const indicator = currentSort === sortKey ? (direction === "asc" ? "^" : "v") : "";
+    const isActive = currentSort === sortKey;
     return (
       <button className={`table-sort-button ${numeric ? "numeric" : ""}`.trim()} onClick={onClick} type="button">
         <strong>{label}</strong>
-        <span>{indicator}</span>
+        {isActive ? (
+          <span className="table-sort-indicator is-active">
+            <SortDirectionIcon direction={direction} />
+          </span>
+        ) : null}
       </button>
     );
   }
@@ -1106,8 +1127,15 @@ export function BoletosPage({
               <span>{openReceivables.length}</span>
             </div>
           </div>
-          <div className="table-shell billing-table-shell billing-table-shell--expanded">
-            <table className="erp-table billing-compact-table">
+          <div className="table-shell billing-table-shell billing-table-shell--expanded billing-open-receivables-table-shell">
+            <table className="erp-table billing-compact-table billing-open-receivables-table">
+              <colgroup>
+                <col className="billing-open-receivables-col-due-date" />
+                <col className="billing-open-receivables-col-client" />
+                <col className="billing-open-receivables-col-title" />
+                <col className="billing-open-receivables-col-status" />
+                <col className="billing-open-receivables-col-amount" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>{renderSortButton("Vencimento", "due_date", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("due_date"))}</th>
@@ -1123,15 +1151,22 @@ export function BoletosPage({
                 {openReceivables.map((item) => (
                   <tr key={`${item.client_name}-${item.invoice_number}-${item.installment}-${item.due_date ?? "-"}`}>
                     <td>{formatDate(item.due_date)}</td>
-                    <td>{item.client_name ?? "-"}</td>
-                    <td>{`${item.invoice_number || "Sem numero"}/${item.installment || "-"}`}</td>
+                    <td className="billing-open-receivables-client-cell" title={item.client_name ?? "-"}>
+                      {item.client_name ?? "-"}
+                    </td>
+                    <td
+                      className="billing-open-receivables-title-cell"
+                      title={`${item.invoice_number || "Sem numero"}/${item.installment || "-"}`}
+                    >
+                      {`${item.invoice_number || "Sem numero"}/${item.installment || "-"}`}
+                    </td>
                     <td>{formatEntryStatus(item.status)}</td>
                     <td className="numeric-cell">{formatMoney(item.corrected_amount || item.amount)}</td>
                   </tr>
                 ))}
                 {!openReceivables.length && (
                   <tr>
-                    <td colSpan={5}>Nenhuma fatura em aberto encontrada.</td>
+                    <td className="empty-cell" colSpan={5}>Nenhuma fatura em aberto encontrada.</td>
                   </tr>
                 )}
               </tbody>

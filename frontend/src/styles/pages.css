@@ -2926,6 +2926,75 @@ textarea {
   font-size: 0.72rem;
 }
 
+.billing-open-receivables-table-shell {
+  min-height: 360px;
+}
+
+.billing-open-receivables-table {
+  table-layout: fixed;
+  min-height: 360px;
+  height: 100%;
+}
+
+.billing-open-receivables-table th,
+.billing-open-receivables-table td {
+  padding-top: 5px;
+  padding-bottom: 5px;
+  line-height: 1.1;
+  vertical-align: middle;
+}
+
+.billing-open-receivables-table thead th {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.billing-open-receivables-table .table-sort-button {
+  min-height: 24px;
+  gap: 4px;
+  width: auto;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.billing-open-receivables-table .table-sort-button strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.billing-open-receivables-col-due-date {
+  width: 12%;
+}
+
+.billing-open-receivables-col-client {
+  width: 33%;
+}
+
+.billing-open-receivables-col-title {
+  width: 24%;
+}
+
+.billing-open-receivables-col-status {
+  width: 15%;
+}
+
+.billing-open-receivables-col-amount {
+  width: 16%;
+}
+
+.billing-open-receivables-client-cell,
+.billing-open-receivables-title-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.billing-open-receivables-table .empty-cell {
+  height: 180px;
+  vertical-align: top;
+}
+
 .billing-open-boletos-select-cell,
 .billing-open-boletos-table th:first-child {
   width: 36px;
