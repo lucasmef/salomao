@@ -54,13 +54,39 @@ type StandaloneBoletoDraft = {
 export type InvoiceFilter = "open" | "open-boletos" | "overdue" | "paid-pending" | "missing" | "excess";
 export type BillingView = "standalone" | InvoiceFilter;
 type OpenReceivableSort = "due_date" | "client_name" | "document" | "status" | "amount";
-type OpenBoletoSort = "due_date" | "issue_date" | "client_name" | "bank" | "amount" | "document_id";
+type OpenBoletoSort = "due_date" | "issue_date" | "client_name" | "bank" | "amount" | "document_id" | "status";
 type StandaloneBoletoFilter = "all" | "open" | "paid" | "downloaded" | "cancelled";
 type SortDirection = "asc" | "desc";
 type OpenReceivableDateFilters = {
   start: string;
   end: string;
 };
+type OpenBoletoDateFilters = {
+  start: string;
+  end: string;
+};
+type OpenBoletoColumnFilter = "status" | "bank" | null;
+type BillingAlertSort =
+  | "client_name"
+  | "mode"
+  | "type"
+  | "competence"
+  | "due_date"
+  | "days_overdue"
+  | "amount"
+  | "status"
+  | "bank"
+  | "receivables"
+  | "reason";
+type StandaloneBoletoSort =
+  | "client_name"
+  | "document_id"
+  | "description"
+  | "issue_date"
+  | "due_date"
+  | "amount"
+  | "bank"
+  | "status";
 
 function getTodayInputDate() {
   return new Date().toISOString().slice(0, 10);
@@ -208,6 +234,35 @@ function compareNumber(left: string | number, right: string | number) {
   return Number(left) - Number(right);
 }
 
+function compareMultiSelectValues(
+  left: string[] | null,
+  right: string[] | null,
+  availableValues: string[],
+) {
+  const leftValues = left ?? availableValues;
+  const rightValues = right ?? availableValues;
+  return {
+    leftValues,
+    rightValues,
+    leftAllSelected: left === null || leftValues.length === availableValues.length,
+    rightAllSelected: right === null || rightValues.length === availableValues.length,
+  };
+}
+
+function toggleMultiSelectValue(
+  current: string[] | null,
+  value: string,
+  availableValues: string[],
+) {
+  const currentValues = current ?? availableValues;
+  const exists = currentValues.includes(value);
+  const nextValues = exists ? currentValues.filter((item) => item !== value) : [...currentValues, value];
+  if (nextValues.length === availableValues.length) {
+    return null;
+  }
+  return nextValues;
+}
+
 export function BoletosPage({
   accounts,
   view,
@@ -241,15 +296,31 @@ export function BoletosPage({
   const [selectedMissingKeys, setSelectedMissingKeys] = useState<string[]>([]);
   const [selectedOpenBoletoIds, setSelectedOpenBoletoIds] = useState<string[]>([]);
   const [openBoletoSearch, setOpenBoletoSearch] = useState("");
-  const [openBoletoBankFilter, setOpenBoletoBankFilter] = useState("all");
+  const [openBoletoBankFilter, setOpenBoletoBankFilter] = useState<string[] | null>(null);
+  const [openBoletoStatusFilter, setOpenBoletoStatusFilter] = useState<string[] | null>(null);
   const [openReceivableFilterDraft, setOpenReceivableFilterDraft] = useState<OpenReceivableDateFilters>({ start: "", end: "" });
   const [openReceivableFilters, setOpenReceivableFilters] = useState<OpenReceivableDateFilters>({ start: "", end: "" });
+  const [openBoletoFilterDraft, setOpenBoletoFilterDraft] = useState<OpenBoletoDateFilters>({ start: "", end: "" });
+  const [openBoletoFilters, setOpenBoletoFilters] = useState<OpenBoletoDateFilters>({ start: "", end: "" });
   const [openReceivableSort, setOpenReceivableSort] = useState<OpenReceivableSort>("due_date");
   const [openReceivableSortDirection, setOpenReceivableSortDirection] = useState<SortDirection>("asc");
   const [openBoletoSort, setOpenBoletoSort] = useState<OpenBoletoSort>("issue_date");
   const [openBoletoSortDirection, setOpenBoletoSortDirection] = useState<SortDirection>("desc");
+  const [overdueSort, setOverdueSort] = useState<BillingAlertSort>("due_date");
+  const [overdueSortDirection, setOverdueSortDirection] = useState<SortDirection>("asc");
+  const [paidPendingSort, setPaidPendingSort] = useState<BillingAlertSort>("client_name");
+  const [paidPendingSortDirection, setPaidPendingSortDirection] = useState<SortDirection>("asc");
+  const [missingSort, setMissingSort] = useState<BillingAlertSort>("due_date");
+  const [missingSortDirection, setMissingSortDirection] = useState<SortDirection>("asc");
+  const [excessSort, setExcessSort] = useState<BillingAlertSort>("due_date");
+  const [excessSortDirection, setExcessSortDirection] = useState<SortDirection>("asc");
+  const [standaloneSort, setStandaloneSort] = useState<StandaloneBoletoSort>("due_date");
+  const [standaloneSortDirection, setStandaloneSortDirection] = useState<SortDirection>("asc");
   const [showOpenReceivablePeriodPopover, setShowOpenReceivablePeriodPopover] = useState(false);
   const [showOpenReceivablePresetMenu, setShowOpenReceivablePresetMenu] = useState(false);
+  const [showOpenBoletoPeriodPopover, setShowOpenBoletoPeriodPopover] = useState(false);
+  const [showOpenBoletoPresetMenu, setShowOpenBoletoPresetMenu] = useState(false);
+  const [openBoletoColumnFilter, setOpenBoletoColumnFilter] = useState<OpenBoletoColumnFilter>(null);
   const [standaloneBoletoDraft, setStandaloneBoletoDraft] = useState<StandaloneBoletoDraft>({
     account_id: "",
     client_name: "",
@@ -259,13 +330,6 @@ export function BoletosPage({
   });
   const [standaloneBoletoFilter, setStandaloneBoletoFilter] = useState<StandaloneBoletoFilter>("open");
   const invoiceFilter = view === "standalone" ? "open" : view;
-  const visibleStandaloneBoletos = useMemo(
-    () =>
-      [...dashboard.standalone_boletos]
-        .filter((item) => standaloneBoletoFilter === "all" || resolveStandaloneBoletoFilter(item) === standaloneBoletoFilter)
-        .sort((left, right) => compareText(left.due_date, right.due_date) || compareText(left.client_name, right.client_name)),
-    [dashboard.standalone_boletos, standaloneBoletoFilter],
-  );
 
   useEffect(() => {
     setClients(dashboard.clients.map((item) => ({ ...item, dirty: false })));
@@ -332,15 +396,37 @@ export function BoletosPage({
     () => accounts.some((account) => account.is_active && account.inter_api_enabled),
     [accounts],
   );
+  const availableOpenBoletoStatuses = useMemo(
+    () => [...new Set(dashboard.open_boletos.map((item) => item.status).filter(Boolean))].sort((left, right) => left.localeCompare(right, "pt-BR")),
+    [dashboard.open_boletos],
+  );
   const availableOpenBoletoBanks = useMemo(
     () => [...new Set(dashboard.open_boletos.map((item) => item.bank).filter(Boolean))].sort((left, right) => left.localeCompare(right, "pt-BR")),
     [dashboard.open_boletos],
   );
+  const visibleOpenBoletoStatuses = openBoletoStatusFilter ?? availableOpenBoletoStatuses;
+  const visibleOpenBoletoBanks = openBoletoBankFilter ?? availableOpenBoletoBanks;
   const filteredOpenBoletos = useMemo(
     () =>
       dashboard.open_boletos
         .filter((item) => boletoMatchesQuery(item, openBoletoSearch))
-        .filter((item) => openBoletoBankFilter === "all" || item.bank === openBoletoBankFilter)
+        .filter((item) => {
+          if (!openBoletoFilters.start && !openBoletoFilters.end) {
+            return true;
+          }
+          if (!item.due_date) {
+            return false;
+          }
+          if (openBoletoFilters.start && item.due_date < openBoletoFilters.start) {
+            return false;
+          }
+          if (openBoletoFilters.end && item.due_date > openBoletoFilters.end) {
+            return false;
+          }
+          return true;
+        })
+        .filter((item) => visibleOpenBoletoStatuses.length > 0 && visibleOpenBoletoStatuses.includes(item.status))
+        .filter((item) => visibleOpenBoletoBanks.length > 0 && visibleOpenBoletoBanks.includes(item.bank))
         .sort((left, right) => {
           const result = (() => {
             switch (openBoletoSort) {
@@ -354,6 +440,8 @@ export function BoletosPage({
                 return compareNumber(left.amount, right.amount);
               case "document_id":
                 return compareText(left.document_id, right.document_id);
+              case "status":
+                return compareText(left.status, right.status);
               case "due_date":
               default:
                 return compareText(left.due_date, right.due_date);
@@ -361,17 +449,188 @@ export function BoletosPage({
           })();
           return openBoletoSortDirection === "asc" ? result : -result;
         }),
-    [dashboard.open_boletos, openBoletoSearch, openBoletoBankFilter, openBoletoSort, openBoletoSortDirection],
+    [
+      dashboard.open_boletos,
+      openBoletoFilters.end,
+      openBoletoFilters.start,
+      openBoletoSearch,
+      openBoletoSort,
+      openBoletoSortDirection,
+      visibleOpenBoletoBanks,
+      visibleOpenBoletoStatuses,
+    ],
   );
   const downloadableOpenBoletos = useMemo(
     () => filteredOpenBoletos.filter((item) => item.pdf_available),
     [filteredOpenBoletos],
+  );
+  const visibleOverdueBoletos = useMemo(
+    () =>
+      [...dashboard.overdue_boletos].sort((left, right) => {
+        const result = (() => {
+          switch (overdueSort) {
+            case "client_name":
+              return compareText(left.client_name, right.client_name);
+            case "mode":
+              return compareText(left.mode, right.mode);
+            case "bank":
+              return compareText(left.bank, right.bank);
+            case "days_overdue":
+              return compareNumber(left.days_overdue, right.days_overdue);
+            case "amount":
+              return compareNumber(left.amount, right.amount);
+            case "status":
+              return compareText(left.status, right.status);
+            case "receivables":
+              return compareText(renderReceivableDetails(left), renderReceivableDetails(right));
+            case "due_date":
+            default:
+              return compareText(left.due_date, right.due_date);
+          }
+        })();
+        return overdueSortDirection === "asc" ? result : -result;
+      }),
+    [dashboard.overdue_boletos, overdueSort, overdueSortDirection],
+  );
+  const visiblePaidPending = useMemo(
+    () =>
+      [...dashboard.paid_pending].sort((left, right) => {
+        const result = (() => {
+          switch (paidPendingSort) {
+            case "type":
+              return compareText(left.type, right.type);
+            case "mode":
+              return compareText(left.mode, right.mode);
+            case "competence":
+              return compareText(left.competence, right.competence);
+            case "amount":
+              return compareNumber(left.amount, right.amount);
+            case "receivables":
+              return compareText(renderReceivableDetails(left), renderReceivableDetails(right));
+            case "bank":
+              return compareText(left.bank, right.bank);
+            case "due_date":
+              return compareText(left.due_date, right.due_date);
+            case "status":
+              return compareText(left.status, right.status);
+            case "client_name":
+            default:
+              return compareText(left.client_name, right.client_name);
+          }
+        })();
+        return paidPendingSortDirection === "asc" ? result : -result;
+      }),
+    [dashboard.paid_pending, paidPendingSort, paidPendingSortDirection],
+  );
+  const visibleMissingBoletos = useMemo(
+    () =>
+      [...dashboard.missing_boletos].sort((left, right) => {
+        const result = (() => {
+          switch (missingSort) {
+            case "mode":
+              return compareText(left.mode, right.mode);
+            case "competence":
+              return compareText(left.competence, right.competence);
+            case "amount":
+              return compareNumber(left.amount, right.amount);
+            case "receivables":
+              return compareText(renderReceivableDetails(left), renderReceivableDetails(right));
+            case "reason":
+              return compareText(left.reason, right.reason);
+            case "client_name":
+              return compareText(left.client_name, right.client_name);
+            case "due_date":
+            default:
+              return compareText(left.due_date, right.due_date);
+          }
+        })();
+        return missingSortDirection === "asc" ? result : -result;
+      }),
+    [dashboard.missing_boletos, missingSort, missingSortDirection],
+  );
+  const visibleExcessBoletos = useMemo(
+    () =>
+      [...dashboard.excess_boletos].sort((left, right) => {
+        const result = (() => {
+          switch (excessSort) {
+            case "type":
+              return compareText(left.type, right.type);
+            case "mode":
+              return compareText(left.mode, right.mode);
+            case "competence":
+              return compareText(left.competence, right.competence);
+            case "amount":
+              return compareNumber(left.amount, right.amount);
+            case "status":
+              return compareText(left.status, right.status);
+            case "bank":
+              return compareText(left.bank, right.bank);
+            case "reason":
+              return compareText(left.reason, right.reason);
+            case "client_name":
+              return compareText(left.client_name, right.client_name);
+            case "due_date":
+            default:
+              return compareText(left.due_date, right.due_date);
+          }
+        })();
+        return excessSortDirection === "asc" ? result : -result;
+      }),
+    [dashboard.excess_boletos, excessSort, excessSortDirection],
+  );
+  const visibleStandaloneBoletos = useMemo(
+    () =>
+      [...dashboard.standalone_boletos]
+        .filter((item) => standaloneBoletoFilter === "all" || resolveStandaloneBoletoFilter(item) === standaloneBoletoFilter)
+        .sort((left, right) => {
+          const result = (() => {
+            switch (standaloneSort) {
+              case "client_name":
+                return compareText(left.client_name, right.client_name);
+              case "document_id":
+                return compareText(left.document_id, right.document_id);
+              case "description":
+                return compareText(left.description, right.description);
+              case "issue_date":
+                return compareText(left.issue_date, right.issue_date);
+              case "amount":
+                return compareNumber(left.amount, right.amount);
+              case "bank":
+                return compareText(left.bank, right.bank);
+              case "status":
+                return compareText(left.status, right.status);
+              case "due_date":
+              default:
+                return compareText(left.due_date, right.due_date);
+            }
+          })();
+          return standaloneSortDirection === "asc" ? result : -result;
+        }),
+    [dashboard.standalone_boletos, standaloneBoletoFilter, standaloneSort, standaloneSortDirection],
   );
 
   useEffect(() => {
     const visibleIds = new Set(filteredOpenBoletos.map((item) => item.id));
     setSelectedOpenBoletoIds((current) => current.filter((item) => visibleIds.has(item)));
   }, [filteredOpenBoletos]);
+
+  useEffect(() => {
+    setOpenBoletoStatusFilter((current) => {
+      if (current === null) {
+        return null;
+      }
+      return current.filter((item) => availableOpenBoletoStatuses.includes(item));
+    });
+  }, [availableOpenBoletoStatuses]);
+
+  useEffect(() => {
+    setOpenBoletoBankFilter((current) => {
+      if (current === null) {
+        return null;
+      }
+      return current.filter((item) => availableOpenBoletoBanks.includes(item));
+    });
+  }, [availableOpenBoletoBanks]);
 
   useEffect(() => {
     setClientsModalOpen(false);
@@ -382,6 +641,9 @@ export function BoletosPage({
     setCustomerDataFile(null);
     setShowOpenReceivablePeriodPopover(false);
     setShowOpenReceivablePresetMenu(false);
+    setShowOpenBoletoPeriodPopover(false);
+    setShowOpenBoletoPresetMenu(false);
+    setOpenBoletoColumnFilter(null);
   }, [view]);
 
   function renderFileMeta(sourceType: string) {
@@ -441,12 +703,65 @@ export function BoletosPage({
     setOpenBoletoSortDirection("asc");
   }
 
+  function toggleOverdueSort(nextSort: BillingAlertSort) {
+    if (overdueSort === nextSort) {
+      setOverdueSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setOverdueSort(nextSort);
+    setOverdueSortDirection("asc");
+  }
+
+  function togglePaidPendingSort(nextSort: BillingAlertSort) {
+    if (paidPendingSort === nextSort) {
+      setPaidPendingSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setPaidPendingSort(nextSort);
+    setPaidPendingSortDirection("asc");
+  }
+
+  function toggleMissingSort(nextSort: BillingAlertSort) {
+    if (missingSort === nextSort) {
+      setMissingSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setMissingSort(nextSort);
+    setMissingSortDirection("asc");
+  }
+
+  function toggleExcessSort(nextSort: BillingAlertSort) {
+    if (excessSort === nextSort) {
+      setExcessSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setExcessSort(nextSort);
+    setExcessSortDirection("asc");
+  }
+
+  function toggleStandaloneSort(nextSort: StandaloneBoletoSort) {
+    if (standaloneSort === nextSort) {
+      setStandaloneSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setStandaloneSort(nextSort);
+    setStandaloneSortDirection("asc");
+  }
+
   function setOpenReceivableDateRange(start: string, end: string) {
     setOpenReceivableFilterDraft({ start, end });
   }
 
   function applyOpenReceivableDateFilters() {
     setOpenReceivableFilters(openReceivableFilterDraft);
+  }
+
+  function setOpenBoletoDateRange(start: string, end: string) {
+    setOpenBoletoFilterDraft({ start, end });
+  }
+
+  function applyOpenBoletoDateFilters() {
+    setOpenBoletoFilters(openBoletoFilterDraft);
   }
 
   function applyOpenReceivablePresetRange(kind: "today" | "current_month" | "previous_month" | "current_year") {
@@ -474,6 +789,31 @@ export function BoletosPage({
     setOpenReceivableDateRange(formatValue(new Date(year, 0, 1)), formatValue(new Date(year, 11, 31)));
   }
 
+  function applyOpenBoletoPresetRange(kind: "today" | "current_month" | "previous_month" | "current_year") {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const formatValue = (value: Date) => value.toISOString().slice(0, 10);
+
+    if (kind === "today") {
+      const current = formatValue(today);
+      setOpenBoletoDateRange(current, current);
+      return;
+    }
+
+    if (kind === "current_month") {
+      setOpenBoletoDateRange(formatValue(new Date(year, month, 1)), formatValue(new Date(year, month + 1, 0)));
+      return;
+    }
+
+    if (kind === "previous_month") {
+      setOpenBoletoDateRange(formatValue(new Date(year, month - 1, 1)), formatValue(new Date(year, month, 0)));
+      return;
+    }
+
+    setOpenBoletoDateRange(formatValue(new Date(year, 0, 1)), formatValue(new Date(year, 11, 31)));
+  }
+
   function renderSortButton(
     label: string,
     sortKey: string,
@@ -492,6 +832,68 @@ export function BoletosPage({
           </span>
         ) : null}
       </button>
+    );
+  }
+
+  function renderOpenBoletoHeader(
+    label: string,
+    sortKey: OpenBoletoSort,
+    options?: {
+      numeric?: boolean;
+      filter?: OpenBoletoColumnFilter;
+      filterLabel?: string;
+      values?: string[];
+      selectedValues?: string[] | null;
+      onToggleValue?: (value: string) => void;
+      onToggleAll?: () => void;
+    },
+  ) {
+    const numeric = options?.numeric ?? false;
+    const filter = options?.filter ?? null;
+    const availableValues = options?.values ?? [];
+    const currentValues = options?.selectedValues ?? null;
+    const { leftValues, leftAllSelected } = compareMultiSelectValues(currentValues, currentValues, availableValues);
+
+    return (
+      <div className={`finance-open-items-table-header ${numeric ? "is-numeric" : ""}`.trim()}>
+        {renderSortButton(label, sortKey, openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort(sortKey), numeric)}
+        {filter ? (
+          <div className="billing-column-filter-wrap">
+            <button
+              aria-label={options?.filterLabel ?? `Filtrar ${label}`}
+              className={`entries-column-filter-trigger ${openBoletoColumnFilter === filter ? "is-active" : ""}`.trim()}
+              onClick={() => setOpenBoletoColumnFilter((current) => (current === filter ? null : filter))}
+              type="button"
+            >
+              <FilterFunnelIcon />
+            </button>
+            {openBoletoColumnFilter === filter ? (
+              <div className="entries-floating-panel finance-open-items-filter-popover billing-column-filter-popover">
+                <div className="entries-category-filter-head">
+                  <strong>{options?.filterLabel ?? `Filtrar ${label}`}</strong>
+                </div>
+                <div className="entries-category-filter-list">
+                  <label className="entries-category-filter-option is-all">
+                    <input checked={leftAllSelected} onChange={() => options?.onToggleAll?.()} type="checkbox" />
+                    <div className="entries-category-filter-text">
+                      <strong>Selecionar tudo</strong>
+                    </div>
+                  </label>
+                  {availableValues.map((value) => (
+                    <label className="entries-category-filter-option" key={value}>
+                      <input checked={leftValues.includes(value)} onChange={() => options?.onToggleValue?.(value)} type="checkbox" />
+                      <div className="entries-category-filter-text">
+                        <strong>{value}</strong>
+                      </div>
+                    </label>
+                  ))}
+                  {!availableValues.length ? <p className="entries-category-filter-empty">Nenhum valor encontrado.</p> : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     );
   }
 
@@ -1174,26 +1576,36 @@ export function BoletosPage({
         <section className="panel compact-panel-card">
           <div className="panel-title compact-title-row">
             <h3>Boletos atrasados</h3>
-            <span>{dashboard.overdue_boletos.length}</span>
+            <span>{visibleOverdueBoletos.length}</span>
           </div>
           <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-            <table className="erp-table entries-list-table">
+            <table className="erp-table entries-list-table billing-alert-table">
+              <colgroup>
+                <col className="billing-alert-col-client" />
+                <col className="billing-alert-col-mode" />
+                <col className="billing-alert-col-bank" />
+                <col className="billing-alert-col-due-date" />
+                <col className="billing-alert-col-days" />
+                <col className="billing-alert-col-amount" />
+                <col className="billing-alert-col-status" />
+                <col className="billing-alert-col-receivables" />
+                <col className="billing-alert-col-boleto" />
+              </colgroup>
               <thead>
                 <tr>
-                  <th>Cliente</th>
-                  <th>Modo</th>
-                  <th>Banco</th>
-                  <th>Vencimento</th>
-                  <th>Atraso</th>
-                  <th className="numeric-cell">Valor</th>
-                  <th>Status</th>
-                  <th>Faturas</th>
+                  <th>{renderSortButton("Cliente", "client_name", overdueSort, overdueSortDirection, () => toggleOverdueSort("client_name"))}</th>
+                  <th>{renderSortButton("Modo", "mode", overdueSort, overdueSortDirection, () => toggleOverdueSort("mode"))}</th>
+                  <th>{renderSortButton("Banco", "bank", overdueSort, overdueSortDirection, () => toggleOverdueSort("bank"))}</th>
+                  <th>{renderSortButton("Vencimento", "due_date", overdueSort, overdueSortDirection, () => toggleOverdueSort("due_date"))}</th>
+                  <th>{renderSortButton("Atraso", "days_overdue", overdueSort, overdueSortDirection, () => toggleOverdueSort("days_overdue"))}</th>
+                  <th className="numeric-cell">{renderSortButton("Valor", "amount", overdueSort, overdueSortDirection, () => toggleOverdueSort("amount"), true)}</th>
+                  <th>{renderSortButton("Status", "status", overdueSort, overdueSortDirection, () => toggleOverdueSort("status"))}</th>
+                  <th>{renderSortButton("Faturas", "receivables", overdueSort, overdueSortDirection, () => toggleOverdueSort("receivables"))}</th>
                   <th>Boleto</th>
-                  <th>Motivo</th>
                 </tr>
               </thead>
               <tbody>
-                {dashboard.overdue_boletos.map((item, index) => (
+                {visibleOverdueBoletos.map((item, index) => (
                   <tr key={`${item.client_name}-${item.due_date}-${index}`}>
                     <td>{item.client_name}</td>
                     <td>{item.mode || "-"}</td>
@@ -1204,12 +1616,11 @@ export function BoletosPage({
                     <td>{formatEntryStatus(item.status)}</td>
                     <td>{renderReceivableDetails(item)}</td>
                     <td>{renderBoletoActions(item.boletos)}</td>
-                    <td>{item.reason}</td>
                   </tr>
                 ))}
-                {!dashboard.overdue_boletos.length && (
+                {!visibleOverdueBoletos.length && (
                   <tr>
-                    <td colSpan={10}>Nenhum boleto atrasado encontrado.</td>
+                    <td className="empty-cell" colSpan={9}>Nenhum boleto atrasado encontrado.</td>
                   </tr>
                 )}
               </tbody>
@@ -1224,23 +1635,32 @@ export function BoletosPage({
         <section className="panel compact-panel-card">
           <div className="panel-title compact-title-row">
             <h3>Pagas sem baixa</h3>
-            <span>{dashboard.paid_pending.length}</span>
+            <span>{visiblePaidPending.length}</span>
           </div>
           <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-            <table className="erp-table entries-list-table">
+            <table className="erp-table entries-list-table billing-alert-table">
+              <colgroup>
+                <col className="billing-alert-col-type" />
+                <col className="billing-alert-col-client" />
+                <col className="billing-alert-col-mode" />
+                <col className="billing-alert-col-competence" />
+                <col className="billing-alert-col-amount" />
+                <col className="billing-alert-col-receivables" />
+                <col className="billing-alert-col-actions" />
+              </colgroup>
               <thead>
                 <tr>
-                  <th>Tipo</th>
-                  <th>Cliente</th>
-                  <th>Modo</th>
-                  <th>Competencia</th>
-                  <th className="numeric-cell">Valor</th>
-                  <th>Faturas</th>
+                  <th>{renderSortButton("Tipo", "type", paidPendingSort, paidPendingSortDirection, () => togglePaidPendingSort("type"))}</th>
+                  <th>{renderSortButton("Cliente", "client_name", paidPendingSort, paidPendingSortDirection, () => togglePaidPendingSort("client_name"))}</th>
+                  <th>{renderSortButton("Modo", "mode", paidPendingSort, paidPendingSortDirection, () => togglePaidPendingSort("mode"))}</th>
+                  <th>{renderSortButton("Competência", "competence", paidPendingSort, paidPendingSortDirection, () => togglePaidPendingSort("competence"))}</th>
+                  <th className="numeric-cell">{renderSortButton("Valor", "amount", paidPendingSort, paidPendingSortDirection, () => togglePaidPendingSort("amount"), true)}</th>
+                  <th>{renderSortButton("Faturas", "receivables", paidPendingSort, paidPendingSortDirection, () => togglePaidPendingSort("receivables"))}</th>
                   <th>Boleto</th>
                 </tr>
               </thead>
               <tbody>
-                {dashboard.paid_pending.map((item, index) => (
+                {visiblePaidPending.map((item, index) => (
                   <tr key={`${item.client_name}-${item.competence}-${index}`}>
                     <td>{item.type}</td>
                     <td>{item.client_name}</td>
@@ -1251,9 +1671,9 @@ export function BoletosPage({
                     <td>{renderBoletoActions(item.boletos, { showPdfAction: false })}</td>
                   </tr>
                 ))}
-                {!dashboard.paid_pending.length && (
+                {!visiblePaidPending.length && (
                   <tr>
-                    <td colSpan={7}>Nenhum pagamento sem baixa encontrado.</td>
+                    <td className="empty-cell" colSpan={7}>Nenhum pagamento sem baixa encontrado.</td>
                   </tr>
                 )}
               </tbody>
@@ -1268,25 +1688,36 @@ export function BoletosPage({
         <section className="panel compact-panel-card">
           <div className="panel-title compact-title-row">
             <h3>Boletos em excesso</h3>
-            <span>{dashboard.excess_boletos.length}</span>
+            <span>{visibleExcessBoletos.length}</span>
           </div>
-          <div className="table-shell tall entries-table-shell">
-            <table className="erp-table entries-list-table">
+          <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
+            <table className="erp-table entries-list-table billing-alert-table">
+              <colgroup>
+                <col className="billing-alert-col-type" />
+                <col className="billing-alert-col-client" />
+                <col className="billing-alert-col-mode" />
+                <col className="billing-alert-col-competence" />
+                <col className="billing-alert-col-due-date" />
+                <col className="billing-alert-col-amount" />
+                <col className="billing-alert-col-status" />
+                <col className="billing-alert-col-boleto" />
+                <col className="billing-alert-col-reason" />
+              </colgroup>
               <thead>
                 <tr>
-                  <th>Tipo</th>
-                  <th>Cliente</th>
-                  <th>Modo</th>
-                  <th>Competencia</th>
-                  <th>Vencimento</th>
-                  <th className="numeric-cell">Valor</th>
-                  <th>Status</th>
+                  <th>{renderSortButton("Tipo", "type", excessSort, excessSortDirection, () => toggleExcessSort("type"))}</th>
+                  <th>{renderSortButton("Cliente", "client_name", excessSort, excessSortDirection, () => toggleExcessSort("client_name"))}</th>
+                  <th>{renderSortButton("Modo", "mode", excessSort, excessSortDirection, () => toggleExcessSort("mode"))}</th>
+                  <th>{renderSortButton("Competência", "competence", excessSort, excessSortDirection, () => toggleExcessSort("competence"))}</th>
+                  <th>{renderSortButton("Vencimento", "due_date", excessSort, excessSortDirection, () => toggleExcessSort("due_date"))}</th>
+                  <th className="numeric-cell">{renderSortButton("Valor", "amount", excessSort, excessSortDirection, () => toggleExcessSort("amount"), true)}</th>
+                  <th>{renderSortButton("Status", "status", excessSort, excessSortDirection, () => toggleExcessSort("status"))}</th>
                   <th>Boleto</th>
-                  <th>Motivo</th>
+                  <th>{renderSortButton("Motivo", "reason", excessSort, excessSortDirection, () => toggleExcessSort("reason"))}</th>
                 </tr>
               </thead>
               <tbody>
-                {dashboard.excess_boletos.map((item, index) => (
+                {visibleExcessBoletos.map((item, index) => (
                   <tr key={`${item.client_name}-${item.competence}-${index}`}>
                     <td>{item.type}</td>
                     <td>{item.client_name}</td>
@@ -1299,9 +1730,9 @@ export function BoletosPage({
                     <td>{item.reason}</td>
                   </tr>
                 ))}
-                {!dashboard.excess_boletos.length && (
+                {!visibleExcessBoletos.length && (
                   <tr>
-                    <td colSpan={9}>Nenhum boleto em excesso encontrado.</td>
+                    <td className="empty-cell" colSpan={9}>Nenhum boleto em excesso encontrado.</td>
                   </tr>
                 )}
               </tbody>
@@ -1331,17 +1762,74 @@ export function BoletosPage({
                   onChange={(event) => setOpenBoletoSearch(event.target.value)}
                 />
               </label>
-              <label className="billing-search-field billing-search-field--compact">
-                <span>Banco</span>
-                <select value={openBoletoBankFilter} onChange={(event) => setOpenBoletoBankFilter(event.target.value)}>
-                  <option value="all">Todos</option>
-                  {availableOpenBoletoBanks.map((bank) => (
-                    <option key={bank} value={bank}>
-                      {bank}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="entries-period-group">
+                <button
+                  aria-expanded={showOpenBoletoPeriodPopover}
+                  aria-label="Selecionar período"
+                  className={`entries-period-trigger ${showOpenBoletoPeriodPopover ? "is-active" : ""}`}
+                  disabled={submitting}
+                  onClick={() => {
+                    setOpenBoletoColumnFilter(null);
+                    setShowOpenBoletoPresetMenu(false);
+                    setShowOpenBoletoPeriodPopover((current) => !current);
+                  }}
+                  type="button"
+                >
+                  <CalendarRangeIcon />
+                  <span>{formatRangeLabel(openBoletoFilterDraft.start, openBoletoFilterDraft.end)}</span>
+                </button>
+                {showOpenBoletoPeriodPopover ? (
+                  <div className="entries-floating-panel entries-period-popover">
+                    <div className="entries-period-fields">
+                      <label>
+                        Início
+                        <input
+                          disabled={submitting}
+                          type="date"
+                          value={openBoletoFilterDraft.start}
+                          onChange={(event) => setOpenBoletoDateRange(event.target.value, openBoletoFilterDraft.end)}
+                        />
+                      </label>
+                      <label>
+                        Fim
+                        <input
+                          disabled={submitting}
+                          type="date"
+                          value={openBoletoFilterDraft.end}
+                          onChange={(event) => setOpenBoletoDateRange(openBoletoFilterDraft.start, event.target.value)}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              <div className="entries-toolbar-icon-wrap">
+                <button
+                  aria-expanded={showOpenBoletoPresetMenu}
+                  aria-label="Filtros pré-definidos de data"
+                  className={`entries-toolbar-icon ${showOpenBoletoPresetMenu ? "is-active" : ""}`}
+                  disabled={submitting}
+                  onClick={() => {
+                    setOpenBoletoColumnFilter(null);
+                    setShowOpenBoletoPeriodPopover(false);
+                    setShowOpenBoletoPresetMenu((current) => !current);
+                  }}
+                  type="button"
+                >
+                  <FilterFunnelIcon />
+                </button>
+                {showOpenBoletoPresetMenu ? (
+                  <div className="entries-floating-panel entries-icon-menu">
+                    <button className="entries-icon-menu-item" onClick={() => { applyOpenBoletoPresetRange("today"); setShowOpenBoletoPresetMenu(false); }} type="button">Hoje</button>
+                    <button className="entries-icon-menu-item" onClick={() => { applyOpenBoletoPresetRange("current_month"); setShowOpenBoletoPresetMenu(false); }} type="button">Mês atual</button>
+                    <button className="entries-icon-menu-item" onClick={() => { applyOpenBoletoPresetRange("previous_month"); setShowOpenBoletoPresetMenu(false); }} type="button">Mês anterior</button>
+                    <button className="entries-icon-menu-item" onClick={() => { applyOpenBoletoPresetRange("current_year"); setShowOpenBoletoPresetMenu(false); }} type="button">Ano atual</button>
+                  </div>
+                ) : null}
+              </div>
+              <button className="primary-button compact-button" disabled={submitting} onClick={applyOpenBoletoDateFilters} type="button">
+                Aplicar
+              </button>
               <button
                 className="secondary-button"
                 disabled={submitting || !selectedOpenBoletoIds.length}
@@ -1355,6 +1843,17 @@ export function BoletosPage({
           </div>
           <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell billing-open-boletos-table-shell">
             <table className="erp-table entries-list-table billing-open-boletos-table">
+              <colgroup>
+                <col className="billing-open-boletos-col-select" />
+                <col className="billing-open-boletos-col-client" />
+                <col className="billing-open-boletos-col-document" />
+                <col className="billing-open-boletos-col-issue-date" />
+                <col className="billing-open-boletos-col-due-date" />
+                <col className="billing-open-boletos-col-amount" />
+                <col className="billing-open-boletos-col-status" />
+                <col className="billing-open-boletos-col-bank" />
+                <col className="billing-open-boletos-col-actions" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>
@@ -1370,15 +1869,35 @@ export function BoletosPage({
                       type="checkbox"
                     />
                   </th>
-                  <th>{renderSortButton("Cliente", "client_name", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("client_name"))}</th>
-                  <th>{renderSortButton("Documento", "document_id", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("document_id"))}</th>
-                  <th>{renderSortButton("Emissão", "issue_date", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("issue_date"))}</th>
-                  <th>{renderSortButton("Vencimento", "due_date", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("due_date"))}</th>
+                  <th>{renderOpenBoletoHeader("Cliente", "client_name")}</th>
+                  <th>{renderOpenBoletoHeader("Documento", "document_id")}</th>
+                  <th>{renderOpenBoletoHeader("Emissão", "issue_date")}</th>
+                  <th>{renderOpenBoletoHeader("Vencimento", "due_date")}</th>
                   <th className="numeric-cell">
-                    {renderSortButton("Valor", "amount", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("amount"), true)}
+                    {renderOpenBoletoHeader("Valor", "amount", { numeric: true })}
                   </th>
-                  <th>Status</th>
-                  <th>{renderSortButton("Banco", "bank", openBoletoSort, openBoletoSortDirection, () => toggleOpenBoletoSort("bank"))}</th>
+                  <th>
+                    {renderOpenBoletoHeader("Status", "status", {
+                      filter: "status",
+                      filterLabel: "Status",
+                      values: availableOpenBoletoStatuses,
+                      selectedValues: openBoletoStatusFilter,
+                      onToggleAll: () => setOpenBoletoStatusFilter((current) => (current === null ? [] : null)),
+                      onToggleValue: (value) =>
+                        setOpenBoletoStatusFilter((current) => toggleMultiSelectValue(current, value, availableOpenBoletoStatuses)),
+                    })}
+                  </th>
+                  <th>
+                    {renderOpenBoletoHeader("Banco", "bank", {
+                      filter: "bank",
+                      filterLabel: "Banco",
+                      values: availableOpenBoletoBanks,
+                      selectedValues: openBoletoBankFilter,
+                      onToggleAll: () => setOpenBoletoBankFilter((current) => (current === null ? [] : null)),
+                      onToggleValue: (value) =>
+                        setOpenBoletoBankFilter((current) => toggleMultiSelectValue(current, value, availableOpenBoletoBanks)),
+                    })}
+                  </th>
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -1393,15 +1912,17 @@ export function BoletosPage({
                         type="checkbox"
                       />
                     </td>
-                    <td>{item.client_name}</td>
-                    <td>
+                    <td className="billing-open-boletos-client-cell" title={item.client_name}>
+                      {item.client_name}
+                    </td>
+                    <td className="billing-open-boletos-document-cell" title={item.document_id || "-"}>
                       <strong>{item.document_id || "-"}</strong>
                     </td>
                     <td>{formatDate(item.issue_date)}</td>
                     <td>{formatDate(item.due_date)}</td>
                     <td className="numeric-cell">{formatMoney(item.amount)}</td>
                     <td>{formatEntryStatus(item.status)}</td>
-                    <td>{item.bank}</td>
+                    <td>{item.bank || "-"}</td>
                     <td className="billing-open-boletos-actions-cell">
                       <div className="billing-boleto-row-actions billing-boleto-row-actions--compact">
                         {item.pdf_available ? (
@@ -1446,7 +1967,7 @@ export function BoletosPage({
                 ))}
                 {!filteredOpenBoletos.length && (
                   <tr>
-                    <td colSpan={9}>Nenhum boleto em aberto encontrado.</td>
+                    <td className="empty-cell" colSpan={9}>Nenhum boleto em aberto encontrado.</td>
                   </tr>
                 )}
               </tbody>
@@ -1497,38 +2018,44 @@ export function BoletosPage({
             >
               Emitir no Inter
             </button>
-            <span>{dashboard.missing_boletos.length}</span>
+            <span>{visibleMissingBoletos.length}</span>
           </div>
         </div>
         <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-          <table className="erp-table entries-list-table billing-missing-table">
+          <table className="erp-table entries-list-table billing-alert-table">
+            <colgroup>
+              <col className="billing-alert-col-select" />
+              <col className="billing-alert-col-client" />
+              <col className="billing-alert-col-mode" />
+              <col className="billing-alert-col-competence" />
+              <col className="billing-alert-col-due-date" />
+              <col className="billing-alert-col-amount" />
+              <col className="billing-alert-col-receivables" />
+              <col className="billing-alert-col-reason" />
+            </colgroup>
             <thead>
               <tr>
                 <th>
                   <input
-                    checked={
-                      !!dashboard.missing_boletos.length &&
-                      dashboard.missing_boletos.every((item) => selectedMissingKeys.includes(item.selection_key))
-                    }
-                    disabled={submitting || !dashboard.missing_boletos.length}
+                    checked={!!visibleMissingBoletos.length && visibleMissingBoletos.every((item) => selectedMissingKeys.includes(item.selection_key))}
+                    disabled={submitting || !visibleMissingBoletos.length}
                     onChange={(event) =>
-                      setSelectedMissingKeys(event.target.checked ? dashboard.missing_boletos.map((item) => item.selection_key) : [])
+                      setSelectedMissingKeys(event.target.checked ? visibleMissingBoletos.map((item) => item.selection_key) : [])
                     }
                     type="checkbox"
                   />
                 </th>
-                <th>Tipo</th>
-                <th>Cliente</th>
-                <th>Modo</th>
-                <th>Competencia</th>
-                <th>Vencimento</th>
-                <th className="numeric-cell">Valor</th>
-                <th>Faturas</th>
-                <th>Motivo</th>
+                <th>{renderSortButton("Cliente", "client_name", missingSort, missingSortDirection, () => toggleMissingSort("client_name"))}</th>
+                <th>{renderSortButton("Modo", "mode", missingSort, missingSortDirection, () => toggleMissingSort("mode"))}</th>
+                <th>{renderSortButton("Competência", "competence", missingSort, missingSortDirection, () => toggleMissingSort("competence"))}</th>
+                <th>{renderSortButton("Vencimento", "due_date", missingSort, missingSortDirection, () => toggleMissingSort("due_date"))}</th>
+                <th className="numeric-cell">{renderSortButton("Valor", "amount", missingSort, missingSortDirection, () => toggleMissingSort("amount"), true)}</th>
+                <th>{renderSortButton("Faturas", "receivables", missingSort, missingSortDirection, () => toggleMissingSort("receivables"))}</th>
+                <th>{renderSortButton("Motivo", "reason", missingSort, missingSortDirection, () => toggleMissingSort("reason"))}</th>
               </tr>
             </thead>
             <tbody>
-              {dashboard.missing_boletos.map((item) => (
+              {visibleMissingBoletos.map((item) => (
                 <tr key={item.selection_key}>
                   <td>
                     <input
@@ -1538,7 +2065,6 @@ export function BoletosPage({
                       type="checkbox"
                     />
                   </td>
-                  <td>{item.type}</td>
                   <td>{item.client_name}</td>
                   <td>{item.mode || "-"}</td>
                   <td>{item.competence || "-"}</td>
@@ -1548,9 +2074,9 @@ export function BoletosPage({
                   <td>{item.reason}</td>
                 </tr>
               ))}
-              {!dashboard.missing_boletos.length && (
+              {!visibleMissingBoletos.length && (
                 <tr>
-                  <td colSpan={9}>Nenhum boleto faltando encontrado.</td>
+                  <td className="empty-cell" colSpan={8}>Nenhum boleto faltando encontrado.</td>
                 </tr>
               )}
             </tbody>
@@ -1566,7 +2092,7 @@ export function BoletosPage({
         <>
           <section className="panel compact-panel-card">
             <div className="panel-title compact-title-row">
-              <h3>Controle dos boletos avulsos</h3>
+              <h3>Boletos avulsos</h3>
               <div className="action-row">
                 <label className="compact-inline">
                   <span>Status</span>
@@ -1601,18 +2127,29 @@ export function BoletosPage({
                 <span>{visibleStandaloneBoletos.length}</span>
               </div>
             </div>
-            <div className="table-shell tall">
-              <table className="erp-table">
+            <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
+              <table className="erp-table entries-list-table billing-alert-table">
+                <colgroup>
+                  <col className="billing-alert-col-client" />
+                  <col className="billing-alert-col-document" />
+                  <col className="billing-alert-col-description" />
+                  <col className="billing-alert-col-issue-date" />
+                  <col className="billing-alert-col-due-date" />
+                  <col className="billing-alert-col-amount" />
+                  <col className="billing-alert-col-bank" />
+                  <col className="billing-alert-col-status" />
+                  <col className="billing-alert-col-actions" />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th>Cliente</th>
-                    <th>Documento</th>
-                    <th>Descrição</th>
-                    <th>Emissão</th>
-                    <th>Vencimento</th>
-                    <th className="numeric-cell">Valor</th>
-                    <th>Banco</th>
-                    <th>Status banco</th>
+                    <th>{renderSortButton("Cliente", "client_name", standaloneSort, standaloneSortDirection, () => toggleStandaloneSort("client_name"))}</th>
+                    <th>{renderSortButton("Documento", "document_id", standaloneSort, standaloneSortDirection, () => toggleStandaloneSort("document_id"))}</th>
+                    <th>{renderSortButton("Descrição", "description", standaloneSort, standaloneSortDirection, () => toggleStandaloneSort("description"))}</th>
+                    <th>{renderSortButton("Emissão", "issue_date", standaloneSort, standaloneSortDirection, () => toggleStandaloneSort("issue_date"))}</th>
+                    <th>{renderSortButton("Vencimento", "due_date", standaloneSort, standaloneSortDirection, () => toggleStandaloneSort("due_date"))}</th>
+                    <th className="numeric-cell">{renderSortButton("Valor", "amount", standaloneSort, standaloneSortDirection, () => toggleStandaloneSort("amount"), true)}</th>
+                    <th>{renderSortButton("Banco", "bank", standaloneSort, standaloneSortDirection, () => toggleStandaloneSort("bank"))}</th>
+                    <th>{renderSortButton("Status banco", "status", standaloneSort, standaloneSortDirection, () => toggleStandaloneSort("status"))}</th>
                     <th>Ações</th>
                   </tr>
                 </thead>
@@ -1666,7 +2203,7 @@ export function BoletosPage({
                   ))}
                   {!visibleStandaloneBoletos.length && (
                     <tr>
-                      <td colSpan={9}>Nenhum boleto avulso em {formatStandaloneBoletoFilterLabel(standaloneBoletoFilter).toLowerCase()}.</td>
+                      <td className="empty-cell" colSpan={9}>Nenhum boleto avulso em {formatStandaloneBoletoFilterLabel(standaloneBoletoFilter).toLowerCase()}.</td>
                     </tr>
                   )}
                 </tbody>

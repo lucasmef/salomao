@@ -2956,6 +2956,14 @@ textarea {
   min-width: 132px;
 }
 
+.billing-open-boletos-actions .entries-period-group {
+  min-width: min(260px, 100%);
+}
+
+.billing-open-boletos-actions .entries-toolbar-icon-wrap {
+  flex: 0 0 auto;
+}
+
 .billing-open-boletos-count {
   color: #607087;
   font-size: 0.74rem;
@@ -3002,6 +3010,42 @@ textarea {
   overflow: visible;
 }
 
+.billing-alert-table {
+  table-layout: fixed;
+}
+
+.billing-alert-table th,
+.billing-alert-table td {
+  padding-top: 5px;
+  padding-bottom: 5px;
+  line-height: 1.1;
+  vertical-align: middle;
+}
+
+.billing-alert-table thead th {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.billing-alert-table .table-sort-button {
+  min-height: 24px;
+  gap: 4px;
+  width: auto;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.billing-alert-table .table-sort-button strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.billing-alert-table .empty-cell {
+  height: 180px;
+  vertical-align: top;
+}
+
 .billing-open-boletos-table th,
 .billing-open-boletos-table td {
   padding-top: 5px;
@@ -3029,6 +3073,59 @@ textarea {
 
 .billing-open-boletos-table .table-sort-button span {
   font-size: 0.72rem;
+}
+
+.billing-column-filter-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.billing-column-filter-popover {
+  right: 0;
+  left: auto;
+  z-index: 20;
+}
+
+.billing-open-boletos-col-select {
+  width: 36px;
+}
+
+.billing-open-boletos-col-client {
+  width: 24%;
+}
+
+.billing-open-boletos-col-document {
+  width: 15%;
+}
+
+.billing-open-boletos-col-issue-date,
+.billing-open-boletos-col-due-date {
+  width: 10%;
+}
+
+.billing-open-boletos-col-amount {
+  width: 10%;
+}
+
+.billing-open-boletos-col-status {
+  width: 14%;
+}
+
+.billing-open-boletos-col-bank {
+  width: 9%;
+}
+
+.billing-open-boletos-col-actions {
+  width: 8%;
+}
+
+.billing-open-boletos-client-cell,
+.billing-open-boletos-document-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .billing-open-receivables-table {
@@ -3159,6 +3256,74 @@ textarea {
 .finance-open-items-table .empty-cell {
   height: 180px;
   vertical-align: top;
+}
+
+.billing-alert-col-client {
+  width: 22%;
+}
+
+.billing-alert-col-select {
+  width: 38px;
+}
+
+.billing-alert-col-type {
+  width: 8%;
+}
+
+.billing-alert-col-mode {
+  width: 10%;
+}
+
+.billing-alert-col-competence {
+  width: 11%;
+}
+
+.billing-alert-col-bank {
+  width: 9%;
+}
+
+.billing-alert-col-document {
+  width: 14%;
+}
+
+.billing-alert-col-description {
+  width: 20%;
+}
+
+.billing-alert-col-issue-date {
+  width: 10%;
+}
+
+.billing-alert-col-due-date {
+  width: 9%;
+}
+
+.billing-alert-col-days {
+  width: 7%;
+}
+
+.billing-alert-col-amount {
+  width: 9%;
+}
+
+.billing-alert-col-status {
+  width: 14%;
+}
+
+.billing-alert-col-receivables {
+  width: 14%;
+}
+
+.billing-alert-col-boleto {
+  width: 12%;
+}
+
+.billing-alert-col-reason {
+  width: 19%;
+}
+
+.billing-alert-col-actions {
+  width: 74px;
 }
 
 .billing-open-boletos-select-cell,

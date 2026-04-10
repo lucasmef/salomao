@@ -166,6 +166,7 @@ class ResolvedCustomerData:
     client_name: str
     client_code: str | None
     uses_boleto: bool
+    supports_boleto_config: bool
     mode: str
     boleto_due_day: int | None
     include_interest: bool
@@ -995,12 +996,16 @@ def _resolve_customer_data(
         or (config.client_code if config else None)
     )
 
+    registration_type = (matched_customer.registration_type or "").upper() if matched_customer and matched_customer.registration_type else None
+    supports_boleto_config = registration_type in {"C", "A"} if registration_type else True
+
     return ResolvedCustomerData(
         config=config,
         linx_customer=matched_customer,
         client_name=resolved_name,
         client_code=resolved_code,
         uses_boleto=config.uses_boleto if config else auto_uses_boleto,
+        supports_boleto_config=supports_boleto_config,
         mode=config.mode if config else "individual",
         boleto_due_day=config.boleto_due_day if config else None,
         include_interest=bool(config.include_interest) if config else False,
@@ -1607,6 +1612,7 @@ def build_boleto_dashboard(
         client_name = resolved_customer.client_name
         client_code = resolved_customer.client_code
         uses_boleto = resolved_customer.uses_boleto
+        supports_boleto = resolved_customer.supports_boleto_config
         mode = resolved_customer.mode
         due_day = resolved_customer.boleto_due_day
         notes = resolved_customer.notes
@@ -1625,13 +1631,23 @@ def build_boleto_dashboard(
                 )
             )
 
-        if uses_boleto:
+        if uses_boleto and supports_boleto:
             boleto_clients_count += 1
 
         matched_paid_count = 0
         overdue_boleto_count = 0
 
-        if not uses_boleto:
+        if not uses_boleto or not supports_boleto:
+            non_boleto_reason = (
+                "Cadastro do cliente não contempla cobrança por boleto, mas existe boleto em aberto emitido."
+                if not supports_boleto
+                else "Cliente marcado como nao usa boleto, mas existe boleto em aberto emitido."
+            )
+            non_boleto_group_reason = (
+                "Cadastro do cliente não contempla cobrança por boleto, mas existem boletos em aberto emitidos."
+                if not supports_boleto
+                else "Cliente marcado como nao usa boleto, mas existem boletos em aberto emitidos."
+            )
             if mode == "individual":
                 for boleto in active_client_boletos:
                     excess_boletos.append(
@@ -1639,7 +1655,7 @@ def build_boleto_dashboard(
                             client_key=client_key,
                             client_name=client_name,
                             mode=mode,
-                            reason="Cliente marcado como nao usa boleto, mas existe boleto em aberto emitido.",
+                            reason=non_boleto_reason,
                             boletos=[boleto],
                         )
                     )
@@ -1661,7 +1677,7 @@ def build_boleto_dashboard(
                             client_key=client_key,
                             client_name=client_name,
                             mode=mode,
-                            reason="Cliente marcado como nao usa boleto, mas existem boletos em aberto emitidos.",
+                            reason=non_boleto_group_reason,
                             boletos=boleto_group,
                         )
                     )
@@ -1685,19 +1701,6 @@ def build_boleto_dashboard(
                                 receivables=[receivable],
                             )
                         )
-                        if receivable.due_date and receivable.due_date < today:
-                            overdue_boletos.append(
-                                _build_overdue_boleto_item(
-                                    client_key=client_key,
-                                    client_name=client_name,
-                                    mode=mode,
-                                    today=today,
-                                    reason="A fatura venceu e nao encontrei boleto emitido para ela.",
-                                    receivables=[receivable],
-                                    boleto=None,
-                                )
-                            )
-                            overdue_boleto_count += 1
                         continue
 
                     used_boleto_ids.add(matched_boleto.id)
@@ -1785,19 +1788,6 @@ def build_boleto_dashboard(
                                     boletos=active_boleto_group,
                                 )
                             )
-                        if receivable_group and has_overdue_receivable and allocation["visible_for_missing"]:
-                            overdue_boletos.append(
-                                _build_overdue_boleto_item(
-                                    client_key=client_key,
-                                    client_name=client_name,
-                                    mode=mode,
-                                    today=today,
-                                    reason="Existem faturas vencidas sem boleto correspondente.",
-                                    receivables=receivable_group,
-                                    boleto=None,
-                                )
-                            )
-                            overdue_boleto_count += 1
                         continue
 
                     paid_boletos = [item for item in boleto_group if _boleto_status_bucket(item) == "paid"]
