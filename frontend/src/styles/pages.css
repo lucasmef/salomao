@@ -3035,6 +3035,45 @@ textarea {
   table-layout: fixed;
 }
 
+.billing-open-receivables-table th,
+.billing-open-receivables-table td {
+  padding-top: 5px;
+  padding-bottom: 5px;
+  line-height: 1.1;
+  vertical-align: middle;
+}
+
+.billing-open-receivables-table thead th {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.billing-open-receivables-table th {
+  font-size: 0.66rem;
+}
+
+.billing-open-receivables-table td {
+  font-size: 0.74rem;
+}
+
+.billing-open-receivables-table .table-sort-button {
+  min-height: 24px;
+  gap: 4px;
+  width: auto;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.billing-open-receivables-table .table-sort-button strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.billing-open-receivables-table .table-sort-button span {
+  font-size: 0.72rem;
+}
+
 .billing-open-receivables-col-due-date {
   width: 12%;
 }
