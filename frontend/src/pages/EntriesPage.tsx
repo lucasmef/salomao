@@ -817,9 +817,11 @@ export function EntriesPage({
           type="button"
         >
           <strong>{label}</strong>
-          <span className={`table-sort-indicator ${sortDirection ? "is-active" : ""}`.trim()}>
-            <SortDirectionIcon direction={sortDirection} />
-          </span>
+          {sortDirection ? (
+            <span className="table-sort-indicator is-active">
+              <SortDirectionIcon direction={sortDirection} />
+            </span>
+          ) : null}
         </button>
         {showCategoryFilterTrigger ? (
           <>
@@ -1318,6 +1320,17 @@ export function EntriesPage({
         )}
         <div className="table-shell entries-table-shell">
           <table className="erp-table entries-list-table">
+            <colgroup>
+              <col className="entries-col-select" />
+              <col className="entries-col-title" />
+              <col className="entries-col-flow" />
+              <col className="entries-col-account" />
+              <col className="entries-col-category" />
+              <col className="entries-col-status" />
+              <col className="entries-col-due-date" />
+              <col className="entries-col-total" />
+              <col className="entries-col-actions" />
+            </colgroup>
             <thead>
               <tr>
                 <th className="checkbox-cell">
@@ -1348,7 +1361,7 @@ export function EntriesPage({
                       type="checkbox"
                     />
                   </td>
-                  <td>
+                  <td className="entries-cell-title">
                     <div className="cell-stack">
                       <strong>{entry.title}</strong>
                       <span>{entry.counterparty_name ?? entry.document_number ?? entry.source_system ?? "-"}</span>
@@ -1356,7 +1369,7 @@ export function EntriesPage({
                   </td>
                   <td>{formatEntryFlow(entry)}</td>
                   <td>{entry.account_name ?? "-"}</td>
-                  <td>
+                  <td className="entries-cell-category">
                     <div className="cell-stack">
                       <strong>{entry.category_name ?? "-"}</strong>
                       <span>{entry.category_group ?? "-"}</span>
