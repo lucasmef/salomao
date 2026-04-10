@@ -293,6 +293,7 @@ export function EntriesPage({
   const hasMountedSearchAutoApplyRef = useRef(false);
   const periodPopoverRef = useRef<HTMLDivElement | null>(null);
   const categoryFilterPopoverRef = useRef<HTMLDivElement | null>(null);
+  const selectAllCategoryCheckboxRef = useRef<HTMLInputElement | null>(null);
   const presetMenuRef = useRef<HTMLDivElement | null>(null);
   const bulkMenuRef = useRef<HTMLDivElement | null>(null);
   const rowMenuRef = useRef<HTMLDivElement | null>(null);
@@ -395,6 +396,8 @@ export function EntriesPage({
     () => entryCategoryFilterOptions.map((option) => option.key),
     [entryCategoryFilterOptions],
   );
+  const someCategoriesSelected =
+    selectedCategoryFilterKeys.length > 0 && selectedCategoryFilterKeys.length < allCategoryFilterKeys.length;
   const allCategoriesSelected =
     allCategoryFilterKeys.length === 0 || selectedCategoryFilterKeys.length === allCategoryFilterKeys.length;
   const filteredEntries = useMemo(
@@ -533,6 +536,13 @@ export function EntriesPage({
   useEffect(() => {
     setSelectedCategoryFilterKeys(allCategoryFilterKeys);
   }, [allCategoryFilterKeys]);
+
+  useEffect(() => {
+    if (!selectAllCategoryCheckboxRef.current) {
+      return;
+    }
+    selectAllCategoryCheckboxRef.current.indeterminate = someCategoriesSelected;
+  }, [someCategoriesSelected]);
 
   useEffect(() => {
     if (!hasMountedAutoApplyRef.current) {
@@ -793,13 +803,20 @@ export function EntriesPage({
   }
 
   function toggleAllCategoryFilters(checked: boolean) {
-    setSelectedCategoryFilterKeys(checked ? allCategoryFilterKeys : []);
+    if (!checked) {
+      setShowCategoryFilter(false);
+      return;
+    }
+    setSelectedCategoryFilterKeys(allCategoryFilterKeys);
   }
 
   function toggleCategoryFilterOption(categoryKey: string) {
-    setSelectedCategoryFilterKeys((current) =>
-      current.includes(categoryKey) ? current.filter((item) => item !== categoryKey) : [...current, categoryKey],
-    );
+    setSelectedCategoryFilterKeys((current) => {
+      if (current.includes(categoryKey)) {
+        return current.length === 1 ? current : current.filter((item) => item !== categoryKey);
+      }
+      return [...current, categoryKey];
+    });
   }
 
   function renderTableHeader(label: string, column: EntryTableColumnKey, numeric = false) {
@@ -841,6 +858,7 @@ export function EntriesPage({
                   <label className="entries-category-filter-option is-all">
                     <input
                       checked={allCategoriesSelected}
+                      ref={selectAllCategoryCheckboxRef}
                       onChange={(event) => toggleAllCategoryFilters(event.target.checked)}
                       type="checkbox"
                     />
