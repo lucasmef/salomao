@@ -1504,6 +1504,8 @@ textarea {
 .entries-list-table .table-sort-button {
   min-height: 24px;
   gap: 4px;
+  width: auto;
+  max-width: 100%;
   white-space: nowrap;
 }
 
@@ -1561,6 +1563,10 @@ textarea {
 
 .entries-table-header.is-numeric {
   justify-content: flex-end;
+}
+
+.entries-table-header.is-numeric .table-sort-button {
+  margin-left: auto;
 }
 
 .entries-column-filter-trigger {
