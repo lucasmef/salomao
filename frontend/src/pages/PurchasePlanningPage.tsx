@@ -642,6 +642,7 @@ export function PurchasePlanningPage({
   const selectedYearOption = yearOptions.find((option) => option.value === filters.year) ?? null;
   const selectedSupplierOption = purchaseSupplierOptions.find((option) => option.value === filters.supplier_id) ?? null;
   const selectedCollectionOption = collectionOptions.find((option) => option.value === filters.collection_id) ?? null;
+  const selectedFilterCollection = filters.collection_id ? collectionMap.get(filters.collection_id) ?? null : null;
   const selectedPlanningStatusOption = planningStatusOptions.find((option) => option.value === filters.status) ?? null;
   const selectedBrandSupplierOptions = brandSupplierOptions.filter((option) => brandModal.supplier_ids.includes(option.value));
   const selectedCollectionSeasonTypeOption = SEASON_TYPE_OPTIONS.find((option) => option.value === collectionModal.season_type) ?? SEASON_TYPE_OPTIONS[0];
@@ -1639,14 +1640,20 @@ export function PurchasePlanningPage({
             <Select
               options={yearOptions}
               value={selectedYearOption}
-              onChange={(option) =>
+              onChange={(option) => {
+                const nextYear = asSingleValue(option);
+                const shouldKeepCollection =
+                  !selectedFilterCollection ||
+                  !nextYear ||
+                  String(selectedFilterCollection.season_year ?? "") === nextYear;
                 onChangeFilters({
                   ...filters,
-                  year: asSingleValue(option),
+                  year: nextYear,
+                  collection_id: shouldKeepCollection ? filters.collection_id : "",
                   brand_id: "",
                   status: "",
-                })
-              }
+                });
+              }}
               isClearable
               placeholder="Todos"
               styles={purchaseSelectStyles}
@@ -1677,14 +1684,17 @@ export function PurchasePlanningPage({
             <Select
               options={collectionOptions}
               value={selectedCollectionOption}
-              onChange={(option) =>
+              onChange={(option) => {
+                const nextCollectionId = asSingleValue(option);
+                const nextCollection = nextCollectionId ? collectionMap.get(nextCollectionId) ?? null : null;
                 onChangeFilters({
                   ...filters,
-                  collection_id: asSingleValue(option),
+                  year: nextCollection?.season_year ? String(nextCollection.season_year) : filters.year,
+                  collection_id: nextCollectionId,
                   brand_id: "",
                   status: "",
-                })
-              }
+                });
+              }}
               isClearable
               placeholder="Todas"
               styles={purchaseSelectStyles}

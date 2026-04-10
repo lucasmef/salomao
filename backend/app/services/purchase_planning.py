@@ -229,6 +229,25 @@ def clear_purchase_planning_overview_cache(company_id: str | None = None) -> Non
             _purchase_planning_overview_cache.pop(key, None)
 
 
+def _resolve_effective_purchase_planning_filters(
+    db: Session,
+    company_id: str,
+    filters: PurchasePlanningFilters,
+) -> PurchasePlanningFilters:
+    effective_year = filters.year
+    if filters.collection_id:
+        collection = db.get(CollectionSeason, filters.collection_id)
+        if collection and collection.company_id == company_id and collection.season_year:
+            effective_year = collection.season_year
+    return PurchasePlanningFilters(
+        year=effective_year,
+        brand_id=filters.brand_id,
+        supplier_id=filters.supplier_id,
+        collection_id=filters.collection_id,
+        status=filters.status,
+    )
+
+
 def _normalize_purchase_return_status(value: str | None) -> str:
     normalized_value = normalize_label(value or "")
     resolved = PURCHASE_RETURN_STATUS_ALIASES.get(normalized_value)
@@ -4903,6 +4922,7 @@ def build_purchase_planning_overview(
     *,
     mode: str = "summary",
 ) -> PurchasePlanningOverview:
+    filters = _resolve_effective_purchase_planning_filters(db, company.id, filters)
     planning_mode = normalize_label(mode) == "planning"
     today = _today()
     company_collections = list(
@@ -5347,6 +5367,7 @@ def get_cached_purchase_planning_overview(
     *,
     mode: str = "summary",
 ) -> PurchasePlanningOverview:
+    filters = _resolve_effective_purchase_planning_filters(db, company.id, filters)
     cache_key = _purchase_planning_cache_key(company.id, filters, mode)
     current_time = monotonic()
 
@@ -5373,6 +5394,7 @@ def build_purchase_planning_cashflow_events(
     company: Company,
     filters: PurchasePlanningFilters,
 ) -> list[PurchaseInstallmentDraft]:
+    filters = _resolve_effective_purchase_planning_filters(db, company.id, filters)
     today = _today()
     company_collections = list(
         db.scalars(

@@ -2695,6 +2695,43 @@ def test_build_purchase_planning_overview_planning_mode_omits_summary_heavy_sect
     assert overview.rows[0].received_total == Decimal("450.00")
 
 
+def test_purchase_planning_collection_filter_uses_collection_year_even_when_request_year_conflicts(
+    db_session: Session,
+) -> None:
+    company, user = create_company_context(db_session)
+    supplier = create_supplier(db_session, company.id, "Fornecedor Inverno 2025")
+    historical_collection = create_collection(
+        db_session,
+        company,
+        "Inverno 2025",
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 7, 1),
+    )
+    create_purchase_plan(
+        db_session,
+        company,
+        PurchasePlanCreate(
+            supplier_ids=[supplier.id],
+            collection_id=historical_collection.id,
+            title="Compra Inverno 2025",
+            order_date=date(2025, 3, 10),
+            expected_delivery_date=date(2025, 4, 20),
+            purchased_amount=Decimal("1500.00"),
+            payment_term="3x",
+            status="planned",
+        ),
+        user,
+    )
+    db_session.commit()
+
+    conflicting_filters = PurchasePlanningFilters(year=2026, collection_id=historical_collection.id)
+
+    overview = build_purchase_planning_overview(db_session, company, conflicting_filters)
+    assert len(overview.rows) == 1
+    assert overview.rows[0].collection_name == "Inverno 2025"
+    assert overview.summary.purchased_total == Decimal("1500.00")
+
+
 def test_ensure_company_catalog_does_not_run_historical_backfill_automatically(db_session: Session) -> None:
     company, user = create_company_context(db_session)
     supplier = create_supplier(db_session, company.id, "Fornecedor Sem Backfill")
