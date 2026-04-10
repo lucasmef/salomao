@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Select, { type MultiValue, type SingleValue } from "react-select";
 
 import { MoneyInput } from "../components/MoneyInput";
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { PageHeader } from "../components/PageHeader";
 import { TablePagination } from "../components/TablePagination";
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
@@ -1509,17 +1510,13 @@ export function EntriesPage({
           <div className="modal-card compact-entry-modal">
             <div className="panel-title compact-title-row">
               <h3>{editingId ? "Editar lançamento" : "Novo lançamento"}</h3>
-              <button
-                className="ghost-button"
+              <ModalCloseButton
                 onClick={() => {
                   setShowEntryModal(false);
                   setEditingId(null);
                   setForm(emptyForm);
                 }}
-                type="button"
-              >
-                Fechar
-              </button>
+              />
             </div>
             <form className="form-grid dense wide entry-form-grid" onSubmit={handleSubmit}>
               <label>Emissão<input type="date" value={form.issue_date} onChange={(event) => setForm({ ...form, issue_date: event.target.value })} /></label>
@@ -1620,16 +1617,12 @@ export function EntriesPage({
           <div className="modal-card compact-entry-modal">
             <div className="panel-title compact-title-row">
               <h3>Transferir entre contas</h3>
-              <button
-                className="ghost-button"
+              <ModalCloseButton
                 onClick={() => {
                   setShowTransferModal(false);
                   setTransferForm(emptyTransferForm);
                 }}
-                type="button"
-              >
-                Fechar
-              </button>
+              />
             </div>
             <form className="form-grid dense wide" onSubmit={handleTransferSubmit}>
               <label>
@@ -1721,16 +1714,12 @@ export function EntriesPage({
           <div className="modal-card compact-entry-modal">
             <div className="panel-title compact-title-row">
               <h3>Selecione a conta para baixar</h3>
-              <button
-                className="ghost-button"
+              <ModalCloseButton
                 onClick={() => {
                   setShowSettlementPrompt(false);
                   setSettlementPrompt(emptySettlementPrompt);
                 }}
-                type="button"
-              >
-                Fechar
-              </button>
+              />
             </div>
             <form
               className="form-grid dense"

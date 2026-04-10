@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import CreatableSelect from "react-select/creatable";
 
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { MoneyInput } from "../components/MoneyInput";
 import { formatDate, formatMoney, normalizeDisplayText } from "../lib/format";
 import { formatPtBrMoneyInput, normalizePtBrMoneyInput } from "../lib/money";
@@ -1437,9 +1438,7 @@ export function ReconciliationPage({
           <div className="modal-card">
             <div className="panel-title">
               <h3>Efetuar lançamento a partir do extrato</h3>
-              <button className="ghost-button" type="button" onClick={() => setModal(null)}>
-                Fechar
-              </button>
+              <ModalCloseButton onClick={() => setModal(null)} />
             </div>
             <div className="form-grid dense">
               <label>
@@ -1515,9 +1514,7 @@ export function ReconciliationPage({
           <div className="modal-card">
             <div className="panel-title">
               <h3>Lançar transferência entre contas</h3>
-              <button className="ghost-button" type="button" onClick={() => setModal(null)}>
-                Fechar
-              </button>
+              <ModalCloseButton onClick={() => setModal(null)} />
             </div>
             <div className="form-grid dense">
               <label>
@@ -1572,16 +1569,12 @@ export function ReconciliationPage({
           <div className="modal-card purchase-modal-card">
             <div className="panel-title">
               <h3>Selecionar grupo da categoria</h3>
-              <button
-                className="ghost-button"
-                type="button"
+              <ModalCloseButton
                 onClick={() => {
                   setCategoryCreationModalOpen(false);
                   setCategoryCreationDraft(emptyCategoryCreationDraft);
                 }}
-              >
-                Fechar
-              </button>
+              />
             </div>
             <div className="form-grid dense">
               <label>

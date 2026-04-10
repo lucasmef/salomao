@@ -87,7 +87,7 @@ export function AppShell({
             <input
               aria-label="Busca global de produtos"
               onChange={(event) => onGlobalProductSearchChange(event.target.value)}
-              placeholder="Buscar produto no sistema todo"
+              placeholder="Buscar produto"
               value={globalProductSearch}
             />
             <button className="app-shell-search-button" type="submit">

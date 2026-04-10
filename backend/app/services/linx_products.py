@@ -307,6 +307,8 @@ def search_linx_products(
     scored_candidates.sort(
         key=lambda item: (
             -item[0],
+            0 if (item[1].stock_quantity or Decimal("0")) > 0 else 1,
+            -float(item[1].stock_quantity or 0),
             0 if item[1].is_active else 1,
             item[1].description.lower(),
             int(item[1].linx_code),

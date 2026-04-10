@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Select, { type SingleValue } from "react-select";
 
+import { ModalCloseButton } from "./ModalCloseButton";
 import { parseApiError } from "../lib/format";
 import type { ReportConfig, ReportConfigLine, ReportGroupSelection } from "../types";
 
@@ -287,9 +288,7 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
             <h3>Configurar {kind.toUpperCase()}</h3>
             <p>Defina a ordem das linhas, escolha grupos com busca e monte os subtotais com referencias entre linhas anteriores.</p>
           </div>
-          <button className="ghost-button" onClick={onClose} type="button">
-            Fechar
-          </button>
+          <ModalCloseButton onClick={onClose} />
         </div>
 
         {loading ? (

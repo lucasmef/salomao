@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from "react";
-
 import { MoneyInput } from "../components/MoneyInput";
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
 import type { Account, BoletoAlertItem, BoletoClient, BoletoDashboard } from "../types";
 
@@ -668,9 +668,7 @@ export function BoletosPage({
         <div className="modal-card billing-customer-modal">
           <div className="panel-title compact-title-row">
             <h3>Novo boleto avulso</h3>
-            <button className="ghost-button" type="button" onClick={closeStandaloneBoletoModal}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={closeStandaloneBoletoModal} />
           </div>
 
           {!interAccounts.length ? (
@@ -785,9 +783,7 @@ export function BoletosPage({
         <div className="modal-card billing-customer-modal">
           <div className="panel-title compact-title-row">
             <h3>Atualizar dados dos clientes</h3>
-            <button className="ghost-button" type="button" onClick={closeCustomerDataModal}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={closeCustomerDataModal} />
           </div>
 
           <div className="billing-modal-copy">
@@ -854,9 +850,7 @@ export function BoletosPage({
         <div className="modal-card billing-customer-modal">
           <div className="panel-title compact-title-row">
             <h3>Importar relatório C6</h3>
-            <button className="ghost-button" type="button" onClick={closeC6Modal}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={closeC6Modal} />
           </div>
 
           <div className="billing-modal-copy">
@@ -915,9 +909,7 @@ export function BoletosPage({
               <button className="primary-button" disabled={submitting} onClick={() => void handleSaveClients()} type="button">
                 Salvar configurações
               </button>
-              <button className="ghost-button" disabled={submitting} onClick={() => setClientsModalOpen(false)} type="button">
-                Fechar
-              </button>
+              <ModalCloseButton disabled={submitting} onClick={() => setClientsModalOpen(false)} />
             </div>
           </div>
           <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">

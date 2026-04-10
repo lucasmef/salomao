@@ -778,7 +778,7 @@ function AppRuntime() {
     try {
       const query = new URLSearchParams();
       query.set("q", trimmedQuery);
-      query.set("limit", "40");
+      query.set("limit", "60");
       const response = await fetchJson<LinxProductSearchResult>(`/linx-products/search?${query.toString()}`, {
         token: session.token,
       });

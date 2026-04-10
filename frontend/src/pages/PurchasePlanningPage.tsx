@@ -2,6 +2,7 @@
 import Select, { type MultiValue, type SingleValue } from "react-select";
 
 import { MoneyInput } from "../components/MoneyInput";
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { formatDate, formatEntryStatus, formatMoney, normalizeDisplayText } from "../lib/format";
 import { formatPtBrMoneyInput, normalizePtBrMoneyInput } from "../lib/money";
 import type {
@@ -2524,9 +2525,7 @@ export function PurchasePlanningPage({
         <div className="modal-card">
           <div className="purchase-panel-heading">
             <h3>Nova nota fiscal</h3>
-            <button className="ghost-button" type="button" onClick={closeInvoiceModal}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={closeInvoiceModal} />
           </div>
 
           <div className="content-grid">
@@ -2727,9 +2726,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card purchase-brand-modal-card">
           <div className="purchase-panel-heading">
             <h3>{brandModal.id ? "Editar marca" : "Nova marca"}</h3>
-            <button className="ghost-button" type="button" onClick={closeBrandModal}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={closeBrandModal} />
           </div>
           <div className="form-grid">
             <label>
@@ -2880,9 +2877,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card purchase-collection-note-modal">
           <div className="purchase-panel-heading">
             <h3>ObservaÃ§Ã£o da coleÃ§Ã£o</h3>
-            <button className="ghost-button" type="button" onClick={closeCollectionObservationModal}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={closeCollectionObservationModal} />
           </div>
           <div className="summary-list purchase-collection-note-summary">
             <div className="summary-row">
@@ -2929,9 +2924,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card purchase-inactive-brands-modal-card">
           <div className="purchase-panel-heading">
             <h3>Marcas desativadas</h3>
-            <button className="ghost-button" type="button" onClick={() => setInactiveBrandsModalOpen(false)}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={() => setInactiveBrandsModalOpen(false)} />
           </div>
           <div className="summary-list inactive-brands-summary">
             <div className="summary-row">
@@ -2995,9 +2988,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card purchase-inactive-brands-modal-card">
           <div className="purchase-panel-heading">
             <h3>Fornecedores sem marca</h3>
-            <button className="ghost-button" type="button" onClick={() => setUnassignedSuppliersModalOpen(false)}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={() => setUnassignedSuppliersModalOpen(false)} />
           </div>
           <div className="summary-list inactive-brands-summary">
             <div className="summary-row">
@@ -3129,9 +3120,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card">
           <div className="purchase-panel-heading">
             <h3>{supplierModal.id ? "Editar fornecedor" : "Novo fornecedor"}</h3>
-            <button className="ghost-button" type="button" onClick={() => setSupplierModalOpen(false)}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={() => setSupplierModalOpen(false)} />
           </div>
           <div className="form-grid">
             <label>
@@ -3184,16 +3173,12 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card">
           <div className="purchase-panel-heading">
             <h3>{purchaseReturnModal.id ? "Editar devoluÃ§Ã£o de compra" : "Nova devoluÃ§Ã£o de compra"}</h3>
-            <button
-              className="ghost-button"
-              type="button"
+            <ModalCloseButton
               onClick={() => {
                 setPurchaseReturnModalOpen(false);
                 setPurchaseReturnModal(emptyPurchaseReturnModal(today));
               }}
-            >
-              Fechar
-            </button>
+            />
           </div>
           <div className="form-grid">
             <label>
@@ -3286,9 +3271,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card purchase-returns-panel-modal">
           <div className="purchase-panel-heading">
             <h3>DevoluÃ§Ãµes de compras</h3>
-            <button className="ghost-button" type="button" onClick={() => setPurchaseReturnsPanelOpen(false)}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={() => setPurchaseReturnsPanelOpen(false)} />
           </div>
           {renderDevolucoes()}
         </div>
@@ -3304,9 +3287,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card">
           <div className="purchase-panel-heading">
             <h3>{collectionModal.id ? "Editar coleÃ§Ã£o" : "Nova coleÃ§Ã£o"}</h3>
-            <button className="ghost-button" type="button" onClick={() => setCollectionModalOpen(false)}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={() => setCollectionModalOpen(false)} />
           </div>
           <div className="form-grid">
             <label>
