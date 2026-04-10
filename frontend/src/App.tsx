@@ -70,7 +70,22 @@ type CachedOverviewSnapshot = {
   payload: DashboardOverview;
 };
 
+type CachedPurchasePlanningSnapshot = {
+  version: 1;
+  mode: "summary" | "planning";
+  filters: {
+    year: string;
+    brand_id: string;
+    supplier_id: string;
+    collection_id: string;
+    status: string;
+  };
+  saved_at: string;
+  payload: PurchasePlanningOverview;
+};
+
 const CURRENT_MONTH_OVERVIEW_STORAGE_KEY = "salomao:overview:current-month:v1";
+const CURRENT_YEAR_PURCHASE_PLANNING_STORAGE_KEY = "salomao:purchase-planning:current-year:v1";
 
 function toDateInput(value: Date) {
   return value.toISOString().slice(0, 10);
@@ -137,6 +152,80 @@ function writeCurrentMonthOverviewCache(
     payload,
   };
   window.localStorage.setItem(CURRENT_MONTH_OVERVIEW_STORAGE_KEY, JSON.stringify(snapshot));
+}
+
+function getDefaultPurchasePlanningFilters() {
+  return {
+    year: String(new Date().getFullYear()),
+    brand_id: "",
+    supplier_id: "",
+    collection_id: "",
+    status: "",
+  };
+}
+
+function isDefaultPurchasePlanningFilters(
+  filters: {
+    year: string;
+    brand_id: string;
+    supplier_id: string;
+    collection_id: string;
+    status: string;
+  },
+) {
+  const defaults = getDefaultPurchasePlanningFilters();
+  return (
+    filters.year === defaults.year &&
+    filters.brand_id === defaults.brand_id &&
+    filters.supplier_id === defaults.supplier_id &&
+    filters.collection_id === defaults.collection_id &&
+    filters.status === defaults.status
+  );
+}
+
+function readCurrentYearPurchasePlanningCache(mode: "summary" | "planning") {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    const rawValue = window.localStorage.getItem(CURRENT_YEAR_PURCHASE_PLANNING_STORAGE_KEY);
+    if (!rawValue) {
+      return null;
+    }
+    const parsed = JSON.parse(rawValue) as CachedPurchasePlanningSnapshot;
+    if (parsed.version !== 1 || parsed.mode !== mode || !isDefaultPurchasePlanningFilters(parsed.filters)) {
+      window.localStorage.removeItem(CURRENT_YEAR_PURCHASE_PLANNING_STORAGE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    window.localStorage.removeItem(CURRENT_YEAR_PURCHASE_PLANNING_STORAGE_KEY);
+    return null;
+  }
+}
+
+function writeCurrentYearPurchasePlanningCache(
+  mode: "summary" | "planning",
+  filters: {
+    year: string;
+    brand_id: string;
+    supplier_id: string;
+    collection_id: string;
+    status: string;
+  },
+  payload: PurchasePlanningOverview,
+) {
+  if (typeof window === "undefined" || !isDefaultPurchasePlanningFilters(filters)) {
+    return;
+  }
+  const snapshot: CachedPurchasePlanningSnapshot = {
+    version: 1,
+    mode,
+    filters,
+    saved_at: new Date().toISOString(),
+    payload,
+  };
+  window.localStorage.setItem(CURRENT_YEAR_PURCHASE_PLANNING_STORAGE_KEY, JSON.stringify(snapshot));
 }
 
 function getDefaultEntryFilters(): Record<string, string | boolean> {
@@ -651,13 +740,7 @@ function AppRuntime() {
   const [overviewFilters, setOverviewFilters] = useState(() => getCurrentMonthRange());
   const [entryFilters, setEntryFilters] = useState<Record<string, string | boolean>>(() => getDefaultEntryFilters());
   const [cashflowFilters, setCashflowFilters] = useState(() => getDefaultCashflowFilters());
-  const [purchasePlanningFilters, setPurchasePlanningFilters] = useState({
-    year: String(new Date().getFullYear()),
-    brand_id: "",
-    supplier_id: "",
-    collection_id: "",
-    status: "",
-  });
+  const [purchasePlanningFilters, setPurchasePlanningFilters] = useState(() => getDefaultPurchasePlanningFilters());
   const [linxProductFilters, setLinxProductFilters] = useState({
     search: "",
     status: "all",
@@ -943,6 +1026,20 @@ function AppRuntime() {
         return;
       }
     }
+    if (targetSection === "planejamento" && isInitialSectionLoad) {
+      const planningMode = getPurchasePlanningMode(location.pathname);
+      if (planningMode !== "returns") {
+        const effectivePurchaseFilters = getDefaultPurchasePlanningFilters();
+        const cachedPurchasePlanning = readCurrentYearPurchasePlanningCache(planningMode);
+        if (cachedPurchasePlanning) {
+          setPurchasePlanningFilters(effectivePurchaseFilters);
+          setPurchasePlanning(cachedPurchasePlanning.payload);
+          setPurchasePlanningLoadedMode(planningMode);
+          setLoadedSections((current) => ({ ...current, planejamento: true }));
+          return;
+        }
+      }
+    }
     setLoading(true);
     try {
       switch (targetSection) {
@@ -970,25 +1067,22 @@ function AppRuntime() {
         }
         case "planejamento": {
           const planningMode = getPurchasePlanningMode(location.pathname);
-          const returnDataPromise = fetchJson<PurchaseReturn[]>("/purchase-returns?limit=500", {
-            token: activeSession.token,
-          });
           if (planningMode === "returns") {
-            const returnData = await returnDataPromise;
+            const returnData = await fetchJson<PurchaseReturn[]>("/purchase-returns?limit=500", {
+              token: activeSession.token,
+            });
             setPurchaseReturns(returnData);
           } else {
-            const planningQuery =
-              planningMode === "summary"
-                ? buildQuery({ ...purchasePlanningFilters, mode: planningMode })
-                : buildQuery({ mode: planningMode });
-            const [planningData, returnData] = await Promise.all([
-              fetchJson<PurchasePlanningOverview>(`/purchase-planning/overview?${planningQuery}`, {
-                token: activeSession.token,
-              }),
-              returnDataPromise,
-            ]);
+            const effectivePurchaseFilters = isInitialSectionLoad ? getDefaultPurchasePlanningFilters() : purchasePlanningFilters;
+            if (isInitialSectionLoad) {
+              setPurchasePlanningFilters(effectivePurchaseFilters);
+            }
+            const planningQuery = buildQuery({ ...effectivePurchaseFilters, mode: planningMode });
+            const planningData = await fetchJson<PurchasePlanningOverview>(`/purchase-planning/overview?${planningQuery}`, {
+              token: activeSession.token,
+            });
             setPurchasePlanning(planningData);
-            setPurchaseReturns(returnData);
+            writeCurrentYearPurchasePlanningCache(planningMode, effectivePurchaseFilters, planningData);
           }
           setPurchasePlanningLoadedMode(planningMode);
           break;
@@ -1431,6 +1525,7 @@ function AppRuntime() {
         setPurchasePlanningFilters(nextFilters);
       }
       setPurchasePlanning(response);
+      writeCurrentYearPurchasePlanningCache(planningMode, nextFilters, response);
       setPurchasePlanningLoadedMode(planningMode);
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });

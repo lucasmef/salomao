@@ -7,6 +7,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
+from threading import Lock
+from time import monotonic
 from xml.etree import ElementTree
 
 import httpx
@@ -85,6 +87,9 @@ LINX_PURCHASE_PAYABLES_API_PAGE_LIMIT = 5000
 LINX_PURCHASE_PAYABLES_API_TIMEOUT_SECONDS = 90.0
 LINX_WS_USERNAME = "linx_export"
 LINX_WS_PASSWORD = "linx_export"
+CURRENT_YEAR_PURCHASE_PLANNING_CACHE_TTL_SECONDS = 86400
+HISTORICAL_PURCHASE_PLANNING_CACHE_TTL_SECONDS = 604800
+MAX_PURCHASE_PLANNING_CACHE_ITEMS = 24
 SEASON_LABELS = {
     "summer": "Verao",
     "winter": "Inverno",
@@ -136,6 +141,16 @@ class PurchasePlanningFilters:
 
 
 @dataclass(slots=True)
+class PurchasePlanningOverviewCacheEntry:
+    expires_at: float
+    payload: PurchasePlanningOverview
+
+
+_purchase_planning_overview_cache: dict[tuple[str, str, str, str, str, str, str], PurchasePlanningOverviewCacheEntry] = {}
+_purchase_planning_overview_cache_lock = Lock()
+
+
+@dataclass(slots=True)
 class LinxApiPurchasePayableRow:
     linx_code: int
     issue_date: date | None
@@ -167,6 +182,51 @@ def _money(value: Decimal | int | float | None) -> Decimal:
 
 def _today() -> date:
     return date.today()
+
+
+def _purchase_planning_cache_ttl_seconds(filters: PurchasePlanningFilters, *, today: date | None = None) -> int:
+    reference_day = today or date.today()
+    if filters.year is None or filters.year == reference_day.year:
+        return CURRENT_YEAR_PURCHASE_PLANNING_CACHE_TTL_SECONDS
+    return HISTORICAL_PURCHASE_PLANNING_CACHE_TTL_SECONDS
+
+
+def _purchase_planning_cache_key(
+    company_id: str,
+    filters: PurchasePlanningFilters,
+    mode: str,
+) -> tuple[str, str, str, str, str, str, str]:
+    normalized_mode = normalize_label(mode) or "summary"
+    return (
+        company_id,
+        normalized_mode,
+        str(filters.year or ""),
+        filters.brand_id or "",
+        filters.supplier_id or "",
+        filters.collection_id or "",
+        filters.status or "",
+    )
+
+
+def _prune_purchase_planning_overview_cache(now: float) -> None:
+    expired_keys = [key for key, entry in _purchase_planning_overview_cache.items() if entry.expires_at <= now]
+    for key in expired_keys:
+        _purchase_planning_overview_cache.pop(key, None)
+    if len(_purchase_planning_overview_cache) <= MAX_PURCHASE_PLANNING_CACHE_ITEMS:
+        return
+    keys_by_expiry = sorted(_purchase_planning_overview_cache.items(), key=lambda item: item[1].expires_at)
+    for key, _entry in keys_by_expiry[: len(_purchase_planning_overview_cache) - MAX_PURCHASE_PLANNING_CACHE_ITEMS]:
+        _purchase_planning_overview_cache.pop(key, None)
+
+
+def clear_purchase_planning_overview_cache(company_id: str | None = None) -> None:
+    with _purchase_planning_overview_cache_lock:
+        if company_id is None:
+            _purchase_planning_overview_cache.clear()
+            return
+        keys_to_remove = [key for key in _purchase_planning_overview_cache if key[0] == company_id]
+        for key in keys_to_remove:
+            _purchase_planning_overview_cache.pop(key, None)
 
 
 def _normalize_purchase_return_status(value: str | None) -> str:
@@ -5278,6 +5338,34 @@ def build_purchase_planning_overview(
         ],
         ungrouped_suppliers=ungrouped_suppliers if not planning_mode else [],
     )
+
+
+def get_cached_purchase_planning_overview(
+    db: Session,
+    company: Company,
+    filters: PurchasePlanningFilters,
+    *,
+    mode: str = "summary",
+) -> PurchasePlanningOverview:
+    cache_key = _purchase_planning_cache_key(company.id, filters, mode)
+    current_time = monotonic()
+
+    with _purchase_planning_overview_cache_lock:
+        cached_entry = _purchase_planning_overview_cache.get(cache_key)
+        if cached_entry and cached_entry.expires_at > current_time:
+            return cached_entry.payload.model_copy(deep=True)
+
+    overview = build_purchase_planning_overview(db, company, filters, mode=mode)
+    ttl_seconds = _purchase_planning_cache_ttl_seconds(filters)
+
+    with _purchase_planning_overview_cache_lock:
+        _prune_purchase_planning_overview_cache(current_time)
+        _purchase_planning_overview_cache[cache_key] = PurchasePlanningOverviewCacheEntry(
+            expires_at=current_time + ttl_seconds,
+            payload=overview.model_copy(deep=True),
+        )
+
+    return overview
 
 
 def build_purchase_planning_cashflow_events(
