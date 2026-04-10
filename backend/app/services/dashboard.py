@@ -1,12 +1,16 @@
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from threading import Lock
+from time import monotonic
 
 from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.banking import BankTransaction, Reconciliation, ReconciliationLine
-from app.db.models.finance import FinancialEntry
-from app.db.models.linx import SalesSnapshot
+from app.db.models.finance import Account, Category, FinancialEntry, Transfer
+from app.db.models.imports import ImportBatch
+from app.db.models.linx import ReceivableTitle, SalesSnapshot
 from app.db.models.security import Company
 from app.schemas.dashboard import (
     DashboardAccountBalance,
@@ -21,6 +25,111 @@ from app.services.cashflow import build_cashflow_overview
 from app.services.reports import build_reports_overview
 
 MONTH_LABELS = ("Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez")
+CURRENT_MONTH_OVERVIEW_CACHE_TTL_SECONDS = 90
+HISTORICAL_MONTH_OVERVIEW_CACHE_TTL_SECONDS = 1800
+MAX_OVERVIEW_CACHE_ITEMS = 24
+
+
+@dataclass(slots=True)
+class DashboardOverviewCacheEntry:
+    signature: tuple[str, ...]
+    expires_at: float
+    payload: DashboardOverview
+
+
+_dashboard_overview_cache: dict[tuple[str, str, str], DashboardOverviewCacheEntry] = {}
+_dashboard_overview_cache_lock = Lock()
+
+
+def _month_start(value: date) -> date:
+    return date(value.year, value.month, 1)
+
+
+def _month_end(value: date) -> date:
+    if value.month == 12:
+        return date(value.year + 1, 1, 1).replace(day=1) - date.resolution
+    return date(value.year, value.month + 1, 1) - date.resolution
+
+
+def _is_full_month_period(start: date, end: date) -> bool:
+    return start == _month_start(start) and end == _month_end(start)
+
+
+def _overview_cache_ttl_seconds(start: date, end: date, *, today: date | None = None) -> int | None:
+    if not _is_full_month_period(start, end):
+        return None
+    reference_day = today or date.today()
+    current_month_start = _month_start(reference_day)
+    current_month_end = _month_end(reference_day)
+    if start == current_month_start and end == current_month_end:
+        return CURRENT_MONTH_OVERVIEW_CACHE_TTL_SECONDS
+    return HISTORICAL_MONTH_OVERVIEW_CACHE_TTL_SECONDS
+
+
+def _overview_cache_key(company_id: str, start: date, end: date) -> tuple[str, str, str]:
+    return company_id, start.isoformat(), end.isoformat()
+
+
+def _table_version(
+    db: Session,
+    model: type,
+    company_id: str,
+    *extra_filters: object,
+) -> str:
+    updated_at, count = db.execute(
+        select(func.max(model.updated_at), func.count()).where(model.company_id == company_id, *extra_filters)
+    ).one()
+    updated_at_token = updated_at.isoformat() if updated_at else "-"
+    return f"{updated_at_token}:{int(count or 0)}"
+
+
+def _overview_cache_signature(db: Session, company_id: str, start: date, end: date) -> tuple[str, ...]:
+    previous_year = end.year - 1
+    return (
+        date.today().isoformat(),
+        _table_version(db, FinancialEntry, company_id),
+        _table_version(db, Account, company_id),
+        _table_version(db, Transfer, company_id),
+        _table_version(db, Category, company_id),
+        _table_version(db, BankTransaction, company_id),
+        _table_version(db, Reconciliation, company_id),
+        _table_version(db, ReconciliationLine, company_id),
+        _table_version(
+            db,
+            SalesSnapshot,
+            company_id,
+            SalesSnapshot.snapshot_date >= date(previous_year, 1, 1),
+            SalesSnapshot.snapshot_date <= date(end.year, 12, 31),
+        ),
+        _table_version(db, ReceivableTitle, company_id),
+        _table_version(
+            db,
+            ImportBatch,
+            company_id,
+            ImportBatch.source_type.in_(("linx_receivables", "linx_sales", "linx_movements")),
+        ),
+    )
+
+
+def _prune_dashboard_overview_cache(now: float) -> None:
+    expired_keys = [key for key, entry in _dashboard_overview_cache.items() if entry.expires_at <= now]
+    for key in expired_keys:
+        _dashboard_overview_cache.pop(key, None)
+    if len(_dashboard_overview_cache) <= MAX_OVERVIEW_CACHE_ITEMS:
+        return
+    keys_by_expiry = sorted(_dashboard_overview_cache.items(), key=lambda item: item[1].expires_at)
+    for key, _entry in keys_by_expiry[: len(_dashboard_overview_cache) - MAX_OVERVIEW_CACHE_ITEMS]:
+        _dashboard_overview_cache.pop(key, None)
+
+
+def clear_dashboard_overview_cache(company_id: str | None = None) -> None:
+    with _dashboard_overview_cache_lock:
+        if company_id is None:
+            _dashboard_overview_cache.clear()
+            return
+        keys_to_remove = [key for key in _dashboard_overview_cache if key[0] == company_id]
+        for key in keys_to_remove:
+            _dashboard_overview_cache.pop(key, None)
 
 
 def build_dashboard_overview(
@@ -175,3 +284,35 @@ def build_dashboard_overview(
         overdue_receivables=[pending_item(entry) for entry in overdue_receivables_entries],
         pending_reconciliations=pending_reconciliations,
     )
+
+
+def get_cached_dashboard_overview(
+    db: Session,
+    company: Company,
+    start: date,
+    end: date,
+) -> DashboardOverview:
+    ttl_seconds = _overview_cache_ttl_seconds(start, end)
+    if ttl_seconds is None:
+        return build_dashboard_overview(db, company, start=start, end=end)
+
+    cache_key = _overview_cache_key(company.id, start, end)
+    signature = _overview_cache_signature(db, company.id, start, end)
+    current_time = monotonic()
+
+    with _dashboard_overview_cache_lock:
+        cached_entry = _dashboard_overview_cache.get(cache_key)
+        if cached_entry and cached_entry.signature == signature and cached_entry.expires_at > current_time:
+            return cached_entry.payload.model_copy(deep=True)
+
+    overview = build_dashboard_overview(db, company, start=start, end=end)
+
+    with _dashboard_overview_cache_lock:
+        _prune_dashboard_overview_cache(current_time)
+        _dashboard_overview_cache[cache_key] = DashboardOverviewCacheEntry(
+            signature=signature,
+            expires_at=current_time + ttl_seconds,
+            payload=overview.model_copy(deep=True),
+        )
+
+    return overview
