@@ -3035,6 +3035,14 @@ textarea {
   table-layout: fixed;
 }
 
+.billing-open-receivables-table thead tr {
+  height: 44px;
+}
+
+.billing-open-receivables-table tbody tr {
+  height: 42px;
+}
+
 .billing-open-receivables-col-due-date {
   width: 12%;
 }
