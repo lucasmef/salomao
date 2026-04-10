@@ -1487,8 +1487,6 @@ textarea {
 
 .entries-list-table {
   table-layout: fixed;
-  min-height: 360px;
-  height: 100%;
 }
 
 .entries-list-table th,
@@ -2932,8 +2930,6 @@ textarea {
 
 .billing-open-receivables-table {
   table-layout: fixed;
-  min-height: 360px;
-  height: 100%;
 }
 
 .billing-open-receivables-table th,
