@@ -2605,8 +2605,8 @@ function AppRuntime() {
           }
           path="/financeiro/conciliacao"
         />
-        <Route element={<Navigate replace to="/financeiro/cobranca/boletos-faltando" />} path="/financeiro/cobranca" />
-        <Route element={<Navigate replace to="/financeiro/cobranca/boletos-faltando" />} path="/financeiro/cobranca/resumo" />
+        <Route element={<Navigate replace to="/financeiro/cobranca/faturas-em-aberto" />} path="/financeiro/cobranca" />
+        <Route element={<Navigate replace to="/financeiro/cobranca/faturas-em-aberto" />} path="/financeiro/cobranca/resumo" />
         {[
         { key: "faturas-em-aberto", path: "/financeiro/cobranca/faturas-em-aberto", view: "open" as const },
         { key: "boletos-em-aberto", path: "/financeiro/cobranca/boletos-em-aberto", view: "open-boletos" as const },

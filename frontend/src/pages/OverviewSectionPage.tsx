@@ -253,8 +253,10 @@ export function OverviewSectionPage({
         </div>
       </section>
 
-      <section className="content-grid two-columns">
-        <BarChart title="DRE resumido" data={dashboard?.dre_chart ?? []} tone="success" />
+      <section className="content-grid two-columns overview-grid">
+        <div className="overview-dre-column">
+          <BarChart title="DRE resumido" data={dashboard?.dre_chart ?? []} tone="success" />
+        </div>
         <div className="overview-side-column">
           <RevenueComparisonChart
             title="Comparacao de Ano x Ano em Vendas"

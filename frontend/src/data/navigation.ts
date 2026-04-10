@@ -69,7 +69,7 @@ export const mainNavigation: MainNavItem[] = [
   {
     key: "cobranca",
     label: "Cobrança",
-    path: "/financeiro/cobranca/boletos-faltando",
+    path: "/financeiro/cobranca/faturas-em-aberto",
     title: "Cobrança",
     description: "Cobrança operacional com clientes, boletos e pendências organizados por visão.",
     children: [
@@ -271,7 +271,7 @@ export const legacySectionPathMap: Record<string, string> = {
   overview: "/overview/resumo",
   lancamentos: "/financeiro/lancamentos",
   conciliacao: "/financeiro/conciliacao",
-  boletos: "/financeiro/cobranca/boletos-faltando",
+  boletos: "/financeiro/cobranca/faturas-em-aberto",
   importacoes: "/sistema/importacoes-gerais",
   planejamento: "/compras/planejamento",
   operacoes: "/caixa-resultados/projecoes",

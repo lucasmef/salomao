@@ -508,6 +508,10 @@ textarea {
   gap: 12px;
 }
 
+.overview-dre-column {
+  min-width: 0;
+}
+
 .overview-balance-panel {
   display: grid;
   gap: 12px;
@@ -3343,6 +3347,10 @@ textarea {
 
   .overview-balance-kpis {
     grid-template-columns: 1fr;
+  }
+
+  .overview-grid .overview-side-column {
+    order: -1;
   }
 
   .tab-row {
