@@ -374,8 +374,7 @@
   .table-pagination,
   .summary-row,
   .section-toolbar-content,
-  .toolbar-date-range,
-  .quick-chip-row {
+  .toolbar-date-range {
     flex-direction: column;
     align-items: stretch;
   }
@@ -416,11 +415,18 @@
 
   .section-toolbar-content,
   .toolbar-date-range,
-  .quick-chip-row,
   .compact-filter-layout,
   .reconciliation-top-filter {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .quick-chip-row {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
   .compact-filter-layout label,
@@ -444,8 +450,9 @@
   }
 
   .filter-chip {
+    flex: 1 1 calc(50% - 4px);
     justify-content: center;
-    min-height: 34px;
+    min-height: 36px;
   }
 
   .table-pagination-actions,
@@ -456,6 +463,14 @@
 }
 
 @media (max-width: 520px) {
+  .section-toolbar-panel {
+    padding: 10px;
+  }
+
+  .quick-chip-row .filter-chip {
+    flex-basis: 100%;
+  }
+
   .table-pagination {
     gap: 10px;
   }

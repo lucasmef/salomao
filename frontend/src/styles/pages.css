@@ -3424,12 +3424,14 @@ textarea {
 
   .entries-toolbar-icon-group {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
+    gap: 8px;
   }
 
   .entries-toolbar-icon {
     width: 100%;
+    min-height: 42px;
   }
 
   .entries-period-popover,
@@ -3445,9 +3447,12 @@ textarea {
   }
 
   .entries-period-fields,
-  .entries-total-summary,
   .entries-bulk-panel-body {
     grid-template-columns: 1fr;
+  }
+
+  .entries-total-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .entries-bulk-panel-actions {
@@ -3590,6 +3595,83 @@ textarea {
   .compact-action-button {
     width: 100%;
     justify-content: center;
+  }
+
+  .reconciliation-balance-wrap,
+  .reconciliation-balance-trigger,
+  .billing-open-boletos-actions,
+  .billing-open-boletos-actions .billing-search-field,
+  .billing-open-boletos-actions .billing-search-field--compact,
+  .purchase-unassigned-toolbar,
+  .purchase-unassigned-toolbar label {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .reconciliation-balance-trigger {
+    justify-content: space-between;
+  }
+
+  .billing-open-boletos-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .billing-open-boletos-actions .secondary-button {
+    width: 100%;
+    min-height: 36px;
+  }
+
+  .billing-open-boletos-count {
+    width: 100%;
+    padding-top: 2px;
+    text-align: right;
+  }
+
+  .planning-brand-collection-line {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .planning-brand-collection-value {
+    min-width: 0;
+  }
+
+  .planning-inline-edit,
+  .planning-inline-edit-table,
+  .planning-inline-readonly-stack {
+    width: 100%;
+  }
+
+  .planning-inline-edit,
+  .planning-inline-edit-table {
+    justify-content: stretch;
+    justify-items: stretch;
+  }
+
+  .brand-collection-table .planning-inline-edit-compact,
+  .brand-collection-table .planning-inline-edit-compact.is-readonly,
+  .brand-collection-table .planning-inline-edit-compact.is-editing {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .brand-collection-table .planning-inline-edit-compact strong,
+  .planning-inline-readonly-stack {
+    text-align: left;
+    justify-items: start;
+  }
+}
+
+@media (max-width: 520px) {
+  .entries-toolbar-icon-group,
+  .entries-total-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .entries-period-trigger span {
+    white-space: normal;
   }
 }
 
