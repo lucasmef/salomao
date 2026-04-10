@@ -1482,10 +1482,13 @@ textarea {
 
 .entries-table-shell {
   max-height: none;
+  min-height: 360px;
 }
 
 .entries-list-table {
   table-layout: fixed;
+  min-height: 360px;
+  height: 100%;
 }
 
 .entries-list-table th,
@@ -1692,6 +1695,11 @@ textarea {
 
 .entries-cell-category .cell-stack {
   gap: 0;
+}
+
+.entries-list-table .empty-cell {
+  height: 180px;
+  vertical-align: top;
 }
 
 .entries-top-panel {
