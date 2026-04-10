@@ -669,8 +669,18 @@
     flex: 0 0 auto;
   }
 
-  .app-shell-main-nav,
+  .app-shell-main-nav {
+    display: none;
+  }
+
   .app-shell-header-tools {
+    display: grid;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .app-shell-status,
+  .app-shell-user-actions {
     display: none;
   }
 
@@ -684,10 +694,16 @@
   }
 
   .app-shell-header.mobile-menu-open .app-shell-header-tools {
-    display: grid;
-    gap: 10px;
     padding-top: 10px;
     border-top: 1px solid #e3ebf7;
+  }
+
+  .app-shell-header.mobile-menu-open .app-shell-status {
+    display: inline-flex;
+  }
+
+  .app-shell-header.mobile-menu-open .app-shell-user-actions {
+    display: grid;
   }
 
   .app-shell-main-link {
@@ -736,6 +752,11 @@
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
+  .app-shell-search input,
+  .global-product-search-toolbar input {
+    font-size: 16px;
+  }
+
   .app-shell-user-action {
     min-height: 38px;
     padding: 8px 12px;
@@ -774,11 +795,23 @@
     grid-template-columns: 1fr;
     flex-direction: column;
   }
+
+  .global-product-search-table {
+    min-width: 760px;
+  }
 }
 
 @media (max-width: 520px) {
   .app-shell-header.mobile-menu-open .app-shell-main-nav {
     grid-template-columns: 1fr;
+  }
+
+  .app-shell-search {
+    grid-template-columns: 1fr;
+  }
+
+  .app-shell-search-button {
+    width: 100%;
   }
 
   .app-shell-user-actions {

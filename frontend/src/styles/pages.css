@@ -3295,6 +3295,39 @@ textarea {
     white-space: nowrap;
   }
 
+  .table-shell,
+  .table-shell.tall,
+  .table-shell.medium,
+  .entries-table-shell,
+  .billing-table-shell,
+  .billing-table-shell--expanded,
+  .billing-open-boletos-table-shell,
+  .billing-open-receivables-table-shell,
+  .finance-open-items-table-shell,
+  .cashflow-projection-shell,
+  .compact-table-shell,
+  .purchase-collections-table-shell,
+  .purchase-brand-planning-table-shell,
+  .brand-collection-table-shell {
+    max-height: none !important;
+    min-height: 0;
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-gutter: stable both-edges;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .erp-table {
+    min-width: 560px;
+  }
+
+  .entries-list-table,
+  .billing-open-boletos-table,
+  .billing-open-receivables-table,
+  .finance-open-items-table {
+    min-width: 720px;
+  }
+
   .billing-import-header,
   .billing-file-picker-row,
   .inline-adjustment-header,
