@@ -242,7 +242,7 @@ export function FinanceOpenItemsPage({
 
     return (
       <div
-        className={`finance-open-items-table-header ${numeric ? "is-numeric" : ""}`.trim()}
+        className={`entries-table-header finance-open-items-table-header ${numeric ? "is-numeric" : ""}`.trim()}
         ref={showCounterpartyFilterTrigger && showCounterpartyFilter ? counterpartyFilterPopoverRef : null}
       >
         <button
@@ -270,7 +270,7 @@ export function FinanceOpenItemsPage({
               <FilterFunnelIcon />
             </button>
             {showCounterpartyFilter ? (
-              <div className="entries-floating-panel finance-open-items-filter-popover">
+              <div className="entries-floating-panel entries-column-filter-popover finance-open-items-filter-popover">
                 <div className="entries-category-filter-head">
                   <label className="entries-category-filter-option is-all">
                     <input
@@ -397,8 +397,8 @@ export function FinanceOpenItemsPage({
       <section className="content-grid two-columns">
         <article className="panel">
           <div className="panel-title"><h3>Titulos em aberto</h3></div>
-          <div className="table-shell finance-open-items-table-shell">
-            <table className="erp-table finance-open-items-table">
+          <div className="table-shell entries-table-shell finance-open-items-table-shell">
+            <table className="erp-table entries-list-table finance-open-items-table">
               <colgroup>
                 <col className="finance-open-items-col-title" />
                 <col className="finance-open-items-col-counterparty" />
