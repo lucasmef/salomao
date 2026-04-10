@@ -803,20 +803,13 @@ export function EntriesPage({
   }
 
   function toggleAllCategoryFilters(checked: boolean) {
-    if (!checked) {
-      setShowCategoryFilter(false);
-      return;
-    }
-    setSelectedCategoryFilterKeys(allCategoryFilterKeys);
+    setSelectedCategoryFilterKeys(checked ? allCategoryFilterKeys : []);
   }
 
   function toggleCategoryFilterOption(categoryKey: string) {
-    setSelectedCategoryFilterKeys((current) => {
-      if (current.includes(categoryKey)) {
-        return current.length === 1 ? current : current.filter((item) => item !== categoryKey);
-      }
-      return [...current, categoryKey];
-    });
+    setSelectedCategoryFilterKeys((current) =>
+      current.includes(categoryKey) ? current.filter((item) => item !== categoryKey) : [...current, categoryKey],
+    );
   }
 
   function renderTableHeader(label: string, column: EntryTableColumnKey, numeric = false) {
