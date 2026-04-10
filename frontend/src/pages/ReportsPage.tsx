@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { ReportConfigModal } from "../components/ReportConfigModal";
+import { RefreshIcon } from "../components/RefreshIcon";
 import { PageHeader } from "../components/PageHeader";
 import { formatDate, formatMoneyNumber } from "../lib/format";
 import type {
@@ -23,6 +24,7 @@ type Props = {
   onSyncMovements: () => Promise<void>;
   onLoadConfig: (kind: "dre" | "dro") => Promise<ReportConfig>;
   onSaveConfig: (kind: "dre" | "dro", payload: { lines: ReportConfig["lines"] }) => Promise<ReportConfig>;
+  onRefreshData: () => Promise<void>;
   embedded?: boolean;
   forcedTab?: ReportTab | null;
 };
@@ -159,6 +161,7 @@ export function ReportsPage({
   onSyncMovements,
   onLoadConfig,
   onSaveConfig,
+  onRefreshData,
   embedded = false,
   forcedTab = null,
 }: Props) {
@@ -362,6 +365,17 @@ export function ReportsPage({
       </div>
 
       <div className="reports-top-toolbar-actions">
+        <button
+          aria-label="Atualizar dados analiticos"
+          className={`entries-toolbar-icon ${loading ? "is-loading" : ""}`}
+          disabled={loading}
+          onClick={() => void onRefreshData()}
+          title="Atualizar dados analiticos"
+          type="button"
+        >
+          <RefreshIcon />
+          <span className="entries-toolbar-icon-label">Atualizar</span>
+        </button>
         <button
           aria-label={`Configurar ${activeTab.toUpperCase()}`}
           className="entries-toolbar-icon"

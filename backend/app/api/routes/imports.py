@@ -12,7 +12,7 @@ from app.schemas.imports import (
     LinxSyncRequest,
 )
 from app.services.backup import ensure_pre_import_backup
-from app.services.cache_invalidation import refresh_finance_analytics_caches
+from app.services.cache_invalidation import clear_finance_analytics_caches
 from app.services.company_context import get_current_company
 from app.services.imports import (
     build_import_summary,
@@ -48,7 +48,7 @@ async def upload_linx_sales(
         ensure_pre_import_backup("linx-sales")
         content = await file.read()
         result = import_linx_sales(db, company, file.filename or "linx-sales.xls", content)
-        refresh_finance_analytics_caches(db, company, include_sales_history=True)
+        clear_finance_analytics_caches(company.id, include_sales_history=True)
         return result
     except ValueError as error:
         db.rollback()
@@ -69,7 +69,7 @@ def trigger_linx_sales_sync(
             start_date=payload.start_date,
             end_date=payload.end_date,
         )
-        refresh_finance_analytics_caches(db, company, include_sales_history=True)
+        clear_finance_analytics_caches(company.id, include_sales_history=True)
         return result
     except ValueError as error:
         db.rollback()
@@ -176,7 +176,7 @@ def trigger_linx_movements_sync(
             company,
             full_refresh=payload.full_refresh,
         )
-        refresh_finance_analytics_caches(db, company)
+        clear_finance_analytics_caches(company.id)
         return result
     except ValueError as error:
         db.rollback()
@@ -217,7 +217,7 @@ async def upload_ofx(
         ensure_pre_import_backup("ofx")
         content = await file.read()
         result = import_ofx(db, company, account_id, file.filename or "extrato.ofx", content)
-        refresh_finance_analytics_caches(db, company)
+        clear_finance_analytics_caches(company.id)
         return result
     except ValueError as error:
         db.rollback()
@@ -243,7 +243,7 @@ async def upload_historical_cashbook(
             file.filename or "livro-caixa-historico.xlsx",
             content,
         )
-        refresh_finance_analytics_caches(db, company)
+        clear_finance_analytics_caches(company.id)
         return result
     except ValueError as error:
         db.rollback()
@@ -264,7 +264,7 @@ def trigger_inter_statement_sync(
             start_date=payload.start_date,
             end_date=payload.end_date,
         )
-        refresh_finance_analytics_caches(db, company)
+        clear_finance_analytics_caches(company.id)
         return result
     except ValueError as error:
         db.rollback()

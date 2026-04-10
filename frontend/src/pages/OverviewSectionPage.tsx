@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { BarChart } from "../components/BarChart";
+import { RefreshIcon } from "../components/RefreshIcon";
 import { RevenueComparisonChart } from "../components/RevenueComparisonChart";
 import { SectionChrome } from "../components/SectionChrome";
 import type { MainNavChild } from "../data/navigation";
@@ -14,6 +15,7 @@ type Props = {
   loading: boolean;
   onChangeFilters: (filters: { start: string; end: string }) => void;
   onApplyFilters: (filters?: { start: string; end: string }) => Promise<void>;
+  onRefreshData: () => Promise<void>;
 };
 
 function toInput(value: Date) {
@@ -53,6 +55,7 @@ export function OverviewSectionPage({
   loading,
   onChangeFilters,
   onApplyFilters,
+  onRefreshData,
 }: Props) {
   const currentTab = tabs[0];
   const hasMountedAutoApplyRef = useRef(false);
@@ -232,6 +235,20 @@ export function OverviewSectionPage({
                 </button>
               </div>
             )}
+          </div>
+
+          <div className="entries-toolbar-icon-wrap">
+            <button
+              aria-label="Atualizar dados analiticos"
+              className={`entries-toolbar-icon ${loading ? "is-loading" : ""}`}
+              disabled={loading}
+              onClick={() => void onRefreshData()}
+              title="Atualizar dados analiticos"
+              type="button"
+            >
+              <RefreshIcon />
+              <span className="entries-toolbar-icon-label">Atualizar</span>
+            </button>
           </div>
         </div>
       </section>

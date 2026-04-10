@@ -2,7 +2,7 @@ from fastapi import APIRouter, Query, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.schemas.transfer import TransferCreate, TransferRead
-from app.services.cache_invalidation import refresh_finance_analytics_caches
+from app.services.cache_invalidation import clear_finance_analytics_caches
 from app.services.company_context import get_current_company
 from app.services.finance_ops import create_transfer, list_transfers
 
@@ -38,6 +38,6 @@ def post_transfer(payload: TransferCreate, db: DbSession, current_user: CurrentU
     company = get_current_company(db)
     transfer = create_transfer(db, company, payload, current_user)
     db.commit()
-    refresh_finance_analytics_caches(db, company)
+    clear_finance_analytics_caches(company.id)
     db.refresh(transfer)
     return _serialize_transfer(transfer)

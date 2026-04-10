@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { PageHeader } from "../components/PageHeader";
+import { RefreshIcon } from "../components/RefreshIcon";
 import { formatDate, formatMoneyNumber } from "../lib/format";
 import type { Account, CashflowOverview } from "../types";
 
@@ -11,6 +12,7 @@ type Props = {
   loading: boolean;
   onChangeFilters: (filters: CashflowFilters) => void;
   onApplyFilters: (filters?: CashflowFilters) => Promise<void>;
+  onRefreshData: () => Promise<void>;
   embedded?: boolean;
 };
 
@@ -75,7 +77,16 @@ function formatProjectionReference(reference: string) {
   return reference;
 }
 
-export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFilters, onApplyFilters, embedded = false }: Props) {
+export function CashflowPage({
+  cashflow,
+  accounts,
+  filters,
+  loading,
+  onChangeFilters,
+  onApplyFilters,
+  onRefreshData,
+  embedded = false,
+}: Props) {
   const [filterDraft, setFilterDraft] = useState<CashflowFilters>(filters);
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [showPeriodPopover, setShowPeriodPopover] = useState(false);
@@ -249,6 +260,20 @@ export function CashflowPage({ cashflow, accounts, filters, loading, onChangeFil
             <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("current_year"); setShowPresetMenu(false); }} type="button">Ano atual</button>
           </div>
         )}
+      </div>
+
+      <div className="entries-toolbar-icon-wrap">
+        <button
+          aria-label="Atualizar dados analiticos"
+          className={`entries-toolbar-icon ${loading ? "is-loading" : ""}`}
+          disabled={loading}
+          onClick={() => void onRefreshData()}
+          title="Atualizar dados analiticos"
+          type="button"
+        >
+          <RefreshIcon />
+          <span className="entries-toolbar-icon-label">Atualizar</span>
+        </button>
       </div>
 
       <div className="cashflow-toggle-group">

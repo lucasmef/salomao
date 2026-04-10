@@ -396,6 +396,33 @@ function buildCashflowQuery(params: {
   return query.toString();
 }
 
+async function fetchOverviewSnapshot(
+  activeSession: SessionState,
+  filters: { start: string; end: string },
+) {
+  return fetchJson<DashboardOverview>(`/dashboard/overview?${buildQuery(filters)}`, { token: activeSession.token });
+}
+
+async function fetchCashflowSnapshot(
+  activeSession: SessionState,
+  filters: {
+    start: string;
+    end: string;
+    account_id: string;
+    include_purchase_planning: boolean;
+    include_crediario_receivables: boolean;
+  },
+) {
+  return fetchJson<CashflowOverview>(`/cashflow/overview?${buildCashflowQuery(filters)}`, { token: activeSession.token });
+}
+
+async function fetchReportsSnapshot(
+  activeSession: SessionState,
+  filters: { start: string; end: string },
+) {
+  return fetchJson<ReportsOverview>(`/reports/overview?${buildQuery(filters)}`, { token: activeSession.token });
+}
+
 function getNavigationSection(key: string) {
   if (key === "overview") {
     return overviewNavigationItem;
@@ -850,10 +877,7 @@ function AppRuntime() {
           if (isInitialSectionLoad) {
             setOverviewFilters(effectiveOverviewFilters);
           }
-          const dashboardData = await fetchJson<DashboardOverview>(
-            `/dashboard/overview?${buildQuery(effectiveOverviewFilters)}`,
-            { token: activeSession.token },
-          );
+          const dashboardData = await fetchOverviewSnapshot(activeSession, effectiveOverviewFilters);
           setDashboard(dashboardData);
           break;
         }
@@ -949,10 +973,7 @@ function AppRuntime() {
           if (isInitialSectionLoad) {
             setCashflowFilters(effectiveCashflowFilters);
           }
-          const cashflowData = await fetchJson<CashflowOverview>(
-            `/cashflow/overview?${buildCashflowQuery(effectiveCashflowFilters)}`,
-            { token: activeSession.token },
-          );
+          const cashflowData = await fetchCashflowSnapshot(activeSession, effectiveCashflowFilters);
           setCashflow(cashflowData);
           break;
         }
@@ -961,10 +982,7 @@ function AppRuntime() {
           if (isInitialSectionLoad) {
             setReportFilters(effectiveReportFilters);
           }
-          const reportsData = await fetchJson<ReportsOverview>(
-            `/reports/overview?${buildQuery(effectiveReportFilters)}`,
-            { token: activeSession.token },
-          );
+          const reportsData = await fetchReportsSnapshot(activeSession, effectiveReportFilters);
           setReports(reportsData);
           break;
         }
@@ -1285,7 +1303,7 @@ function AppRuntime() {
     setSubmitting(true);
     try {
       const effectiveFilters = nextFilters ?? overviewFilters;
-      const response = await fetchJson<DashboardOverview>(`/dashboard/overview?${buildQuery(effectiveFilters)}`, { token: session.token });
+      const response = await fetchOverviewSnapshot(session, effectiveFilters);
       setDashboard(response);
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });
@@ -1299,7 +1317,7 @@ function AppRuntime() {
     setSubmitting(true);
     try {
       const effectiveFilters = nextFilters ?? cashflowFilters;
-      const response = await fetchJson<CashflowOverview>(`/cashflow/overview?${buildCashflowQuery(effectiveFilters)}`, { token: session.token });
+      const response = await fetchCashflowSnapshot(session, effectiveFilters);
       if (nextFilters) {
         setCashflowFilters(effectiveFilters);
       }
@@ -1350,7 +1368,7 @@ function AppRuntime() {
     setSubmitting(true);
     try {
       const effectiveFilters = nextFilters ?? reportFilters;
-      const response = await fetchJson<ReportsOverview>(`/reports/overview?${buildQuery(effectiveFilters)}`, { token: session.token });
+      const response = await fetchReportsSnapshot(session, effectiveFilters);
       if (nextFilters) {
         setReportFilters(effectiveFilters);
       }
@@ -1736,6 +1754,30 @@ function AppRuntime() {
       setShowMissingBoletosExportFallback(true);
       setFeedback({ tone: "error", message: parseApiError(error) });
       throw error;
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function refreshAnalyticsData() {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchJson<{ status: string; refreshed_at: string }>("/dashboard/analytics/refresh", {
+        method: "POST",
+        token: session.token,
+      });
+      const [dashboardData, reportsData, cashflowData] = await Promise.all([
+        fetchOverviewSnapshot(session, overviewFilters),
+        fetchReportsSnapshot(session, reportFilters),
+        fetchCashflowSnapshot(session, cashflowFilters),
+      ]);
+      setDashboard(dashboardData);
+      setReports(reportsData);
+      setCashflow(cashflowData);
+      setFeedback({ tone: "success", message: "Dados analiticos atualizados." });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
     } finally {
       setSubmitting(false);
     }
@@ -2483,6 +2525,7 @@ function AppRuntime() {
                 loading={submitting}
                 onApplyFilters={applyOverviewFilters}
                 onChangeFilters={setOverviewFilters}
+                onRefreshData={refreshAnalyticsData}
                 tabs={overviewNavigation.children}
               />
             }
@@ -2659,6 +2702,7 @@ function AppRuntime() {
                 loading={submitting}
                 onApplyFilters={applyCashflowFilters}
                 onChangeFilters={setCashflowFilters}
+                onRefreshData={refreshAnalyticsData}
               />
             </SectionChrome>
           }
@@ -2683,6 +2727,7 @@ function AppRuntime() {
                 onChangeFilters={setReportFilters}
                 onLoadConfig={loadReportConfig}
                 onExport={exportReport}
+                onRefreshData={refreshAnalyticsData}
                 onSaveConfig={saveReportConfig}
                 onSyncMovements={syncLinxMovementsImport}
                 reports={reports}
@@ -2710,6 +2755,7 @@ function AppRuntime() {
                 onChangeFilters={setReportFilters}
                 onLoadConfig={loadReportConfig}
                 onExport={exportReport}
+                onRefreshData={refreshAnalyticsData}
                 onSaveConfig={saveReportConfig}
                 onSyncMovements={syncLinxMovementsImport}
                 reports={reports}
