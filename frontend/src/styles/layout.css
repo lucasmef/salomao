@@ -313,12 +313,14 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  justify-self: end;
 }
 
 .app-shell-search {
   display: inline-flex;
   align-items: center;
-  min-width: min(360px, 100%);
+  min-width: 0;
 }
 
 .app-shell-search input {
@@ -338,13 +340,16 @@
 }
 
 .app-shell-search-desktop {
-  width: min(320px, 100%);
+  flex: 1 1 220px;
+  width: min(280px, 100%);
+  max-width: 280px;
 }
 
 .app-shell-user-actions {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex: 0 0 auto;
 }
 
 .app-shell-status {
