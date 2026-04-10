@@ -577,6 +577,7 @@ textarea {
 }
 
 .revenue-comparison-canvas {
+  position: relative;
   min-height: 240px;
 }
 
@@ -592,7 +593,6 @@ textarea {
   stroke-width: 1;
 }
 
-.revenue-axis-label,
 .revenue-month-label {
   fill: #687a93;
   font-size: 11px;
@@ -618,6 +618,10 @@ textarea {
 .revenue-point {
   stroke: #ffffff;
   stroke-width: 2;
+  transition:
+    r 0.18s ease,
+    stroke-width 0.18s ease,
+    filter 0.18s ease;
 }
 
 .revenue-point.current-year {
@@ -626,6 +630,75 @@ textarea {
 
 .revenue-point.previous-year {
   fill: #5b3fa3;
+}
+
+.revenue-point.is-active {
+  stroke-width: 3;
+  filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.22));
+}
+
+.revenue-hover-line {
+  stroke: rgba(96, 112, 135, 0.28);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.revenue-hover-target {
+  cursor: pointer;
+  outline: none;
+}
+
+.revenue-comparison-tooltip {
+  position: absolute;
+  top: 8px;
+  z-index: 2;
+  display: grid;
+  gap: 4px;
+  min-width: 154px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(31, 41, 55, 0.94);
+  color: #f8fafc;
+  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.2);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.revenue-comparison-tooltip.is-left {
+  transform: translateX(0);
+}
+
+.revenue-comparison-tooltip.is-right {
+  transform: translateX(-100%);
+}
+
+.revenue-comparison-tooltip strong {
+  font-size: 0.78rem;
+  line-height: 1.1;
+  text-transform: lowercase;
+}
+
+.revenue-comparison-tooltip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  line-height: 1.1;
+}
+
+.revenue-comparison-tooltip i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.revenue-comparison-tooltip .current-year i {
+  background: #f59e0b;
+}
+
+.revenue-comparison-tooltip .previous-year i {
+  background: #7c5ad2;
 }
 
 .compact-toolbar-tight {
