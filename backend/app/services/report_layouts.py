@@ -872,4 +872,7 @@ def update_report_config(db: Session, company: Company, kind: str, payload: Repo
 
     validated_lines = _validate_layout(kind, payload.lines)
     layout = _persist_layout(db, company=company, kind=kind, lines=validated_lines)
+    from app.services.cache_invalidation import clear_finance_analytics_caches
+
+    clear_finance_analytics_caches(company.id)
     return _serialize_layout(layout, available_groups=_available_groups(db, company))

@@ -4,12 +4,20 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from decimal import Decimal
+from threading import Lock
+from time import monotonic
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models.finance import Category, FinancialEntry
 from app.db.models.linx import LinxMovement
+from app.db.models.reporting import (
+    ReportLayout,
+    ReportLayoutFormulaItem,
+    ReportLayoutLine,
+    ReportLayoutLineGroup,
+)
 from app.db.models.security import Company
 from app.schemas.reports import (
     DreReport,
@@ -35,6 +43,20 @@ INCOME_ENTRY_TYPES = {"income", "historical_receipt"}
 PURCHASE_RETURN_ENTRY_TYPES = {"historical_purchase_return"}
 CONTROL_RECEIVABLE_SOURCE = "linx_sales_control"
 SETTLEMENT_ADJUSTMENT_SOURCE = "settlement_adjustment"
+CURRENT_MONTH_REPORTS_CACHE_TTL_SECONDS = 90
+HISTORICAL_MONTH_REPORTS_CACHE_TTL_SECONDS = 1800
+MAX_REPORTS_CACHE_ITEMS = 24
+
+
+@dataclass(slots=True)
+class ReportsOverviewCacheEntry:
+    signature: tuple[str, ...]
+    expires_at: float
+    payload: ReportsOverview
+
+
+_reports_overview_cache: dict[tuple[str, str, str], ReportsOverviewCacheEntry] = {}
+_reports_overview_cache_lock = Lock()
 
 
 @dataclass
@@ -126,6 +148,125 @@ def _group_token(scope: str, name: str | None) -> str | None:
 
 def _display_period_label(start: date, end: date) -> str:
     return f"{start.isoformat()} a {end.isoformat()}"
+
+
+def _month_start(value: date) -> date:
+    return date(value.year, value.month, 1)
+
+
+def _month_end(value: date) -> date:
+    if value.month == 12:
+        return date(value.year + 1, 1, 1).replace(day=1) - date.resolution
+    return date(value.year, value.month + 1, 1) - date.resolution
+
+
+def _resolve_period(start: date | None, end: date | None, *, today: date | None = None) -> tuple[date, date]:
+    reference_day = today or date.today()
+    return start or date(reference_day.year, reference_day.month, 1), end or reference_day
+
+
+def _is_full_month_period(start: date, end: date) -> bool:
+    return start == _month_start(start) and end == _month_end(start)
+
+
+def _reports_cache_ttl_seconds(start: date, end: date, *, today: date | None = None) -> int | None:
+    if not _is_full_month_period(start, end):
+        return None
+    reference_day = today or date.today()
+    current_month_start = _month_start(reference_day)
+    current_month_end = _month_end(reference_day)
+    if start == current_month_start and end == current_month_end:
+        return CURRENT_MONTH_REPORTS_CACHE_TTL_SECONDS
+    return HISTORICAL_MONTH_REPORTS_CACHE_TTL_SECONDS
+
+
+def _reports_cache_key(company_id: str, start: date, end: date) -> tuple[str, str, str]:
+    return company_id, start.isoformat(), end.isoformat()
+
+
+def _version_token(updated_at: datetime | None, count: int | None) -> str:
+    updated_at_token = updated_at.isoformat() if updated_at else "-"
+    return f"{updated_at_token}:{int(count or 0)}"
+
+
+def _table_version(db: Session, model: type, company_id: str) -> str:
+    updated_at, count = db.execute(
+        select(func.max(model.updated_at), func.count()).where(model.company_id == company_id)
+    ).one()
+    return _version_token(updated_at, count)
+
+
+def _report_layout_version(db: Session, company_id: str) -> str:
+    updated_at, count = db.execute(
+        select(func.max(ReportLayout.updated_at), func.count()).where(ReportLayout.company_id == company_id)
+    ).one()
+    return _version_token(updated_at, count)
+
+
+def _report_layout_line_version(db: Session, company_id: str) -> str:
+    updated_at, count = db.execute(
+        select(func.max(ReportLayoutLine.updated_at), func.count())
+        .select_from(ReportLayoutLine)
+        .join(ReportLayout, ReportLayout.id == ReportLayoutLine.layout_id)
+        .where(ReportLayout.company_id == company_id)
+    ).one()
+    return _version_token(updated_at, count)
+
+
+def _report_layout_group_version(db: Session, company_id: str) -> str:
+    updated_at, count = db.execute(
+        select(func.max(ReportLayoutLineGroup.updated_at), func.count())
+        .select_from(ReportLayoutLineGroup)
+        .join(ReportLayoutLine, ReportLayoutLine.id == ReportLayoutLineGroup.line_id)
+        .join(ReportLayout, ReportLayout.id == ReportLayoutLine.layout_id)
+        .where(ReportLayout.company_id == company_id)
+    ).one()
+    return _version_token(updated_at, count)
+
+
+def _report_layout_formula_version(db: Session, company_id: str) -> str:
+    updated_at, count = db.execute(
+        select(func.max(ReportLayoutFormulaItem.updated_at), func.count())
+        .select_from(ReportLayoutFormulaItem)
+        .join(ReportLayoutLine, ReportLayoutLine.id == ReportLayoutFormulaItem.line_id)
+        .join(ReportLayout, ReportLayout.id == ReportLayoutLine.layout_id)
+        .where(ReportLayout.company_id == company_id)
+    ).one()
+    return _version_token(updated_at, count)
+
+
+def _reports_cache_signature(db: Session, company_id: str) -> tuple[str, ...]:
+    return (
+        date.today().isoformat(),
+        _table_version(db, FinancialEntry, company_id),
+        _table_version(db, Category, company_id),
+        _table_version(db, LinxMovement, company_id),
+        _report_layout_version(db, company_id),
+        _report_layout_line_version(db, company_id),
+        _report_layout_group_version(db, company_id),
+        _report_layout_formula_version(db, company_id),
+    )
+
+
+def _prune_reports_overview_cache(now: float) -> None:
+    expired_keys = [key for key, entry in _reports_overview_cache.items() if entry.expires_at <= now]
+    for key in expired_keys:
+        _reports_overview_cache.pop(key, None)
+    if len(_reports_overview_cache) <= MAX_REPORTS_CACHE_ITEMS:
+        return
+    keys_by_expiry = sorted(_reports_overview_cache.items(), key=lambda item: item[1].expires_at)
+    for key, _entry in keys_by_expiry[: len(_reports_overview_cache) - MAX_REPORTS_CACHE_ITEMS]:
+        _reports_overview_cache.pop(key, None)
+
+
+def clear_reports_overview_cache(company_id: str | None = None) -> None:
+    with _reports_overview_cache_lock:
+        if company_id is None:
+            _reports_overview_cache.clear()
+            return
+        keys_to_remove = [key for key in _reports_overview_cache if key[0] == company_id]
+        for key in keys_to_remove:
+            _reports_overview_cache.pop(key, None)
 
 
 def _competence_date(entry: FinancialEntry) -> date | None:
@@ -850,9 +991,7 @@ def build_reports_overview(
     start: date | None = None,
     end: date | None = None,
 ) -> ReportsOverview:
-    today = date.today()
-    period_start = start or date(today.year, today.month, 1)
-    period_end = end or today
+    period_start, period_end = _resolve_period(start, end)
 
     dre_config = get_or_create_report_config(db, company, "dre")
     dro_config = get_or_create_report_config(db, company, "dro")
@@ -956,3 +1095,36 @@ def build_reports_overview(
             statement=_build_statement(lines=dro_lines),
         ),
     )
+
+
+def get_cached_reports_overview(
+    db: Session,
+    company: Company,
+    start: date | None = None,
+    end: date | None = None,
+) -> ReportsOverview:
+    period_start, period_end = _resolve_period(start, end)
+    ttl_seconds = _reports_cache_ttl_seconds(period_start, period_end)
+    if ttl_seconds is None:
+        return build_reports_overview(db, company, start=period_start, end=period_end)
+
+    cache_key = _reports_cache_key(company.id, period_start, period_end)
+    signature = _reports_cache_signature(db, company.id)
+    current_time = monotonic()
+
+    with _reports_overview_cache_lock:
+        cached_entry = _reports_overview_cache.get(cache_key)
+        if cached_entry and cached_entry.signature == signature and cached_entry.expires_at > current_time:
+            return cached_entry.payload.model_copy(deep=True)
+
+    report = build_reports_overview(db, company, start=period_start, end=period_end)
+
+    with _reports_overview_cache_lock:
+        _prune_reports_overview_cache(current_time)
+        _reports_overview_cache[cache_key] = ReportsOverviewCacheEntry(
+            signature=signature,
+            expires_at=current_time + ttl_seconds,
+            payload=report.model_copy(deep=True),
+        )
+
+    return report

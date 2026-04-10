@@ -19,6 +19,7 @@ from app.schemas.financial_entry import (
     FinancialEntryRead,
     FinancialEntryUpdate,
 )
+from app.services.cache_invalidation import clear_finance_analytics_caches
 from app.services.company_context import get_current_company
 from app.services.finance_ops import (
     bulk_delete_entries,
@@ -206,6 +207,7 @@ def post_entry(payload: FinancialEntryCreate, db: DbSession, current_user: Curre
     company = get_current_company(db)
     entry = create_entry(db, company, payload, current_user)
     db.commit()
+    clear_finance_analytics_caches(company.id)
     db.refresh(entry)
     return _serialize_entry(entry)
 
@@ -225,6 +227,7 @@ def post_bulk_update_entry_category(
         actor_user=current_user,
     )
     db.commit()
+    clear_finance_analytics_caches(company.id)
     return FinancialEntryBulkCategoryUpdateResponse(
         updated_count=updated_count,
         category_id=category.id,
@@ -247,6 +250,7 @@ def post_bulk_delete_entries(
         actor_user=current_user,
     )
     db.commit()
+    clear_finance_analytics_caches(company.id)
     return FinancialEntryBulkDeleteResponse(
         deleted_count=deleted_count,
         entry_ids=entry_ids,
@@ -263,6 +267,7 @@ def put_entry(
     company = get_current_company(db)
     entry = update_entry(db, company, entry_id, payload, current_user)
     db.commit()
+    clear_finance_analytics_caches(company.id)
     db.refresh(entry)
     return _serialize_entry(entry)
 
@@ -277,6 +282,7 @@ def settle_financial_entry(
     company = get_current_company(db)
     entry = settle_entry(db, company, entry_id, payload, current_user)
     db.commit()
+    clear_finance_analytics_caches(company.id)
     db.refresh(entry)
     return _serialize_entry(entry)
 
@@ -291,6 +297,7 @@ def cancel_financial_entry(
     company = get_current_company(db)
     entry = cancel_entry(db, company, entry_id, payload, current_user)
     db.commit()
+    clear_finance_analytics_caches(company.id)
     db.refresh(entry)
     return _serialize_entry(entry)
 
@@ -305,6 +312,7 @@ def reverse_financial_entry(
     company = get_current_company(db)
     entry = reverse_entry(db, company, entry_id, payload, current_user)
     db.commit()
+    clear_finance_analytics_caches(company.id)
     db.refresh(entry)
     return _serialize_entry(entry)
 
@@ -318,5 +326,6 @@ def delete_financial_entry(
     company = get_current_company(db)
     entry = delete_entry(db, company, entry_id, current_user)
     db.commit()
+    clear_finance_analytics_caches(company.id)
     db.refresh(entry)
     return _serialize_entry(entry)

@@ -22,7 +22,7 @@ from app.schemas.dashboard import (
     DashboardSeriesPoint,
 )
 from app.services.cashflow import build_cashflow_overview
-from app.services.reports import build_reports_overview
+from app.services.reports import get_cached_reports_overview
 
 MONTH_LABELS = ("Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez")
 CURRENT_MONTH_OVERVIEW_CACHE_TTL_SECONDS = 90
@@ -138,7 +138,7 @@ def build_dashboard_overview(
     start: date,
     end: date,
 ) -> DashboardOverview:
-    reports = build_reports_overview(db, company, start=start, end=end)
+    reports = get_cached_reports_overview(db, company, start=start, end=end)
     cashflow = build_cashflow_overview(db, company, start_date=start, end_date=end)
 
     gross_revenue = Decimal(reports.dre.gross_revenue)
