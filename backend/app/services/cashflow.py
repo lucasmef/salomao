@@ -2,6 +2,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
+from threading import Lock
+from time import monotonic
 
 from sqlalchemy import desc, or_, select
 from sqlalchemy.orm import Session
@@ -18,6 +20,19 @@ RECEIVABLES_CONTROL_SOURCE = "linx_sales_control"
 OPEN_RECEIVABLE_STATUS_KEYWORDS = ("aberto", "a receber", "vencido", "em aberto", "pendente")
 PAID_RECEIVABLE_STATUS_KEYWORDS = ("recebido", "pago", "paid", "quitado", "baixado")
 CANCELLED_RECEIVABLE_STATUS_KEYWORDS = ("cancelado",)
+CURRENT_MONTH_CASHFLOW_CACHE_TTL_SECONDS = 86400
+HISTORICAL_MONTH_CASHFLOW_CACHE_TTL_SECONDS = 604800
+MAX_CASHFLOW_CACHE_ITEMS = 48
+
+
+@dataclass(slots=True)
+class CashflowOverviewCacheEntry:
+    expires_at: float
+    payload: CashflowOverview
+
+
+_cashflow_overview_cache: dict[tuple[str, str, str, str, bool, bool], CashflowOverviewCacheEntry] = {}
+_cashflow_overview_cache_lock = Lock()
 
 
 @dataclass(slots=True)
@@ -57,11 +72,19 @@ def _month_key(value: date) -> str:
     return f"{value.year:04d}-{value.month:02d}"
 
 
+def _month_start(value: date) -> date:
+    return date(value.year, value.month, 1)
+
+
 def _add_months(value: date, months: int) -> date:
     month_index = (value.month - 1) + months
     year = value.year + (month_index // 12)
     month = (month_index % 12) + 1
     return date(year, month, 1)
+
+
+def _month_end(value: date) -> date:
+    return _add_months(_month_start(value), 1) - timedelta(days=1)
 
 
 def _receivable_is_open(status: str | None) -> bool:
@@ -73,6 +96,59 @@ def _receivable_is_open(status: str | None) -> bool:
     if any(keyword in normalized for keyword in OPEN_RECEIVABLE_STATUS_KEYWORDS):
         return True
     return True
+
+
+def _is_full_month_period(start: date, end: date) -> bool:
+    return start == _month_start(start) and end == _month_end(start)
+
+
+def _cashflow_cache_ttl_seconds(start: date, end: date, *, today: date | None = None) -> int | None:
+    if not _is_full_month_period(start, end):
+        return None
+    reference_day = today or date.today()
+    if start == _month_start(reference_day) and end == _month_end(reference_day):
+        return CURRENT_MONTH_CASHFLOW_CACHE_TTL_SECONDS
+    return HISTORICAL_MONTH_CASHFLOW_CACHE_TTL_SECONDS
+
+
+def _cashflow_cache_key(
+    company_id: str,
+    start: date,
+    end: date,
+    *,
+    account_id: str | None,
+    include_purchase_planning: bool,
+    include_crediario_receivables: bool,
+) -> tuple[str, str, str, str, bool, bool]:
+    return (
+        company_id,
+        start.isoformat(),
+        end.isoformat(),
+        account_id or "",
+        include_purchase_planning,
+        include_crediario_receivables,
+    )
+
+
+def _prune_cashflow_overview_cache(now: float) -> None:
+    expired_keys = [key for key, entry in _cashflow_overview_cache.items() if entry.expires_at <= now]
+    for key in expired_keys:
+        _cashflow_overview_cache.pop(key, None)
+    if len(_cashflow_overview_cache) <= MAX_CASHFLOW_CACHE_ITEMS:
+        return
+    keys_by_expiry = sorted(_cashflow_overview_cache.items(), key=lambda item: item[1].expires_at)
+    for key, _entry in keys_by_expiry[: len(_cashflow_overview_cache) - MAX_CASHFLOW_CACHE_ITEMS]:
+        _cashflow_overview_cache.pop(key, None)
+
+
+def clear_cashflow_overview_cache(company_id: str | None = None) -> None:
+    with _cashflow_overview_cache_lock:
+        if company_id is None:
+            _cashflow_overview_cache.clear()
+            return
+        keys_to_remove = [key for key in _cashflow_overview_cache if key[0] == company_id]
+        for key in keys_to_remove:
+            _cashflow_overview_cache.pop(key, None)
 
 
 def _latest_receivables_batch_id(db: Session, company_id: str) -> str | None:
@@ -378,3 +454,65 @@ def build_cashflow_overview(
         weekly_projection=weekly_points,
         monthly_projection=monthly_points,
     )
+
+
+def get_cached_cashflow_overview(
+    db: Session,
+    company: Company,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    account_id: str | None = None,
+    include_purchase_planning: bool = True,
+    include_crediario_receivables: bool = True,
+) -> CashflowOverview:
+    today = date.today()
+    range_start = start_date or date(today.year, today.month, 1)
+    range_end = end_date or _month_end(today)
+    if range_end < range_start:
+        range_end = range_start
+
+    ttl_seconds = _cashflow_cache_ttl_seconds(range_start, range_end)
+    if ttl_seconds is None:
+        return build_cashflow_overview(
+            db,
+            company,
+            start_date=range_start,
+            end_date=range_end,
+            account_id=account_id,
+            include_purchase_planning=include_purchase_planning,
+            include_crediario_receivables=include_crediario_receivables,
+        )
+
+    cache_key = _cashflow_cache_key(
+        company.id,
+        range_start,
+        range_end,
+        account_id=account_id,
+        include_purchase_planning=include_purchase_planning,
+        include_crediario_receivables=include_crediario_receivables,
+    )
+    current_time = monotonic()
+
+    with _cashflow_overview_cache_lock:
+        cached_entry = _cashflow_overview_cache.get(cache_key)
+        if cached_entry and cached_entry.expires_at > current_time:
+            return cached_entry.payload.model_copy(deep=True)
+
+    overview = build_cashflow_overview(
+        db,
+        company,
+        start_date=range_start,
+        end_date=range_end,
+        account_id=account_id,
+        include_purchase_planning=include_purchase_planning,
+        include_crediario_receivables=include_crediario_receivables,
+    )
+
+    with _cashflow_overview_cache_lock:
+        _prune_cashflow_overview_cache(current_time)
+        _cashflow_overview_cache[cache_key] = CashflowOverviewCacheEntry(
+            expires_at=current_time + ttl_seconds,
+            payload=overview.model_copy(deep=True),
+        )
+
+    return overview

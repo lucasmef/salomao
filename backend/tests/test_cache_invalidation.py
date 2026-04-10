@@ -27,6 +27,11 @@ def test_refresh_finance_analytics_caches_clears_and_warms_current_month(monkeyp
     )
     monkeypatch.setattr(
         cache_invalidation,
+        "get_cached_cashflow_overview",
+        lambda _db, current_company, *, start_date, end_date: events.append(("cashflow", current_company.id, start_date, end_date)),
+    )
+    monkeypatch.setattr(
+        cache_invalidation,
         "get_cached_dashboard_overview",
         lambda _db, current_company, *, start, end: events.append(("dashboard", current_company.id, start, end)),
     )
@@ -36,5 +41,6 @@ def test_refresh_finance_analytics_caches_clears_and_warms_current_month(monkeyp
     assert events == [
         ("clear", "company-1", True),
         ("reports", "company-1", date(2026, 4, 1), date(2026, 4, 30)),
+        ("cashflow", "company-1", date(2026, 4, 1), date(2026, 4, 30)),
         ("dashboard", "company-1", date(2026, 4, 1), date(2026, 4, 30)),
     ]

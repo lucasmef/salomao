@@ -4,7 +4,7 @@ from fastapi import APIRouter, Query
 
 from app.api.deps import DbSession
 from app.schemas.cashflow import CashflowOverview
-from app.services.cashflow import build_cashflow_overview
+from app.services.cashflow import get_cached_cashflow_overview
 from app.services.company_context import get_current_company
 
 router = APIRouter()
@@ -20,7 +20,7 @@ def get_cashflow_overview(
     include_crediario_receivables: bool = Query(default=True),
 ) -> CashflowOverview:
     company = get_current_company(db)
-    return build_cashflow_overview(
+    return get_cached_cashflow_overview(
         db,
         company,
         start_date=start,
