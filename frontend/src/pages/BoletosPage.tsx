@@ -920,8 +920,8 @@ export function BoletosPage({
               </button>
             </div>
           </div>
-          <div className="table-shell billing-table-shell billing-table-shell--expanded">
-            <table className="erp-table billing-compact-table">
+          <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
+            <table className="erp-table entries-list-table">
               <thead>
                 <tr>
                   <th>Cliente</th>
@@ -1183,8 +1183,8 @@ export function BoletosPage({
             <h3>Boletos atrasados</h3>
             <span>{dashboard.overdue_boletos.length}</span>
           </div>
-          <div className="table-shell billing-table-shell billing-table-shell--expanded">
-            <table className="erp-table billing-compact-table">
+          <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
+            <table className="erp-table entries-list-table">
               <thead>
                 <tr>
                   <th>Cliente</th>
@@ -1233,8 +1233,8 @@ export function BoletosPage({
             <h3>Pagas sem baixa</h3>
             <span>{dashboard.paid_pending.length}</span>
           </div>
-          <div className="table-shell billing-table-shell billing-table-shell--expanded">
-            <table className="erp-table billing-compact-table">
+          <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
+            <table className="erp-table entries-list-table">
               <thead>
                 <tr>
                   <th>Tipo</th>
@@ -1277,8 +1277,8 @@ export function BoletosPage({
             <h3>Boletos em excesso</h3>
             <span>{dashboard.excess_boletos.length}</span>
           </div>
-          <div className="table-shell tall">
-            <table className="erp-table">
+          <div className="table-shell tall entries-table-shell">
+            <table className="erp-table entries-list-table">
               <thead>
                 <tr>
                   <th>Tipo</th>
@@ -1360,8 +1360,8 @@ export function BoletosPage({
               <span className="billing-open-boletos-count">{filteredOpenBoletos.length}</span>
             </div>
           </div>
-          <div className="table-shell billing-table-shell billing-table-shell--expanded billing-open-boletos-table-shell">
-            <table className="erp-table billing-open-boletos-table">
+          <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell billing-open-boletos-table-shell">
+            <table className="erp-table entries-list-table billing-open-boletos-table">
               <thead>
                 <tr>
                   <th>
@@ -1507,8 +1507,8 @@ export function BoletosPage({
             <span>{dashboard.missing_boletos.length}</span>
           </div>
         </div>
-        <div className="table-shell billing-table-shell billing-table-shell--expanded">
-          <table className="erp-table billing-compact-table billing-missing-table">
+        <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
+          <table className="erp-table entries-list-table billing-missing-table">
             <thead>
               <tr>
                 <th>

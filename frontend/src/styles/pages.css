@@ -2896,16 +2896,22 @@ textarea {
 
 .billing-open-boletos-table-shell {
   margin-top: 2px;
+  min-height: 360px;
   max-height: none;
   overflow: visible;
 }
 
 .billing-open-boletos-table th,
 .billing-open-boletos-table td {
-  padding-top: 4px;
-  padding-bottom: 4px;
+  padding-top: 5px;
+  padding-bottom: 5px;
   line-height: 1.1;
   vertical-align: middle;
+}
+
+.billing-open-boletos-table thead th {
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 .billing-open-boletos-table th {
