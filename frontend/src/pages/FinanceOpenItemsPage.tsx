@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SectionChrome } from "../components/SectionChrome";
 import type { MainNavChild } from "../data/navigation";
@@ -6,6 +6,15 @@ import { formatDate, formatMoney } from "../lib/format";
 import type { Account, FinancialEntry, FinancialEntryListResponse } from "../types";
 
 type OpenTab = "payables" | "receivables" | "overdue" | "today" | "next7" | "next30";
+type OpenItemsTableColumnKey = "title" | "counterparty" | "due_date" | "balance";
+type OpenItemsTableSortState = {
+  key: OpenItemsTableColumnKey;
+  direction: "asc" | "desc";
+};
+type OpenItemsCounterpartyFilterOption = {
+  key: string;
+  label: string;
+};
 
 type Props = {
   tabs: MainNavChild[];
@@ -32,6 +41,53 @@ function openBalance(entry: FinancialEntry) {
   return Math.max(Number(entry.total_amount) - Number(entry.paid_amount), 0);
 }
 
+function FilterFunnelIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
+      <path d="M2 3.25C2 2.56 2.56 2 3.25 2h9.5a1.25 1.25 0 0 1 .965 2.045L10 8.56v3.19a1.25 1.25 0 0 1-.553 1.036l-1.75 1.167A.75.75 0 0 1 6.5 13.33V8.56L2.285 4.045A1.24 1.24 0 0 1 2 3.25Zm1.545.25L7.882 8.15a.75.75 0 0 1 .203.512v3.266L8.5 11.65V8.662a.75.75 0 0 1 .203-.512L12.455 3.5h-8.91Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function SortDirectionIcon({ direction }: { direction: "asc" | "desc" | null }) {
+  if (direction === "asc") {
+    return (
+      <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
+        <path d="M8 12V4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+        <path d="m4.75 7.25 3.25-3.25 3.25 3.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      </svg>
+    );
+  }
+  if (direction === "desc") {
+    return (
+      <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
+        <path d="M8 4v8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+        <path d="m4.75 8.75 3.25 3.25 3.25-3.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      </svg>
+    );
+  }
+  return null;
+}
+
+function getCounterpartyFilterKey(entry: FinancialEntry) {
+  return entry.counterparty_name?.trim() || "-";
+}
+
+function getOpenItemsSortValue(entry: FinancialEntry, column: OpenItemsTableColumnKey) {
+  switch (column) {
+    case "title":
+      return entry.title ?? "";
+    case "counterparty":
+      return entry.counterparty_name ?? "";
+    case "due_date":
+      return entry.due_date ?? "";
+    case "balance":
+      return openBalance(entry);
+    default:
+      return "";
+  }
+}
+
 export function FinanceOpenItemsPage({
   tabs,
   activeTabLabel,
@@ -43,6 +99,11 @@ export function FinanceOpenItemsPage({
   onApplyFilters,
 }: Props) {
   const [openTab, setOpenTab] = useState<OpenTab>("payables");
+  const counterpartyFilterPopoverRef = useRef<HTMLDivElement | null>(null);
+  const selectAllCounterpartyCheckboxRef = useRef<HTMLInputElement | null>(null);
+  const [tableSort, setTableSort] = useState<OpenItemsTableSortState | null>(null);
+  const [showCounterpartyFilter, setShowCounterpartyFilter] = useState(false);
+  const [excludedCounterpartyKeys, setExcludedCounterpartyKeys] = useState<string[]>([]);
   const currentTab = tabs.find((item) => item.key === "em-aberto") ?? tabs[0];
 
   const rows = useMemo(() => {
@@ -70,6 +131,192 @@ export function FinanceOpenItemsPage({
         return all;
     }
   }, [openTab, payables.items, receivables.items]);
+
+  const counterpartyFilterOptions = useMemo(() => {
+    const options = new Map<string, OpenItemsCounterpartyFilterOption>();
+    rows.forEach((entry) => {
+      const key = getCounterpartyFilterKey(entry);
+      if (!options.has(key)) {
+        options.set(key, {
+          key,
+          label: key,
+        });
+      }
+    });
+    return Array.from(options.values()).sort((left, right) => left.label.localeCompare(right.label, "pt-BR"));
+  }, [rows]);
+
+  const allCounterpartyKeys = useMemo(
+    () => counterpartyFilterOptions.map((option) => option.key),
+    [counterpartyFilterOptions],
+  );
+  const allCounterpartiesSelected = excludedCounterpartyKeys.length === 0;
+  const someCounterpartiesSelected =
+    excludedCounterpartyKeys.length > 0 && excludedCounterpartyKeys.length < allCounterpartyKeys.length;
+
+  useEffect(() => {
+    setExcludedCounterpartyKeys((current) => current.filter((key) => allCounterpartyKeys.includes(key)));
+  }, [allCounterpartyKeys]);
+
+  useEffect(() => {
+    if (selectAllCounterpartyCheckboxRef.current) {
+      selectAllCounterpartyCheckboxRef.current.indeterminate = someCounterpartiesSelected;
+    }
+  }, [someCounterpartiesSelected]);
+
+  useEffect(() => {
+    if (!showCounterpartyFilter) {
+      return undefined;
+    }
+
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target;
+      if (target instanceof Node && counterpartyFilterPopoverRef.current && !counterpartyFilterPopoverRef.current.contains(target)) {
+        setShowCounterpartyFilter(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showCounterpartyFilter]);
+
+  const filteredRows = useMemo(
+    () => rows.filter((entry) => !excludedCounterpartyKeys.includes(getCounterpartyFilterKey(entry))),
+    [excludedCounterpartyKeys, rows],
+  );
+
+  const visibleRows = useMemo(() => {
+    const nextRows = [...filteredRows];
+    if (!tableSort) {
+      return nextRows;
+    }
+
+    nextRows.sort((left, right) => {
+      const leftValue = getOpenItemsSortValue(left, tableSort.key);
+      const rightValue = getOpenItemsSortValue(right, tableSort.key);
+      let comparison = 0;
+
+      if (typeof leftValue === "number" && typeof rightValue === "number") {
+        comparison = leftValue - rightValue;
+      } else {
+        comparison = String(leftValue).localeCompare(String(rightValue), "pt-BR", {
+          numeric: true,
+          sensitivity: "base",
+        });
+      }
+
+      return tableSort.direction === "asc" ? comparison : -comparison;
+    });
+
+    return nextRows;
+  }, [filteredRows, tableSort]);
+
+  function toggleTableSort(column: OpenItemsTableColumnKey) {
+    setTableSort((current) => {
+      if (!current || current.key !== column) {
+        return { key: column, direction: "asc" };
+      }
+      if (current.direction === "asc") {
+        return { key: column, direction: "desc" };
+      }
+      return null;
+    });
+  }
+
+  function toggleAllCounterpartyFilters(checked: boolean) {
+    setExcludedCounterpartyKeys(checked ? [] : allCounterpartyKeys);
+  }
+
+  function toggleCounterpartyFilterOption(counterpartyKey: string) {
+    setExcludedCounterpartyKeys((current) =>
+      current.includes(counterpartyKey)
+        ? current.filter((item) => item !== counterpartyKey)
+        : [...current, counterpartyKey],
+    );
+  }
+
+  function renderTableHeader(label: string, column: OpenItemsTableColumnKey, numeric = false) {
+    const sortDirection = tableSort?.key === column ? tableSort.direction : null;
+    const showCounterpartyFilterTrigger = column === "counterparty";
+    const isCounterpartyFilterActive = excludedCounterpartyKeys.length > 0;
+
+    return (
+      <div
+        className={`finance-open-items-table-header ${numeric ? "is-numeric" : ""}`.trim()}
+        ref={showCounterpartyFilterTrigger && showCounterpartyFilter ? counterpartyFilterPopoverRef : null}
+      >
+        <button
+          className={`table-sort-button ${numeric ? "numeric" : ""}`.trim()}
+          onClick={() => toggleTableSort(column)}
+          type="button"
+        >
+          <strong>{label}</strong>
+          {sortDirection ? (
+            <span className="table-sort-indicator is-active">
+              <SortDirectionIcon direction={sortDirection} />
+            </span>
+          ) : null}
+        </button>
+        {showCounterpartyFilterTrigger ? (
+          <>
+            <button
+              aria-expanded={showCounterpartyFilter}
+              aria-label={`Filtrar coluna ${label}`}
+              className={`entries-column-filter-trigger ${isCounterpartyFilterActive ? "is-active" : ""}`.trim()}
+              onClick={() => setShowCounterpartyFilter((current) => !current)}
+              title={isCounterpartyFilterActive ? `${label} filtrada` : `Filtrar ${label.toLowerCase()}`}
+              type="button"
+            >
+              <FilterFunnelIcon />
+            </button>
+            {showCounterpartyFilter ? (
+              <div className="entries-floating-panel finance-open-items-filter-popover">
+                <div className="entries-category-filter-head">
+                  <label className="entries-category-filter-option is-all">
+                    <input
+                      checked={allCounterpartiesSelected}
+                      onChange={(event) => toggleAllCounterpartyFilters(event.target.checked)}
+                      ref={selectAllCounterpartyCheckboxRef}
+                      type="checkbox"
+                    />
+                    <span>Selecionar tudo</span>
+                  </label>
+                </div>
+                <div className="entries-category-filter-list">
+                  {counterpartyFilterOptions.length ? (
+                    counterpartyFilterOptions.map((option) => (
+                      <label className="entries-category-filter-option" key={option.key}>
+                        <input
+                          checked={!excludedCounterpartyKeys.includes(option.key)}
+                          onChange={() => toggleCounterpartyFilterOption(option.key)}
+                          type="checkbox"
+                        />
+                        <span title={option.label}>{option.label}</span>
+                      </label>
+                    ))
+                  ) : (
+                    <p className="entries-category-filter-empty">Nenhum cliente ou fornecedor encontrado nesta aba.</p>
+                  )}
+                </div>
+                <div className="entries-column-filter-popover-actions">
+                  <button
+                    className="secondary-button compact-button"
+                    onClick={() => toggleAllCounterpartyFilters(true)}
+                    type="button"
+                  >
+                    Restaurar
+                  </button>
+                  <button className="ghost-button compact" onClick={() => setShowCounterpartyFilter(false)} type="button">
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    );
+  }
 
   const openTotal = rows.reduce((sum, entry) => sum + openBalance(entry), 0);
   const overdueTotal = rows
@@ -150,19 +397,40 @@ export function FinanceOpenItemsPage({
       <section className="content-grid two-columns">
         <article className="panel">
           <div className="panel-title"><h3>Titulos em aberto</h3></div>
-          <div className="table-shell">
-            <table className="erp-table">
-              <thead><tr><th>Titulo</th><th>Cliente/Fornecedor</th><th>Vencimento</th><th>Saldo</th></tr></thead>
+          <div className="table-shell finance-open-items-table-shell">
+            <table className="erp-table finance-open-items-table">
+              <colgroup>
+                <col className="finance-open-items-col-title" />
+                <col className="finance-open-items-col-counterparty" />
+                <col className="finance-open-items-col-due-date" />
+                <col className="finance-open-items-col-balance" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>{renderTableHeader("Titulo", "title")}</th>
+                  <th>{renderTableHeader("Cliente/Fornecedor", "counterparty")}</th>
+                  <th>{renderTableHeader("Vencimento", "due_date")}</th>
+                  <th className="numeric-cell">{renderTableHeader("Saldo", "balance", true)}</th>
+                </tr>
+              </thead>
               <tbody>
-                {rows.slice(0, 25).map((entry) => (
+                {visibleRows.slice(0, 25).map((entry) => (
                   <tr key={entry.id}>
-                    <td>{entry.title}</td>
-                    <td>{entry.counterparty_name ?? "-"}</td>
+                    <td className="finance-open-items-cell-title">
+                      <strong title={entry.title}>{entry.title}</strong>
+                    </td>
+                    <td className="finance-open-items-cell-counterparty">
+                      <span title={entry.counterparty_name ?? "-"}>{entry.counterparty_name ?? "-"}</span>
+                    </td>
                     <td>{formatDate(entry.due_date)}</td>
-                    <td>{formatMoney(String(openBalance(entry)))}</td>
+                    <td className="numeric-cell">{formatMoney(String(openBalance(entry)))}</td>
                   </tr>
                 ))}
-                {!rows.length && <tr><td className="empty-cell" colSpan={4}>Nenhum titulo encontrado neste recorte.</td></tr>}
+                {!visibleRows.length ? (
+                  <tr>
+                    <td className="empty-cell" colSpan={4}>Nenhum titulo encontrado para os filtros atuais.</td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
