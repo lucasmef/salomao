@@ -8,12 +8,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.jobs import linx_auto_sync as linx_auto_sync_job
 from app.db.base import Base
 from app.db.models.imports import ImportBatch
 from app.db.models.security import Company
 from app.services.linx_auto_sync import (
     AUTO_SYNC_TIMEZONE,
     LINX_PRODUCTS_SOURCE,
+    LinxAutoSyncRun,
     run_linx_auto_sync_cycle,
     run_linx_auto_sync_for_company,
 )
@@ -520,6 +522,59 @@ def test_linx_auto_sync_still_skips_second_run_in_same_hour(monkeypatch) -> None
         assert result.status == "already-ran"
     finally:
         session.close()
+
+
+def test_linx_auto_sync_job_returns_zero_for_partial_failure(monkeypatch) -> None:
+    class _DummySession:
+        def __enter__(self):
+            return object()
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(linx_auto_sync_job, "SessionLocal", lambda: _DummySession())
+    monkeypatch.setattr(
+        linx_auto_sync_job,
+        "run_linx_auto_sync_cycle",
+        lambda db, force=False: [
+            LinxAutoSyncRun(
+                company_id="company-1",
+                company_name="Salomao",
+                status="partial_failure",
+                attempted=True,
+                customers_message="Clientes sincronizados.",
+                error_message="Resumo por email nao enviado: timeout",
+            )
+        ],
+    )
+
+    assert linx_auto_sync_job.main([]) == 0
+
+
+def test_linx_auto_sync_job_returns_nonzero_for_full_failure(monkeypatch) -> None:
+    class _DummySession:
+        def __enter__(self):
+            return object()
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(linx_auto_sync_job, "SessionLocal", lambda: _DummySession())
+    monkeypatch.setattr(
+        linx_auto_sync_job,
+        "run_linx_auto_sync_cycle",
+        lambda db, force=False: [
+            LinxAutoSyncRun(
+                company_id="company-1",
+                company_name="Salomao",
+                status="failed",
+                attempted=True,
+                error_message="Falha total na sincronizacao",
+            )
+        ],
+    )
+
+    assert linx_auto_sync_job.main([]) == 1
 
 
 def test_linx_auto_sync_runs_inter_before_settlement_and_disables_charge_inline_settlement(monkeypatch) -> None:

@@ -26,7 +26,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Nenhuma empresa habilitada para sincronizacao automatica do Linx.")
         return 0
 
-    failure_found = False
+    hard_failure_found = False
     attempted = 0
     for run in runs:
         if run.attempted:
@@ -44,14 +44,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  movimentos: {run.movements_message}")
         if run.products_message:
             print(f"  produtos: {run.products_message}")
-        if run.error_message:
-            failure_found = True
+        if run.error_message and run.status == "failed":
+            hard_failure_found = True
             print(f"  erro: {run.error_message}")
 
     if attempted == 0:
         print("Nenhuma sincronizacao precisava rodar nesta janela.")
         return 0
-    return 1 if failure_found else 0
+    return 1 if hard_failure_found else 0
 
 
 if __name__ == "__main__":
