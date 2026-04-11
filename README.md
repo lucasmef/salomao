@@ -37,6 +37,8 @@ O resultado é um sistema que não se limita à interface ou ao backend isoladam
 
 ## Novidades recentes
 
+- Cache híbrido de analytics: meses históricos completos podem ser atendidos por snapshots persistidos no banco, enquanto períodos vivos usam `Redis`, com invalidação e rebuild coordenados no backend.
+- Overview e compras não dependem mais de cache no frontend; a estratégia de cache passou a ficar centralizada no backend, com regras diferentes para analytics e planejamento de compras.
 - Configuração de relatórios (`DRE` e `DRO`) com grupos e subgrupos que podem somar e subtrair dentro da mesma linha.
 - Planejamento de compras com controle explícito de `devoluções`, exibidas separadamente do `recebido`.
 - Gestão operacional de coleções com observações por coleção dentro do fluxo de planejamento.
@@ -114,12 +116,16 @@ Para a emissão funcionar, o cadastro do cliente precisa estar completo com docu
 
 O sistema segue uma arquitetura `backend serving frontend`: o frontend é compilado em `frontend/dist`, e o backend entrega tanto a API quanto os arquivos estáticos da aplicação web.
 
+Na camada de analytics, a arquitetura passou a usar uma estratégia híbrida: consultas históricas mensais podem ser respondidas por snapshots persistidos em banco, enquanto janelas vivas e comparativos recentes usam `Redis`. Eventos de domínio limpam o cache vivo e podem enfileirar rebuild automático dos snapshots históricos afetados.
+
 ```mermaid
 flowchart LR
     U["Usuário"] --> N["Nginx + HTTPS"]
     N --> B["FastAPI API + Static Serving"]
     B --> F["React + Vite Build"]
     B --> P["PostgreSQL"]
+    B --> R["Redis (live analytics cache)"]
+    B --> H["Snapshots mensais + fila de rebuild"]
     B --> A["Auditoria e Alertas"]
     B --> S["Autenticação, MFA e Sessão"]
     B --> I["Banco Inter API"]
@@ -139,10 +145,19 @@ Topologia oficial no VPS:
 | Camada | Tecnologias | Papel no projeto |
 | --- | --- | --- |
 | Frontend | `React 18`, `TypeScript`, `Vite`, `React Router`, `react-select` | Interface, roteamento e experiência web |
-| Backend | `FastAPI`, `SQLAlchemy 2`, `Pydantic Settings`, `psycopg`, `httpx`, `cryptography` | API, integrações externas, modelagem, configuração, persistência e segurança |
-| Banco e schema | `PostgreSQL`, `Alembic` | Banco oficial e migrações versionadas |
+| Backend | `FastAPI`, `SQLAlchemy 2`, `Pydantic Settings`, `psycopg`, `httpx`, `cryptography`, `redis-py` | API, integrações externas, modelagem, configuração, persistência, cache e segurança |
+| Banco e schema | `PostgreSQL`, `Alembic` | Banco oficial, migrações versionadas e persistência dos snapshots históricos de analytics |
 | Infraestrutura | `Nginx`, `systemd`, `UFW`, `fail2ban` | Proxy reverso, processo, firewall e proteção de borda |
 | Qualidade | `pytest`, `ruff` | Testes automatizados e padronização de código |
+
+## Cache e performance
+
+O projeto passou a tratar cache como responsabilidade de backend, não mais da interface.
+
+- `DRE`, `DRO`, `dashboard`, `fluxo de caixa` e comparativos de receita usam cache híbrido: mês histórico fechado pode ser servido por snapshot persistido; período vivo usa `Redis`.
+- Invalidações de lançamentos, importações, conciliação, transferências e layouts de relatório limpam os caches vivos e podem disparar rebuild da fila de snapshots históricos impactados.
+- O planejamento de compras continua com cache backend-only próprio, com chave por empresa, ano, filtros e modo de visualização, sem depender de armazenamento local do navegador.
+- O recorte operacional atual privilegia reuso de leituras pesadas no servidor e preserva consistência quando eventos financeiros alteram a base analítica.
 
 ## Segurança em destaque
 
@@ -222,6 +237,8 @@ O repositório também concentra rotinas de suporte operacional para:
 - restauração de dumps
 - retenção de backups
 - backups criptografados no servidor
+- snapshots mensais persistidos para analytics históricos
+- fila de rebuild para recomposição seletiva de cache analítico
 
 Isso reforça a preocupação com continuidade e manutenção do sistema ao longo do tempo, e não apenas com a primeira entrega.
 
@@ -234,6 +251,7 @@ O backend possui testes cobrindo pontos relevantes para produção, incluindo:
 - fluxo de dispositivos confiáveis no MFA
 - cálculos financeiros
 - importações históricas
+- cache híbrido de analytics, incluindo leitura de snapshot, cache vivo em Redis e composição entre histórico e período atual
 - layouts e regras de relatórios, incluindo linhas com sinais mistos por grupo/subgrupo
 - módulos de boletos e planejamento, incluindo devoluções separadas do recebido
 - cliente HTTP da `API do Inter`
@@ -267,11 +285,14 @@ O backend possui testes cobrindo pontos relevantes para produção, incluindo:
 - [backend/.env.dev.example](backend/.env.dev.example)
 - [backend/.env.prod.example](backend/.env.prod.example)
 - [backend/app/services/boletos.py](backend/app/services/boletos.py)
+- [backend/app/services/analytics_hybrid.py](backend/app/services/analytics_hybrid.py)
+- [backend/app/services/cache_invalidation.py](backend/app/services/cache_invalidation.py)
 - [backend/app/services/purchase_planning.py](backend/app/services/purchase_planning.py)
 - [backend/app/services/report_layouts.py](backend/app/services/report_layouts.py)
 - [backend/app/services/reports.py](backend/app/services/reports.py)
 - [backend/app/services/inter.py](backend/app/services/inter.py)
 - [backend/app/schemas/inter.py](backend/app/schemas/inter.py)
+- [backend/tests/test_analytics_hybrid.py](backend/tests/test_analytics_hybrid.py)
 - [backend/tests/test_boletos.py](backend/tests/test_boletos.py)
 - [backend/tests/test_purchase_planning.py](backend/tests/test_purchase_planning.py)
 - [backend/tests/test_inter_api_endpoints.py](backend/tests/test_inter_api_endpoints.py)
@@ -289,6 +310,8 @@ BOOTSTRAP_ADMIN_EMAIL=admin@example.invalid
 BOOTSTRAP_ADMIN_PASSWORD=...
 SESSION_SECRET=...
 FIELD_ENCRYPTION_KEY=...
+ANALYTICS_REDIS_URL=redis://127.0.0.1:6379/0
+ANALYTICS_REDIS_PREFIX=salomao
 PUBLIC_ORIGIN=https://salomao.example.invalid
 ```
 
