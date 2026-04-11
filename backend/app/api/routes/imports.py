@@ -48,7 +48,7 @@ async def upload_linx_sales(
         ensure_pre_import_backup("linx-sales")
         content = await file.read()
         result = import_linx_sales(db, company, file.filename or "linx-sales.xls", content)
-        clear_finance_analytics_caches(company.id, include_sales_history=True)
+        clear_finance_analytics_caches(company.id, include_sales_history=True, db=db, company=company)
         return result
     except ValueError as error:
         db.rollback()
@@ -69,7 +69,13 @@ def trigger_linx_sales_sync(
             start_date=payload.start_date,
             end_date=payload.end_date,
         )
-        clear_finance_analytics_caches(company.id, include_sales_history=True)
+        clear_finance_analytics_caches(
+            company.id,
+            include_sales_history=True,
+            db=db,
+            company=company,
+            affected_dates=[item for item in (payload.start_date, payload.end_date) if item is not None],
+        )
         return result
     except ValueError as error:
         db.rollback()
@@ -176,7 +182,7 @@ def trigger_linx_movements_sync(
             company,
             full_refresh=payload.full_refresh,
         )
-        clear_finance_analytics_caches(company.id)
+        clear_finance_analytics_caches(company.id, db=db, company=company)
         return result
     except ValueError as error:
         db.rollback()
@@ -217,7 +223,7 @@ async def upload_ofx(
         ensure_pre_import_backup("ofx")
         content = await file.read()
         result = import_ofx(db, company, account_id, file.filename or "extrato.ofx", content)
-        clear_finance_analytics_caches(company.id)
+        clear_finance_analytics_caches(company.id, db=db, company=company)
         return result
     except ValueError as error:
         db.rollback()
@@ -243,7 +249,7 @@ async def upload_historical_cashbook(
             file.filename or "livro-caixa-historico.xlsx",
             content,
         )
-        clear_finance_analytics_caches(company.id)
+        clear_finance_analytics_caches(company.id, db=db, company=company)
         return result
     except ValueError as error:
         db.rollback()
@@ -264,7 +270,12 @@ def trigger_inter_statement_sync(
             start_date=payload.start_date,
             end_date=payload.end_date,
         )
-        clear_finance_analytics_caches(company.id)
+        clear_finance_analytics_caches(
+            company.id,
+            db=db,
+            company=company,
+            affected_dates=[item for item in (payload.start_date, payload.end_date) if item is not None],
+        )
         return result
     except ValueError as error:
         db.rollback()

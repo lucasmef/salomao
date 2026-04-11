@@ -166,7 +166,6 @@ class ResolvedCustomerData:
     client_name: str
     client_code: str | None
     uses_boleto: bool
-    supports_boleto_config: bool
     mode: str
     boleto_due_day: int | None
     include_interest: bool
@@ -183,6 +182,7 @@ class ResolvedCustomerData:
     phone_primary: str | None
     phone_secondary: str | None
     mobile: str | None
+    supports_boleto_config: bool = False
 
 
 class LinxHTMLTableParser(HTMLParser):

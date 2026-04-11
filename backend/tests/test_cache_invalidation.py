@@ -18,7 +18,7 @@ def test_refresh_finance_analytics_caches_clears_and_warms_current_month(monkeyp
     monkeypatch.setattr(
         cache_invalidation,
         "clear_finance_analytics_caches",
-        lambda company_id, include_sales_history=False: events.append(("clear", company_id, include_sales_history)),
+        lambda company_id, include_sales_history=False, **_kwargs: events.append(("clear", company_id, include_sales_history)),
     )
     monkeypatch.setattr(
         cache_invalidation,
@@ -35,6 +35,7 @@ def test_refresh_finance_analytics_caches_clears_and_warms_current_month(monkeyp
         "get_cached_dashboard_overview",
         lambda _db, current_company, *, start, end: events.append(("dashboard", current_company.id, start, end)),
     )
+    monkeypatch.setattr(cache_invalidation, "process_snapshot_rebuild_queue", lambda *_args, **_kwargs: [])
 
     cache_invalidation.refresh_finance_analytics_caches(None, company, include_sales_history=True)
 

@@ -84,6 +84,8 @@ class Settings(BaseSettings):
     backup_retention_days: int = 120
     linx_timeout_ms: int = 120000
     linx_headless: bool = True
+    analytics_redis_url: str = "redis://127.0.0.1:6379/0"
+    analytics_redis_prefix: str = "salomao"
     cors_origins: list[str] = Field(default_factory=lambda: [
         "http://localhost:5173",
         "http://127.0.0.1:5173",

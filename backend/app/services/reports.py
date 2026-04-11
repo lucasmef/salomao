@@ -28,6 +28,16 @@ from app.schemas.reports import (
     ReportsOverview,
     ReportTreeNode,
 )
+from app.services.analytics_hybrid import (
+    ANALYTICS_REPORTS_OVERVIEW,
+    clear_live_cache,
+    is_full_month_period,
+    is_historical_period,
+    iter_month_segments,
+    read_live_cache,
+    read_snapshot_or_rebuild,
+    write_live_cache,
+)
 from app.services.report_layouts import get_or_create_report_config
 
 
@@ -198,10 +208,131 @@ def clear_reports_overview_cache(company_id: str | None = None) -> None:
     with _reports_overview_cache_lock:
         if company_id is None:
             _reports_overview_cache.clear()
+            clear_live_cache(None, kinds=[ANALYTICS_REPORTS_OVERVIEW])
             return
         keys_to_remove = [key for key in _reports_overview_cache if key[0] == company_id]
         for key in keys_to_remove:
             _reports_overview_cache.pop(key, None)
+    clear_live_cache(company_id, kinds=[ANALYTICS_REPORTS_OVERVIEW])
+
+
+def _merge_dashboard_cards(cards: list[ReportDashboardCard], other_cards: list[ReportDashboardCard]) -> list[ReportDashboardCard]:
+    merged: dict[str, ReportDashboardCard] = {card.key: card.model_copy(deep=True) for card in cards}
+    ordered_keys = [card.key for card in cards]
+    for card in other_cards:
+        if card.key not in merged:
+            merged[card.key] = card.model_copy(deep=True)
+            ordered_keys.append(card.key)
+            continue
+        current = merged[card.key]
+        current.amount = _money(current.amount + card.amount)
+    return [merged[key] for key in ordered_keys]
+
+
+def _merge_tree_nodes(base_nodes: list[ReportTreeNode], new_nodes: list[ReportTreeNode]) -> list[ReportTreeNode]:
+    merged: dict[str, ReportTreeNode] = {node.key: node.model_copy(deep=True) for node in base_nodes}
+    ordered_keys = [node.key for node in base_nodes]
+    for node in new_nodes:
+        if node.key not in merged:
+            merged[node.key] = node.model_copy(deep=True)
+            ordered_keys.append(node.key)
+            continue
+        current = merged[node.key]
+        current.amount = _money(current.amount + node.amount)
+        current.children = _merge_tree_nodes(current.children, node.children)
+    return [merged[key] for key in ordered_keys]
+
+
+def _merge_dre_reports(left: DreReport, right: DreReport, *, period_label: str) -> DreReport:
+    return DreReport(
+        period_label=period_label,
+        gross_revenue=_money(left.gross_revenue + right.gross_revenue),
+        deductions=_money(left.deductions + right.deductions),
+        net_revenue=_money(left.net_revenue + right.net_revenue),
+        cmv=_money(left.cmv + right.cmv),
+        gross_profit=_money(left.gross_profit + right.gross_profit),
+        other_operating_income=_money(left.other_operating_income + right.other_operating_income),
+        operating_expenses=_money(left.operating_expenses + right.operating_expenses),
+        financial_expenses=_money(left.financial_expenses + right.financial_expenses),
+        non_operating_income=_money(left.non_operating_income + right.non_operating_income),
+        non_operating_expenses=_money(left.non_operating_expenses + right.non_operating_expenses),
+        taxes_on_profit=_money(left.taxes_on_profit + right.taxes_on_profit),
+        net_profit=_money(left.net_profit + right.net_profit),
+        profit_distribution=_money(left.profit_distribution + right.profit_distribution),
+        remaining_profit=_money(left.remaining_profit + right.remaining_profit),
+        dashboard_cards=_merge_dashboard_cards(left.dashboard_cards, right.dashboard_cards),
+        statement=_merge_tree_nodes(left.statement, right.statement),
+    )
+
+
+def _merge_dro_reports(left: DroReport, right: DroReport, *, period_label: str) -> DroReport:
+    return DroReport(
+        period_label=period_label,
+        bank_revenue=_money(left.bank_revenue + right.bank_revenue),
+        sales_taxes=_money(left.sales_taxes + right.sales_taxes),
+        purchases_paid=_money(left.purchases_paid + right.purchases_paid),
+        contribution_margin=_money(left.contribution_margin + right.contribution_margin),
+        operating_expenses=_money(left.operating_expenses + right.operating_expenses),
+        financial_expenses=_money(left.financial_expenses + right.financial_expenses),
+        non_operating_income=_money(left.non_operating_income + right.non_operating_income),
+        non_operating_expenses=_money(left.non_operating_expenses + right.non_operating_expenses),
+        net_profit=_money(left.net_profit + right.net_profit),
+        profit_distribution=_money(left.profit_distribution + right.profit_distribution),
+        remaining_profit=_money(left.remaining_profit + right.remaining_profit),
+        dashboard_cards=_merge_dashboard_cards(left.dashboard_cards, right.dashboard_cards),
+        statement=_merge_tree_nodes(left.statement, right.statement),
+    )
+
+
+def _compose_reports_overview(parts: list[ReportsOverview], *, period_label: str) -> ReportsOverview:
+    aggregate = parts[0].model_copy(deep=True)
+    aggregate.dre.period_label = period_label
+    aggregate.dro.period_label = period_label
+    for part in parts[1:]:
+        aggregate.dre = _merge_dre_reports(aggregate.dre, part.dre, period_label=period_label)
+        aggregate.dro = _merge_dro_reports(aggregate.dro, part.dro, period_label=period_label)
+    return aggregate
+
+
+def _get_reports_segment(
+    db: Session,
+    company: Company,
+    *,
+    start: date,
+    end: date,
+) -> ReportsOverview:
+    if not is_full_month_period(start, end):
+        return build_reports_overview(db, company, start=start, end=end)
+    if is_historical_period(start, end):
+        return read_snapshot_or_rebuild(
+            db,
+            ReportsOverview,
+            company=company,
+            kind=ANALYTICS_REPORTS_OVERVIEW,
+            snapshot_month=start,
+            build_func=lambda: build_reports_overview(db, company, start=start, end=end),
+        )
+    ttl_seconds = _reports_cache_ttl_seconds(start, end)
+    cached = read_live_cache(
+        ReportsOverview,
+        kind=ANALYTICS_REPORTS_OVERVIEW,
+        company_id=company.id,
+        start=start,
+        end=end,
+    )
+    if cached is not None:
+        return cached
+    report = build_reports_overview(db, company, start=start, end=end)
+    if ttl_seconds:
+        write_live_cache(
+            report,
+            kind=ANALYTICS_REPORTS_OVERVIEW,
+            company_id=company.id,
+            start=start,
+            end=end,
+            ttl_seconds=ttl_seconds,
+        )
+    return report
 
 
 def _competence_date(entry: FinancialEntry) -> date | None:
@@ -1039,25 +1170,9 @@ def get_cached_reports_overview(
     end: date | None = None,
 ) -> ReportsOverview:
     period_start, period_end = _resolve_period(start, end)
-    ttl_seconds = _reports_cache_ttl_seconds(period_start, period_end)
-    if ttl_seconds is None:
-        return build_reports_overview(db, company, start=period_start, end=period_end)
-
-    cache_key = _reports_cache_key(company.id, period_start, period_end)
-    current_time = monotonic()
-
-    with _reports_overview_cache_lock:
-        cached_entry = _reports_overview_cache.get(cache_key)
-        if cached_entry and cached_entry.expires_at > current_time:
-            return cached_entry.payload.model_copy(deep=True)
-
-    report = build_reports_overview(db, company, start=period_start, end=period_end)
-
-    with _reports_overview_cache_lock:
-        _prune_reports_overview_cache(current_time)
-        _reports_overview_cache[cache_key] = ReportsOverviewCacheEntry(
-            expires_at=current_time + ttl_seconds,
-            payload=report.model_copy(deep=True),
-        )
-
-    return report
+    segments = iter_month_segments(period_start, period_end)
+    if len(segments) == 1:
+        segment_start, segment_end = segments[0]
+        return _get_reports_segment(db, company, start=segment_start, end=segment_end)
+    parts = [_get_reports_segment(db, company, start=segment_start, end=segment_end) for segment_start, segment_end in segments]
+    return _compose_reports_overview(parts, period_label=_display_period_label(period_start, period_end))

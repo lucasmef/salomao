@@ -13,6 +13,17 @@ from app.db.models.imports import ImportBatch
 from app.db.models.linx import ReceivableTitle
 from app.db.models.security import Company
 from app.schemas.cashflow import AccountBalance, CashflowOverview, CashflowPoint
+from app.services.analytics_hybrid import (
+    ANALYTICS_CASHFLOW_OVERVIEW,
+    clear_live_cache,
+    is_full_month_period,
+    is_historical_period,
+    iter_month_segments,
+    read_live_cache,
+    read_snapshot_or_rebuild,
+    snapshot_params_for_cashflow,
+    write_live_cache,
+)
 from app.services.purchase_planning import PurchasePlanningFilters, build_purchase_planning_cashflow_events
 
 RECEIVABLES_CONTROL_ACCOUNT_TYPE = "receivables_control"
@@ -145,10 +156,204 @@ def clear_cashflow_overview_cache(company_id: str | None = None) -> None:
     with _cashflow_overview_cache_lock:
         if company_id is None:
             _cashflow_overview_cache.clear()
+            clear_live_cache(None, kinds=[ANALYTICS_CASHFLOW_OVERVIEW])
             return
         keys_to_remove = [key for key in _cashflow_overview_cache if key[0] == company_id]
         for key in keys_to_remove:
             _cashflow_overview_cache.pop(key, None)
+    clear_live_cache(company_id, kinds=[ANALYTICS_CASHFLOW_OVERVIEW])
+
+
+def _rebuild_cashflow_aggregates(
+    *,
+    current_balance: Decimal,
+    account_balances: list[AccountBalance],
+    daily_projection: list[CashflowPoint],
+) -> CashflowOverview:
+    ordered_days = sorted(daily_projection, key=lambda item: item.reference)
+    recomputed_daily: list[CashflowPoint] = []
+    opening_balance = current_balance
+    for point in ordered_days:
+        inflows = point.crediario_inflows + point.card_inflows
+        outflows = point.launched_outflows + point.planned_purchase_outflows
+        closing_balance = opening_balance + inflows - outflows
+        recomputed_daily.append(
+            CashflowPoint(
+                reference=point.reference,
+                opening_balance=opening_balance,
+                crediario_inflows=point.crediario_inflows,
+                card_inflows=point.card_inflows,
+                launched_outflows=point.launched_outflows,
+                planned_purchase_outflows=point.planned_purchase_outflows,
+                inflows=inflows,
+                outflows=outflows,
+                closing_balance=closing_balance,
+            )
+        )
+        opening_balance = closing_balance
+
+    monthly_buckets: dict[str, CashflowBucket] = defaultdict(CashflowBucket)
+    weekly_projection: list[CashflowPoint] = []
+    for point in recomputed_daily:
+        month_bucket = monthly_buckets[point.reference[:7]]
+        month_bucket.crediario_inflow += point.crediario_inflows
+        month_bucket.card_inflow += point.card_inflows
+        month_bucket.launched_outflow += point.launched_outflows
+        month_bucket.planned_purchase_outflow += point.planned_purchase_outflows
+
+    monthly_projection: list[CashflowPoint] = []
+    opening_balance = current_balance
+    for reference in sorted(monthly_buckets):
+        bucket = monthly_buckets[reference]
+        closing_balance = opening_balance + bucket.inflow - bucket.outflow
+        monthly_projection.append(
+            CashflowPoint(
+                reference=reference,
+                opening_balance=opening_balance,
+                crediario_inflows=bucket.crediario_inflow,
+                card_inflows=bucket.card_inflow,
+                launched_outflows=bucket.launched_outflow,
+                planned_purchase_outflows=bucket.planned_purchase_outflow,
+                inflows=bucket.inflow,
+                outflows=bucket.outflow,
+                closing_balance=closing_balance,
+            )
+        )
+        opening_balance = closing_balance
+
+    opening_balance = current_balance
+    cursor = 0
+    while cursor < len(recomputed_daily):
+        window = recomputed_daily[cursor : cursor + 7]
+        bucket = CashflowBucket()
+        for point in window:
+            bucket.crediario_inflow += point.crediario_inflows
+            bucket.card_inflow += point.card_inflows
+            bucket.launched_outflow += point.launched_outflows
+            bucket.planned_purchase_outflow += point.planned_purchase_outflows
+        closing_balance = opening_balance + bucket.inflow - bucket.outflow
+        weekly_projection.append(
+            CashflowPoint(
+                reference=f"{window[0].reference} a {window[-1].reference}",
+                opening_balance=opening_balance,
+                crediario_inflows=bucket.crediario_inflow,
+                card_inflows=bucket.card_inflow,
+                launched_outflows=bucket.launched_outflow,
+                planned_purchase_outflows=bucket.planned_purchase_outflow,
+                inflows=bucket.inflow,
+                outflows=bucket.outflow,
+                closing_balance=closing_balance,
+            )
+        )
+        opening_balance = closing_balance
+        cursor += 7
+
+    projected_inflows = sum((point.inflows for point in recomputed_daily), Decimal("0.00"))
+    projected_outflows = sum((point.outflows for point in recomputed_daily), Decimal("0.00"))
+    planned_purchase_outflows = sum((point.planned_purchase_outflows for point in recomputed_daily), Decimal("0.00"))
+    projected_ending_balance = recomputed_daily[-1].closing_balance if recomputed_daily else current_balance
+    alerts = [f"Saldo projetado negativo em {point.reference}" for point in recomputed_daily if point.closing_balance < 0][:5]
+    return CashflowOverview(
+        current_balance=current_balance,
+        projected_inflows=projected_inflows,
+        projected_outflows=projected_outflows,
+        planned_purchase_outflows=planned_purchase_outflows,
+        projected_ending_balance=projected_ending_balance,
+        alerts=alerts,
+        account_balances=account_balances,
+        daily_projection=recomputed_daily,
+        weekly_projection=weekly_projection,
+        monthly_projection=monthly_projection,
+    )
+
+
+def _compose_cashflow_segments(parts: list[CashflowOverview]) -> CashflowOverview:
+    current_balance = parts[0].current_balance
+    account_balances = parts[0].account_balances
+    all_daily_points: list[CashflowPoint] = []
+    for part in parts:
+        all_daily_points.extend(part.daily_projection)
+    return _rebuild_cashflow_aggregates(
+        current_balance=current_balance,
+        account_balances=account_balances,
+        daily_projection=all_daily_points,
+    )
+
+
+def _get_cashflow_segment(
+    db: Session,
+    company: Company,
+    *,
+    start_date: date,
+    end_date: date,
+    account_id: str | None,
+    include_purchase_planning: bool,
+    include_crediario_receivables: bool,
+) -> CashflowOverview:
+    params = snapshot_params_for_cashflow(
+        account_id=account_id,
+        include_purchase_planning=include_purchase_planning,
+        include_crediario_receivables=include_crediario_receivables,
+    )
+    if not is_full_month_period(start_date, end_date):
+        return build_cashflow_overview(
+            db,
+            company,
+            start_date=start_date,
+            end_date=end_date,
+            account_id=account_id,
+            include_purchase_planning=include_purchase_planning,
+            include_crediario_receivables=include_crediario_receivables,
+        )
+    if is_historical_period(start_date, end_date):
+        return read_snapshot_or_rebuild(
+            db,
+            CashflowOverview,
+            company=company,
+            kind=ANALYTICS_CASHFLOW_OVERVIEW,
+            snapshot_month=start_date,
+            params=params,
+            build_func=lambda: build_cashflow_overview(
+                db,
+                company,
+                start_date=start_date,
+                end_date=end_date,
+                account_id=account_id,
+                include_purchase_planning=include_purchase_planning,
+                include_crediario_receivables=include_crediario_receivables,
+            ),
+        )
+    ttl_seconds = _cashflow_cache_ttl_seconds(start_date, end_date)
+    cached = read_live_cache(
+        CashflowOverview,
+        kind=ANALYTICS_CASHFLOW_OVERVIEW,
+        company_id=company.id,
+        start=start_date,
+        end=end_date,
+        params=params,
+    )
+    if cached is not None:
+        return cached
+    overview = build_cashflow_overview(
+        db,
+        company,
+        start_date=start_date,
+        end_date=end_date,
+        account_id=account_id,
+        include_purchase_planning=include_purchase_planning,
+        include_crediario_receivables=include_crediario_receivables,
+    )
+    if ttl_seconds:
+        write_live_cache(
+            overview,
+            kind=ANALYTICS_CASHFLOW_OVERVIEW,
+            company_id=company.id,
+            start=start_date,
+            end=end_date,
+            ttl_seconds=ttl_seconds,
+            params=params,
+        )
+    return overview
 
 
 def _latest_receivables_batch_id(db: Session, company_id: str) -> str | None:
@@ -470,49 +675,28 @@ def get_cached_cashflow_overview(
     range_end = end_date or _month_end(today)
     if range_end < range_start:
         range_end = range_start
-
-    ttl_seconds = _cashflow_cache_ttl_seconds(range_start, range_end)
-    if ttl_seconds is None:
-        return build_cashflow_overview(
+    segments = iter_month_segments(range_start, range_end)
+    if len(segments) == 1:
+        segment_start, segment_end = segments[0]
+        return _get_cashflow_segment(
             db,
             company,
-            start_date=range_start,
-            end_date=range_end,
+            start_date=segment_start,
+            end_date=segment_end,
             account_id=account_id,
             include_purchase_planning=include_purchase_planning,
             include_crediario_receivables=include_crediario_receivables,
         )
-
-    cache_key = _cashflow_cache_key(
-        company.id,
-        range_start,
-        range_end,
-        account_id=account_id,
-        include_purchase_planning=include_purchase_planning,
-        include_crediario_receivables=include_crediario_receivables,
-    )
-    current_time = monotonic()
-
-    with _cashflow_overview_cache_lock:
-        cached_entry = _cashflow_overview_cache.get(cache_key)
-        if cached_entry and cached_entry.expires_at > current_time:
-            return cached_entry.payload.model_copy(deep=True)
-
-    overview = build_cashflow_overview(
-        db,
-        company,
-        start_date=range_start,
-        end_date=range_end,
-        account_id=account_id,
-        include_purchase_planning=include_purchase_planning,
-        include_crediario_receivables=include_crediario_receivables,
-    )
-
-    with _cashflow_overview_cache_lock:
-        _prune_cashflow_overview_cache(current_time)
-        _cashflow_overview_cache[cache_key] = CashflowOverviewCacheEntry(
-            expires_at=current_time + ttl_seconds,
-            payload=overview.model_copy(deep=True),
+    parts = [
+        _get_cashflow_segment(
+            db,
+            company,
+            start_date=segment_start,
+            end_date=segment_end,
+            account_id=account_id,
+            include_purchase_planning=include_purchase_planning,
+            include_crediario_receivables=include_crediario_receivables,
         )
-
-    return overview
+        for segment_start, segment_end in segments
+    ]
+    return _compose_cashflow_segments(parts)

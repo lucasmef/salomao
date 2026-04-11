@@ -104,6 +104,18 @@ def _serialize_entry(entry: FinancialEntry) -> FinancialEntryRead:
     )
 
 
+def _entry_analytics_dates(entry: FinancialEntry | None) -> list[date]:
+    if entry is None:
+        return []
+    values: list[date] = []
+    for candidate in (entry.issue_date, entry.competence_date, entry.due_date):
+        if candidate is not None:
+            values.append(candidate)
+    if entry.settled_at is not None:
+        values.append(entry.settled_at.date())
+    return values
+
+
 @router.get("", response_model=FinancialEntryListResponse)
 def get_entries(
     db: DbSession,
@@ -207,7 +219,12 @@ def post_entry(payload: FinancialEntryCreate, db: DbSession, current_user: Curre
     company = get_current_company(db)
     entry = create_entry(db, company, payload, current_user)
     db.commit()
-    clear_finance_analytics_caches(company.id)
+    clear_finance_analytics_caches(
+        company.id,
+        db=db,
+        company=company,
+        affected_dates=_entry_analytics_dates(entry),
+    )
     db.refresh(entry)
     return _serialize_entry(entry)
 
@@ -227,7 +244,7 @@ def post_bulk_update_entry_category(
         actor_user=current_user,
     )
     db.commit()
-    clear_finance_analytics_caches(company.id)
+    clear_finance_analytics_caches(company.id, db=db, company=company)
     return FinancialEntryBulkCategoryUpdateResponse(
         updated_count=updated_count,
         category_id=category.id,
@@ -250,7 +267,7 @@ def post_bulk_delete_entries(
         actor_user=current_user,
     )
     db.commit()
-    clear_finance_analytics_caches(company.id)
+    clear_finance_analytics_caches(company.id, db=db, company=company)
     return FinancialEntryBulkDeleteResponse(
         deleted_count=deleted_count,
         entry_ids=entry_ids,
@@ -265,9 +282,15 @@ def put_entry(
     current_user: CurrentUser,
 ) -> FinancialEntryRead:
     company = get_current_company(db)
+    previous_entry = db.get(FinancialEntry, entry_id)
     entry = update_entry(db, company, entry_id, payload, current_user)
     db.commit()
-    clear_finance_analytics_caches(company.id)
+    clear_finance_analytics_caches(
+        company.id,
+        db=db,
+        company=company,
+        affected_dates=[*_entry_analytics_dates(previous_entry), *_entry_analytics_dates(entry)],
+    )
     db.refresh(entry)
     return _serialize_entry(entry)
 
@@ -280,9 +303,15 @@ def settle_financial_entry(
     current_user: CurrentUser,
 ) -> FinancialEntryRead:
     company = get_current_company(db)
+    previous_entry = db.get(FinancialEntry, entry_id)
     entry = settle_entry(db, company, entry_id, payload, current_user)
     db.commit()
-    clear_finance_analytics_caches(company.id)
+    clear_finance_analytics_caches(
+        company.id,
+        db=db,
+        company=company,
+        affected_dates=[*_entry_analytics_dates(previous_entry), *_entry_analytics_dates(entry)],
+    )
     db.refresh(entry)
     return _serialize_entry(entry)
 
@@ -295,9 +324,15 @@ def cancel_financial_entry(
     current_user: CurrentUser,
 ) -> FinancialEntryRead:
     company = get_current_company(db)
+    previous_entry = db.get(FinancialEntry, entry_id)
     entry = cancel_entry(db, company, entry_id, payload, current_user)
     db.commit()
-    clear_finance_analytics_caches(company.id)
+    clear_finance_analytics_caches(
+        company.id,
+        db=db,
+        company=company,
+        affected_dates=[*_entry_analytics_dates(previous_entry), *_entry_analytics_dates(entry)],
+    )
     db.refresh(entry)
     return _serialize_entry(entry)
 
@@ -310,9 +345,15 @@ def reverse_financial_entry(
     current_user: CurrentUser,
 ) -> FinancialEntryRead:
     company = get_current_company(db)
+    previous_entry = db.get(FinancialEntry, entry_id)
     entry = reverse_entry(db, company, entry_id, payload, current_user)
     db.commit()
-    clear_finance_analytics_caches(company.id)
+    clear_finance_analytics_caches(
+        company.id,
+        db=db,
+        company=company,
+        affected_dates=[*_entry_analytics_dates(previous_entry), *_entry_analytics_dates(entry)],
+    )
     db.refresh(entry)
     return _serialize_entry(entry)
 
@@ -324,8 +365,14 @@ def delete_financial_entry(
     current_user: CurrentUser,
 ) -> FinancialEntryRead:
     company = get_current_company(db)
+    previous_entry = db.get(FinancialEntry, entry_id)
     entry = delete_entry(db, company, entry_id, current_user)
     db.commit()
-    clear_finance_analytics_caches(company.id)
+    clear_finance_analytics_caches(
+        company.id,
+        db=db,
+        company=company,
+        affected_dates=[*_entry_analytics_dates(previous_entry), *_entry_analytics_dates(entry)],
+    )
     db.refresh(entry)
     return _serialize_entry(entry)

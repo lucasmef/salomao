@@ -62,7 +62,7 @@ def create_match(
     try:
         reconciliation = create_reconciliation(db, company, payload, current_user)
         db.commit()
-        clear_finance_analytics_caches(company.id)
+        clear_finance_analytics_caches(company.id, db=db, company=company)
         db.refresh(reconciliation)
     except ValueError as error:
         db.rollback()
@@ -95,7 +95,7 @@ def create_action_from_bank(
     try:
         result = create_entry_from_bank_transaction(db, company, payload, current_user)
         db.commit()
-        clear_finance_analytics_caches(company.id)
+        clear_finance_analytics_caches(company.id, db=db, company=company)
         return {key: str(value) for key, value in result.items()}
     except ValueError as error:
         db.rollback()
@@ -118,7 +118,7 @@ def undo_match(
             current_user,
         )
         db.commit()
-        clear_finance_analytics_caches(company.id)
+        clear_finance_analytics_caches(company.id, db=db, company=company)
         return result
     except ValueError as error:
         db.rollback()
