@@ -77,7 +77,7 @@ function getCurrentMonthRange() {
 
 function getDefaultPurchasePlanningFilters() {
   return {
-    year: String(new Date().getFullYear()),
+    year: "",
     brand_id: "",
     supplier_id: "",
     collection_id: "",
@@ -454,6 +454,22 @@ function getPurchasePlanningMode(pathname: string): "summary" | "planning" | "re
     return "returns";
   }
   return "planning";
+}
+
+function getPurchasePlanningRequestFilters(
+  filters: ReturnType<typeof getDefaultPurchasePlanningFilters>,
+  mode: "summary" | "planning" | "returns",
+) {
+  if (mode !== "planning") {
+    return filters;
+  }
+  return {
+    ...filters,
+    year: "",
+    brand_id: "",
+    supplier_id: "",
+    collection_id: "",
+  };
 }
 
 function getLegacySectionsForPath(pathname: string): SectionId[] {
@@ -909,7 +925,10 @@ function AppRuntime() {
             if (isInitialSectionLoad) {
               setPurchasePlanningFilters(effectivePurchaseFilters);
             }
-            const planningQuery = buildQuery({ ...effectivePurchaseFilters, mode: planningMode });
+            const planningQuery = buildQuery({
+              ...getPurchasePlanningRequestFilters(effectivePurchaseFilters, planningMode),
+              mode: planningMode,
+            });
             const planningData = await fetchJson<PurchasePlanningOverview>(`/purchase-planning/overview?${planningQuery}`, {
               token: activeSession.token,
             });
@@ -1346,7 +1365,10 @@ function AppRuntime() {
         return;
       }
       const response = await fetchJson<PurchasePlanningOverview>(
-        `/purchase-planning/overview?${buildQuery({ ...nextFilters, mode: planningMode })}`,
+        `/purchase-planning/overview?${buildQuery({
+          ...getPurchasePlanningRequestFilters(nextFilters, planningMode),
+          mode: planningMode,
+        })}`,
         {
           token: session.token,
         },
