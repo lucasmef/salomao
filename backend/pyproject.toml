@@ -5,7 +5,7 @@ description = "Backend do gestor financeiro offline"
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.14.0,<2.0.0",
-  "cryptography>=46.0.6,<47.0.0",
+  "cryptography>=46.0.7,<47.0.0",
   "fastapi>=0.115.0,<1.0.0",
   "httpx>=0.27.0,<1.0.0",
   "playwright>=1.58.0,<2.0.0",
