@@ -394,7 +394,7 @@ function buildCashflowQuery(params: {
   account_id: string;
   include_purchase_planning: boolean;
   include_crediario_receivables: boolean;
-}) {
+}, options?: { refresh?: boolean }) {
   const query = new URLSearchParams();
   query.set("start", params.start);
   query.set("end", params.end);
@@ -403,14 +403,21 @@ function buildCashflowQuery(params: {
   }
   query.set("include_purchase_planning", String(params.include_purchase_planning));
   query.set("include_crediario_receivables", String(params.include_crediario_receivables));
+  if (options?.refresh) {
+    query.set("refresh", "true");
+  }
   return query.toString();
 }
 
 async function fetchOverviewSnapshot(
   activeSession: SessionState,
   filters: { start: string; end: string },
+  options?: { refresh?: boolean },
 ) {
-  return fetchJson<DashboardOverview>(`/dashboard/overview?${buildQuery(filters)}`, { token: activeSession.token });
+  return fetchJson<DashboardOverview>(
+    `/dashboard/overview?${buildQuery({ ...filters, refresh: options?.refresh ?? false })}`,
+    { token: activeSession.token },
+  );
 }
 
 async function fetchCashflowSnapshot(
@@ -422,15 +429,22 @@ async function fetchCashflowSnapshot(
     include_purchase_planning: boolean;
     include_crediario_receivables: boolean;
   },
+  options?: { refresh?: boolean },
 ) {
-  return fetchJson<CashflowOverview>(`/cashflow/overview?${buildCashflowQuery(filters)}`, { token: activeSession.token });
+  return fetchJson<CashflowOverview>(`/cashflow/overview?${buildCashflowQuery(filters, options)}`, {
+    token: activeSession.token,
+  });
 }
 
 async function fetchReportsSnapshot(
   activeSession: SessionState,
   filters: { start: string; end: string },
+  options?: { refresh?: boolean },
 ) {
-  return fetchJson<ReportsOverview>(`/reports/overview?${buildQuery(filters)}`, { token: activeSession.token });
+  return fetchJson<ReportsOverview>(
+    `/reports/overview?${buildQuery({ ...filters, refresh: options?.refresh ?? false })}`,
+    { token: activeSession.token },
+  );
 }
 
 function getNavigationSection(key: string) {
@@ -1785,14 +1799,10 @@ function AppRuntime() {
     if (!session) return;
     setSubmitting(true);
     try {
-      await fetchJson<{ status: string; refreshed_at: string }>("/dashboard/analytics/refresh", {
-        method: "POST",
-        token: session.token,
-      });
       const [dashboardData, reportsData, cashflowData] = await Promise.all([
-        fetchOverviewSnapshot(session, overviewFilters),
-        fetchReportsSnapshot(session, reportFilters),
-        fetchCashflowSnapshot(session, cashflowFilters),
+        fetchOverviewSnapshot(session, overviewFilters, { refresh: true }),
+        fetchReportsSnapshot(session, reportFilters, { refresh: true }),
+        fetchCashflowSnapshot(session, cashflowFilters, { refresh: true }),
       ]);
       setDashboard(dashboardData);
       setReports(reportsData);

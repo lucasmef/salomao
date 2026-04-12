@@ -22,6 +22,7 @@ from app.services.analytics_hybrid import (
     read_live_cache,
     read_snapshot_or_rebuild,
     snapshot_params_for_cashflow,
+    upsert_monthly_snapshot,
     write_live_cache,
 )
 from app.services.purchase_planning import PurchasePlanningFilters, build_purchase_planning_cashflow_events
@@ -289,6 +290,7 @@ def _get_cashflow_segment(
     account_id: str | None,
     include_purchase_planning: bool,
     include_crediario_receivables: bool,
+    refresh: bool = False,
 ) -> CashflowOverview:
     params = snapshot_params_for_cashflow(
         account_id=account_id,
@@ -304,8 +306,27 @@ def _get_cashflow_segment(
             account_id=account_id,
             include_purchase_planning=include_purchase_planning,
             include_crediario_receivables=include_crediario_receivables,
-        )
+    )
     if is_historical_period(start_date, end_date):
+        if refresh:
+            overview = build_cashflow_overview(
+                db,
+                company,
+                start_date=start_date,
+                end_date=end_date,
+                account_id=account_id,
+                include_purchase_planning=include_purchase_planning,
+                include_crediario_receivables=include_crediario_receivables,
+            )
+            upsert_monthly_snapshot(
+                db,
+                overview,
+                company_id=company.id,
+                kind=ANALYTICS_CASHFLOW_OVERVIEW,
+                snapshot_month=start_date,
+                params=params,
+            )
+            return overview
         return read_snapshot_or_rebuild(
             db,
             CashflowOverview,
@@ -324,16 +345,17 @@ def _get_cashflow_segment(
             ),
         )
     ttl_seconds = _cashflow_cache_ttl_seconds(start_date, end_date)
-    cached = read_live_cache(
-        CashflowOverview,
-        kind=ANALYTICS_CASHFLOW_OVERVIEW,
-        company_id=company.id,
-        start=start_date,
-        end=end_date,
-        params=params,
-    )
-    if cached is not None:
-        return cached
+    if not refresh:
+        cached = read_live_cache(
+            CashflowOverview,
+            kind=ANALYTICS_CASHFLOW_OVERVIEW,
+            company_id=company.id,
+            start=start_date,
+            end=end_date,
+            params=params,
+        )
+        if cached is not None:
+            return cached
     overview = build_cashflow_overview(
         db,
         company,
@@ -669,6 +691,7 @@ def get_cached_cashflow_overview(
     account_id: str | None = None,
     include_purchase_planning: bool = True,
     include_crediario_receivables: bool = True,
+    refresh: bool = False,
 ) -> CashflowOverview:
     today = date.today()
     range_start = start_date or date(today.year, today.month, 1)
@@ -686,6 +709,7 @@ def get_cached_cashflow_overview(
             account_id=account_id,
             include_purchase_planning=include_purchase_planning,
             include_crediario_receivables=include_crediario_receivables,
+            refresh=refresh,
         )
     parts = [
         _get_cashflow_segment(
@@ -696,6 +720,7 @@ def get_cached_cashflow_overview(
             account_id=account_id,
             include_purchase_planning=include_purchase_planning,
             include_crediario_receivables=include_crediario_receivables,
+            refresh=refresh,
         )
         for segment_start, segment_end in segments
     ]

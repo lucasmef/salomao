@@ -100,3 +100,29 @@ def test_non_month_cashflow_bypasses_cache(monkeypatch) -> None:
     cashflow.get_cached_cashflow_overview(None, company, start_date=date(2026, 4, 5), end_date=date(2026, 4, 30))
 
     assert build_calls["count"] == 2
+
+
+def test_cashflow_refresh_forces_rebuild_even_with_live_cache(monkeypatch) -> None:
+    cashflow.clear_cashflow_overview_cache()
+    build_calls = {"count": 0}
+    company = SimpleNamespace(id="company-1")
+    overview = _sample_cashflow()
+
+    monkeypatch.setattr(cashflow, "_cashflow_cache_ttl_seconds", lambda *_args, **_kwargs: 120)
+
+    def fake_build(*_args, **_kwargs):
+        build_calls["count"] += 1
+        return overview.model_copy(deep=True)
+
+    monkeypatch.setattr(cashflow, "build_cashflow_overview", fake_build)
+
+    cashflow.get_cached_cashflow_overview(None, company, start_date=date(2026, 4, 1), end_date=date(2026, 4, 30))
+    cashflow.get_cached_cashflow_overview(
+        None,
+        company,
+        start_date=date(2026, 4, 1),
+        end_date=date(2026, 4, 30),
+        refresh=True,
+    )
+
+    assert build_calls["count"] == 2

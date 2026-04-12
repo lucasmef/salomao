@@ -20,9 +20,10 @@ def get_reports_overview(
     db: DbSession,
     start: date | None = Query(default=None),
     end: date | None = Query(default=None),
+    refresh: bool = Query(default=False),
 ) -> ReportsOverview:
     company = get_current_company(db)
-    return get_cached_reports_overview(db, company, start=start, end=end)
+    return get_cached_reports_overview(db, company, start=start, end=end, refresh=refresh)
 
 
 @router.get("/config/{kind}", response_model=ReportConfig)

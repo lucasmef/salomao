@@ -16,6 +16,7 @@ def get_dashboard_overview(
     db: DbSession,
     start: date | None = Query(default=None),
     end: date | None = Query(default=None),
+    refresh: bool = Query(default=False),
 ) -> DashboardOverview:
     today = date.today()
     period_start = start or date(today.year, today.month, 1)
@@ -24,7 +25,7 @@ def get_dashboard_overview(
         - timedelta(days=1)
     )
     company = get_current_company(db)
-    return get_cached_dashboard_overview(db, company, start=period_start, end=period_end)
+    return get_cached_dashboard_overview(db, company, start=period_start, end=period_end, refresh=refresh)
 
 
 @router.post("/analytics/refresh", status_code=status.HTTP_202_ACCEPTED)

@@ -146,3 +146,25 @@ def test_revenue_comparison_reuses_historical_cache_but_queries_today_live(monke
         (date(2025, 1, 1), date(2026, 4, 9)),
         (date(2026, 4, 10), date(2026, 4, 10)),
     ]
+
+
+def test_dashboard_refresh_forces_rebuild_even_with_live_cache(monkeypatch) -> None:
+    dashboard.clear_dashboard_overview_cache()
+    build_calls = {"count": 0}
+    company = SimpleNamespace(id="company-1")
+    overview = _sample_overview()
+
+    monkeypatch.setattr(dashboard, "_overview_cache_ttl_seconds", lambda *_args, **_kwargs: 120)
+    monkeypatch.setattr(dashboard, "get_cached_reports_overview", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(dashboard, "get_cached_cashflow_overview", lambda *_args, **_kwargs: object())
+
+    def fake_build(*_args, **_kwargs):
+        build_calls["count"] += 1
+        return overview.model_copy(deep=True)
+
+    monkeypatch.setattr(dashboard, "build_dashboard_overview", fake_build)
+
+    dashboard.get_cached_dashboard_overview(None, company, start=date(2026, 4, 1), end=date(2026, 4, 30))
+    dashboard.get_cached_dashboard_overview(None, company, start=date(2026, 4, 1), end=date(2026, 4, 30), refresh=True)
+
+    assert build_calls["count"] == 2

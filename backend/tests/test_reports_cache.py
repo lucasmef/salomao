@@ -111,3 +111,23 @@ def test_non_month_reports_bypass_cache(monkeypatch) -> None:
     reports.get_cached_reports_overview(None, company, start=date(2026, 4, 5), end=date(2026, 4, 30))
 
     assert build_calls["count"] == 2
+
+
+def test_reports_refresh_forces_rebuild_even_with_live_cache(monkeypatch) -> None:
+    reports.clear_reports_overview_cache()
+    build_calls = {"count": 0}
+    company = SimpleNamespace(id="company-1")
+    overview = _sample_report()
+
+    monkeypatch.setattr(reports, "_reports_cache_ttl_seconds", lambda *_args, **_kwargs: 120)
+
+    def fake_build(*_args, **_kwargs):
+        build_calls["count"] += 1
+        return overview.model_copy(deep=True)
+
+    monkeypatch.setattr(reports, "build_reports_overview", fake_build)
+
+    reports.get_cached_reports_overview(None, company, start=date(2026, 4, 1), end=date(2026, 4, 30))
+    reports.get_cached_reports_overview(None, company, start=date(2026, 4, 1), end=date(2026, 4, 30), refresh=True)
+
+    assert build_calls["count"] == 2

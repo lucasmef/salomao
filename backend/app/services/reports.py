@@ -34,6 +34,7 @@ from app.services.analytics_hybrid import (
     is_full_month_period,
     is_historical_period,
     iter_month_segments,
+    upsert_monthly_snapshot,
     read_live_cache,
     read_snapshot_or_rebuild,
     write_live_cache,
@@ -300,10 +301,21 @@ def _get_reports_segment(
     *,
     start: date,
     end: date,
+    refresh: bool = False,
 ) -> ReportsOverview:
     if not is_full_month_period(start, end):
         return build_reports_overview(db, company, start=start, end=end)
     if is_historical_period(start, end):
+        if refresh:
+            report = build_reports_overview(db, company, start=start, end=end)
+            upsert_monthly_snapshot(
+                db,
+                report,
+                company_id=company.id,
+                kind=ANALYTICS_REPORTS_OVERVIEW,
+                snapshot_month=start,
+            )
+            return report
         return read_snapshot_or_rebuild(
             db,
             ReportsOverview,
@@ -313,15 +325,16 @@ def _get_reports_segment(
             build_func=lambda: build_reports_overview(db, company, start=start, end=end),
         )
     ttl_seconds = _reports_cache_ttl_seconds(start, end)
-    cached = read_live_cache(
-        ReportsOverview,
-        kind=ANALYTICS_REPORTS_OVERVIEW,
-        company_id=company.id,
-        start=start,
-        end=end,
-    )
-    if cached is not None:
-        return cached
+    if not refresh:
+        cached = read_live_cache(
+            ReportsOverview,
+            kind=ANALYTICS_REPORTS_OVERVIEW,
+            company_id=company.id,
+            start=start,
+            end=end,
+        )
+        if cached is not None:
+            return cached
     report = build_reports_overview(db, company, start=start, end=end)
     if ttl_seconds:
         write_live_cache(
@@ -1168,11 +1181,15 @@ def get_cached_reports_overview(
     company: Company,
     start: date | None = None,
     end: date | None = None,
+    refresh: bool = False,
 ) -> ReportsOverview:
     period_start, period_end = _resolve_period(start, end)
     segments = iter_month_segments(period_start, period_end)
     if len(segments) == 1:
         segment_start, segment_end = segments[0]
-        return _get_reports_segment(db, company, start=segment_start, end=segment_end)
-    parts = [_get_reports_segment(db, company, start=segment_start, end=segment_end) for segment_start, segment_end in segments]
+        return _get_reports_segment(db, company, start=segment_start, end=segment_end, refresh=refresh)
+    parts = [
+        _get_reports_segment(db, company, start=segment_start, end=segment_end, refresh=refresh)
+        for segment_start, segment_end in segments
+    ]
     return _compose_reports_overview(parts, period_label=_display_period_label(period_start, period_end))

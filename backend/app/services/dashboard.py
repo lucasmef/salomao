@@ -26,6 +26,7 @@ from app.services.analytics_hybrid import (
     read_live_cache,
     read_live_json_cache,
     read_snapshot_or_rebuild,
+    upsert_monthly_snapshot,
     write_live_cache,
     write_live_json_cache,
 )
@@ -183,9 +184,11 @@ def build_dashboard_overview(
     company: Company,
     start: date,
     end: date,
+    reports_override=None,
+    cashflow_override=None,
 ) -> DashboardOverview:
-    reports = get_cached_reports_overview(db, company, start=start, end=end)
-    cashflow = get_cached_cashflow_overview(db, company, start_date=start, end_date=end)
+    reports = reports_override or get_cached_reports_overview(db, company, start=start, end=end)
+    cashflow = cashflow_override or get_cached_cashflow_overview(db, company, start_date=start, end_date=end)
 
     gross_revenue = Decimal(reports.dre.gross_revenue)
     net_revenue = Decimal(reports.dre.net_revenue)
@@ -320,10 +323,41 @@ def get_cached_dashboard_overview(
     company: Company,
     start: date,
     end: date,
+    refresh: bool = False,
 ) -> DashboardOverview:
     if not is_full_month_period(start, end):
+        if refresh:
+            reports = get_cached_reports_overview(db, company, start=start, end=end, refresh=True)
+            cashflow = get_cached_cashflow_overview(db, company, start_date=start, end_date=end, refresh=True)
+            return build_dashboard_overview(
+                db,
+                company,
+                start=start,
+                end=end,
+                reports_override=reports,
+                cashflow_override=cashflow,
+            )
         return build_dashboard_overview(db, company, start=start, end=end)
     if is_historical_period(start, end):
+        if refresh:
+            reports = get_cached_reports_overview(db, company, start=start, end=end, refresh=True)
+            cashflow = get_cached_cashflow_overview(db, company, start_date=start, end_date=end, refresh=True)
+            overview = build_dashboard_overview(
+                db,
+                company,
+                start=start,
+                end=end,
+                reports_override=reports,
+                cashflow_override=cashflow,
+            )
+            upsert_monthly_snapshot(
+                db,
+                overview,
+                company_id=company.id,
+                kind=ANALYTICS_DASHBOARD_OVERVIEW,
+                snapshot_month=start,
+            )
+            return overview
         return read_snapshot_or_rebuild(
             db,
             DashboardOverview,
@@ -333,16 +367,29 @@ def get_cached_dashboard_overview(
             build_func=lambda: build_dashboard_overview(db, company, start=start, end=end),
         )
     ttl_seconds = _overview_cache_ttl_seconds(start, end)
-    cached = read_live_cache(
-        DashboardOverview,
-        kind=ANALYTICS_DASHBOARD_OVERVIEW,
-        company_id=company.id,
-        start=start,
-        end=end,
-    )
-    if cached is not None:
-        return cached
-    overview = build_dashboard_overview(db, company, start=start, end=end)
+    if not refresh:
+        cached = read_live_cache(
+            DashboardOverview,
+            kind=ANALYTICS_DASHBOARD_OVERVIEW,
+            company_id=company.id,
+            start=start,
+            end=end,
+        )
+        if cached is not None:
+            return cached
+    if refresh:
+        reports = get_cached_reports_overview(db, company, start=start, end=end, refresh=True)
+        cashflow = get_cached_cashflow_overview(db, company, start_date=start, end_date=end, refresh=True)
+        overview = build_dashboard_overview(
+            db,
+            company,
+            start=start,
+            end=end,
+            reports_override=reports,
+            cashflow_override=cashflow,
+        )
+    else:
+        overview = build_dashboard_overview(db, company, start=start, end=end)
     if ttl_seconds:
         write_live_cache(
             overview,

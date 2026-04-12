@@ -18,6 +18,7 @@ def get_cashflow_overview(
     account_id: str | None = Query(default=None),
     include_purchase_planning: bool = Query(default=True),
     include_crediario_receivables: bool = Query(default=True),
+    refresh: bool = Query(default=False),
 ) -> CashflowOverview:
     company = get_current_company(db)
     return get_cached_cashflow_overview(
@@ -28,4 +29,5 @@ def get_cashflow_overview(
         account_id=account_id,
         include_purchase_planning=include_purchase_planning,
         include_crediario_receivables=include_crediario_receivables,
+        refresh=refresh,
     )
