@@ -911,8 +911,13 @@ function AppRuntime() {
           if (isInitialSectionLoad) {
             setOverviewFilters(effectiveOverviewFilters);
           }
-          const dashboardData = await fetchOverviewSnapshot(activeSession, effectiveOverviewFilters);
+          const [dashboardData, reportsData] = await Promise.all([
+            fetchOverviewSnapshot(activeSession, effectiveOverviewFilters),
+            fetchReportsSnapshot(activeSession, effectiveOverviewFilters),
+          ]);
           setDashboard(dashboardData);
+          setReports(reportsData);
+          setReportFilters(effectiveOverviewFilters);
           break;
         }
         case "lancamentos": {
@@ -1015,8 +1020,13 @@ function AppRuntime() {
           if (isInitialSectionLoad) {
             setReportFilters(effectiveReportFilters);
           }
-          const reportsData = await fetchReportsSnapshot(activeSession, effectiveReportFilters);
+          const [reportsData, dashboardData] = await Promise.all([
+            fetchReportsSnapshot(activeSession, effectiveReportFilters),
+            fetchOverviewSnapshot(activeSession, effectiveReportFilters),
+          ]);
           setReports(reportsData);
+          setDashboard(dashboardData);
+          setOverviewFilters(effectiveReportFilters);
           break;
         }
         case "seguranca": {
@@ -1336,8 +1346,16 @@ function AppRuntime() {
     setSubmitting(true);
     try {
       const effectiveFilters = nextFilters ?? overviewFilters;
-      const response = await fetchOverviewSnapshot(session, effectiveFilters);
-      setDashboard(response);
+      const [dashboardData, reportsData] = await Promise.all([
+        fetchOverviewSnapshot(session, effectiveFilters),
+        fetchReportsSnapshot(session, effectiveFilters),
+      ]);
+      if (nextFilters) {
+        setOverviewFilters(effectiveFilters);
+      }
+      setReportFilters(effectiveFilters);
+      setDashboard(dashboardData);
+      setReports(reportsData);
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });
     } finally {
@@ -1404,11 +1422,16 @@ function AppRuntime() {
     setSubmitting(true);
     try {
       const effectiveFilters = nextFilters ?? reportFilters;
-      const response = await fetchReportsSnapshot(session, effectiveFilters);
+      const [reportsData, dashboardData] = await Promise.all([
+        fetchReportsSnapshot(session, effectiveFilters),
+        fetchOverviewSnapshot(session, effectiveFilters),
+      ]);
       if (nextFilters) {
         setReportFilters(effectiveFilters);
       }
-      setReports(response);
+      setOverviewFilters(effectiveFilters);
+      setReports(reportsData);
+      setDashboard(dashboardData);
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });
     } finally {
