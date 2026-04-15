@@ -85,7 +85,6 @@ def trigger_linx_sales_sync(
         )
         affected_dates = [item for item in (payload.start_date, payload.end_date) if item is not None]
         _finalize_import_refresh(db, company, source_family="sales", affected_dates=affected_dates)
->>>>>>> origin/main
         return result
     except ValueError as error:
         db.rollback()
