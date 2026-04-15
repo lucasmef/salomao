@@ -13,7 +13,7 @@ set -euo pipefail
 # ----------------------------------------------------------------------
 
 DEV_ENV_FILE="${DEV_ENV_FILE:-/srv/salomao/dev/app/backend/.env}"
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/salomao}"
+BACKUP_DIR="${BACKUP_DIR:-/srv/salomao/backups}"
 DATE_STAMP="$(date +%Y%m%d_%H%M%S)"
 SANITIZE_BACKUP_FILE="$BACKUP_DIR/dev_pre_sanitize_${DATE_STAMP}.dump"
 
