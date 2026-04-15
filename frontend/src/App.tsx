@@ -1,13 +1,13 @@
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+﻿import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "./components/AppShell";
+import { GlobalProductSearchModal } from "./components/GlobalProductSearchModal";
 import { RouteLoadingFallback } from "./components/RouteLoadingFallback";
 import { SectionChrome } from "./components/SectionChrome";
 import { findChildNavItem, legacySectionPathMap, mainNavigation, overviewNavigationItem } from "./data/navigation";
 import { downloadFile, fetchJson } from "./lib/api";
 import { parseApiError } from "./lib/format";
-import { useNetworkActivityCount } from "./hooks/useNetworkActivityCount";
 import { LoginPage } from "./pages/LoginPage";
 import type {
   Account,
@@ -26,8 +26,15 @@ import type {
   ImportResult,
   ImportSummary,
   InstanceInfo,
+  LinxCustomerDirectory,
+  LinxMovementDirectory,
+  LinxOpenReceivableDirectory,
+  LinxProductDirectory,
+  LinxProductSearchResult,
   LoanContract,
   LoginResponse,
+  LinxSettings,
+  LinxSettingsUpdatePayload,
   MfaSetup,
   MfaStatus,
   PurchaseBrand,
@@ -65,6 +72,16 @@ function getCurrentMonthRange() {
   return {
     start: toDateInput(new Date(today.getFullYear(), today.getMonth(), 1)),
     end: toDateInput(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
+  };
+}
+
+function getDefaultPurchasePlanningFilters() {
+  return {
+    year: "",
+    brand_id: "",
+    supplier_id: "",
+    collection_id: "",
+    status: "",
   };
 }
 
@@ -144,6 +161,7 @@ const emptyPurchasePlanning: PurchasePlanningOverview = {
     outstanding_payable_total: "0.00",
   },
   rows: [],
+  cost_totals: [],
   monthly_projection: [],
   invoices: [],
   open_installments: [],
@@ -194,7 +212,9 @@ const emptyReconciliation: ReconciliationWorklist = {
   matched_count: 0,
   total: 0,
   page: 1,
-  page_size: 2000,
+  page_size: 200,
+  total_account_balance: "0.00",
+  account_balances: [],
   items: [],
 };
 const emptyDashboard: DashboardOverview = {
@@ -217,7 +237,11 @@ const emptyDashboard: DashboardOverview = {
   },
   dre_cards: [],
   dre_chart: [],
-  revenue_comparison: [],
+  revenue_comparison: {
+    current_year: new Date().getFullYear(),
+    previous_year: new Date().getFullYear() - 1,
+    points: [],
+  },
   account_balances: [],
   overdue_payables: [],
   overdue_receivables: [],
@@ -247,11 +271,82 @@ const emptyBoletoDashboard: BoletoDashboard = {
   paid_pending: [],
   missing_boletos: [],
   excess_boletos: [],
+  standalone_boletos: [],
 };
+const emptyLinxCustomerDirectory: LinxCustomerDirectory = {
+  generated_at: "",
+  summary: {
+    total_count: 0,
+    client_count: 0,
+    supplier_count: 0,
+    transporter_count: 0,
+    active_count: 0,
+    boleto_enabled_count: 0,
+  },
+  items: [],
+};
+const emptyLinxProductDirectory: LinxProductDirectory = {
+  generated_at: "",
+  summary: {
+    total_count: 0,
+    active_count: 0,
+    inactive_count: 0,
+    with_supplier_count: 0,
+    with_collection_count: 0,
+  },
+  items: [],
+  total: 0,
+  page: 1,
+  page_size: 50,
+};
+const emptyLinxProductSearchResult: LinxProductSearchResult = {
+  generated_at: "",
+  query: "",
+  total: 0,
+  items: [],
+};
+const emptyLinxMovementDirectory: LinxMovementDirectory = {
+  generated_at: "",
+  summary: {
+    total_count: 0,
+    sales_total_amount: "0.00",
+    sales_return_total_amount: "0.00",
+    purchases_total_amount: "0.00",
+    purchase_returns_total_amount: "0.00",
+  },
+  items: [],
+  total: 0,
+  page: 1,
+  page_size: 50,
+};
+const emptyLinxOpenReceivableDirectory: LinxOpenReceivableDirectory = {
+  generated_at: "",
+  summary: {
+    total_count: 0,
+    overdue_count: 0,
+    due_today_count: 0,
+    total_amount: "0.00",
+  },
+  items: [],
+  total: 0,
+  page: 1,
+  page_size: 50,
+};
+
+const RECONCILIATION_WORKLIST_LIMIT = 200;
 
 const BoletosPage = lazy(() => import("./pages/BoletosPage").then((module) => ({ default: module.BoletosPage })));
 const CadastrosClientsPage = lazy(() =>
   import("./pages/CadastrosClientsPage").then((module) => ({ default: module.CadastrosClientsPage })),
+);
+const CadastrosProductsPage = lazy(() =>
+  import("./pages/CadastrosProductsPage").then((module) => ({ default: module.CadastrosProductsPage })),
+);
+const CadastrosMovementsPage = lazy(() =>
+  import("./pages/CadastrosMovementsPage").then((module) => ({ default: module.CadastrosMovementsPage })),
+);
+const CadastrosOpenReceivablesPage = lazy(() =>
+  import("./pages/CadastrosOpenReceivablesPage").then((module) => ({ default: module.CadastrosOpenReceivablesPage })),
 );
 const CadastrosRulesPage = lazy(() =>
   import("./pages/CadastrosRulesPage").then((module) => ({ default: module.CadastrosRulesPage })),
@@ -278,9 +373,6 @@ const ResultsComparativesPage = lazy(() =>
   import("./pages/ResultsComparativesPage").then((module) => ({ default: module.ResultsComparativesPage })),
 );
 const SecurityPage = lazy(() => import("./pages/SecurityPage").then((module) => ({ default: module.SecurityPage })));
-const SystemAuditPage = lazy(() =>
-  import("./pages/SystemAuditPage").then((module) => ({ default: module.SystemAuditPage })),
-);
 const SystemImportsGeneralPage = lazy(() =>
   import("./pages/SystemImportsGeneralPage").then((module) => ({ default: module.SystemImportsGeneralPage })),
 );
@@ -302,7 +394,7 @@ function buildCashflowQuery(params: {
   account_id: string;
   include_purchase_planning: boolean;
   include_crediario_receivables: boolean;
-}) {
+}, options?: { refresh?: boolean }) {
   const query = new URLSearchParams();
   query.set("start", params.start);
   query.set("end", params.end);
@@ -311,7 +403,48 @@ function buildCashflowQuery(params: {
   }
   query.set("include_purchase_planning", String(params.include_purchase_planning));
   query.set("include_crediario_receivables", String(params.include_crediario_receivables));
+  if (options?.refresh) {
+    query.set("refresh", "true");
+  }
   return query.toString();
+}
+
+async function fetchOverviewSnapshot(
+  activeSession: SessionState,
+  filters: { start: string; end: string },
+  options?: { refresh?: boolean },
+) {
+  return fetchJson<DashboardOverview>(
+    `/dashboard/overview?${buildQuery({ ...filters, refresh: options?.refresh ?? false })}`,
+    { token: activeSession.token },
+  );
+}
+
+async function fetchCashflowSnapshot(
+  activeSession: SessionState,
+  filters: {
+    start: string;
+    end: string;
+    account_id: string;
+    include_purchase_planning: boolean;
+    include_crediario_receivables: boolean;
+  },
+  options?: { refresh?: boolean },
+) {
+  return fetchJson<CashflowOverview>(`/cashflow/overview?${buildCashflowQuery(filters, options)}`, {
+    token: activeSession.token,
+  });
+}
+
+async function fetchReportsSnapshot(
+  activeSession: SessionState,
+  filters: { start: string; end: string },
+  options?: { refresh?: boolean },
+) {
+  return fetchJson<ReportsOverview>(
+    `/reports/overview?${buildQuery({ ...filters, refresh: options?.refresh ?? false })}`,
+    { token: activeSession.token },
+  );
 }
 
 function getNavigationSection(key: string) {
@@ -337,6 +470,22 @@ function getPurchasePlanningMode(pathname: string): "summary" | "planning" | "re
   return "planning";
 }
 
+function getPurchasePlanningRequestFilters(
+  filters: ReturnType<typeof getDefaultPurchasePlanningFilters>,
+  mode: "summary" | "planning" | "returns",
+) {
+  if (mode !== "planning") {
+    return filters;
+  }
+  return {
+    ...filters,
+    year: "",
+    brand_id: "",
+    supplier_id: "",
+    collection_id: "",
+  };
+}
+
 function getLegacySectionsForPath(pathname: string): SectionId[] {
   const currentPath = normalizePath(pathname);
 
@@ -349,7 +498,7 @@ function getLegacySectionsForPath(pathname: string): SectionId[] {
   if (currentPath === "/financeiro/conciliacao") {
     return ["conciliacao", "importacoes"];
   }
-  if (currentPath === "/financeiro/cobranca") {
+  if (currentPath === "/financeiro/cobranca" || currentPath.startsWith("/financeiro/cobranca/")) {
     return ["boletos", "caixa", "importacoes"];
   }
   if (currentPath === "/financeiro/importacoes") {
@@ -373,11 +522,17 @@ function getLegacySectionsForPath(pathname: string): SectionId[] {
   if (currentPath === "/cadastros/contas" || currentPath === "/cadastros/categorias") {
     return ["cadastros"];
   }
-  if (currentPath === "/cadastros/fornecedores") {
-    return ["planejamento"];
-  }
   if (currentPath === "/cadastros/clientes") {
-    return ["boletos"];
+    return ["cadastros", "importacoes"];
+  }
+  if (currentPath === "/cadastros/produtos") {
+    return ["cadastros", "importacoes"];
+  }
+  if (currentPath === "/cadastros/movimentos") {
+    return ["cadastros", "importacoes"];
+  }
+  if (currentPath === "/cadastros/faturas-a-receber") {
+    return ["cadastros", "importacoes"];
   }
   if (currentPath === "/cadastros/regras") {
     return ["operacoes"];
@@ -389,7 +544,7 @@ function getLegacySectionsForPath(pathname: string): SectionId[] {
     return ["importacoes"];
   }
   if (currentPath === "/sistema/auditoria") {
-    return ["importacoes", "seguranca"];
+    return ["importacoes"];
   }
   return ["overview"];
 }
@@ -404,7 +559,6 @@ function App() {
 
 function AppRuntime() {
   const location = useLocation();
-  const networkActivityCount = useNetworkActivityCount();
   const autoLoadingSectionKeysRef = useRef<Set<string>>(new Set());
   const [session, setSession] = useState<SessionState | null>(null);
   const [pendingAuth, setPendingAuth] = useState<PendingAuthState | null>(null);
@@ -414,6 +568,7 @@ function AppRuntime() {
   const [routeLoading, setRouteLoading] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>({ tone: "info", message: "" });
   const [toast, setToast] = useState<FeedbackState | null>(null);
+  const [showMissingBoletosExportFallback, setShowMissingBoletosExportFallback] = useState(false);
   const [loadedSections, setLoadedSections] = useState<Record<SectionId, boolean>>({
     overview: false,
     cadastros: false,
@@ -436,13 +591,23 @@ function AppRuntime() {
   const [collections, setCollections] = useState<CollectionSeason[]>([]);
   const [categoryLookups, setCategoryLookups] = useState<CategoryLookups>(emptyLookups);
   const [entryList, setEntryList] = useState<FinancialEntryListResponse>(emptyEntryList);
-  const [payables, setPayables] = useState<FinancialEntryListResponse>(emptyEntryList);
-  const [receivables, setReceivables] = useState<FinancialEntryListResponse>(emptyEntryList);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [recurrences, setRecurrences] = useState<RecurrenceRule[]>([]);
   const [loans, setLoans] = useState<LoanContract[]>([]);
   const [importSummary, setImportSummary] = useState<ImportSummary>(emptyImportSummary);
   const [boletoDashboard, setBoletoDashboard] = useState<BoletoDashboard>(emptyBoletoDashboard);
+  const [linxCustomerDirectory, setLinxCustomerDirectory] = useState<LinxCustomerDirectory>(emptyLinxCustomerDirectory);
+  const [linxProductDirectory, setLinxProductDirectory] = useState<LinxProductDirectory>(emptyLinxProductDirectory);
+  const [globalProductSearchInput, setGlobalProductSearchInput] = useState("");
+  const [globalProductSearchResult, setGlobalProductSearchResult] = useState<LinxProductSearchResult>(
+    emptyLinxProductSearchResult,
+  );
+  const [globalProductSearchModalOpen, setGlobalProductSearchModalOpen] = useState(false);
+  const [globalProductSearchLoading, setGlobalProductSearchLoading] = useState(false);
+  const [linxMovementDirectory, setLinxMovementDirectory] = useState<LinxMovementDirectory>(emptyLinxMovementDirectory);
+  const [linxOpenReceivableDirectory, setLinxOpenReceivableDirectory] = useState<LinxOpenReceivableDirectory>(
+    emptyLinxOpenReceivableDirectory,
+  );
   const [showAllMonthlyMissingBoletos, setShowAllMonthlyMissingBoletos] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardOverview>(emptyDashboard);
   const [cashflow, setCashflow] = useState<CashflowOverview>(emptyCashflow);
@@ -453,19 +618,33 @@ function AppRuntime() {
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [backups, setBackups] = useState<BackupRead[]>([]);
   const [instanceInfo, setInstanceInfo] = useState<InstanceInfo | null>(null);
+  const [linxSettings, setLinxSettings] = useState<LinxSettings | null>(null);
   const [mfaStatus, setMfaStatus] = useState<MfaStatus | null>(null);
   const [activeMfaSetup, setActiveMfaSetup] = useState<MfaSetup | null>(null);
   const [purchasePlanningLoadedMode, setPurchasePlanningLoadedMode] = useState<"summary" | "planning" | "returns" | null>(null);
+  const [cadastrosLoadedPath, setCadastrosLoadedPath] = useState<string | null>(null);
 
   const [overviewFilters, setOverviewFilters] = useState(() => getCurrentMonthRange());
   const [entryFilters, setEntryFilters] = useState<Record<string, string | boolean>>(() => getDefaultEntryFilters());
   const [cashflowFilters, setCashflowFilters] = useState(() => getDefaultCashflowFilters());
-  const [purchasePlanningFilters, setPurchasePlanningFilters] = useState({
-    year: String(new Date().getFullYear()),
-    brand_id: "",
-    supplier_id: "",
-    collection_id: "",
-    status: "",
+  const [purchasePlanningFilters, setPurchasePlanningFilters] = useState(() => getDefaultPurchasePlanningFilters());
+  const [linxProductFilters, setLinxProductFilters] = useState({
+    search: "",
+    status: "all",
+    page: 1,
+    page_size: 50,
+  });
+  const [linxMovementFilters, setLinxMovementFilters] = useState({
+    search: "",
+    group: "all",
+    movement_type: "all",
+    page: 1,
+    page_size: 50,
+  });
+  const [linxOpenReceivableFilters, setLinxOpenReceivableFilters] = useState({
+    search: "",
+    page: 1,
+    page_size: 50,
   });
   const [reportFilters, setReportFilters] = useState(() => getCurrentMonthRange());
   const [reconciliationFilters, setReconciliationFilters] = useState({
@@ -493,6 +672,7 @@ function AppRuntime() {
         seguranca: false,
       });
       setPurchasePlanningLoadedMode(null);
+      setCadastrosLoadedPath(null);
       setShowAllMonthlyMissingBoletos(false);
       setPendingAuth(null);
       void loadBaseData(session);
@@ -525,9 +705,15 @@ function AppRuntime() {
       for (const targetSection of requiredSections) {
         const requiresPurchaseReload =
           targetSection === "planejamento" && purchasePlanningLoadedMode !== requiredPurchasePlanningMode;
-        if (!loadedSections[targetSection] || requiresPurchaseReload) {
+        const requiresCadastrosReload =
+          targetSection === "cadastros" && cadastrosLoadedPath !== normalizePath(location.pathname);
+        if (!loadedSections[targetSection] || requiresPurchaseReload || requiresCadastrosReload) {
           const loadKey =
-            targetSection === "planejamento" ? `${targetSection}:${requiredPurchasePlanningMode}` : targetSection;
+            targetSection === "planejamento"
+              ? `${targetSection}:${requiredPurchasePlanningMode}`
+              : targetSection === "cadastros"
+                ? `${targetSection}:${normalizePath(location.pathname)}`
+                : targetSection;
           if (autoLoadingSectionKeysRef.current.has(loadKey)) {
             continue;
           }
@@ -540,7 +726,7 @@ function AppRuntime() {
         }
       }
     })();
-  }, [loadedSections, location.pathname, purchasePlanningLoadedMode, session]);
+  }, [cadastrosLoadedPath, loadedSections, location.pathname, purchasePlanningLoadedMode, session]);
 
   useEffect(() => {
     if (!feedback.message) {
@@ -608,6 +794,110 @@ function AppRuntime() {
     setBoletoDashboard(boletoData);
   }
 
+  async function fetchLinxCustomerDirectory(activeSession: SessionState) {
+    const response = await fetchJson<LinxCustomerDirectory>("/linx-customers", { token: activeSession.token });
+    setLinxCustomerDirectory(response);
+  }
+
+  async function fetchLinxProductDirectory(
+    activeSession: SessionState,
+    overrides?: Partial<typeof linxProductFilters>,
+  ) {
+    const nextFilters = {
+      ...linxProductFilters,
+      ...overrides,
+    };
+    const query = new URLSearchParams();
+    query.set("page", String(nextFilters.page));
+    query.set("page_size", String(nextFilters.page_size));
+    if (nextFilters.search.trim()) {
+      query.set("search", nextFilters.search.trim());
+    }
+    if (nextFilters.status && nextFilters.status !== "all") {
+      query.set("status", nextFilters.status);
+    }
+    const response = await fetchJson<LinxProductDirectory>(`/linx-products?${query.toString()}`, {
+      token: activeSession.token,
+    });
+    setLinxProductDirectory(response);
+    setLinxProductFilters(nextFilters);
+  }
+
+  async function searchProductsGlobally(rawQuery: string) {
+    if (!session) return;
+    const trimmedQuery = rawQuery.trim();
+    setGlobalProductSearchInput(rawQuery);
+    if (trimmedQuery.length < 2) {
+      setFeedback({ tone: "info", message: "Digite pelo menos 2 caracteres para buscar produtos." });
+      return;
+    }
+
+    setGlobalProductSearchModalOpen(true);
+    setGlobalProductSearchLoading(true);
+    try {
+      const query = new URLSearchParams();
+      query.set("q", trimmedQuery);
+      query.set("limit", "60");
+      const response = await fetchJson<LinxProductSearchResult>(`/linx-products/search?${query.toString()}`, {
+        token: session.token,
+      });
+      setGlobalProductSearchResult(response);
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setGlobalProductSearchLoading(false);
+    }
+  }
+
+  async function fetchLinxMovementDirectory(
+    activeSession: SessionState,
+    overrides?: Partial<typeof linxMovementFilters>,
+  ) {
+    const nextFilters = {
+      ...linxMovementFilters,
+      ...overrides,
+    };
+    const query = new URLSearchParams();
+    query.set("page", String(nextFilters.page));
+    query.set("page_size", String(nextFilters.page_size));
+    if (nextFilters.search.trim()) {
+      query.set("search", nextFilters.search.trim());
+    }
+    if (nextFilters.group && nextFilters.group !== "all") {
+      query.set("group", nextFilters.group);
+    }
+    if (nextFilters.movement_type && nextFilters.movement_type !== "all") {
+      query.set("movement_type", nextFilters.movement_type);
+    }
+    const response = await fetchJson<LinxMovementDirectory>(`/linx-movements?${query.toString()}`, {
+      token: activeSession.token,
+    });
+    setLinxMovementDirectory(response);
+    setLinxMovementFilters(nextFilters);
+  }
+
+  async function fetchLinxOpenReceivableDirectory(
+    activeSession: SessionState,
+    overrides?: Partial<typeof linxOpenReceivableFilters>,
+  ) {
+    const nextFilters = {
+      ...linxOpenReceivableFilters,
+      ...overrides,
+    };
+    const query = new URLSearchParams();
+    query.set("page", String(nextFilters.page));
+    query.set("page_size", String(nextFilters.page_size));
+    if (nextFilters.search.trim()) {
+      query.set("search", nextFilters.search.trim());
+    }
+    const response = await fetchJson<LinxOpenReceivableDirectory>(
+      `/linx-open-receivables?${query.toString()}`,
+      { token: activeSession.token },
+    );
+    setLinxOpenReceivableDirectory(response);
+    setLinxOpenReceivableFilters(nextFilters);
+  }
+
   async function loadSectionData(activeSession: SessionState, targetSection: SectionId, options?: { force?: boolean }) {
     if (!options?.force && loadedSections[targetSection]) {
       return;
@@ -621,11 +911,13 @@ function AppRuntime() {
           if (isInitialSectionLoad) {
             setOverviewFilters(effectiveOverviewFilters);
           }
-          const dashboardData = await fetchJson<DashboardOverview>(
-            `/dashboard/overview?${buildQuery(effectiveOverviewFilters)}`,
-            { token: activeSession.token },
-          );
+          const [dashboardData, reportsData] = await Promise.all([
+            fetchOverviewSnapshot(activeSession, effectiveOverviewFilters),
+            fetchReportsSnapshot(activeSession, effectiveOverviewFilters),
+          ]);
           setDashboard(dashboardData);
+          setReports(reportsData);
+          setReportFilters(effectiveOverviewFilters);
           break;
         }
         case "lancamentos": {
@@ -633,14 +925,11 @@ function AppRuntime() {
           if (isInitialSectionLoad) {
             setEntryFilters(effectiveEntryFilters);
           }
-          const [entryData, payableData, receivableData] = await Promise.all([
-            fetchJson<FinancialEntryListResponse>(`/entries?${buildQuery(effectiveEntryFilters)}`, { token: activeSession.token }),
-            fetchJson<FinancialEntryListResponse>("/entries/payables?page=1&page_size=100", { token: activeSession.token }),
-            fetchJson<FinancialEntryListResponse>("/entries/receivables?page=1&page_size=100", { token: activeSession.token }),
-          ]);
+          const entryData = await fetchJson<FinancialEntryListResponse>(
+            `/entries?${buildQuery(effectiveEntryFilters)}`,
+            { token: activeSession.token },
+          );
           setEntryList(entryData);
-          setPayables(payableData);
-          setReceivables(receivableData);
           break;
         }
         case "planejamento": {
@@ -651,10 +940,14 @@ function AppRuntime() {
             });
             setPurchaseReturns(returnData);
           } else {
-            const planningQuery =
-              planningMode === "summary"
-                ? buildQuery({ ...purchasePlanningFilters, mode: planningMode })
-                : buildQuery({ mode: planningMode });
+            const effectivePurchaseFilters = isInitialSectionLoad ? getDefaultPurchasePlanningFilters() : purchasePlanningFilters;
+            if (isInitialSectionLoad) {
+              setPurchasePlanningFilters(effectivePurchaseFilters);
+            }
+            const planningQuery = buildQuery({
+              ...getPurchasePlanningRequestFilters(effectivePurchaseFilters, planningMode),
+              mode: planningMode,
+            });
             const planningData = await fetchJson<PurchasePlanningOverview>(`/purchase-planning/overview?${planningQuery}`, {
               token: activeSession.token,
             });
@@ -674,6 +967,18 @@ function AppRuntime() {
           setLoans(loanData);
           break;
         }
+        case "cadastros": {
+          if (location.pathname === "/cadastros/clientes") {
+            await fetchLinxCustomerDirectory(activeSession);
+          } else if (location.pathname === "/cadastros/produtos") {
+            await fetchLinxProductDirectory(activeSession);
+          } else if (location.pathname === "/cadastros/movimentos") {
+            await fetchLinxMovementDirectory(activeSession);
+          } else if (location.pathname === "/cadastros/faturas-a-receber") {
+            await fetchLinxOpenReceivableDirectory(activeSession);
+          }
+          break;
+        }
         case "importacoes": {
           const importData = await fetchJson<ImportSummary>("/imports/summary", { token: activeSession.token });
           setImportSummary(importData);
@@ -691,7 +996,11 @@ function AppRuntime() {
             setReconciliationFilters(effectiveReconciliationFilters);
           }
           const reconciliationData = await fetchJson<ReconciliationWorklist>(
-            `/reconciliation/worklist?${buildQuery({ ...effectiveReconciliationFilters, page: "1", limit: "2000" })}`,
+            `/reconciliation/worklist?${buildQuery({
+              ...effectiveReconciliationFilters,
+              page: "1",
+              limit: String(RECONCILIATION_WORKLIST_LIMIT),
+            })}`,
             { token: activeSession.token },
           );
           setReconciliation(reconciliationData);
@@ -702,10 +1011,7 @@ function AppRuntime() {
           if (isInitialSectionLoad) {
             setCashflowFilters(effectiveCashflowFilters);
           }
-          const cashflowData = await fetchJson<CashflowOverview>(
-            `/cashflow/overview?${buildCashflowQuery(effectiveCashflowFilters)}`,
-            { token: activeSession.token },
-          );
+          const cashflowData = await fetchCashflowSnapshot(activeSession, effectiveCashflowFilters);
           setCashflow(cashflowData);
           break;
         }
@@ -714,31 +1020,39 @@ function AppRuntime() {
           if (isInitialSectionLoad) {
             setReportFilters(effectiveReportFilters);
           }
-          const reportsData = await fetchJson<ReportsOverview>(
-            `/reports/overview?${buildQuery(effectiveReportFilters)}`,
-            { token: activeSession.token },
-          );
+          const [reportsData, dashboardData] = await Promise.all([
+            fetchReportsSnapshot(activeSession, effectiveReportFilters),
+            fetchOverviewSnapshot(activeSession, effectiveReportFilters),
+          ]);
           setReports(reportsData);
+          setDashboard(dashboardData);
+          setOverviewFilters(effectiveReportFilters);
           break;
         }
         case "seguranca": {
           const statusData = await fetchJson<MfaStatus>("/auth/mfa/status", { token: activeSession.token });
           setMfaStatus(statusData);
           if (activeSession.user.role === "admin") {
-            const [userData, backupData] = await Promise.all([
+            const [userData, backupData, linxSettingsData] = await Promise.all([
               fetchJson<AuthUser[]>("/auth/users", { token: activeSession.token }),
               fetchJson<BackupRead[]>("/backup", { token: activeSession.token }),
+              fetchJson<LinxSettings>("/company-settings/linx", { token: activeSession.token }),
             ]);
             setUsers(userData);
             setBackups(backupData);
+            setLinxSettings(linxSettingsData);
           } else {
             setUsers([]);
             setBackups([]);
+            setLinxSettings(null);
           }
           break;
         }
         default:
           break;
+      }
+      if (targetSection === "cadastros") {
+        setCadastrosLoadedPath(normalizePath(location.pathname));
       }
       setLoadedSections((current) => ({ ...current, [targetSection]: true }));
     } catch (error) {
@@ -1032,8 +1346,16 @@ function AppRuntime() {
     setSubmitting(true);
     try {
       const effectiveFilters = nextFilters ?? overviewFilters;
-      const response = await fetchJson<DashboardOverview>(`/dashboard/overview?${buildQuery(effectiveFilters)}`, { token: session.token });
-      setDashboard(response);
+      const [dashboardData, reportsData] = await Promise.all([
+        fetchOverviewSnapshot(session, effectiveFilters),
+        fetchReportsSnapshot(session, effectiveFilters),
+      ]);
+      if (nextFilters) {
+        setOverviewFilters(effectiveFilters);
+      }
+      setReportFilters(effectiveFilters);
+      setDashboard(dashboardData);
+      setReports(reportsData);
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });
     } finally {
@@ -1041,11 +1363,15 @@ function AppRuntime() {
     }
   }
 
-  async function applyCashflowFilters() {
+  async function applyCashflowFilters(nextFilters?: typeof cashflowFilters) {
     if (!session) return;
     setSubmitting(true);
     try {
-      const response = await fetchJson<CashflowOverview>(`/cashflow/overview?${buildCashflowQuery(cashflowFilters)}`, { token: session.token });
+      const effectiveFilters = nextFilters ?? cashflowFilters;
+      const response = await fetchCashflowSnapshot(session, effectiveFilters);
+      if (nextFilters) {
+        setCashflowFilters(effectiveFilters);
+      }
       setCashflow(response);
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });
@@ -1071,7 +1397,10 @@ function AppRuntime() {
         return;
       }
       const response = await fetchJson<PurchasePlanningOverview>(
-        `/purchase-planning/overview?${buildQuery({ ...nextFilters, mode: planningMode })}`,
+        `/purchase-planning/overview?${buildQuery({
+          ...getPurchasePlanningRequestFilters(nextFilters, planningMode),
+          mode: planningMode,
+        })}`,
         {
           token: session.token,
         },
@@ -1088,12 +1417,21 @@ function AppRuntime() {
     }
   }
 
-  async function applyReportFilters() {
+  async function applyReportFilters(nextFilters?: typeof reportFilters) {
     if (!session) return;
     setSubmitting(true);
     try {
-      const response = await fetchJson<ReportsOverview>(`/reports/overview?${buildQuery(reportFilters)}`, { token: session.token });
-      setReports(response);
+      const effectiveFilters = nextFilters ?? reportFilters;
+      const [reportsData, dashboardData] = await Promise.all([
+        fetchReportsSnapshot(session, effectiveFilters),
+        fetchOverviewSnapshot(session, effectiveFilters),
+      ]);
+      if (nextFilters) {
+        setReportFilters(effectiveFilters);
+      }
+      setOverviewFilters(effectiveFilters);
+      setReports(reportsData);
+      setDashboard(dashboardData);
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });
     } finally {
@@ -1137,7 +1475,11 @@ function AppRuntime() {
     try {
       const effectiveFilters = nextFilters ?? reconciliationFilters;
       const response = await fetchJson<ReconciliationWorklist>(
-        `/reconciliation/worklist?${buildQuery({ ...effectiveFilters, page: "1", limit: "2000" })}`,
+        `/reconciliation/worklist?${buildQuery({
+          ...effectiveFilters,
+          page: "1",
+          limit: String(RECONCILIATION_WORKLIST_LIMIT),
+        })}`,
         { token: session.token },
       );
       setReconciliation(response);
@@ -1229,8 +1571,184 @@ function AppRuntime() {
     await uploadManagedFile("/imports/linx-sales", file, ["relatorios", "overview", "importacoes"]);
   }
 
-  async function uploadReceivablesImport(file: File) {
-    await uploadManagedFile("/imports/linx-receivables", file, ["boletos", "caixa", "importacoes"]);
+  async function syncLinxSalesImport(period: { start: string; end: string }) {
+    if (!session) return;
+    await runMutation(async () => {
+      const result = await fetchJson<ImportResult>("/imports/linx-sales/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({ start_date: period.start, end_date: period.end }),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Faturamento Linx sincronizado.", { sections: ["relatorios", "overview", "importacoes"] });
+  }
+
+  async function syncLinxReceivablesImport() {
+    if (!session) return;
+    await runMutation(async () => {
+      const result = await fetchJson<ImportResult>("/imports/linx-open-receivables/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Faturas a receber sincronizadas do Linx.", { sections: ["boletos", "caixa", "importacoes"] });
+  }
+
+  async function syncLinxCustomersImport() {
+    if (!session) return;
+    await runMutation(async () => {
+      const result = await fetchJson<ImportResult>("/imports/linx-customers/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Clientes e fornecedores do Linx atualizados.", { sections: ["cadastros", "importacoes"] });
+  }
+
+  async function applyLinxProductFilters(filters: { search: string; status: string }) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxProductDirectory(session, { ...filters, page: 1 });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changeLinxProductPage(page: number) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxProductDirectory(session, { page });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changeLinxProductPageSize(pageSize: number) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxProductDirectory(session, { page_size: pageSize, page: 1 });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function syncLinxProductsImport() {
+    if (!session) return;
+    await runMutation(async () => {
+      const result = await fetchJson<ImportResult>("/imports/linx-products/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Produtos do Linx atualizados.", { sections: ["cadastros", "importacoes"] });
+  }
+
+  async function applyLinxMovementFilters(filters: { search: string; group: string; movement_type: string }) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxMovementDirectory(session, { ...filters, page: 1 });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changeLinxMovementPage(page: number) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxMovementDirectory(session, { page });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changeLinxMovementPageSize(pageSize: number) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxMovementDirectory(session, { page_size: pageSize, page: 1 });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function syncLinxMovementsImport() {
+    if (!session) return;
+    await runMutation(async () => {
+      const result = await fetchJson<ImportResult>("/imports/linx-movements/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Movimentos do Linx atualizados.", { sections: ["cadastros", "relatorios", "overview", "importacoes"] });
+  }
+
+  async function applyLinxOpenReceivableFilters(filters: { search: string }) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxOpenReceivableDirectory(session, { ...filters, page: 1 });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changeLinxOpenReceivablePage(page: number) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxOpenReceivableDirectory(session, { page });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changeLinxOpenReceivablePageSize(pageSize: number) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxOpenReceivableDirectory(session, { page_size: pageSize, page: 1 });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function syncLinxOpenReceivablesImport() {
+    if (!session) return;
+    await runMutation(async () => {
+      const result = await fetchJson<ImportResult>("/imports/linx-open-receivables/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Faturas a receber do Linx atualizadas.", { sections: ["cadastros", "importacoes"] });
   }
 
   async function uploadOfxImport(file: File, accountId: string) {
@@ -1279,13 +1797,45 @@ function AppRuntime() {
 
   async function issueInterCharges(selectionKeys: string[]) {
     if (!session) return;
-    await runMutation(async () => {
+    setSubmitting(true);
+    try {
       await fetchJson<ImportResult>("/boletos/inter/issue", {
         method: "POST",
         token: session.token,
         body: JSON.stringify({ selection_keys: selectionKeys }),
       });
-    }, "Boletos emitidos no Inter.", { sections: ["boletos", "importacoes"] });
+      setShowMissingBoletosExportFallback(false);
+      for (const targetSection of ["boletos", "importacoes"] as const) {
+        await loadSectionData(session, targetSection, { force: true });
+      }
+      setFeedback({ tone: "success", message: "Boletos emitidos no Inter." });
+    } catch (error) {
+      setShowMissingBoletosExportFallback(true);
+      setFeedback({ tone: "error", message: parseApiError(error) });
+      throw error;
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function refreshAnalyticsData() {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      const [dashboardData, reportsData, cashflowData] = await Promise.all([
+        fetchOverviewSnapshot(session, overviewFilters, { refresh: true }),
+        fetchReportsSnapshot(session, reportFilters, { refresh: true }),
+        fetchCashflowSnapshot(session, cashflowFilters, { refresh: true }),
+      ]);
+      setDashboard(dashboardData);
+      setReports(reportsData);
+      setCashflow(cashflowData);
+      setFeedback({ tone: "success", message: "Dados analiticos atualizados." });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function downloadInterBoletoPdf(boletoId: string) {
@@ -1344,6 +1894,71 @@ function AppRuntime() {
     }, "Baixa do boleto do Inter concluída.", { sections: ["boletos", "importacoes"] });
   }
 
+  async function createStandaloneBoleto(payload: {
+    account_id: string | null;
+    client_name: string;
+    amount: string;
+    due_date: string;
+    notes: string | null;
+  }) {
+    if (!session) return;
+    await runMutation(async () => {
+      await fetchJson<ImportResult>("/boletos/standalone", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify(payload),
+      });
+    }, "Boleto avulso emitido.", { sections: ["boletos", "importacoes"] });
+  }
+
+  async function cancelStandaloneBoleto(boletoId: string) {
+    if (!session) return;
+    await runMutation(async () => {
+      await fetchJson<ImportResult>(`/boletos/standalone/${boletoId}/cancel`, {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({ motivo_cancelamento: "Cancelado pelo ERP" }),
+      });
+    }, "Boleto avulso cancelado.", { sections: ["boletos", "importacoes"] });
+  }
+
+  async function syncStandaloneBoletos() {
+    if (!session) return;
+    await runMutation(async () => {
+      await fetchJson<ImportResult>("/boletos/standalone/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+    }, "Boletos avulsos sincronizados.", { sections: ["boletos", "importacoes"] });
+  }
+
+  async function downloadStandaloneBoletoPdf(boletoId: string) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await downloadFile(`/boletos/standalone/${boletoId}/pdf`, {
+        token: session.token,
+        filename: `boleto-avulso-${boletoId}.pdf`,
+      });
+      setFeedback({ tone: "success", message: "PDF do boleto avulso baixado." });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function markStandaloneBoletoDownloaded(boletoId: string) {
+    if (!session) return;
+    await runMutation(async () => {
+      await fetchJson<void>(`/boletos/standalone/${boletoId}/downloaded`, {
+        method: "POST",
+        token: session.token,
+      });
+    }, "Boleto avulso marcado como baixado.", { sections: ["boletos"] });
+  }
+
   async function importPurchaseInvoiceText(rawText: string) {
     if (!session) {
       return null as never;
@@ -1397,6 +2012,33 @@ function AppRuntime() {
         body: JSON.stringify(payload),
       });
     }, "Nota de compra salva.", { refreshBase: true, sections: ["planejamento", "caixa"] });
+  }
+
+  async function syncLinxPurchaseInvoices() {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      const result = await fetchJson<ImportResult>("/purchase-invoices/linx-sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      await loadBaseData(session);
+      await loadSectionData(session, "planejamento", { force: true });
+      if (loadedSections.caixa) {
+        await loadSectionData(session, "caixa", { force: true });
+      }
+      if (loadedSections.lancamentos) {
+        await loadSectionData(session, "lancamentos", { force: true });
+      }
+      setFeedback({ tone: "success", message: result.message });
+      return result.message;
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+      throw error;
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function createSupplier(payload: Record<string, unknown>) {
@@ -1689,6 +2331,24 @@ function AppRuntime() {
     }
   }
 
+  async function updateLinxSettings(payload: LinxSettingsUpdatePayload) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      const updated = await fetchJson<LinxSettings>("/company-settings/linx", {
+        method: "PUT",
+        token: session.token,
+        body: JSON.stringify(payload),
+      });
+      setLinxSettings(updated);
+      setFeedback({ tone: "success", message: "Configuracao do Linx atualizada." });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function deactivateUser(userId: string) {
     if (!session) return;
     await runMutation(async () => {
@@ -1806,6 +2466,9 @@ function AppRuntime() {
   const resultsNavigation = getNavigationSection("resultados");
   const systemNavigation = getNavigationSection("sistema");
   const systemTabs = systemNavigation.children;
+  const systemAccountsTab = systemTabs.find((tab) => tab.key === "contas") ?? systemTabs[0];
+  const systemCategoriesTab = systemTabs.find((tab) => tab.key === "categorias") ?? systemTabs[0];
+  const systemSecurityTab = systemTabs.find((tab) => tab.key === "seguranca") ?? systemTabs[0];
   const purchasePageProps = {
     embedded: true,
     brands,
@@ -1828,6 +2491,7 @@ function AppRuntime() {
     onImportText: importPurchaseInvoiceText,
     onImportXml: importPurchaseInvoiceXml,
     onLinkInstallment: linkPurchaseInstallment,
+    onSyncLinxPurchaseInvoices: syncLinxPurchaseInvoices,
     onUpdatePurchaseReturn: updatePurchaseReturn,
     onSaveInvoice: savePurchaseInvoice,
     onUpdateCollection: updateCollection,
@@ -1839,13 +2503,12 @@ function AppRuntime() {
     suppliers,
   };
 
-  const hasNetworkActivity = networkActivityCount > 0;
-  const shellBusy = routeLoading || loading || submitting || hasNetworkActivity;
+  const shellBusy = routeLoading || loading || submitting;
   const shellBusyLabel = routeLoading
     ? "Abrindo modulo..."
     : submitting
       ? "Salvando e atualizando dados..."
-      : loading || hasNetworkActivity
+      : loading
         ? "Atualizando dados..."
         : "";
 
@@ -1892,6 +2555,11 @@ function AppRuntime() {
     <AppShell
       user={session.user}
       mainNavigation={mainNavigation}
+      globalProductSearch={globalProductSearchInput}
+      onGlobalProductSearchChange={setGlobalProductSearchInput}
+      onSubmitGlobalProductSearch={() => {
+        void searchProductsGlobally(globalProductSearchInput);
+      }}
       onLogout={() => void handleLogout()}
       busy={shellBusy}
       busyLabel={shellBusyLabel}
@@ -1912,6 +2580,7 @@ function AppRuntime() {
                 loading={submitting}
                 onApplyFilters={applyOverviewFilters}
                 onChangeFilters={setOverviewFilters}
+                onRefreshData={refreshAnalyticsData}
                 tabs={overviewNavigation.children}
               />
             }
@@ -1931,13 +2600,11 @@ function AppRuntime() {
                 title={entriesNavigation.children[0].title}
               >
                 <EntriesPage
-                  embedded
-                  accounts={accounts}
-                  suppliers={suppliers}
-                  categories={categories}
-                  entryList={entryList}
-                  payables={payables}
-                  receivables={receivables}
+                embedded
+                accounts={accounts}
+                suppliers={suppliers}
+                categories={categories}
+                entryList={entryList}
                   filters={entryFilters}
                   submitting={submitting}
                   onCancelEntry={cancelEntry}
@@ -1981,7 +2648,6 @@ function AppRuntime() {
                 onApplyFilters={applyReconciliationFilters}
                 onChangeFilters={setReconciliationFilters}
                 onSyncInterStatement={syncInterStatementImport}
-                onUploadOfx={uploadOfxImport}
                 onQuickAction={reconciliationAction}
                 onReconcile={reconcile}
                 onSearchEntries={searchReconciliationEntries}
@@ -1994,38 +2660,58 @@ function AppRuntime() {
           }
           path="/financeiro/conciliacao"
         />
-        <Route
-          element={
-            <SectionChrome
-              description={billingNavigation.children[0].description}
-              sectionLabel="Cobrança"
-              tabLabel={billingNavigation.children[0].label}
-              tabs={billingNavigation.children}
-              title={billingNavigation.children[0].title}
-            >
-              <BoletosPage
-                accounts={accounts}
-                onCancelInterBoleto={cancelInterBoleto}
-                dashboard={boletoDashboard}
-                onDownloadInterBoletoPdf={downloadInterBoletoPdf}
-                onDownloadInterBoletoPdfBatch={downloadInterBoletoPdfBatch}
-                onExportMissingBoletos={exportMissingBoletos}
-                onIssueInterCharges={issueInterCharges}
-                onReceiveInterBoleto={receiveInterBoleto}
-                onSaveClients={saveBoletoClients}
-                onSyncInterCharges={syncInterChargesImport}
-                onToggleAllMonthlyMissingBoletos={toggleAllMonthlyMissingBoletos}
-                onUploadBoletoC6={uploadBoletoC6Import}
-                onUploadClientData={uploadBoletoCustomerDataImport}
-                onUploadBoletoInter={uploadBoletoInterImport}
-                onUploadReceivables={uploadReceivablesImport}
-                showAllMonthlyMissingBoletos={showAllMonthlyMissingBoletos}
-                submitting={submitting}
-              />
-            </SectionChrome>
-          }
-          path="/financeiro/cobranca"
-        />
+        <Route element={<Navigate replace to="/financeiro/cobranca/faturas-em-aberto" />} path="/financeiro/cobranca" />
+        <Route element={<Navigate replace to="/financeiro/cobranca/faturas-em-aberto" />} path="/financeiro/cobranca/resumo" />
+        {[
+        { key: "faturas-em-aberto", path: "/financeiro/cobranca/faturas-em-aberto", view: "open" as const },
+        { key: "boletos-em-aberto", path: "/financeiro/cobranca/boletos-em-aberto", view: "open-boletos" as const },
+        { key: "atrasados", path: "/financeiro/cobranca/atrasados", view: "overdue" as const },
+        { key: "pagas-sem-baixa", path: "/financeiro/cobranca/pagas-sem-baixa", view: "paid-pending" as const },
+        { key: "boletos-faltando", path: "/financeiro/cobranca/boletos-faltando", view: "missing" as const },
+        { key: "boletos-avulsos", path: "/financeiro/cobranca/boletos-avulsos", view: "standalone" as const },
+        { key: "boletos-em-excesso", path: "/financeiro/cobranca/boletos-em-excesso", view: "excess" as const },
+      ].map((billingRoute) => {
+          const billingTab =
+            billingNavigation.children.find((item) => item.key === billingRoute.key) ?? billingNavigation.children[0];
+          return (
+          <Route
+            key={billingRoute.path}
+            element={
+              <SectionChrome
+                description={billingTab.description}
+                sectionLabel="Cobrança"
+                tabLabel={billingTab.label}
+                tabs={billingNavigation.children}
+                title={billingTab.title}
+              >
+                <BoletosPage
+                  accounts={accounts}
+                  view={billingRoute.view}
+                  onCancelInterBoleto={cancelInterBoleto}
+                  onCancelStandaloneBoleto={cancelStandaloneBoleto}
+                  dashboard={boletoDashboard}
+                  onDownloadInterBoletoPdf={downloadInterBoletoPdf}
+                  onDownloadInterBoletoPdfBatch={downloadInterBoletoPdfBatch}
+                  onExportMissingBoletos={exportMissingBoletos}
+                  onIssueInterCharges={issueInterCharges}
+                  onReceiveInterBoleto={receiveInterBoleto}
+                  onCreateStandaloneBoleto={createStandaloneBoleto}
+                  onDownloadStandaloneBoletoPdf={downloadStandaloneBoletoPdf}
+                  onMarkStandaloneBoletoDownloaded={markStandaloneBoletoDownloaded}
+                  onSaveClients={saveBoletoClients}
+                  onSyncStandaloneBoletos={syncStandaloneBoletos}
+                  onToggleAllMonthlyMissingBoletos={toggleAllMonthlyMissingBoletos}
+                  onUploadBoletoC6={uploadBoletoC6Import}
+                  onUploadClientData={uploadBoletoCustomerDataImport}
+                  showMissingExportFallback={showMissingBoletosExportFallback}
+                  showAllMonthlyMissingBoletos={showAllMonthlyMissingBoletos}
+                  submitting={submitting}
+                />
+              </SectionChrome>
+            }
+            path={billingRoute.path}
+          />
+        )})}
         <Route element={<Navigate replace to="/sistema/importacoes-gerais" />} path="/financeiro/importacoes" />
 
         <Route
@@ -2051,7 +2737,7 @@ function AppRuntime() {
         <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/notas-fiscais" />
         <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/posicoes-compra" />
         <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/parcelas-previstas" />
-        <Route element={<Navigate replace to="/cadastros/fornecedores" />} path="/compras/fornecedores" />
+        <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/fornecedores" />
         <Route element={<Navigate replace to="/compras/planejamento" />} path="/compras/colecoes" />
 
         <Route
@@ -2071,6 +2757,7 @@ function AppRuntime() {
                 loading={submitting}
                 onApplyFilters={applyCashflowFilters}
                 onChangeFilters={setCashflowFilters}
+                onRefreshData={refreshAnalyticsData}
               />
             </SectionChrome>
           }
@@ -2095,8 +2782,9 @@ function AppRuntime() {
                 onChangeFilters={setReportFilters}
                 onLoadConfig={loadReportConfig}
                 onExport={exportReport}
+                onRefreshData={refreshAnalyticsData}
                 onSaveConfig={saveReportConfig}
-                onUploadSales={uploadSalesImport}
+                onSyncMovements={syncLinxMovementsImport}
                 reports={reports}
               />
             </SectionChrome>
@@ -2122,8 +2810,9 @@ function AppRuntime() {
                 onChangeFilters={setReportFilters}
                 onLoadConfig={loadReportConfig}
                 onExport={exportReport}
+                onRefreshData={refreshAnalyticsData}
                 onSaveConfig={saveReportConfig}
-                onUploadSales={uploadSalesImport}
+                onSyncMovements={syncLinxMovementsImport}
                 reports={reports}
               />
             </SectionChrome>
@@ -2168,11 +2857,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={systemTabs[0].description}
+              description={systemAccountsTab.description}
               sectionLabel="Sistema"
-              tabLabel={systemTabs[0].label}
+              tabLabel={systemAccountsTab.label}
               tabs={systemTabs}
-              title={systemTabs[0].title}
+              title={systemAccountsTab.title}
             >
               <MasterDataPage
                 embedded
@@ -2194,11 +2883,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={systemTabs[1].description}
+              description={systemCategoriesTab.description}
               sectionLabel="Sistema"
-              tabLabel={systemTabs[1].label}
+              tabLabel={systemCategoriesTab.label}
               tabs={systemTabs}
-              title={systemTabs[1].title}
+              title={systemCategoriesTab.title}
             >
               <MasterDataPage
                 embedded
@@ -2218,43 +2907,92 @@ function AppRuntime() {
           path="/cadastros/categorias"
         />
         <Route
-          element={<CadastrosClientsPage dashboard={boletoDashboard} tabs={systemTabs} />}
+          element={
+            <CadastrosClientsPage
+              directory={linxCustomerDirectory}
+              importSummary={importSummary}
+              loading={loading || submitting}
+              onSyncLinxCustomers={syncLinxCustomersImport}
+              tabs={systemTabs}
+            />
+          }
           path="/cadastros/clientes"
+        />
+        <Route
+          element={
+            <CadastrosProductsPage
+              directory={linxProductDirectory}
+              filters={{ search: linxProductFilters.search, status: linxProductFilters.status }}
+              importSummary={importSummary}
+              loading={loading || submitting}
+              onApplyFilters={applyLinxProductFilters}
+              onChangePage={changeLinxProductPage}
+              onChangePageSize={changeLinxProductPageSize}
+              onSyncLinxProducts={syncLinxProductsImport}
+              tabs={systemTabs}
+            />
+          }
+          path="/cadastros/produtos"
+        />
+        <Route
+          element={
+            <CadastrosMovementsPage
+              directory={linxMovementDirectory}
+              filters={{
+                search: linxMovementFilters.search,
+                group: linxMovementFilters.group,
+                movement_type: linxMovementFilters.movement_type,
+              }}
+              importSummary={importSummary}
+              loading={loading || submitting}
+              onApplyFilters={applyLinxMovementFilters}
+              onChangePage={changeLinxMovementPage}
+              onChangePageSize={changeLinxMovementPageSize}
+              onSyncLinxMovements={syncLinxMovementsImport}
+              tabs={systemTabs}
+            />
+          }
+          path="/cadastros/movimentos"
+        />
+        <Route
+          element={
+            <CadastrosOpenReceivablesPage
+              directory={linxOpenReceivableDirectory}
+              filters={{ search: linxOpenReceivableFilters.search }}
+              importSummary={importSummary}
+              loading={loading || submitting}
+              onApplyFilters={applyLinxOpenReceivableFilters}
+              onChangePage={changeLinxOpenReceivablePage}
+              onChangePageSize={changeLinxOpenReceivablePageSize}
+              onSyncLinxOpenReceivables={syncLinxOpenReceivablesImport}
+              tabs={systemTabs}
+            />
+          }
+          path="/cadastros/faturas-a-receber"
         />
         <Route
           element={<CadastrosRulesPage loans={loans} recurrences={recurrences} tabs={systemTabs} />}
           path="/cadastros/regras"
         />
+        <Route element={<Navigate replace to="/compras/planejamento" />} path="/cadastros/fornecedores" />
+        <Route element={<Navigate replace to="/sistema/seguranca" />} path="/sistema/usuarios" />
+        <Route element={<Navigate replace to="/sistema/seguranca" />} path="/sistema/backup" />
         <Route
           element={
             <SectionChrome
-              description={systemTabs[4].description}
+              description={systemSecurityTab.description}
               sectionLabel="Sistema"
-              tabLabel={systemTabs[4].label}
+              tabLabel={systemSecurityTab.label}
               tabs={systemTabs}
-              title={systemTabs[4].title}
-            >
-              <PurchasePlanningPage {...purchasePageProps} view="fornecedores" />
-            </SectionChrome>
-          }
-          path="/cadastros/fornecedores"
-        />
-
-        <Route
-          element={
-            <SectionChrome
-              description={systemTabs[5].description}
-              sectionLabel="Sistema"
-              tabLabel={systemTabs[5].label}
-              tabs={systemTabs}
-              title={systemTabs[5].title}
+              title={systemSecurityTab.title}
             >
               <SecurityPage
                 embedded
-                view="users"
+                view="all"
                 backups={backups}
                 currentUser={session.user}
                 instanceInfo={instanceInfo}
+                linxSettings={linxSettings}
                 mfaStatus={mfaStatus}
                 activeMfaSetup={activeMfaSetup}
                 onCreateBackup={createBackup}
@@ -2265,70 +3003,7 @@ function AppRuntime() {
                 onConfirmMfaEnrollment={confirmMfaEnrollment}
                 onResetMfa={resetUserMfa}
                 onUpdateCredentials={updateCredentials}
-                submitting={submitting}
-                users={users}
-              />
-            </SectionChrome>
-          }
-          path="/sistema/usuarios"
-        />
-        <Route
-          element={
-            <SectionChrome
-              description={systemTabs[6].description}
-              sectionLabel="Sistema"
-              tabLabel={systemTabs[6].label}
-              tabs={systemTabs}
-              title={systemTabs[6].title}
-            >
-              <SecurityPage
-                embedded
-                view="backup"
-                backups={backups}
-                currentUser={session.user}
-                instanceInfo={instanceInfo}
-                mfaStatus={mfaStatus}
-                activeMfaSetup={activeMfaSetup}
-                onCreateBackup={createBackup}
-                onCreateUser={createUser}
-                onDeactivateUser={deactivateUser}
-                onRestoreBackup={restoreBackup}
-                onStartMfaEnrollment={startMfaEnrollment}
-                onConfirmMfaEnrollment={confirmMfaEnrollment}
-                onResetMfa={resetUserMfa}
-                onUpdateCredentials={updateCredentials}
-                submitting={submitting}
-                users={users}
-              />
-            </SectionChrome>
-          }
-          path="/sistema/backup"
-        />
-        <Route
-          element={
-            <SectionChrome
-              description={systemTabs[7].description}
-              sectionLabel="Sistema"
-              tabLabel={systemTabs[7].label}
-              tabs={systemTabs}
-              title={systemTabs[7].title}
-            >
-              <SecurityPage
-                embedded
-                view="security"
-                backups={backups}
-                currentUser={session.user}
-                instanceInfo={instanceInfo}
-                mfaStatus={mfaStatus}
-                activeMfaSetup={activeMfaSetup}
-                onCreateBackup={createBackup}
-                onCreateUser={createUser}
-                onDeactivateUser={deactivateUser}
-                onRestoreBackup={restoreBackup}
-                onStartMfaEnrollment={startMfaEnrollment}
-                onConfirmMfaEnrollment={confirmMfaEnrollment}
-                onResetMfa={resetUserMfa}
-                onUpdateCredentials={updateCredentials}
+                onUpdateLinxSettings={updateLinxSettings}
                 submitting={submitting}
                 users={users}
               />
@@ -2341,7 +3016,11 @@ function AppRuntime() {
             <SystemImportsGeneralPage
               accounts={accounts}
               importSummary={importSummary}
+              onSyncCustomers={syncLinxCustomersImport}
+              onSyncInterCharges={syncInterChargesImport}
               onSyncInterStatement={syncInterStatementImport}
+              onSyncReceivables={syncLinxReceivablesImport}
+              onUploadBoletoInter={uploadBoletoInterImport}
               onUploadHistorical={uploadHistoricalCashbookImport}
               submitting={submitting}
               tabs={systemTabs}
@@ -2349,10 +3028,7 @@ function AppRuntime() {
           }
           path="/sistema/importacoes-gerais"
         />
-        <Route
-          element={<SystemAuditPage backups={backups} importSummary={importSummary} tabs={systemTabs} />}
-          path="/sistema/auditoria"
-        />
+        <Route element={<Navigate replace to="/sistema/importacoes-gerais" />} path="/sistema/auditoria" />
 
         <Route element={<Navigate replace to={activeChildSection.path} />} path="*" />
       </Routes>
@@ -2368,8 +3044,19 @@ function AppRuntime() {
           </button>
         </div>
       )}
+      <GlobalProductSearchModal
+        loading={globalProductSearchLoading}
+        onChangeSearchInput={setGlobalProductSearchInput}
+        onClose={() => setGlobalProductSearchModalOpen(false)}
+        onSearch={searchProductsGlobally}
+        open={globalProductSearchModalOpen}
+        result={globalProductSearchResult}
+        searchInput={globalProductSearchInput}
+      />
     </AppShell>
   );
 }
 
 export default App;
+
+

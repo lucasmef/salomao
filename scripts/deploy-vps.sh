@@ -27,6 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FRONTEND_DIR="$REPO_ROOT/frontend"
 BACKEND_DIR="$REPO_ROOT/backend"
+SYSTEMD_DIR="$REPO_ROOT/deploy/systemd"
 ENV_FILE="$BACKEND_DIR/.env"
 PYTHON_BIN="$BACKEND_DIR/.venv/bin/python"
 
@@ -50,6 +51,8 @@ require_command() {
 require_file "$ENV_FILE" "backend/.env"
 require_file "$PYTHON_BIN" "backend/.venv/bin/python"
 require_file "$FRONTEND_DIR/package.json" "frontend/package.json"
+require_file "$SYSTEMD_DIR/salomao-linx-auto-sync@.service" "deploy/systemd/salomao-linx-auto-sync@.service"
+require_file "$SYSTEMD_DIR/salomao-linx-auto-sync@.timer" "deploy/systemd/salomao-linx-auto-sync@.timer"
 require_command npm
 require_command sudo
 require_command curl
@@ -85,6 +88,13 @@ echo "==> Migracoes Alembic ($TARGET)"
 cd "$BACKEND_DIR"
 "$PYTHON_BIN" -m alembic upgrade head
 
+echo "==> Instalando timer do Linx ($TARGET)"
+sudo install -m 0644 "$SYSTEMD_DIR/salomao-linx-auto-sync@.service" /etc/systemd/system/salomao-linx-auto-sync@.service
+sudo install -m 0644 "$SYSTEMD_DIR/salomao-linx-auto-sync@.timer" /etc/systemd/system/salomao-linx-auto-sync@.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now "salomao-linx-auto-sync@$TARGET.timer"
+sudo systemctl restart "salomao-linx-auto-sync@$TARGET.timer"
+
 echo "==> Reiniciando servico $SERVICE_NAME"
 sudo systemctl restart "$SERVICE_NAME"
 
@@ -95,3 +105,6 @@ echo
 
 echo "==> Status do servico"
 sudo systemctl status "$SERVICE_NAME" --no-pager
+echo
+echo "==> Status do timer Linx"
+sudo systemctl status "salomao-linx-auto-sync@$TARGET.timer" --no-pager

@@ -17,6 +17,10 @@ from app.services.category_catalog import (
     ensure_category_catalog,
     match_historical_category_name,
 )
+from app.services.linx import (
+    download_linx_receivables_report,
+    download_linx_sales_report,
+)
 from app.services.import_parsers import (
     ParsedOfxTransaction,
     ParsedReceivableRow,
@@ -1030,6 +1034,21 @@ def import_linx_sales(db: Session, company: Company, filename: str, content: byt
     return ImportResult(batch=batch, message=message)
 
 
+def sync_linx_sales(
+    db: Session,
+    company: Company,
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> ImportResult:
+    filename, content = download_linx_sales_report(
+        company,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return import_linx_sales(db, company, filename, content)
+
+
 def import_linx_receivables(
     db: Session,
     company: Company,
@@ -1084,6 +1103,21 @@ def import_linx_receivables(
             ),
         )
     return ImportResult(batch=batch, message="Faturas a receber importadas com sucesso.")
+
+
+def sync_linx_receivables(
+    db: Session,
+    company: Company,
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> ImportResult:
+    filename, content = download_linx_receivables_report(
+        company,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return import_linx_receivables(db, company, filename, content)
 
 
 def import_ofx(

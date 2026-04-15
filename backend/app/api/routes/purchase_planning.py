@@ -1,6 +1,7 @@
 from fastapi import APIRouter, File, Query, UploadFile, status
 
 from app.api.deps import CurrentUser, DbSession
+from app.schemas.imports import ImportResult
 from app.schemas.purchase_planning import (
     CollectionSeasonCreate,
     CollectionSeasonRead,
@@ -15,13 +16,13 @@ from app.schemas.purchase_planning import (
     PurchaseInvoiceImportTextRequest,
     PurchaseInvoiceRead,
     PurchasePlanCreate,
+    PurchasePlanningMonthlyProjection,
+    PurchasePlanningOverview,
     PurchasePlanRead,
     PurchasePlanUpdate,
     PurchaseReturnCreate,
     PurchaseReturnRead,
     PurchaseReturnUpdate,
-    PurchasePlanningOverview,
-    PurchasePlanningMonthlyProjection,
     SupplierCreate,
     SupplierRead,
     SupplierUpdate,
@@ -31,30 +32,32 @@ from app.services.data_refresh import build_data_refresh_request, finalize_data_
 from app.services.purchase_planning import (
     PurchasePlanningFilters,
     build_purchase_planning_cashflow,
-    build_purchase_planning_overview,
+    clear_purchase_planning_overview_cache,
     create_brand,
     create_collection,
     create_purchase_invoice,
     create_purchase_plan,
     create_purchase_return,
+    get_cached_purchase_planning_overview,
     create_supplier,
+    delete_brand,
+    delete_collection,
     delete_purchase_plan,
     delete_purchase_return,
-    delete_collection,
-    delete_brand,
     delete_supplier,
     link_installment_to_entry,
-    list_collections,
     list_brands,
-    list_purchase_invoices,
-    list_purchase_returns,
+    list_collections,
     list_purchase_invoice_suppliers,
+    list_purchase_invoices,
     list_purchase_plans,
+    list_purchase_returns,
     list_suppliers,
     parse_purchase_invoice_text,
     parse_purchase_invoice_xml,
-    update_collection,
+    sync_linx_purchase_payables,
     update_brand,
+    update_collection,
     update_purchase_plan,
     update_purchase_return,
     update_supplier,
@@ -321,6 +324,17 @@ def post_purchase_invoice(payload: PurchaseInvoiceCreate, db: DbSession, current
     return invoice
 
 
+@router.post("/purchase-invoices/linx-sync", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+def post_purchase_invoice_linx_sync(
+    db: DbSession,
+    current_user: CurrentUser,
+) -> ImportResult:
+    company = get_current_company(db)
+    result = sync_linx_purchase_payables(db, company, current_user)
+    _invalidate_purchase_related_caches(db, company)
+    return result
+
+
 @router.post("/purchase-installments/{installment_id}/link-entry", response_model=PurchaseInstallmentRead)
 def post_purchase_installment_link(
     installment_id: str,
@@ -353,7 +367,7 @@ def get_purchase_planning_overview(
         collection_id=collection_id,
         status=status,
     )
-    return build_purchase_planning_overview(db, company, filters, mode=mode)
+    return get_cached_purchase_planning_overview(db, company, filters, mode=mode)
 
 
 @router.get("/purchase-planning/cashflow", response_model=list[PurchasePlanningMonthlyProjection])

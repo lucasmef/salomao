@@ -4,6 +4,39 @@ from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+_PLACEHOLDER_SECRET_PREFIXES = (
+    "troque-isto",
+    "change-me",
+    "changeme",
+    "replace-me",
+    "replace-this",
+)
+
+_PLACEHOLDER_SECRET_MARKERS = (
+    "placeholder",
+    "example-secret",
+    "example-key",
+)
+
+
+def _normalize_secret(secret: str) -> str:
+    return secret.strip().lower()
+
+
+def _looks_like_placeholder_secret(secret: str) -> bool:
+    normalized = _normalize_secret(secret)
+    if normalized.startswith(_PLACEHOLDER_SECRET_PREFIXES):
+        return True
+    return any(marker in normalized for marker in _PLACEHOLDER_SECRET_MARKERS)
+
+
+def _validate_runtime_secret(value: str, env_name: str) -> None:
+    if len(value.strip()) < 32:
+        raise ValueError(f"{env_name} deve ter pelo menos 32 caracteres em APP_MODE=server")
+    if _looks_like_placeholder_secret(value):
+        raise ValueError(f"{env_name} nao pode usar placeholders em APP_MODE=server")
+
+
 class Settings(BaseSettings):
     app_name: str = "Gestor Financeiro"
     api_prefix: str = "/api/v1"
@@ -21,6 +54,7 @@ class Settings(BaseSettings):
     session_hours: int = 12
     mfa_trusted_device_days: int = 15
     pending_auth_minutes: int = 10
+    api_docs_enabled: bool | None = None
     allow_header_auth: bool = False
     public_origin: str | None = None
     security_alert_email_enabled: bool = False
@@ -28,6 +62,7 @@ class Settings(BaseSettings):
     security_alert_email_to: str | None = None
     smtp_host: str | None = None
     smtp_port: int = 587
+    smtp_timeout_seconds: int = 30
     smtp_username: str | None = None
     smtp_password: str | None = None
     smtp_use_tls: bool = True
@@ -47,6 +82,10 @@ class Settings(BaseSettings):
     backup_import_min_minutes: int = 30
     backup_retention_max_files: int = 60
     backup_retention_days: int = 120
+    linx_timeout_ms: int = 120000
+    linx_headless: bool = True
+    analytics_redis_url: str = "redis://127.0.0.1:6379/0"
+    analytics_redis_prefix: str = "salomao"
     cors_origins: list[str] = Field(default_factory=lambda: [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -85,6 +124,8 @@ class Settings(BaseSettings):
                 raise ValueError("SESSION_SECRET deve ser configurado para APP_MODE=server")
             if self.field_encryption_key in insecure_secrets:
                 raise ValueError("FIELD_ENCRYPTION_KEY deve ser configurado para APP_MODE=server")
+            _validate_runtime_secret(self.session_secret, "SESSION_SECRET")
+            _validate_runtime_secret(self.field_encryption_key, "FIELD_ENCRYPTION_KEY")
         return self
 
     @property
@@ -102,6 +143,12 @@ class Settings(BaseSettings):
     @property
     def require_mfa(self) -> bool:
         return self.is_server_mode
+
+    @property
+    def resolved_api_docs_enabled(self) -> bool:
+        if self.api_docs_enabled is not None:
+            return self.api_docs_enabled
+        return not self.is_server_mode
 
     @property
     def resolved_cookie_secure(self) -> bool:

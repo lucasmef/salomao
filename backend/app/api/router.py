@@ -8,10 +8,15 @@ from app.api.routes import (
     boletos,
     cashflow,
     categories,
+    company_settings,
     dashboard,
     entries,
     health,
     imports,
+    linx_customers,
+    linx_movements,
+    linx_open_receivables,
+    linx_products,
     loans,
     meta,
     purchase_planning,
@@ -30,9 +35,39 @@ api_router.include_router(accounts.router, prefix="/accounts", tags=["accounts"]
 api_router.include_router(backup.router, prefix="/backup", tags=["backup"], dependencies=protected)
 api_router.include_router(boletos.router, prefix="/boletos", tags=["boletos"], dependencies=protected)
 api_router.include_router(categories.router, prefix="/categories", tags=["categories"], dependencies=protected)
+api_router.include_router(
+    company_settings.router,
+    prefix="/company-settings",
+    tags=["company-settings"],
+    dependencies=protected,
+)
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"], dependencies=protected)
 api_router.include_router(entries.router, prefix="/entries", tags=["entries"], dependencies=protected)
 api_router.include_router(imports.router, prefix="/imports", tags=["imports"], dependencies=protected)
+api_router.include_router(
+    linx_customers.router,
+    prefix="/linx-customers",
+    tags=["linx-customers"],
+    dependencies=protected,
+)
+api_router.include_router(
+    linx_products.router,
+    prefix="/linx-products",
+    tags=["linx-products"],
+    dependencies=protected,
+)
+api_router.include_router(
+    linx_open_receivables.router,
+    prefix="/linx-open-receivables",
+    tags=["linx-open-receivables"],
+    dependencies=protected,
+)
+api_router.include_router(
+    linx_movements.router,
+    prefix="/linx-movements",
+    tags=["linx-movements"],
+    dependencies=protected,
+)
 api_router.include_router(loans.router, prefix="/loans", tags=["loans"], dependencies=protected)
 api_router.include_router(purchase_planning.router, prefix="", tags=["purchase-planning"], dependencies=protected)
 api_router.include_router(recurrences.router, prefix="/recurrences", tags=["recurrences"], dependencies=protected)

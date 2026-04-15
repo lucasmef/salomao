@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import Select, { type MultiValue, type SingleValue } from "react-select";
 
 import { MoneyInput } from "../components/MoneyInput";
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { formatDate, formatEntryStatus, formatMoney, normalizeDisplayText } from "../lib/format";
 import { formatPtBrMoneyInput, normalizePtBrMoneyInput } from "../lib/money";
 import type {
@@ -58,9 +59,11 @@ type Props = {
   onImportXml: (file: File) => Promise<PurchaseInvoiceDraft>;
   onSaveInvoice: (payload: Record<string, unknown>) => Promise<void>;
   onLinkInstallment: (installmentId: string, financialEntryId: string | null) => Promise<void>;
+  onSyncLinxPurchaseInvoices: () => Promise<string | void>;
 };
 
 type SelectOption = { value: string; label: string };
+type SyncFeedbackTone = "info" | "success" | "error";
 
 type SupplierModalState = {
   id: string | null;
@@ -118,12 +121,14 @@ type PlanningCollectionSnapshot = {
   row:
     | {
         purchased_total: string;
+        returns_total: string;
         launched_financial_total: string;
         outstanding_payable_total: string;
       }
     | null;
   plans: PurchasePlan[];
   plannedAmount: string;
+  returnsAmount: string;
   receivedAmount: string;
   outstandingAmount: string;
   paymentTerm: string | null;
@@ -148,13 +153,21 @@ const purchaseSelectStyles = {
     ...base,
     minHeight: 36,
     borderRadius: 10,
-    borderColor: state.isFocused ? "#2f5be7" : "#cfd9e8",
+    borderColor: state.isFocused ? "#c5d0df" : "#d7e1ef",
     boxShadow: "none",
+    backgroundColor: "#ffffff",
     fontSize: "0.84rem",
+    ":hover": {
+      borderColor: "#c5d0df",
+    },
   }),
   valueContainer: (base: Record<string, unknown>) => ({
     ...base,
     padding: "0 10px",
+  }),
+  placeholder: (base: Record<string, unknown>) => ({
+    ...base,
+    color: "#607087",
   }),
   input: (base: Record<string, unknown>) => ({
     ...base,
@@ -193,6 +206,7 @@ const PURCHASE_RETURN_STATUS_OPTIONS: SelectOption[] = [
   { value: "refund_approved", label: "Reembolso aprovado" },
   { value: "refunded", label: "Reembolsado" },
 ] ;
+const ALL_PURCHASE_RETURN_STATUSES = PURCHASE_RETURN_STATUS_OPTIONS.map((option) => option.value);
 const DEFAULT_VISIBLE_PURCHASE_RETURN_STATUSES = PURCHASE_RETURN_STATUS_OPTIONS.filter(
   (option) => option.value !== "refunded",
 ).map((option) => option.value);
@@ -259,7 +273,6 @@ const emptyInvoiceDraft = (): PurchaseInvoiceDraft => ({
 function toInputAmount(value: string | number | null | undefined) {
   return formatPtBrMoneyInput(value);
 }
-
 function sortByLabel<T extends { label: string }>(items: T[]) {
   return [...items].sort((left, right) => left.label.localeCompare(right.label, "pt-BR"));
 }
@@ -270,6 +283,25 @@ function toCents(value: string | number | null | undefined) {
 
 function centsToAmount(value: number) {
   return (value / 100).toFixed(2);
+}
+
+function formatPurchaseDisplayAmount(value: string | number | null | undefined) {
+  const normalized = Number(normalizePtBrMoneyInput(value));
+  const integerValue = Number.isFinite(normalized) ? Math.trunc(normalized) : 0;
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(integerValue);
+}
+
+function buildPurchaseNetDisplayLine(plannedAmount: string | number | null | undefined, returnsAmount: string | number | null | undefined) {
+  const returnsCents = toCents(returnsAmount);
+  if (returnsCents <= 0) {
+    return null;
+  }
+  const plannedCents = toCents(plannedAmount);
+  const netAmount = centsToAmount(plannedCents - returnsCents);
+  return `(-) ${formatPurchaseDisplayAmount(returnsAmount)} = ${formatPurchaseDisplayAmount(netAmount)}`;
 }
 
 function buildBrandKey(brandId: string | null | undefined, brandName: string | null | undefined) {
@@ -308,8 +340,16 @@ function labelizePurchaseReturnStatus(value: string | null | undefined) {
   return PURCHASE_RETURN_STATUS_LABELS[value] ?? value;
 }
 
+function isPurchaseReturnActionRequired(status: string | null | undefined) {
+  return status === "request_open" || status === "send";
+}
+
 function getPurchaseReturnStatusOptions(currentStatus: string | null) {
   return PURCHASE_RETURN_STATUS_OPTIONS;
+}
+
+function normalizePurchaseReturnVisibleStatuses(values: string[]) {
+  return values.length ? values : DEFAULT_VISIBLE_PURCHASE_RETURN_STATUSES;
 }
 
 function parseInstallmentsCount(paymentTerm: string | null | undefined) {
@@ -327,6 +367,13 @@ function normalizeSupplierLookupKey(value: string | null | undefined) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "");
+}
+
+function normalizeSearchText(value: string | null | undefined) {
+  return normalizeDisplayText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 }
 
 function getYearFromDate(value: string | null | undefined) {
@@ -368,8 +415,8 @@ function EditIcon() {
 
 function ConfirmIcon({ confirmed }: { confirmed: boolean }) {
   return (
-    <span aria-label={confirmed ? "Confirmado" : "Não confirmado"} className={`planning-confirm-icon${confirmed ? " is-confirmed" : ""}`}>
-      {confirmed ? "✓" : "−"}
+    <span aria-label={confirmed ? "Confirmado" : "Nao confirmado"} className={`planning-confirm-icon${confirmed ? " is-confirmed" : ""}`}>
+      {confirmed ? "\u2713" : "\u2212"}
     </span>
   );
 }
@@ -434,6 +481,7 @@ export function PurchasePlanningPage({
   onImportXml,
   onSaveInvoice,
   onLinkInstallment,
+  onSyncLinxPurchaseInvoices,
 }: Props) {
   const portalTarget = typeof document !== "undefined" ? document.body : undefined;
   const today = new Date().toISOString().slice(0, 10);
@@ -443,6 +491,8 @@ export function PurchasePlanningPage({
   const [invoiceText, setInvoiceText] = useState("");
   const [invoiceDraft, setInvoiceDraft] = useState<PurchaseInvoiceDraft>(emptyInvoiceDraft());
   const [uploadingXml, setUploadingXml] = useState(false);
+  const [syncingLinxInvoices, setSyncingLinxInvoices] = useState(false);
+  const [linxSyncFeedback, setLinxSyncFeedback] = useState<{ tone: SyncFeedbackTone; message: string } | null>(null);
 
   const [brandModalOpen, setBrandModalOpen] = useState(false);
   const [inactiveBrandsModalOpen, setInactiveBrandsModalOpen] = useState(false);
@@ -464,6 +514,7 @@ export function PurchasePlanningPage({
   );
   const [planningCollectionId, setPlanningCollectionId] = useState("");
   const [compareCollectionIds, setCompareCollectionIds] = useState<string[]>([]);
+  const [showPlanningReturns, setShowPlanningReturns] = useState(true);
   const [inlinePlanEdit, setInlinePlanEdit] = useState<PlanningInlineEditState | null>(null);
   const [unassignedSupplierTargets, setUnassignedSupplierTargets] = useState<Record<string, string>>({});
   const [selectedUnassignedSupplierIds, setSelectedUnassignedSupplierIds] = useState<string[]>([]);
@@ -542,14 +593,14 @@ export function PurchasePlanningPage({
   );
   const comparisonCollectionOptions = useMemo<SelectOption[]>(
     () =>
-      collectionsChronological.map((collection) => ({
+      [...collectionsChronological].reverse().map((collection) => ({
         value: collection.id,
         label: collection.season_label || collection.name,
       })),
     [collectionsChronological],
   );
   const planningCollectionOptions = useMemo<SelectOption[]>(
-    () => [...comparisonCollectionOptions].reverse(),
+    () => comparisonCollectionOptions,
     [comparisonCollectionOptions],
   );
   const yearOptions = useMemo<SelectOption[]>(() => {
@@ -591,11 +642,18 @@ export function PurchasePlanningPage({
   const selectedYearOption = yearOptions.find((option) => option.value === filters.year) ?? null;
   const selectedSupplierOption = purchaseSupplierOptions.find((option) => option.value === filters.supplier_id) ?? null;
   const selectedCollectionOption = collectionOptions.find((option) => option.value === filters.collection_id) ?? null;
+  const selectedFilterCollection = filters.collection_id ? collectionMap.get(filters.collection_id) ?? null : null;
   const selectedPlanningStatusOption = planningStatusOptions.find((option) => option.value === filters.status) ?? null;
   const selectedBrandSupplierOptions = brandSupplierOptions.filter((option) => brandModal.supplier_ids.includes(option.value));
   const selectedCollectionSeasonTypeOption = SEASON_TYPE_OPTIONS.find((option) => option.value === collectionModal.season_type) ?? SEASON_TYPE_OPTIONS[0];
   const selectedInvoiceSeasonPhaseOption = SEASON_PHASE_OPTIONS.find((option) => option.value === invoiceDraft.season_phase) ?? SEASON_PHASE_OPTIONS[0];
   const selectedComparisonCollectionOptions = comparisonCollectionOptions.filter((option) => compareCollectionIds.includes(option.value));
+  const comparisonCollectionsPlaceholder =
+    selectedComparisonCollectionOptions.length === 0
+      ? "Selecione as coleções"
+      : selectedComparisonCollectionOptions.length === 1
+        ? selectedComparisonCollectionOptions[0]?.label ?? "1 coleção selecionada"
+        : `${selectedComparisonCollectionOptions.length} coleções selecionadas`;
 
   const filteredSuppliers = useMemo(() => {
     return suppliers.filter((supplier) => {
@@ -619,13 +677,20 @@ export function PurchasePlanningPage({
   const selectedSupplierTermOption = paymentTermOptions.find((option) => option.value === supplierModal.default_payment_term) ?? null;
   const selectedPurchaseReturnSupplierOption = supplierOptions.find((option) => option.value === purchaseReturnModal.supplier_id) ?? null;
   const purchaseReturnStatusOptions = getPurchaseReturnStatusOptions(purchaseReturnModal.id ? purchaseReturnModal.status : null);
+  const normalizedPurchaseReturnVisibleStatuses = normalizePurchaseReturnVisibleStatuses(purchaseReturnVisibleStatuses);
   const selectedPurchaseReturnVisibleStatusOptions = PURCHASE_RETURN_STATUS_OPTIONS.filter((option) =>
-    purchaseReturnVisibleStatuses.includes(option.value),
+    normalizedPurchaseReturnVisibleStatuses.includes(option.value),
   );
+  const purchaseReturnStatusPlaceholder =
+    normalizedPurchaseReturnVisibleStatuses.length === PURCHASE_RETURN_STATUS_OPTIONS.length
+      ? "Todos os status"
+      : normalizedPurchaseReturnVisibleStatuses.length === 1
+        ? `${selectedPurchaseReturnVisibleStatusOptions[0]?.label ?? "1 status"}`
+        : `${normalizedPurchaseReturnVisibleStatuses.length} status selecionados`;
   const filteredPurchaseReturns = useMemo(() => {
-    const normalizedFilter = normalizeDisplayText(purchaseReturnFilter);
+    const normalizedFilter = normalizeSearchText(purchaseReturnFilter).trim();
     return purchaseReturns.filter((purchaseReturn) => {
-      if (!purchaseReturnVisibleStatuses.includes(purchaseReturn.status)) {
+      if (!normalizedPurchaseReturnVisibleStatuses.includes(purchaseReturn.status)) {
         return false;
       }
       if (purchaseReturnDateFrom && purchaseReturn.return_date < purchaseReturnDateFrom) {
@@ -638,8 +703,8 @@ export function PurchasePlanningPage({
         return true;
       }
       const formattedDate = formatDate(purchaseReturn.return_date);
-      const formattedAmount = formatMoney(purchaseReturn.amount);
-      const haystack = normalizeDisplayText(
+      const formattedAmount = formatPurchaseDisplayAmount(purchaseReturn.amount);
+      const haystack = normalizeSearchText(
         [
           purchaseReturn.supplier_name,
           formattedDate,
@@ -653,15 +718,18 @@ export function PurchasePlanningPage({
       );
       return haystack.includes(normalizedFilter);
     });
-  }, [purchaseReturnDateFrom, purchaseReturnDateTo, purchaseReturnFilter, purchaseReturnVisibleStatuses, purchaseReturns]);
-  const purchaseReturnsTotal = useMemo(
-    () => filteredPurchaseReturns.reduce((sum, purchaseReturn) => sum + Number(purchaseReturn.amount), 0),
-    [filteredPurchaseReturns],
+  }, [normalizedPurchaseReturnVisibleStatuses, purchaseReturnDateFrom, purchaseReturnDateTo, purchaseReturnFilter, purchaseReturns]);
+  const purchaseCostTotal = useMemo(
+    () => overview.cost_totals.reduce((sum, item) => sum + Number(item.purchase_cost_total), 0),
+    [overview.cost_totals],
   );
-
-  const plannedTotal = useMemo(
-    () => overview.monthly_projection.reduce((sum, item) => sum + Number(item.planned_outflows), 0),
-    [overview.monthly_projection],
+  const purchaseReturnCostTotal = useMemo(
+    () => overview.cost_totals.reduce((sum, item) => sum + Number(item.purchase_return_cost_total), 0),
+    [overview.cost_totals],
+  );
+  const netPurchaseCostTotal = useMemo(
+    () => overview.cost_totals.reduce((sum, item) => sum + Number(item.net_cost_total), 0),
+    [overview.cost_totals],
   );
   const currentCollection = useMemo(() => {
     const matchedCurrent = collectionsChronological.find((collection) => collection.start_date <= today && collection.end_date >= today);
@@ -859,8 +927,10 @@ export function PurchasePlanningPage({
         const row = rowMap.get(key) ?? null;
         const plans = planGroupMap.get(key) ?? [];
         const plannedAmountCents = plans.reduce((sum, plan) => sum + toCents(plan.purchased_amount), 0);
+        const returnsAmountCents = toCents(row?.returns_total ?? "0.00");
         const receivedAmountCents = toCents(row?.received_total ?? "0.00");
         const plannedAmount = centsToAmount(plannedAmountCents);
+        const returnsAmount = centsToAmount(returnsAmountCents);
         const receivedAmount = centsToAmount(receivedAmountCents);
         const outstandingAmount = centsToAmount(Math.max(plannedAmountCents - receivedAmountCents, 0));
         const brandPaymentTerm = snapshot.brandId ? brandMap.get(snapshot.brandId)?.default_payment_term ?? null : null;
@@ -868,15 +938,17 @@ export function PurchasePlanningPage({
         snapshot.collections.set(collection.id, {
           collection,
           row:
-            row === null
-              ? null
-              : {
-                  purchased_total: row.purchased_total,
-                  launched_financial_total: row.launched_financial_total,
-                  outstanding_payable_total: row.outstanding_payable_total,
-          },
+              row === null
+                ? null
+                : {
+                    purchased_total: row.purchased_total,
+                    returns_total: row.returns_total,
+                    launched_financial_total: row.launched_financial_total,
+                    outstanding_payable_total: row.outstanding_payable_total,
+                },
           plans,
           plannedAmount,
+          returnsAmount,
           receivedAmount,
           outstandingAmount,
           paymentTerm: brandPaymentTerm || fallbackPlanPaymentTerm,
@@ -920,6 +992,7 @@ export function PurchasePlanningPage({
         .map((snapshot) => snapshot.collections.get(collection.id))
         .filter((value): value is PlanningCollectionSnapshot => Boolean(value));
       const plannedAmountCents = collectionSnapshots.reduce((sum, snapshot) => sum + toCents(snapshot.plannedAmount), 0);
+      const returnsAmountCents = collectionSnapshots.reduce((sum, snapshot) => sum + toCents(snapshot.returnsAmount), 0);
       const receivedAmountCents = collectionSnapshots.reduce((sum, snapshot) => sum + toCents(snapshot.receivedAmount), 0);
       const outstandingAmountCents = Math.max(plannedAmountCents - receivedAmountCents, 0);
       const paymentTerms = Array.from(new Set(collectionSnapshots.map((snapshot) => snapshot.paymentTerm).filter((value): value is string => Boolean(value))));
@@ -928,6 +1001,9 @@ export function PurchasePlanningPage({
         row: {
           purchased_total: centsToAmount(
             collectionSnapshots.reduce((sum, snapshot) => sum + toCents(snapshot.row?.purchased_total ?? "0.00"), 0),
+          ),
+          returns_total: centsToAmount(
+            collectionSnapshots.reduce((sum, snapshot) => sum + toCents(snapshot.row?.returns_total ?? "0.00"), 0),
           ),
           launched_financial_total: centsToAmount(
             collectionSnapshots.reduce((sum, snapshot) => sum + toCents(snapshot.row?.launched_financial_total ?? "0.00"), 0),
@@ -938,6 +1014,7 @@ export function PurchasePlanningPage({
         },
         plans: collectionSnapshots.flatMap((snapshot) => snapshot.plans),
         plannedAmount: centsToAmount(plannedAmountCents),
+        returnsAmount: centsToAmount(returnsAmountCents),
         receivedAmount: centsToAmount(receivedAmountCents),
         outstandingAmount: centsToAmount(outstandingAmountCents),
         paymentTerm: paymentTerms.length <= 1 ? (paymentTerms[0] ?? "-") : "Diversos",
@@ -999,12 +1076,16 @@ export function PurchasePlanningPage({
     setInvoiceModalOpen(true);
     setInvoiceText("");
     setInvoiceDraft(emptyInvoiceDraft());
+    setLinxSyncFeedback(null);
+    setSyncingLinxInvoices(false);
   }
 
   function closeInvoiceModal() {
     setInvoiceModalOpen(false);
     setInvoiceText("");
     setInvoiceDraft(emptyInvoiceDraft());
+    setLinxSyncFeedback(null);
+    setSyncingLinxInvoices(false);
   }
 
   function closeBrandModal() {
@@ -1182,6 +1263,32 @@ export function PurchasePlanningPage({
       })),
     });
     closeInvoiceModal();
+  }
+
+  async function handleSyncLinxPurchaseInvoices() {
+    setSyncingLinxInvoices(true);
+    setLinxSyncFeedback({
+      tone: "info",
+      message: "Sincronizando notas do Linx. Isso pode levar alguns segundos...",
+    });
+    try {
+      const message = await onSyncLinxPurchaseInvoices();
+      setLinxSyncFeedback({
+        tone: "success",
+        message: normalizeDisplayText(message ?? "") || "Sincronizacao do Linx concluida.",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? normalizeDisplayText(error.message)
+          : "Nao foi possivel concluir a sincronizacao do Linx.";
+      setLinxSyncFeedback({
+        tone: "error",
+        message,
+      });
+    } finally {
+      setSyncingLinxInvoices(false);
+    }
   }
 
   async function handleSaveBrand() {
@@ -1533,14 +1640,20 @@ export function PurchasePlanningPage({
             <Select
               options={yearOptions}
               value={selectedYearOption}
-              onChange={(option) =>
+              onChange={(option) => {
+                const nextYear = asSingleValue(option);
+                const shouldKeepCollection =
+                  !selectedFilterCollection ||
+                  !nextYear ||
+                  String(selectedFilterCollection.season_year ?? "") === nextYear;
                 onChangeFilters({
                   ...filters,
-                  year: asSingleValue(option),
+                  year: nextYear,
+                  collection_id: shouldKeepCollection ? filters.collection_id : "",
                   brand_id: "",
                   status: "",
-                })
-              }
+                });
+              }}
               isClearable
               placeholder="Todos"
               styles={purchaseSelectStyles}
@@ -1571,14 +1684,17 @@ export function PurchasePlanningPage({
             <Select
               options={collectionOptions}
               value={selectedCollectionOption}
-              onChange={(option) =>
+              onChange={(option) => {
+                const nextCollectionId = asSingleValue(option);
+                const nextCollection = nextCollectionId ? collectionMap.get(nextCollectionId) ?? null : null;
                 onChangeFilters({
                   ...filters,
-                  collection_id: asSingleValue(option),
+                  year: nextCollection?.season_year ? String(nextCollection.season_year) : filters.year,
+                  collection_id: nextCollectionId,
                   brand_id: "",
                   status: "",
-                })
-              }
+                });
+              }}
               isClearable
               placeholder="Todas"
               styles={purchaseSelectStyles}
@@ -1622,7 +1738,9 @@ export function PurchasePlanningPage({
               }}
               isMulti
               closeMenuOnSelect={false}
-              placeholder="Selecione as coleções"
+              hideSelectedOptions={false}
+              controlShouldRenderValue={false}
+              placeholder={comparisonCollectionsPlaceholder}
               styles={purchaseSelectStyles}
               menuPortalTarget={portalTarget}
             />
@@ -1638,23 +1756,32 @@ export function PurchasePlanningPage({
               styles={purchaseSelectStyles}
               menuPortalTarget={portalTarget}
             />
-            </label>
-            <div className="action-row">
-              <button className="secondary-button" type="button" onClick={() => openBrandModal()}>
-                Nova marca
-              </button>
-              <button className="secondary-button" type="button" onClick={openInvoiceModal}>
-                Nova nota
-              </button>
-              <button className="secondary-button" type="button" onClick={() => setPurchaseReturnsPanelOpen(true)}>
-                Devoluções
-              </button>
+          </label>
+          <label className="purchase-filter-toggle">
+            <span className="purchase-filter-toggle-control">
+              <input
+                type="checkbox"
+                checked={showPlanningReturns}
+                onChange={(event) => setShowPlanningReturns(event.target.checked)}
+              />
+              <span>{"Mostrar devolu\u00e7\u00f5es"}</span>
+            </span>
+          </label>
+          <div className="action-row">
+            <button className="secondary-button" type="button" onClick={() => openBrandModal()}>
+              Nova marca
+            </button>
+            <button className="secondary-button" type="button" onClick={openInvoiceModal}>
+              Nova nota
+            </button>
+            <button className="secondary-button" type="button" onClick={() => setPurchaseReturnsPanelOpen(true)}>
+              Devoluções
+            </button>
           </div>
         </div>
       </section>
     );
   }
-
   function renderCadastrosToolbar() {
     return (
       <section className="panel">
@@ -1682,7 +1809,6 @@ export function PurchasePlanningPage({
       </section>
     );
   }
-
   function renderInlinePlannedAmount(
     snapshot: PlanningBrandSnapshot,
     collection: CollectionSeason,
@@ -1690,7 +1816,7 @@ export function PurchasePlanningPage({
   ) {
     const collectionSnapshot = snapshot.collections.get(collection.id);
     if (!collectionSnapshot) {
-      return <span>{formatMoney("0.00")}</span>;
+      return <span>{formatPurchaseDisplayAmount("0.00")}</span>;
     }
     const isEditing = inlinePlanEdit?.brand_key === snapshot.key && inlinePlanEdit.collection_id === collection.id;
     const inlineEditClassName = [
@@ -1702,11 +1828,19 @@ export function PurchasePlanningPage({
       .filter(Boolean)
       .join(" ");
     if (!isEditing) {
+      const netDisplayLine = showPlanningReturns
+        ? buildPurchaseNetDisplayLine(collectionSnapshot.plannedAmount, collectionSnapshot.returnsAmount)
+        : null;
       return (
         <div className={inlineEditClassName}>
-          <span className={options?.highlight ? "planning-inline-edit-value is-highlighted" : "planning-inline-edit-value"}>
-            {formatMoney(collectionSnapshot.plannedAmount)}
-          </span>
+          <div className="planning-inline-edit-readonly-values">
+            <span className={options?.highlight ? "planning-inline-edit-value is-highlighted" : "planning-inline-edit-value"}>
+              {formatPurchaseDisplayAmount(collectionSnapshot.plannedAmount)}
+            </span>
+            {netDisplayLine ? (
+              <span className="planning-inline-return-value">{netDisplayLine}</span>
+            ) : null}
+          </div>
           <button className="table-button icon-button" type="button" onClick={() => startInlinePlanEdit(snapshot, collection)} title="Editar valor">
             <EditIcon />
           </button>
@@ -1733,7 +1867,7 @@ export function PurchasePlanningPage({
   function renderInstallmentRow(installment: PurchaseInstallment) {
     const candidateOptions = installment.candidates.map((candidate) => ({
       value: candidate.entry_id,
-      label: `${candidate.title} - ${formatMoney(candidate.total_amount)}`,
+      label: `${candidate.title} - ${formatPurchaseDisplayAmount(candidate.total_amount)}`,
     }));
     const selectedCandidate = candidateOptions.find((option) => option.value === installment.financial_entry_id) ?? null;
 
@@ -1743,7 +1877,7 @@ export function PurchasePlanningPage({
         <td>{installment.invoice_number || "-"}</td>
         <td>{installment.installment_label || installment.installment_number}</td>
         <td>{formatDate(installment.due_date)}</td>
-        <td className="numeric-cell">{formatMoney(installment.amount)}</td>
+        <td className="numeric-cell">{formatPurchaseDisplayAmount(installment.amount)}</td>
         <td>{labelizeStatus(installment.status)}</td>
         <td style={{ minWidth: 220 }}>
           <Select
@@ -1766,10 +1900,11 @@ export function PurchasePlanningPage({
         {renderSummaryFilters()}
 
         <section className="kpi-grid compact-kpis-four">
-          {renderMetricCard("Comprado", formatMoney(overview.summary.purchased_total))}
-          {renderMetricCard("Previsto", formatMoney(plannedTotal))}
-          {renderMetricCard("Pago", formatMoney(overview.summary.paid_total))}
-          {renderMetricCard("Em aberto", formatMoney(overview.summary.outstanding_payable_total))}
+          {renderMetricCard("Compras custo", formatPurchaseDisplayAmount(purchaseCostTotal))}
+          {renderMetricCard("Devoluções", formatPurchaseDisplayAmount(purchaseReturnCostTotal))}
+          {renderMetricCard("Custo líquido", formatPurchaseDisplayAmount(netPurchaseCostTotal))}
+          {renderMetricCard("Pago", formatPurchaseDisplayAmount(overview.summary.paid_total))}
+          {renderMetricCard("Em aberto", formatPurchaseDisplayAmount(overview.summary.outstanding_payable_total))}
         </section>
 
         <section className="purchase-two-column">
@@ -1791,8 +1926,8 @@ export function PurchasePlanningPage({
                     overview.monthly_projection.map((item) => (
                       <tr key={item.reference}>
                         <td>{item.reference}</td>
-                        <td className="numeric-cell">{formatMoney(item.planned_outflows)}</td>
-                        <td className="numeric-cell">{formatMoney(item.open_balance)}</td>
+                        <td className="numeric-cell">{formatPurchaseDisplayAmount(item.planned_outflows)}</td>
+                        <td className="numeric-cell">{formatPurchaseDisplayAmount(item.open_balance)}</td>
                       </tr>
                     ))
                   ) : (
@@ -1834,6 +1969,44 @@ export function PurchasePlanningPage({
           </article>
         </section>
 
+        <section className="purchase-full-width-section">
+          <article className="panel-card">
+            <div className="purchase-panel-heading">
+              <h3>Totalizações por coleção / fornecedor / custo</h3>
+            </div>
+            <div className="table-shell tall">
+              <table className="erp-table">
+                <thead>
+                  <tr>
+                    <th>Coleção</th>
+                    <th>Fornecedor</th>
+                    <th className="numeric-cell">Compras</th>
+                    <th className="numeric-cell">Devoluções</th>
+                    <th className="numeric-cell">Custo líquido</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {overview.cost_totals.length ? (
+                    overview.cost_totals.map((item) => (
+                      <tr key={`${item.collection_name}-${item.supplier_name}`}>
+                        <td>{item.collection_name}</td>
+                        <td>{item.supplier_name}</td>
+                        <td className="numeric-cell">{formatPurchaseDisplayAmount(item.purchase_cost_total)}</td>
+                        <td className="numeric-cell">{formatPurchaseDisplayAmount(item.purchase_return_cost_total)}</td>
+                        <td className="numeric-cell">{formatPurchaseDisplayAmount(item.net_cost_total)}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5}>Nenhuma totalização por coleção e fornecedor encontrada.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
         <section className="purchase-two-column">
           <article className="panel-card">
             <div className="purchase-panel-heading">
@@ -1859,7 +2032,7 @@ export function PurchasePlanningPage({
                         <td>{invoice.collection_name || "-"}</td>
                         <td>{invoice.invoice_number || "-"}</td>
                         <td>{formatDate(invoice.issue_date)}</td>
-                        <td className="numeric-cell">{formatMoney(invoice.total_amount)}</td>
+                        <td className="numeric-cell">{formatPurchaseDisplayAmount(invoice.total_amount)}</td>
                         <td>{labelizeStatus(invoice.status)}</td>
                       </tr>
                     ))
@@ -1981,6 +2154,12 @@ export function PurchasePlanningPage({
                         </td>
                         {selectedComparisonCollections.map((collection) => {
                           const collectionSnapshot = snapshot.collections.get(collection.id);
+                          const netDisplayLine = showPlanningReturns
+                            ? buildPurchaseNetDisplayLine(
+                                collectionSnapshot?.plannedAmount ?? "0.00",
+                                collectionSnapshot?.returnsAmount ?? "0.00",
+                              )
+                            : null;
                           return (
                             <td
                               className={`numeric-cell${planningCollection?.id === collection.id ? " planning-current-column" : ""}`}
@@ -1988,12 +2167,17 @@ export function PurchasePlanningPage({
                             >
                               {!snapshot.isInactiveGroup && snapshot.brandId
                                 ? renderInlinePlannedAmount(snapshot, collection, { highlight: planningCollection?.id === collection.id })
-                                : formatMoney(collectionSnapshot?.plannedAmount ?? "0.00")}
+                                : (
+                                  <div className="planning-inline-readonly-stack">
+                                    <span>{formatPurchaseDisplayAmount(collectionSnapshot?.plannedAmount ?? "0.00")}</span>
+                                    {netDisplayLine ? <span className="planning-inline-return-value">{netDisplayLine}</span> : null}
+                                  </div>
+                                )}
                             </td>
                           );
                         })}
-                        <td className="numeric-cell">{formatMoney(currentSnapshot?.receivedAmount ?? "0.00")}</td>
-                        <td className="numeric-cell">{formatMoney(currentSnapshot?.outstandingAmount ?? "0.00")}</td>
+                        <td className="numeric-cell">{formatPurchaseDisplayAmount(currentSnapshot?.receivedAmount ?? "0.00")}</td>
+                        <td className="numeric-cell">{formatPurchaseDisplayAmount(currentSnapshot?.outstandingAmount ?? "0.00")}</td>
                         {showConfirmationColumn ? (
                           <td className="centered-cell">
                             {snapshot.isInactiveGroup || (!snapshot.brandId && snapshot.brandName === "Sem marca") ? (
@@ -2087,7 +2271,7 @@ export function PurchasePlanningPage({
             {selectedComparisonCollections.map((collection) => (
               <div className="purchase-planning-total-card" key={`planning-total-${collection.id}`}>
                 <span>{collection.season_label || collection.name}</span>
-                <strong>{formatMoney(collectionTotals.get(collection.id) ?? "0.00")}</strong>
+                <strong>{formatPurchaseDisplayAmount(collectionTotals.get(collection.id) ?? "0.00")}</strong>
               </div>
             ))}
           </div>
@@ -2108,7 +2292,7 @@ export function PurchasePlanningPage({
                     <th>Coleção</th>
                     <th>Ano</th>
                     <th>Inicio</th>
-                    <th>Fim / prazo faturamento</th>
+                    <th>Fim da coleção</th>
                     <th className="numeric-cell">Pedidos totais</th>
                     <th>Status</th>
                     <th>Ações</th>
@@ -2122,7 +2306,7 @@ export function PurchasePlanningPage({
                         <td>{collection.season_year}</td>
                         <td>{formatDate(collection.start_date)}</td>
                         <td>{formatDate(collection.end_date)}</td>
-                        <td className="numeric-cell">{formatMoney(collectionTotals.get(collection.id) ?? "0.00")}</td>
+                        <td className="numeric-cell">{formatPurchaseDisplayAmount(collectionTotals.get(collection.id) ?? "0.00")}</td>
                         <td>{collection.is_active ? "Ativa" : "Inativa"}</td>
                         <td>
                           <div className="action-row">
@@ -2165,8 +2349,8 @@ export function PurchasePlanningPage({
                   overview.monthly_projection.map((item) => (
                     <tr key={item.reference}>
                       <td>{item.reference}</td>
-                      <td className="numeric-cell">{formatMoney(item.planned_outflows)}</td>
-                      <td className="numeric-cell">{formatMoney(item.open_balance)}</td>
+                      <td className="numeric-cell">{formatPurchaseDisplayAmount(item.planned_outflows)}</td>
+                      <td className="numeric-cell">{formatPurchaseDisplayAmount(item.open_balance)}</td>
                     </tr>
                   ))
                 ) : (
@@ -2255,31 +2439,27 @@ export function PurchasePlanningPage({
               Data final
               <input type="date" value={purchaseReturnDateTo} onChange={(event) => setPurchaseReturnDateTo(event.target.value)} />
             </label>
-            <label className="purchase-return-filter-field">
-              Status
+            <div className="purchase-return-filter-field purchase-return-status-inline">
+              <span className="purchase-return-inline-label">Status</span>
               <Select
                 options={PURCHASE_RETURN_STATUS_OPTIONS}
                 value={selectedPurchaseReturnVisibleStatusOptions}
-                onChange={(options) => setPurchaseReturnVisibleStatuses(asMultiValue(options))}
+                onChange={(options) => setPurchaseReturnVisibleStatuses(normalizePurchaseReturnVisibleStatuses(asMultiValue(options)))}
                 isMulti
                 closeMenuOnSelect={false}
                 hideSelectedOptions={false}
-                placeholder="Selecione os status"
+                controlShouldRenderValue={false}
+                placeholder={purchaseReturnStatusPlaceholder}
                 styles={purchaseSelectStyles}
                 menuPortalTarget={portalTarget}
               />
-            </label>
+            </div>
             <div className="action-row">
               <button className="secondary-button" type="button" onClick={() => openPurchaseReturnModal()}>
                 Nova devolução
               </button>
             </div>
           </div>
-        </section>
-
-        <section className="kpi-grid compact-kpis-four">
-          {renderMetricCard("Registros", String(filteredPurchaseReturns.length))}
-          {renderMetricCard("Valor devolvido", formatMoney(purchaseReturnsTotal.toFixed(2)))}
         </section>
 
         <article className="panel-card">
@@ -2301,12 +2481,15 @@ export function PurchasePlanningPage({
               <tbody>
                 {filteredPurchaseReturns.length ? (
                   filteredPurchaseReturns.map((purchaseReturn) => (
-                    <tr key={purchaseReturn.id}>
+                    <tr
+                      key={purchaseReturn.id}
+                      className={isPurchaseReturnActionRequired(purchaseReturn.status) ? "purchase-return-row--action-needed" : undefined}
+                    >
                       <td>{formatDate(purchaseReturn.return_date)}</td>
                       <td>{purchaseReturn.supplier_name || "-"}</td>
                       <td>{purchaseReturn.invoice_number || "-"}</td>
                       <td>{labelizePurchaseReturnStatus(purchaseReturn.status)}</td>
-                      <td className="numeric-cell">{formatMoney(purchaseReturn.amount)}</td>
+                      <td className="numeric-cell">{formatPurchaseDisplayAmount(purchaseReturn.amount)}</td>
                       <td>
                         <div className="action-row">
                           <button
@@ -2352,12 +2535,42 @@ export function PurchasePlanningPage({
         <div className="modal-card">
           <div className="purchase-panel-heading">
             <h3>Nova nota fiscal</h3>
-            <button className="ghost-button" type="button" onClick={closeInvoiceModal}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={closeInvoiceModal} />
           </div>
 
           <div className="content-grid">
+            <section className="panel">
+              <div className="purchase-panel-heading">
+                <h3>Faturas de compra via API Linx</h3>
+              </div>
+              <p className="empty-state">
+                Busca as faturas de compra na API da Linx, compara com os titulos ja vistos e inclui
+                somente os lancamentos novos ou alterados em aberto.
+              </p>
+              {linxSyncFeedback && (
+                <div
+                  className={`purchase-sync-feedback is-${linxSyncFeedback.tone}`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {linxSyncFeedback.message}
+                </div>
+              )}
+              <div className="action-row">
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => void handleSyncLinxPurchaseInvoices()}
+                  disabled={syncingLinxInvoices}
+                  aria-busy={syncingLinxInvoices}
+                >
+                  {syncingLinxInvoices
+                    ? "Sincronizando faturas de compra..."
+                    : "Atualizar faturas de compra"}
+                </button>
+              </div>
+            </section>
+
             <section className="panel">
               <label className="full-width">
                 Texto da nota
@@ -2483,7 +2696,7 @@ export function PurchasePlanningPage({
                         <tr key={`${installment.installment_number}-${installment.installment_label ?? ""}`}>
                           <td>{installment.installment_label || installment.installment_number}</td>
                           <td>{formatDate(installment.due_date)}</td>
-                          <td className="numeric-cell">{formatMoney(installment.amount)}</td>
+                          <td className="numeric-cell">{formatPurchaseDisplayAmount(installment.amount)}</td>
                         </tr>
                       ))
                     ) : (
@@ -2523,9 +2736,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card purchase-brand-modal-card">
           <div className="purchase-panel-heading">
             <h3>{brandModal.id ? "Editar marca" : "Nova marca"}</h3>
-            <button className="ghost-button" type="button" onClick={closeBrandModal}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={closeBrandModal} />
           </div>
           <div className="form-grid">
             <label>
@@ -2604,7 +2815,9 @@ export function PurchasePlanningPage({
                           <tr key={`${brandModal.id ?? brandModal.name}-${collection.id}`}>
                             <td>{collection.season_label || collection.name}</td>
                             <td className="numeric-cell">
-                              {currentBrandSnapshot ? renderInlinePlannedAmount(currentBrandSnapshot, collection, { compact: true }) : formatMoney("0.00")}
+                              {currentBrandSnapshot
+                                ? renderInlinePlannedAmount(currentBrandSnapshot, collection, { compact: true })
+                                : formatPurchaseDisplayAmount("0.00")}
                             </td>
                             <td className="centered-cell">
                               {isEditable ? (
@@ -2674,9 +2887,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card purchase-collection-note-modal">
           <div className="purchase-panel-heading">
             <h3>Observação da coleção</h3>
-            <button className="ghost-button" type="button" onClick={closeCollectionObservationModal}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={closeCollectionObservationModal} />
           </div>
           <div className="summary-list purchase-collection-note-summary">
             <div className="summary-row">
@@ -2684,9 +2895,9 @@ export function PurchasePlanningPage({
               <strong>{collection?.season_label || collection?.name || "-"}</strong>
             </div>
           </div>
-          <label className="full-width">
-            Observação
+          <div className="full-width">
             <textarea
+              className="purchase-collection-note-input"
               value={collectionObservationModal.notes}
               onChange={(event) =>
                 setCollectionObservationModal((current) =>
@@ -2701,7 +2912,7 @@ export function PurchasePlanningPage({
               placeholder="Digite uma observação para esta coleção"
               rows={5}
             />
-          </label>
+          </div>
           <div className="action-row">
             <button className="primary-button" type="button" onClick={() => void handleSaveCollectionObservation()}>
               Salvar observação
@@ -2723,9 +2934,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card purchase-inactive-brands-modal-card">
           <div className="purchase-panel-heading">
             <h3>Marcas desativadas</h3>
-            <button className="ghost-button" type="button" onClick={() => setInactiveBrandsModalOpen(false)}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={() => setInactiveBrandsModalOpen(false)} />
           </div>
           <div className="summary-list inactive-brands-summary">
             <div className="summary-row">
@@ -2789,9 +2998,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card purchase-inactive-brands-modal-card">
           <div className="purchase-panel-heading">
             <h3>Fornecedores sem marca</h3>
-            <button className="ghost-button" type="button" onClick={() => setUnassignedSuppliersModalOpen(false)}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={() => setUnassignedSuppliersModalOpen(false)} />
           </div>
           <div className="summary-list inactive-brands-summary">
             <div className="summary-row">
@@ -2923,9 +3130,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card">
           <div className="purchase-panel-heading">
             <h3>{supplierModal.id ? "Editar fornecedor" : "Novo fornecedor"}</h3>
-            <button className="ghost-button" type="button" onClick={() => setSupplierModalOpen(false)}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={() => setSupplierModalOpen(false)} />
           </div>
           <div className="form-grid">
             <label>
@@ -2978,16 +3183,12 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card">
           <div className="purchase-panel-heading">
             <h3>{purchaseReturnModal.id ? "Editar devolução de compra" : "Nova devolução de compra"}</h3>
-            <button
-              className="ghost-button"
-              type="button"
+            <ModalCloseButton
               onClick={() => {
                 setPurchaseReturnModalOpen(false);
                 setPurchaseReturnModal(emptyPurchaseReturnModal(today));
               }}
-            >
-              Fechar
-            </button>
+            />
           </div>
           <div className="form-grid">
             <label>
@@ -3080,9 +3281,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card purchase-returns-panel-modal">
           <div className="purchase-panel-heading">
             <h3>Devoluções de compras</h3>
-            <button className="ghost-button" type="button" onClick={() => setPurchaseReturnsPanelOpen(false)}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={() => setPurchaseReturnsPanelOpen(false)} />
           </div>
           {renderDevolucoes()}
         </div>
@@ -3098,9 +3297,7 @@ export function PurchasePlanningPage({
         <div className="modal-card purchase-modal-card">
           <div className="purchase-panel-heading">
             <h3>{collectionModal.id ? "Editar coleção" : "Nova coleção"}</h3>
-            <button className="ghost-button" type="button" onClick={() => setCollectionModalOpen(false)}>
-              Fechar
-            </button>
+            <ModalCloseButton onClick={() => setCollectionModalOpen(false)} />
           </div>
           <div className="form-grid">
             <label>
@@ -3137,7 +3334,7 @@ export function PurchasePlanningPage({
               />
             </label>
             <label>
-              Fim / prazo faturamento
+              Fim da coleção
               <input
                 type="date"
                 value={collectionModal.end_date}

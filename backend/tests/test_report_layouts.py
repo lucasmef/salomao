@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -13,10 +13,10 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.base import Base
 from app.db.models.finance import Account, Category, FinancialEntry
-from app.db.models.linx import SalesSnapshot
+from app.db.models.linx import LinxMovement, SalesSnapshot
 from app.db.models.reporting import ReportLayoutLine
 from app.db.models.security import Company, User
-from app.schemas.reports import ReportConfigLine, ReportConfigUpdate
+from app.schemas.reports import ReportConfigLine, ReportConfigUpdate, ReportGroupSelection
 from app.services.dashboard import build_dashboard_overview
 from app.services.report_layouts import get_or_create_report_config, update_report_config
 from app.services.reports import build_reports_overview
@@ -90,6 +90,9 @@ class ReportLayoutTestCase(unittest.TestCase):
         self.db.commit()
         return entry
 
+    def _group_selection(self, group_name: str, operation: str = "add") -> ReportGroupSelection:
+        return ReportGroupSelection(group_name=group_name, operation=operation)
+
     def _add_entry_custom_dates(
         self,
         *,
@@ -142,6 +145,31 @@ class ReportLayoutTestCase(unittest.TestCase):
         self.db.commit()
         return snapshot
 
+    def _add_movement(
+        self,
+        *,
+        movement_date: date,
+        movement_type: str,
+        total_amount: str,
+        quantity: str = "1.00",
+        cost_price: str = "0.00",
+    ) -> LinxMovement:
+        movement = LinxMovement(
+            company_id=self.company.id,
+            linx_transaction=int(datetime.combine(movement_date, datetime.min.time()).timestamp()),
+            movement_group="sale",
+            movement_type=movement_type,
+            launch_date=datetime.combine(movement_date, datetime.min.time()),
+            issue_date=datetime.combine(movement_date, datetime.min.time()),
+            quantity=Decimal(quantity),
+            cost_price=Decimal(cost_price),
+            total_amount=Decimal(total_amount),
+            net_amount=Decimal(total_amount),
+        )
+        self.db.add(movement)
+        self.db.commit()
+        return movement
+
     def test_get_or_create_report_config_seeds_default_layout(self) -> None:
         config = get_or_create_report_config(self.db, self.company, "dre")
 
@@ -154,8 +182,12 @@ class ReportLayoutTestCase(unittest.TestCase):
     def test_update_report_config_rejects_duplicate_group_in_same_report(self) -> None:
         config = get_or_create_report_config(self.db, self.company, "dro")
         lines = [line.model_copy(deep=True) for line in config.lines]
-        lines[0] = lines[0].model_copy(update={"special_source": None, "category_groups": ["group:Receitas de Vendas"]})
-        lines[1] = lines[1].model_copy(update={"special_source": None, "category_groups": ["group:Receitas de Vendas"]})
+        lines[0] = lines[0].model_copy(
+            update={"special_source": None, "category_groups": [self._group_selection("group:Receitas de Vendas")]}
+        )
+        lines[1] = lines[1].model_copy(
+            update={"special_source": None, "category_groups": [self._group_selection("group:Receitas de Vendas")]}
+        )
 
         with self.assertRaises(HTTPException) as raised:
             update_report_config(self.db, self.company, "dro", ReportConfigUpdate(lines=lines))
@@ -196,14 +228,14 @@ class ReportLayoutTestCase(unittest.TestCase):
         lines[1] = lines[1].model_copy(
             update={
                 "special_source": "deducoes_faturamento",
-                "category_groups": ["subgroup:Impostos e Taxas"],
+                "category_groups": [self._group_selection("subgroup:Impostos e Taxas")],
             }
         )
 
         updated = update_report_config(self.db, self.company, "dre", ReportConfigUpdate(lines=lines))
 
         self.assertEqual(updated.lines[1].special_source, "deducoes_faturamento")
-        self.assertIn("subgroup:Impostos e Taxas", updated.lines[1].category_groups)
+        self.assertIn("subgroup:Impostos e Taxas", {group.group_name for group in updated.lines[1].category_groups})
 
     def test_existing_legacy_special_source_is_migrated_to_category_groups(self) -> None:
         config = get_or_create_report_config(self.db, self.company, "dro")
@@ -218,7 +250,7 @@ class ReportLayoutTestCase(unittest.TestCase):
         migrated_line = next(line for line in migrated.lines if line.summary_binding == "bank_revenue")
 
         self.assertIsNone(migrated_line.special_source)
-        self.assertIn("group:Receitas", migrated_line.category_groups)
+        self.assertIn("group:Receitas", {group.group_name for group in migrated_line.category_groups})
 
     def test_existing_totalizer_formula_is_preserved(self) -> None:
         config = get_or_create_report_config(self.db, self.company, "dre")
@@ -236,14 +268,17 @@ class ReportLayoutTestCase(unittest.TestCase):
 
         self.assertTrue(any(item.referenced_line_id == net_line.id for item in migrated_gross_profit.formula))
 
-    def test_dre_uses_snapshot_special_sources_from_default_layout(self) -> None:
-        self._add_snapshot(gross_revenue="1000.00", markup="100.00")
+    def test_dre_uses_linx_movements_special_sources_from_default_layout(self) -> None:
+        self._add_movement(movement_date=date(2026, 3, 10), movement_type="sale", total_amount="1000.00", quantity="2.00", cost_price="250.00")
+        self._add_movement(movement_date=date(2026, 3, 11), movement_type="sale_return", total_amount="100.00")
 
         overview = build_reports_overview(self.db, self.company, start=date(2026, 3, 1), end=date(2026, 3, 31))
 
         self.assertEqual(overview.dre.gross_revenue, Decimal("1000.00"))
+        self.assertEqual(overview.dre.deductions, Decimal("100.00"))
+        self.assertEqual(overview.dre.net_revenue, Decimal("900.00"))
         self.assertEqual(overview.dre.cmv, Decimal("500.00"))
-        self.assertEqual(overview.dre.net_profit, Decimal("500.00"))
+        self.assertEqual(overview.dre.net_profit, Decimal("400.00"))
         self.assertEqual(overview.dre.statement[0].percent, Decimal("100.00"))
 
     def test_dashboard_uses_dre_dashboard_cards_with_configured_names(self) -> None:
@@ -259,6 +294,53 @@ class ReportLayoutTestCase(unittest.TestCase):
         self.assertEqual([item.label for item in dashboard.dre_chart[:2]], ["RECEITA BRUTA", "(=) RECEITA LIQUIDA"])
         self.assertEqual([item.label for item in dashboard.dre_cards[:2]], ["RECEITA BRUTA", "(=) RECEITA LIQUIDA"])
         self.assertNotIn("(-) DEDUCOES", {item.label for item in dashboard.dre_chart})
+
+    def test_dashboard_groups_revenue_comparison_by_month_for_current_and_previous_year(self) -> None:
+        self._add_snapshot(gross_revenue="1000.00")
+        previous_year_snapshot = SalesSnapshot(
+            company_id=self.company.id,
+            snapshot_date=date(2025, 3, 15),
+            gross_revenue=Decimal("250.00"),
+            cash_revenue=Decimal("0.00"),
+            check_sight_revenue=Decimal("0.00"),
+            check_term_revenue=Decimal("0.00"),
+            inhouse_credit_revenue=Decimal("0.00"),
+            card_revenue=Decimal("0.00"),
+            convenio_revenue=Decimal("0.00"),
+            pix_revenue=Decimal("0.00"),
+            financing_revenue=Decimal("0.00"),
+            markup=Decimal("100.00"),
+            discount_or_surcharge=Decimal("0.00"),
+        )
+        current_year_extra_snapshot = SalesSnapshot(
+            company_id=self.company.id,
+            snapshot_date=date(2026, 3, 20),
+            gross_revenue=Decimal("300.00"),
+            cash_revenue=Decimal("0.00"),
+            check_sight_revenue=Decimal("0.00"),
+            check_term_revenue=Decimal("0.00"),
+            inhouse_credit_revenue=Decimal("0.00"),
+            card_revenue=Decimal("0.00"),
+            convenio_revenue=Decimal("0.00"),
+            pix_revenue=Decimal("0.00"),
+            financing_revenue=Decimal("0.00"),
+            markup=Decimal("100.00"),
+            discount_or_surcharge=Decimal("0.00"),
+        )
+        self.db.add_all([previous_year_snapshot, current_year_extra_snapshot])
+        self.db.commit()
+
+        dashboard = build_dashboard_overview(self.db, self.company, start=date(2026, 3, 1), end=date(2026, 3, 31))
+
+        march_point = next(point for point in dashboard.revenue_comparison.points if point.month == 3)
+        april_point = next(point for point in dashboard.revenue_comparison.points if point.month == 4)
+
+        self.assertEqual(dashboard.revenue_comparison.current_year, 2026)
+        self.assertEqual(dashboard.revenue_comparison.previous_year, 2025)
+        self.assertEqual(march_point.current_year_value, Decimal("1300.00"))
+        self.assertEqual(march_point.previous_year_value, Decimal("250.00"))
+        self.assertEqual(april_point.current_year_value, Decimal("0.00"))
+        self.assertEqual(april_point.previous_year_value, Decimal("0.00"))
 
     def test_grouped_children_percent_uses_parent_total(self) -> None:
         account = self._add_account("Banco")
@@ -333,7 +415,8 @@ class ReportLayoutTestCase(unittest.TestCase):
             entry_kind="expense",
             report_group="Imposto de Vendas",
         )
-        self._add_snapshot(gross_revenue="1000.00", markup="100.00", discount_or_surcharge="-100.00")
+        self._add_movement(movement_date=date(2026, 3, 10), movement_type="sale", total_amount="1000.00", quantity="2.00", cost_price="250.00")
+        self._add_movement(movement_date=date(2026, 3, 10), movement_type="sale_return", total_amount="100.00")
         self._add_entry_custom_dates(
             account=account,
             category=tax_category,
@@ -350,7 +433,7 @@ class ReportLayoutTestCase(unittest.TestCase):
         lines[1] = lines[1].model_copy(
             update={
                 "special_source": "deducoes_faturamento",
-                "category_groups": ["group:Imposto de Vendas"],
+                "category_groups": [self._group_selection("group:Imposto de Vendas", "subtract")],
             }
         )
         update_report_config(self.db, self.company, "dre", ReportConfigUpdate(lines=lines))
@@ -360,13 +443,65 @@ class ReportLayoutTestCase(unittest.TestCase):
         deduction_labels = [child.label for child in deduction_node.children]
 
         self.assertEqual(overview_march.dre.deductions, Decimal("350.00"))
-        self.assertIn("Descontos, abatimentos e acrescimos", deduction_labels)
+        self.assertIn("Devolucoes de venda da API Linx", deduction_labels)
         self.assertIn("Imposto de Vendas", deduction_labels)
         self.assertNotIn("Faturamento", deduction_labels)
         self.assertEqual(overview_march.dro.sales_taxes, Decimal("0.00"))
 
         overview_april = build_reports_overview(self.db, self.company, start=date(2026, 4, 1), end=date(2026, 4, 30))
         self.assertEqual(overview_april.dro.sales_taxes, Decimal("250.00"))
+
+    def test_source_line_allows_mixed_signs_per_group_selection(self) -> None:
+        account = self._add_account("Banco")
+        purchase_category = self._add_category(
+            name="Compra paga",
+            code="3.3.1.1",
+            entry_kind="expense",
+            report_group="Compras Pagas",
+            report_subgroup="Compras Pagas",
+        )
+        revenue_category = self._add_category(
+            name="Receita loja",
+            code="3.1.1.1",
+            entry_kind="income",
+            report_group="Receitas de Vendas",
+            report_subgroup="Receitas de Vendas",
+        )
+        self._add_entry(account=account, category=purchase_category, entry_type="expense", total_amount="120.00")
+        self._add_entry(account=account, category=revenue_category, entry_type="income", total_amount="500.00")
+
+        custom_line = ReportConfigLine.model_validate(
+            {
+                "id": "linha-mista",
+                "name": "Compras x Receitas",
+                "order": 1,
+                "line_type": "source",
+                "operation": "add",
+                "special_source": None,
+                "category_groups": [
+                    {"group_name": "group:Compras Pagas", "operation": "subtract"},
+                    {"group_name": "group:Receitas de Vendas", "operation": "add"},
+                ],
+                "formula": [],
+                "show_on_dashboard": False,
+                "show_percent": True,
+                "percent_mode": "grouped_children",
+                "percent_reference_line_id": None,
+                "is_active": True,
+                "is_hidden": False,
+                "summary_binding": "bank_revenue",
+            }
+        )
+        update_report_config(self.db, self.company, "dro", ReportConfigUpdate(lines=[custom_line]))
+
+        overview = build_reports_overview(self.db, self.company, start=date(2026, 3, 1), end=date(2026, 3, 31))
+        mixed_node = next(node for node in overview.dro.statement if node.label == "Compras x Receitas")
+        child_amounts = {child.label: child.amount for child in mixed_node.children}
+
+        self.assertEqual(overview.dro.bank_revenue, Decimal("380.00"))
+        self.assertEqual(mixed_node.amount, Decimal("380.00"))
+        self.assertEqual(child_amounts["Compras Pagas"], Decimal("-120.00"))
+        self.assertEqual(child_amounts["Receitas de Vendas"], Decimal("500.00"))
 
 
 if __name__ == "__main__":

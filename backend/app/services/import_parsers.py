@@ -180,6 +180,62 @@ LINX_RECEIVABLE_ZIP_PASSWORD = b"130921"
 LINX_RECEIVABLE_SUPPORTED_EXTENSIONS = (".xlsx", ".xls", ".html", ".htm")
 
 
+@dataclass(slots=True)
+class ParsedPurchasePayableRow:
+    issue_date: date | None
+    payable_code: str | None
+    company_code: str | None
+    due_date: date | None
+    installment_label: str | None
+    installment_number: int | None
+    installments_total: int | None
+    original_amount: Decimal
+    amount_with_charges: Decimal
+    supplier_name: str
+    supplier_code: str | None
+    document_number: str | None
+    document_series: str | None
+    status: str
+
+
+def _split_linx_pair(raw: str) -> tuple[str | None, str | None]:
+    value = (raw or "").strip()
+    if not value:
+        return None, None
+    separator = "|" if "|" in value else ("/" if "/" in value else None)
+    if separator is None:
+        cleaned = value.strip()
+        return cleaned or None, None
+    first, second = value.split(separator, 1)
+    left = first.strip() or None
+    right = second.strip() or None
+    return left, right
+
+
+def _parse_installment_pair(raw: str) -> tuple[str | None, int | None, int | None]:
+    installment_label = (raw or "").strip() or None
+    current, total = _split_linx_pair(raw)
+    try:
+        current_number = int(current) if current is not None else None
+    except ValueError:
+        current_number = None
+    try:
+        total_number = int(total) if total is not None else None
+    except ValueError:
+        total_number = None
+    return installment_label, current_number, total_number
+
+
+def _parse_supplier_display_name(raw: str) -> tuple[str, str | None]:
+    value = (raw or "").strip()
+    if not value:
+        return "Fornecedor nao identificado", None
+    match = re.search(r"\((\d+)\)\s*$", value)
+    supplier_code = match.group(1) if match else None
+    supplier_name = re.sub(r"\s*\(\d+\)\s*$", "", value).strip()
+    return supplier_name or value, supplier_code
+
+
 def prepare_linx_receivables_payload(filename: str, content: bytes) -> tuple[str, bytes]:
     normalized_filename = (filename or "").lower()
     if not normalized_filename.endswith(".zip"):
@@ -319,6 +375,61 @@ def parse_receivable_rows(content: bytes) -> list[ParsedReceivableRow]:
                 document_reference=row[7].strip() or None,
                 status=row[8].strip() or "Em aberto",
                 seller_name=None,
+            )
+        )
+    return parsed
+
+
+def parse_purchase_payable_rows(content: bytes) -> list[ParsedPurchasePayableRow]:
+    rows = parse_html_rows(content)
+    header_index = next(
+        (
+            idx
+            for idx, row in enumerate(rows)
+            if [normalize_label(cell) for cell in row[:4]]
+            == ["emissao", "faturaempresa", "venc", "parc"]
+        ),
+        None,
+    )
+    if header_index is None:
+        raise ValueError("Cabecalho de faturas a pagar nao encontrado")
+
+    parsed: list[ParsedPurchasePayableRow] = []
+    for row in rows[header_index + 1 :]:
+        first = row[0] if row else ""
+        label = normalize_label(first)
+        if label.startswith("grupo") or label.startswith("subtotaldogrupo"):
+            continue
+        if label.startswith("legenda") or label.startswith("quantidadedefaturas"):
+            break
+        if len(row) < 9:
+            continue
+
+        issue_date = parse_date_br(row[0])
+        if issue_date is None:
+            continue
+
+        payable_code, company_code = _split_linx_pair(row[1])
+        installment_label, installment_number, installments_total = _parse_installment_pair(row[3])
+        supplier_name, supplier_code = _parse_supplier_display_name(row[6])
+        document_number, document_series = _split_linx_pair(row[7])
+
+        parsed.append(
+            ParsedPurchasePayableRow(
+                issue_date=issue_date,
+                payable_code=payable_code,
+                company_code=company_code,
+                due_date=parse_date_br(row[2]),
+                installment_label=installment_label,
+                installment_number=installment_number,
+                installments_total=installments_total,
+                original_amount=parse_decimal_pt_br(row[4]),
+                amount_with_charges=parse_decimal_pt_br(row[5]),
+                supplier_name=supplier_name,
+                supplier_code=supplier_code,
+                document_number=document_number,
+                document_series=document_series,
+                status=row[8].strip() or "Em aberto",
             )
         )
     return parsed

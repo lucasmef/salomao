@@ -15,12 +15,17 @@ from app.services.error_logging import log_http_issue, log_unhandled_exception, 
 
 
 FRONTEND_DIST_DIR = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+RESERVED_API_DOC_PATHS = {"docs", "redoc", "openapi.json"}
 
 
-def configure_frontend_routes(app: FastAPI) -> None:
+def configure_frontend_routes(app: FastAPI, *, blocked_paths: set[str] | None = None) -> None:
     def resolve_frontend_response(full_path: str) -> FileResponse:
         if not FRONTEND_DIST_DIR.exists():
             raise HTTPException(status_code=404, detail="Frontend build not found")
+
+        normalized_path = full_path.strip("/")
+        if blocked_paths and normalized_path in blocked_paths:
+            raise HTTPException(status_code=404, detail="Not Found")
 
         requested_path = (FRONTEND_DIST_DIR / full_path).resolve()
         try:
@@ -51,12 +56,14 @@ def create_app() -> FastAPI:
     cors_origins = list(settings.cors_origins)
     if settings.public_origin and settings.public_origin not in cors_origins:
         cors_origins.append(settings.public_origin)
+    docs_enabled = settings.resolved_api_docs_enabled
 
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
-        docs_url="/docs",
-        redoc_url="/redoc",
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
     )
 
     app.add_middleware(
@@ -89,7 +96,10 @@ def create_app() -> FastAPI:
         return response
 
     app.include_router(api_router, prefix=settings.api_prefix)
-    configure_frontend_routes(app)
+    configure_frontend_routes(
+        app,
+        blocked_paths=RESERVED_API_DOC_PATHS if not docs_enabled else None,
+    )
 
     @app.on_event("startup")
     def on_startup() -> None:

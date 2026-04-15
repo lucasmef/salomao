@@ -10,7 +10,7 @@ from app.schemas.reports import ReportConfig, ReportConfigUpdate, ReportsOvervie
 from app.services.company_context import get_current_company
 from app.services.report_layouts import get_or_create_report_config, update_report_config
 from app.services.report_exports import build_reports_csv, build_reports_pdf, build_reports_xls
-from app.services.reports import build_reports_overview
+from app.services.reports import get_cached_reports_overview
 
 router = APIRouter()
 
@@ -20,9 +20,10 @@ def get_reports_overview(
     db: DbSession,
     start: date | None = Query(default=None),
     end: date | None = Query(default=None),
+    refresh: bool = Query(default=False),
 ) -> ReportsOverview:
     company = get_current_company(db)
-    return build_reports_overview(db, company, start=start, end=end)
+    return get_cached_reports_overview(db, company, start=start, end=end, refresh=refresh)
 
 
 @router.get("/config/{kind}", response_model=ReportConfig)
@@ -53,7 +54,7 @@ def export_report(
     end: date | None = Query(default=None),
 ) -> Response:
     company = get_current_company(db)
-    report = build_reports_overview(db, company, start=start, end=end)
+    report = get_cached_reports_overview(db, company, start=start, end=end)
     filename = f"{kind}.{format}"
     if format == "csv":
         payload = build_reports_csv(report, kind)

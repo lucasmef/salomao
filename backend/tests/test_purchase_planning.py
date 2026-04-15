@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 import app.services.purchase_planning as purchase_planning_service
 from app.db.models import audit as audit_models  # noqa: F401
 from app.db.models import finance as finance_models  # noqa: F401
+from app.db.models import linx as linx_models  # noqa: F401
 from app.db.models import purchasing as purchasing_models  # noqa: F401
 from app.db.models.base import Base
 from app.db.models.purchasing import Supplier
@@ -125,6 +126,58 @@ def create_purchase_category(db: Session, company: Company) -> finance_models.Ca
     db.add(category)
     db.flush()
     return category
+
+
+def create_linx_product(
+    db: Session,
+    company: Company,
+    *,
+    linx_code: int,
+    supplier_name: str,
+    collection_name: str,
+) -> linx_models.LinxProduct:
+    product = linx_models.LinxProduct(
+        company_id=company.id,
+        linx_code=linx_code,
+        description=f"Produto {linx_code}",
+        supplier_name=supplier_name,
+        collection_name=collection_name,
+        is_active=True,
+    )
+    db.add(product)
+    db.flush()
+    return product
+
+
+def create_linx_purchase_movement(
+    db: Session,
+    company: Company,
+    *,
+    linx_transaction: int,
+    product_code: int,
+    document_number: str,
+    movement_type: str,
+    total_amount: Decimal,
+    launch_date: date,
+) -> linx_models.LinxMovement:
+    movement = linx_models.LinxMovement(
+        company_id=company.id,
+        linx_transaction=linx_transaction,
+        movement_group="purchase",
+        movement_type=movement_type,
+        product_code=product_code,
+        document_number=document_number,
+        launch_date=datetime.combine(launch_date, datetime.min.time()),
+        total_amount=total_amount,
+        net_amount=total_amount,
+        quantity=Decimal("1.00"),
+        cost_price=total_amount,
+        canceled=False,
+        excluded=False,
+    )
+    db.add(movement)
+    db.flush()
+    return movement
 
 
 def create_generic_expense_category(db: Session, company: Company) -> finance_models.Category:
@@ -741,8 +794,8 @@ def test_update_purchase_plan_with_purchase_return_reduces_past_collection(
         user,
     )
 
-    assert updated_plan.received_amount == Decimal("100.00")
-    assert updated_plan.amount_to_receive == Decimal("350.00")
+    assert updated_plan.received_amount == Decimal("120.00")
+    assert updated_plan.amount_to_receive == Decimal("330.00")
 
 
 def test_overview_cashflow_uses_purchase_entries_to_reduce_amount_to_receive(
@@ -831,7 +884,13 @@ def test_overview_cashflow_uses_purchase_entries_to_reduce_amount_to_receive(
     assert plan_overview.received_amount == Decimal("1200.00")
     assert plan_overview.amount_to_receive == Decimal("0.00")
     assert overview.summary.outstanding_payable_total == Decimal("0.00")
-    assert monthly_projection == {}
+    assert monthly_projection == {
+        "2026-04": (Decimal("100.00"), Decimal("100.00")),
+        "2026-05": (Decimal("200.00"), Decimal("200.00")),
+        "2026-06": (Decimal("300.00"), Decimal("300.00")),
+        "2026-07": (Decimal("200.00"), Decimal("200.00")),
+        "2026-08": (Decimal("100.00"), Decimal("100.00")),
+    }
 
 
 def test_overview_cashflow_subtracts_brand_linked_purchase_entries_from_amount_to_receive(
@@ -848,7 +907,6 @@ def test_overview_cashflow_subtracts_brand_linked_purchase_entries_from_amount_t
         start_date=date(2026, 3, 1),
         end_date=date(2026, 5, 31),
     )
-    purchase_category = create_purchase_category(db_session, company)
     plan = create_purchase_plan(
         db_session,
         company,
@@ -864,23 +922,22 @@ def test_overview_cashflow_subtracts_brand_linked_purchase_entries_from_amount_t
         ),
         user,
     )
-    db_session.add(
-        finance_models.FinancialEntry(
-            company_id=company.id,
-            category_id=purchase_category.id,
-            supplier_id=supplier.id,
-            collection_id=collection.id,
-            entry_type="expense",
-            status="planned",
-            title="Lancamento manual de compras",
-            counterparty_name=supplier.name,
-            issue_date=date(2026, 3, 28),
-            competence_date=date(2026, 3, 28),
-            due_date=date(2026, 4, 20),
-            total_amount=Decimal("320.00"),
-            paid_amount=Decimal("0.00"),
-            is_deleted=False,
-        )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=910001,
+        supplier_name=supplier.name,
+        collection_name="Colecao Errada",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=910001,
+        product_code=910001,
+        document_number="9100",
+        movement_type="purchase",
+        total_amount=Decimal("320.00"),
+        launch_date=date(2026, 3, 28),
     )
     db_session.commit()
 
@@ -888,8 +945,8 @@ def test_overview_cashflow_subtracts_brand_linked_purchase_entries_from_amount_t
     plan_overview = next(item for item in overview.plans if item.id == plan.id)
     monthly_projection = {item.reference: item.planned_outflows for item in overview.monthly_projection}
 
-    assert plan_overview.received_amount == Decimal("320.00")
-    assert plan_overview.amount_to_receive == Decimal("580.00")
+    assert plan_overview.received_amount == Decimal("0.00")
+    assert plan_overview.amount_to_receive == Decimal("900.00")
     assert sum(monthly_projection.values(), Decimal("0.00")) == Decimal("580.00")
     assert monthly_projection == {
         "2026-04": Decimal("64.44"),
@@ -897,6 +954,77 @@ def test_overview_cashflow_subtracts_brand_linked_purchase_entries_from_amount_t
         "2026-06": Decimal("193.34"),
         "2026-07": Decimal("128.90"),
         "2026-08": Decimal("64.44"),
+    }
+
+
+def test_overview_cashflow_ignores_purchase_returns_in_projected_flow(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(purchase_planning_service, "_today", lambda: date(2026, 3, 24))
+    company, user = create_company_context(db_session)
+    supplier = create_supplier(db_session, company.id, "Fornecedor Fluxo Devolucao")
+    collection = create_collection(
+        db_session,
+        company,
+        "Inverno 2026",
+        start_date=date(2026, 3, 1),
+        end_date=date(2026, 5, 31),
+    )
+    create_purchase_plan(
+        db_session,
+        company,
+        PurchasePlanCreate(
+            supplier_ids=[supplier.id],
+            collection_id=collection.id,
+            title="Compra Fluxo Devolucao",
+            order_date=date(2026, 3, 24),
+            expected_delivery_date=date(2026, 4, 10),
+            purchased_amount=Decimal("900.00"),
+            payment_term="3x",
+            status="planned",
+        ),
+        user,
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=910101,
+        supplier_name=supplier.name,
+        collection_name="Colecao Errada",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=910101,
+        product_code=910101,
+        document_number="9101",
+        movement_type="purchase",
+        total_amount=Decimal("300.00"),
+        launch_date=date(2026, 3, 28),
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=910102,
+        product_code=910101,
+        document_number="9102",
+        movement_type="purchase_return",
+        total_amount=Decimal("120.00"),
+        launch_date=date(2026, 4, 5),
+    )
+    db_session.commit()
+
+    overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters())
+    monthly_projection = {item.reference: item.planned_outflows for item in overview.monthly_projection}
+
+    assert sum(monthly_projection.values(), Decimal("0.00")) == Decimal("600.00")
+    assert monthly_projection == {
+        "2026-04": Decimal("66.67"),
+        "2026-05": Decimal("133.34"),
+        "2026-06": Decimal("200.00"),
+        "2026-07": Decimal("133.33"),
+        "2026-08": Decimal("66.66"),
     }
 
 
@@ -2563,8 +2691,45 @@ def test_build_purchase_planning_overview_planning_mode_omits_summary_heavy_sect
     assert overview.invoices == []
     assert overview.open_installments == []
     assert overview.monthly_projection
-    assert sum((item.planned_outflows for item in overview.monthly_projection), Decimal("0.00")) == Decimal("450.00")
+    assert sum((item.planned_outflows for item in overview.monthly_projection), Decimal("0.00")) == Decimal("900.00")
     assert overview.rows[0].received_total == Decimal("450.00")
+
+
+def test_purchase_planning_collection_filter_uses_collection_year_even_when_request_year_conflicts(
+    db_session: Session,
+) -> None:
+    company, user = create_company_context(db_session)
+    supplier = create_supplier(db_session, company.id, "Fornecedor Inverno 2025")
+    historical_collection = create_collection(
+        db_session,
+        company,
+        "Inverno 2025",
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 7, 1),
+    )
+    create_purchase_plan(
+        db_session,
+        company,
+        PurchasePlanCreate(
+            supplier_ids=[supplier.id],
+            collection_id=historical_collection.id,
+            title="Compra Inverno 2025",
+            order_date=date(2025, 3, 10),
+            expected_delivery_date=date(2025, 4, 20),
+            purchased_amount=Decimal("1500.00"),
+            payment_term="3x",
+            status="planned",
+        ),
+        user,
+    )
+    db_session.commit()
+
+    conflicting_filters = PurchasePlanningFilters(year=2026, collection_id=historical_collection.id)
+
+    overview = build_purchase_planning_overview(db_session, company, conflicting_filters)
+    assert len(overview.rows) == 1
+    assert overview.rows[0].collection_name == "Inverno 2025"
+    assert overview.summary.purchased_total == Decimal("1500.00")
 
 
 def test_ensure_company_catalog_does_not_run_historical_backfill_automatically(db_session: Session) -> None:
@@ -2734,7 +2899,7 @@ def test_overview_received_total_uses_supplier_entries_issue_date_within_collect
     assert "Verao 2026" not in row_by_collection
 
 
-def test_overview_received_total_ignores_purchase_returns_for_current_or_future_collection(
+def test_overview_assigns_purchase_returns_to_current_collection_without_changing_received_total(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2795,15 +2960,22 @@ def test_overview_received_total_ignores_purchase_returns_for_current_or_future_
         ),
         user,
     )
-    create_purchase_return(
+    create_linx_product(
         db_session,
         company,
-        PurchaseReturnCreate(
-            supplier_id=supplier.id,
-            return_date=date(2026, 3, 20),
-            amount=Decimal("120.00"),
-        ),
-        user,
+        linx_code=7302001,
+        supplier_name=supplier.name,
+        collection_name="Verao 2026",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=7302001,
+        product_code=7302001,
+        document_number="7302",
+        movement_type="purchase_return",
+        total_amount=Decimal("120.00"),
+        launch_date=date(2026, 3, 20),
     )
     db_session.commit()
 
@@ -2811,10 +2983,13 @@ def test_overview_received_total_ignores_purchase_returns_for_current_or_future_
 
     row_by_collection = {row.collection_name: row for row in overview.rows if row.brand_name == "Marca Retorno"}
     assert row_by_collection["Inverno 2026"].received_total == Decimal("320.00")
+    assert row_by_collection["Inverno 2026"].returns_total == Decimal("120.00")
+    assert overview.cost_totals[0].supplier_name == supplier.name
+    assert overview.cost_totals[0].collection_name == "Inverno 2026"
     assert "Verao 2026" not in row_by_collection
 
 
-def test_overview_received_total_subtracts_purchase_returns_for_past_collection(
+def test_overview_assigns_purchase_returns_to_past_collection_without_changing_received_total(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2875,26 +3050,40 @@ def test_overview_received_total_subtracts_purchase_returns_for_past_collection(
         ),
         user,
     )
-    create_purchase_return(
+    create_linx_product(
         db_session,
         company,
-        PurchaseReturnCreate(
-            supplier_id=supplier.id,
-            return_date=date(2026, 3, 20),
-            amount=Decimal("120.00"),
-        ),
-        user,
+        linx_code=7303001,
+        supplier_name=supplier.name,
+        collection_name="Verao 2026",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=7303001,
+        product_code=7303001,
+        document_number="7303",
+        movement_type="purchase_return",
+        total_amount=Decimal("120.00"),
+        launch_date=date(2026, 3, 20),
     )
     db_session.commit()
 
     overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters(), mode="planning")
 
     row_by_collection = {row.collection_name: row for row in overview.rows if row.brand_name == "Marca Retorno Passado"}
-    assert row_by_collection["Inverno 2026"].received_total == Decimal("200.00")
+    assert row_by_collection["Inverno 2026"].received_total == Decimal("320.00")
+    assert row_by_collection["Inverno 2026"].returns_total == Decimal("120.00")
+    assert any(
+        cost_total.collection_name == "Inverno 2026"
+        and cost_total.supplier_name == supplier.name
+        and cost_total.purchase_return_cost_total == Decimal("120.00")
+        for cost_total in overview.cost_totals
+    )
     assert "Verao 2026" not in row_by_collection
 
 
-def test_overview_keeps_received_total_for_inactive_brand_in_past_collection(
+def test_overview_keeps_purchase_return_visible_for_inactive_brand_in_past_collection(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2948,19 +3137,27 @@ def test_overview_keeps_received_total_for_inactive_brand_in_past_collection(
         ),
         user,
     )
-    create_purchase_return(
+    create_linx_product(
         db_session,
         company,
-        PurchaseReturnCreate(
-            supplier_id=supplier.id,
-            return_date=date(2026, 3, 20),
-            amount=Decimal("120.00"),
-        ),
-        user,
+        linx_code=7304001,
+        supplier_name=supplier.name,
+        collection_name="Verao 2026",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=7304001,
+        product_code=7304001,
+        document_number="7304",
+        movement_type="purchase_return",
+        total_amount=Decimal("120.00"),
+        launch_date=date(2026, 3, 20),
     )
     db_session.commit()
 
     overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters(), mode="planning")
 
     row_by_collection = {row.collection_name: row for row in overview.rows if row.brand_name == "LP"}
-    assert row_by_collection["Inverno 2026"].received_total == Decimal("200.00")
+    assert row_by_collection["Inverno 2026"].received_total == Decimal("320.00")
+    assert row_by_collection["Inverno 2026"].returns_total == Decimal("120.00")

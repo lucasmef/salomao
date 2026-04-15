@@ -2,22 +2,42 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, time
 from decimal import Decimal
+from threading import Lock
+from time import monotonic
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models.finance import Category, FinancialEntry
-from app.db.models.linx import SalesSnapshot
+from app.db.models.linx import LinxMovement
+from app.db.models.reporting import (
+    ReportLayout,
+    ReportLayoutFormulaItem,
+    ReportLayoutLine,
+    ReportLayoutLineGroup,
+)
 from app.db.models.security import Company
 from app.schemas.reports import (
     DreReport,
     DroReport,
     ReportConfigLine,
     ReportDashboardCard,
+    ReportGroupSelection,
     ReportsOverview,
     ReportTreeNode,
+)
+from app.services.analytics_hybrid import (
+    ANALYTICS_REPORTS_OVERVIEW,
+    clear_live_cache,
+    is_full_month_period,
+    is_historical_period,
+    iter_month_segments,
+    upsert_monthly_snapshot,
+    read_live_cache,
+    read_snapshot_or_rebuild,
+    write_live_cache,
 )
 from app.services.report_layouts import get_or_create_report_config
 
@@ -34,6 +54,19 @@ INCOME_ENTRY_TYPES = {"income", "historical_receipt"}
 PURCHASE_RETURN_ENTRY_TYPES = {"historical_purchase_return"}
 CONTROL_RECEIVABLE_SOURCE = "linx_sales_control"
 SETTLEMENT_ADJUSTMENT_SOURCE = "settlement_adjustment"
+CURRENT_MONTH_REPORTS_CACHE_TTL_SECONDS = 86400
+HISTORICAL_MONTH_REPORTS_CACHE_TTL_SECONDS = 604800
+MAX_REPORTS_CACHE_ITEMS = 24
+
+
+@dataclass(slots=True)
+class ReportsOverviewCacheEntry:
+    expires_at: float
+    payload: ReportsOverview
+
+
+_reports_overview_cache: dict[tuple[str, str, str], ReportsOverviewCacheEntry] = {}
+_reports_overview_cache_lock = Lock()
 
 
 @dataclass
@@ -127,6 +160,194 @@ def _display_period_label(start: date, end: date) -> str:
     return f"{start.isoformat()} a {end.isoformat()}"
 
 
+def _month_start(value: date) -> date:
+    return date(value.year, value.month, 1)
+
+
+def _month_end(value: date) -> date:
+    if value.month == 12:
+        return date(value.year + 1, 1, 1).replace(day=1) - date.resolution
+    return date(value.year, value.month + 1, 1) - date.resolution
+
+
+def _resolve_period(start: date | None, end: date | None, *, today: date | None = None) -> tuple[date, date]:
+    reference_day = today or date.today()
+    return start or date(reference_day.year, reference_day.month, 1), end or reference_day
+
+
+def _is_full_month_period(start: date, end: date) -> bool:
+    return start == _month_start(start) and end == _month_end(start)
+
+
+def _reports_cache_ttl_seconds(start: date, end: date, *, today: date | None = None) -> int | None:
+    if not _is_full_month_period(start, end):
+        return None
+    reference_day = today or date.today()
+    current_month_start = _month_start(reference_day)
+    current_month_end = _month_end(reference_day)
+    if start == current_month_start and end == current_month_end:
+        return CURRENT_MONTH_REPORTS_CACHE_TTL_SECONDS
+    return HISTORICAL_MONTH_REPORTS_CACHE_TTL_SECONDS
+
+
+def _reports_cache_key(company_id: str, start: date, end: date) -> tuple[str, str, str]:
+    return company_id, start.isoformat(), end.isoformat()
+
+
+def _prune_reports_overview_cache(now: float) -> None:
+    expired_keys = [key for key, entry in _reports_overview_cache.items() if entry.expires_at <= now]
+    for key in expired_keys:
+        _reports_overview_cache.pop(key, None)
+    if len(_reports_overview_cache) <= MAX_REPORTS_CACHE_ITEMS:
+        return
+    keys_by_expiry = sorted(_reports_overview_cache.items(), key=lambda item: item[1].expires_at)
+    for key, _entry in keys_by_expiry[: len(_reports_overview_cache) - MAX_REPORTS_CACHE_ITEMS]:
+        _reports_overview_cache.pop(key, None)
+
+
+def clear_reports_overview_cache(company_id: str | None = None) -> None:
+    with _reports_overview_cache_lock:
+        if company_id is None:
+            _reports_overview_cache.clear()
+            clear_live_cache(None, kinds=[ANALYTICS_REPORTS_OVERVIEW])
+            return
+        keys_to_remove = [key for key in _reports_overview_cache if key[0] == company_id]
+        for key in keys_to_remove:
+            _reports_overview_cache.pop(key, None)
+    clear_live_cache(company_id, kinds=[ANALYTICS_REPORTS_OVERVIEW])
+
+
+def _merge_dashboard_cards(cards: list[ReportDashboardCard], other_cards: list[ReportDashboardCard]) -> list[ReportDashboardCard]:
+    merged: dict[str, ReportDashboardCard] = {card.key: card.model_copy(deep=True) for card in cards}
+    ordered_keys = [card.key for card in cards]
+    for card in other_cards:
+        if card.key not in merged:
+            merged[card.key] = card.model_copy(deep=True)
+            ordered_keys.append(card.key)
+            continue
+        current = merged[card.key]
+        current.amount = _money(current.amount + card.amount)
+    return [merged[key] for key in ordered_keys]
+
+
+def _merge_tree_nodes(base_nodes: list[ReportTreeNode], new_nodes: list[ReportTreeNode]) -> list[ReportTreeNode]:
+    merged: dict[str, ReportTreeNode] = {node.key: node.model_copy(deep=True) for node in base_nodes}
+    ordered_keys = [node.key for node in base_nodes]
+    for node in new_nodes:
+        if node.key not in merged:
+            merged[node.key] = node.model_copy(deep=True)
+            ordered_keys.append(node.key)
+            continue
+        current = merged[node.key]
+        current.amount = _money(current.amount + node.amount)
+        current.children = _merge_tree_nodes(current.children, node.children)
+    return [merged[key] for key in ordered_keys]
+
+
+def _merge_dre_reports(left: DreReport, right: DreReport, *, period_label: str) -> DreReport:
+    return DreReport(
+        period_label=period_label,
+        gross_revenue=_money(left.gross_revenue + right.gross_revenue),
+        deductions=_money(left.deductions + right.deductions),
+        net_revenue=_money(left.net_revenue + right.net_revenue),
+        cmv=_money(left.cmv + right.cmv),
+        gross_profit=_money(left.gross_profit + right.gross_profit),
+        other_operating_income=_money(left.other_operating_income + right.other_operating_income),
+        operating_expenses=_money(left.operating_expenses + right.operating_expenses),
+        financial_expenses=_money(left.financial_expenses + right.financial_expenses),
+        non_operating_income=_money(left.non_operating_income + right.non_operating_income),
+        non_operating_expenses=_money(left.non_operating_expenses + right.non_operating_expenses),
+        taxes_on_profit=_money(left.taxes_on_profit + right.taxes_on_profit),
+        net_profit=_money(left.net_profit + right.net_profit),
+        profit_distribution=_money(left.profit_distribution + right.profit_distribution),
+        remaining_profit=_money(left.remaining_profit + right.remaining_profit),
+        dashboard_cards=_merge_dashboard_cards(left.dashboard_cards, right.dashboard_cards),
+        statement=_merge_tree_nodes(left.statement, right.statement),
+    )
+
+
+def _merge_dro_reports(left: DroReport, right: DroReport, *, period_label: str) -> DroReport:
+    return DroReport(
+        period_label=period_label,
+        bank_revenue=_money(left.bank_revenue + right.bank_revenue),
+        sales_taxes=_money(left.sales_taxes + right.sales_taxes),
+        purchases_paid=_money(left.purchases_paid + right.purchases_paid),
+        contribution_margin=_money(left.contribution_margin + right.contribution_margin),
+        operating_expenses=_money(left.operating_expenses + right.operating_expenses),
+        financial_expenses=_money(left.financial_expenses + right.financial_expenses),
+        non_operating_income=_money(left.non_operating_income + right.non_operating_income),
+        non_operating_expenses=_money(left.non_operating_expenses + right.non_operating_expenses),
+        net_profit=_money(left.net_profit + right.net_profit),
+        profit_distribution=_money(left.profit_distribution + right.profit_distribution),
+        remaining_profit=_money(left.remaining_profit + right.remaining_profit),
+        dashboard_cards=_merge_dashboard_cards(left.dashboard_cards, right.dashboard_cards),
+        statement=_merge_tree_nodes(left.statement, right.statement),
+    )
+
+
+def _compose_reports_overview(parts: list[ReportsOverview], *, period_label: str) -> ReportsOverview:
+    aggregate = parts[0].model_copy(deep=True)
+    aggregate.dre.period_label = period_label
+    aggregate.dro.period_label = period_label
+    for part in parts[1:]:
+        aggregate.dre = _merge_dre_reports(aggregate.dre, part.dre, period_label=period_label)
+        aggregate.dro = _merge_dro_reports(aggregate.dro, part.dro, period_label=period_label)
+    return aggregate
+
+
+def _get_reports_segment(
+    db: Session,
+    company: Company,
+    *,
+    start: date,
+    end: date,
+    refresh: bool = False,
+) -> ReportsOverview:
+    if not is_full_month_period(start, end):
+        return build_reports_overview(db, company, start=start, end=end)
+    if is_historical_period(start, end):
+        if refresh:
+            report = build_reports_overview(db, company, start=start, end=end)
+            upsert_monthly_snapshot(
+                db,
+                report,
+                company_id=company.id,
+                kind=ANALYTICS_REPORTS_OVERVIEW,
+                snapshot_month=start,
+            )
+            return report
+        return read_snapshot_or_rebuild(
+            db,
+            ReportsOverview,
+            company=company,
+            kind=ANALYTICS_REPORTS_OVERVIEW,
+            snapshot_month=start,
+            build_func=lambda: build_reports_overview(db, company, start=start, end=end),
+        )
+    ttl_seconds = _reports_cache_ttl_seconds(start, end)
+    if not refresh:
+        cached = read_live_cache(
+            ReportsOverview,
+            kind=ANALYTICS_REPORTS_OVERVIEW,
+            company_id=company.id,
+            start=start,
+            end=end,
+        )
+        if cached is not None:
+            return cached
+    report = build_reports_overview(db, company, start=start, end=end)
+    if ttl_seconds:
+        write_live_cache(
+            report,
+            kind=ANALYTICS_REPORTS_OVERVIEW,
+            company_id=company.id,
+            start=start,
+            end=end,
+            ttl_seconds=ttl_seconds,
+        )
+    return report
+
+
 def _competence_date(entry: FinancialEntry) -> date | None:
     return entry.competence_date or entry.issue_date or entry.due_date
 
@@ -201,15 +422,26 @@ def _should_include_operating_income_in_dre(entry: FinancialEntry) -> bool:
     return False
 
 
-def _cmv_from_snapshot(snapshot: SalesSnapshot) -> Decimal:
-    markup = _safe_decimal(snapshot.markup)
-    net_revenue = _safe_decimal(snapshot.gross_revenue)
-    if markup <= Decimal("-100"):
+def _movement_reference_date(movement: LinxMovement) -> date | None:
+    if movement.launch_date:
+        return movement.launch_date.date()
+    if movement.issue_date:
+        return movement.issue_date.date()
+    return None
+
+
+def _movement_total_amount(movement: LinxMovement) -> Decimal:
+    if movement.total_amount is not None:
+        return _safe_decimal(movement.total_amount)
+    return _safe_decimal(movement.net_amount)
+
+
+def _movement_cost_amount(movement: LinxMovement) -> Decimal:
+    quantity = abs(_safe_decimal(movement.quantity))
+    cost_price = _safe_decimal(movement.cost_price)
+    if quantity == ZERO or cost_price == ZERO:
         return ZERO
-    multiplier = Decimal("1.00") + (markup / Decimal("100.00"))
-    if multiplier == ZERO:
-        return ZERO
-    return net_revenue / multiplier
+    return _money(quantity * cost_price)
 
 
 def _macro_for_category(category: Category | None) -> tuple[str | None, str]:
@@ -279,6 +511,9 @@ def _build_category_breakdown(
     absolute_percent_base: bool = False,
     root_key: str,
 ) -> list[ReportTreeNode]:
+    def _percent_amount(amount: Decimal) -> Decimal:
+        return abs(amount) if absolute_percent_base else amount
+
     macro_buckets: dict[tuple[str | None, str], list[dict[str, object]]] = defaultdict(list)
     for item in items:
         macro_buckets[(item.get("macro_code"), str(item["macro_label"]))].append(item)
@@ -299,7 +534,7 @@ def _build_category_breakdown(
                     label=str(bucket["label"]),
                     code=str(bucket["code"]) if bucket.get("code") else None,
                     amount=Decimal(bucket["amount"]),
-                    percent=_percent(Decimal(bucket["amount"]), percent_base, absolute_base=absolute_percent_base),
+                    percent=_percent(_percent_amount(Decimal(bucket["amount"])), percent_base, absolute_base=absolute_percent_base),
                     tone="detail",
                 )
                 for leaf_index, bucket in enumerate(sorted(subgroup_items, key=lambda item: str(item["label"])))
@@ -315,7 +550,7 @@ def _build_category_breakdown(
                     label=sub_label,
                     code=sub_code,
                     amount=subgroup_total,
-                    percent=_percent(subgroup_total, percent_base, absolute_base=absolute_percent_base),
+                    percent=_percent(_percent_amount(subgroup_total), percent_base, absolute_base=absolute_percent_base),
                     tone="subtotal",
                     children=category_nodes,
                 )
@@ -331,7 +566,7 @@ def _build_category_breakdown(
                 label=macro_label,
                 code=macro_code,
                 amount=macro_total,
-                percent=_percent(macro_total, percent_base, absolute_base=absolute_percent_base),
+                percent=_percent(_percent_amount(macro_total), percent_base, absolute_base=absolute_percent_base),
                 tone="subtotal",
                 children=subgroup_nodes,
             )
@@ -367,7 +602,7 @@ def _entry_component_items(entry: FinancialEntry, *, use_paid_amount: bool) -> l
 
     if use_paid_amount:
         principal_amount = _safe_decimal(entry.paid_amount)
-        if principal_amount <= ZERO and entry.status == "settled":
+        if principal_amount <= ZERO and entry.status in {"settled", "planned"}:
             principal_amount = _safe_decimal(entry.total_amount)
     else:
         principal_amount = _safe_decimal(entry.principal_amount)
@@ -460,7 +695,7 @@ def _build_dre_context(
     *,
     start: date,
     end: date,
-    snapshots: list[SalesSnapshot],
+    movements: list[LinxMovement],
     entries: list[FinancialEntry],
 ) -> ReportContext:
     gross_revenue = ZERO
@@ -474,12 +709,16 @@ def _build_dre_context(
     taxes_on_profit = ZERO
     profit_distribution = ZERO
 
-    for snapshot in snapshots:
-        imported_net = _safe_decimal(snapshot.gross_revenue)
-        snapshot_deductions = -_safe_decimal(snapshot.discount_or_surcharge)
-        gross_revenue += imported_net + snapshot_deductions
-        deductions += snapshot_deductions
-        cmv += _cmv_from_snapshot(snapshot)
+    for movement in movements:
+        movement_date = _movement_reference_date(movement)
+        if movement_date is None or movement_date < start or movement_date > end:
+            continue
+
+        if movement.movement_type == "sale":
+            gross_revenue += _movement_total_amount(movement)
+            cmv += _movement_cost_amount(movement)
+        elif movement.movement_type == "sale_return":
+            deductions += _movement_total_amount(movement)
 
     income_items: list[dict[str, object]] = []
     non_operating_income_items: list[dict[str, object]] = []
@@ -547,9 +786,9 @@ def _build_dre_context(
                 operating_expense_items.append(_clone_item(item))
     return ReportContext(
         special_sources={
-            "faturamento_bruto": SourceDefinition(amount=gross_revenue, items=[]),
-            "deducoes_faturamento": SourceDefinition(amount=deductions, items=[], detail_label="Descontos, abatimentos e acrescimos"),
-            "cmv_faturamento": SourceDefinition(amount=cmv, items=[], detail_label="Custo das Mercadorias Vendidas"),
+            "faturamento_bruto": SourceDefinition(amount=gross_revenue, items=[], detail_label="Total vendido na API Linx"),
+            "deducoes_faturamento": SourceDefinition(amount=deductions, items=[], detail_label="Devolucoes de venda da API Linx"),
+            "cmv_faturamento": SourceDefinition(amount=cmv, items=[], detail_label="Preco de custo dos itens vendidos"),
         },
         group_items=_build_group_items(entries, start=start, end=end, date_basis="competence", use_paid_amount=False),
     )
@@ -579,7 +818,7 @@ def _build_dro_context(
     distribution_items: list[dict[str, object]] = []
     sales_tax_items: list[dict[str, object]] = []
 
-    for entry, components in _entry_items_in_period(entries, start=start, end=end, date_basis="due", use_paid_amount=False):
+    for entry, components in _entry_items_in_period(entries, start=start, end=end, date_basis="due", use_paid_amount=True):
         if entry.entry_type in INCOME_ENTRY_TYPES:
             amount = _safe_decimal(entry.paid_amount if entry.paid_amount > ZERO else entry.total_amount)
             if _is_non_operating_income(entry):
@@ -654,7 +893,7 @@ def _build_dro_context(
 
     return ReportContext(
         special_sources={},
-        group_items=_build_group_items(entries, start=start, end=end, date_basis="due", use_paid_amount=False),
+        group_items=_build_group_items(entries, start=start, end=end, date_basis="due", use_paid_amount=True),
     )
 
 
@@ -702,17 +941,20 @@ def _children_for_evaluated_line(
     return []
 
 
-def _items_for_groups(context: ReportContext, group_names: list[str]) -> list[dict[str, object]]:
+def _items_for_groups(context: ReportContext, group_selections: list[ReportGroupSelection]) -> list[dict[str, object]]:
     selected: list[dict[str, object]] = []
     seen_keys: set[str] = set()
-    for group_name in group_names:
-        for item in context.group_items.get(group_name, []):
+    for group_selection in group_selections:
+        sign = Decimal("-1.00") if group_selection.operation == "subtract" else Decimal("1.00")
+        for item in context.group_items.get(group_selection.group_name, []):
             component_key = str(item.get("component_key") or "")
             if component_key and component_key in seen_keys:
                 continue
             if component_key:
                 seen_keys.add(component_key)
-            selected.append(_clone_item(item))
+            cloned_item = _clone_item(item)
+            cloned_item["amount"] = Decimal(cloned_item["amount"]) * sign
+            selected.append(cloned_item)
     return selected
 
 
@@ -731,15 +973,19 @@ def _evaluate_lines(
 
         if line.line_type == "source":
             items = _items_for_groups(context, line.category_groups)
-            formula_value = sum((Decimal(item["amount"]) for item in items), ZERO)
+            display_amount = sum((Decimal(item["amount"]) for item in items), ZERO)
             detail_label = None
             if line.special_source:
                 source = context.special_sources.get(line.special_source, SourceDefinition(amount=ZERO, items=[]))
-                formula_value += source.amount
-                items.extend(_clone_item(item) for item in source.items)
+                special_source_sign = Decimal("-1.00") if line.operation == "subtract" else Decimal("1.00")
+                display_amount += source.amount * special_source_sign
+                for source_item in source.items:
+                    cloned_item = _clone_item(source_item)
+                    cloned_item["amount"] = Decimal(cloned_item["amount"]) * special_source_sign
+                    items.append(cloned_item)
                 if source.detail_label and source.amount != ZERO and not source.items:
-                    items.append(_special_source_item(source.detail_label, source.amount))
-            display_amount = formula_value if line.operation == "add" else -formula_value
+                    items.append(_special_source_item(source.detail_label, source.amount * special_source_sign))
+            formula_value = abs(display_amount)
         else:
             items = []
             detail_label = None
@@ -824,19 +1070,32 @@ def build_reports_overview(
     start: date | None = None,
     end: date | None = None,
 ) -> ReportsOverview:
-    today = date.today()
-    period_start = start or date(today.year, today.month, 1)
-    period_end = end or today
+    period_start, period_end = _resolve_period(start, end)
 
     dre_config = get_or_create_report_config(db, company, "dre")
     dro_config = get_or_create_report_config(db, company, "dro")
 
-    snapshots = list(
+    period_start_dt = datetime.combine(period_start, time.min)
+    period_end_dt = datetime.combine(period_end, time.max)
+
+    dre_movements = list(
         db.scalars(
-            select(SalesSnapshot).where(
-                SalesSnapshot.company_id == company.id,
-                SalesSnapshot.snapshot_date >= period_start,
-                SalesSnapshot.snapshot_date <= period_end,
+            select(LinxMovement).where(
+                LinxMovement.company_id == company.id,
+                LinxMovement.movement_group == "sale",
+                or_(
+                    and_(
+                        LinxMovement.launch_date.is_not(None),
+                        LinxMovement.launch_date >= period_start_dt,
+                        LinxMovement.launch_date <= period_end_dt,
+                    ),
+                    and_(
+                        LinxMovement.launch_date.is_(None),
+                        LinxMovement.issue_date.is_not(None),
+                        LinxMovement.issue_date >= period_start_dt,
+                        LinxMovement.issue_date <= period_end_dt,
+                    ),
+                ),
             )
         )
     )
@@ -873,7 +1132,7 @@ def build_reports_overview(
         )
     )
 
-    dre_context = _build_dre_context(start=period_start, end=period_end, snapshots=snapshots, entries=dre_entries)
+    dre_context = _build_dre_context(start=period_start, end=period_end, movements=dre_movements, entries=dre_entries)
     dro_context = _build_dro_context(start=period_start, end=period_end, entries=dro_entries)
     dre_lines, dre_metrics = _evaluate_lines(lines=dre_config.lines, context=dre_context)
     dro_lines, dro_metrics = _evaluate_lines(lines=dro_config.lines, context=dro_context)
@@ -915,3 +1174,22 @@ def build_reports_overview(
             statement=_build_statement(lines=dro_lines),
         ),
     )
+
+
+def get_cached_reports_overview(
+    db: Session,
+    company: Company,
+    start: date | None = None,
+    end: date | None = None,
+    refresh: bool = False,
+) -> ReportsOverview:
+    period_start, period_end = _resolve_period(start, end)
+    segments = iter_month_segments(period_start, period_end)
+    if len(segments) == 1:
+        segment_start, segment_end = segments[0]
+        return _get_reports_segment(db, company, start=segment_start, end=segment_end, refresh=refresh)
+    parts = [
+        _get_reports_segment(db, company, start=segment_start, end=segment_end, refresh=refresh)
+        for segment_start, segment_end in segments
+    ]
+    return _compose_reports_overview(parts, period_label=_display_period_label(period_start, period_end))

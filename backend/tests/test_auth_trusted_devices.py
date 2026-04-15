@@ -19,8 +19,8 @@ def _build_session() -> Session:
 
 def _configure_server_mode(monkeypatch) -> None:
     monkeypatch.setenv("APP_MODE", "server")
-    monkeypatch.setenv("SESSION_SECRET", "test-session-secret")
-    monkeypatch.setenv("FIELD_ENCRYPTION_KEY", "test-field-encryption-key")
+    monkeypatch.setenv("SESSION_SECRET", "0123456789abcdef0123456789abcdef")
+    monkeypatch.setenv("FIELD_ENCRYPTION_KEY", "fedcba9876543210fedcba9876543210")
     monkeypatch.setenv("MFA_TRUSTED_DEVICE_DAYS", "15")
     get_settings.cache_clear()
 

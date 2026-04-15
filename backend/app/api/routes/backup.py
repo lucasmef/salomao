@@ -44,20 +44,24 @@ async def restore_backup(
     file: UploadFile = File(...),
 ) -> BackupResult:
     require_role(current_user, {"admin"})
-    with NamedTemporaryFile(delete=False, suffix=".sqlite3") as temp_file:
-        temp_path = Path(temp_file.name)
-        temp_file.write(await file.read())
-    backup = restore_backup_file(engine, temp_path)
-    company = get_current_company(db)
-    write_audit_log(
-        db,
-        action="restore_backup",
-        entity_name="backup",
-        entity_id=backup.filename,
-        company_id=company.id,
-        actor_user=current_user,
-        after_state={"filename": backup.filename},
-    )
-    db.commit()
-    temp_path.unlink(missing_ok=True)
-    return BackupResult(message="Backup restaurado com sucesso.", backup=backup)
+    temp_path: Path | None = None
+    try:
+        with NamedTemporaryFile(delete=False, suffix=".sqlite3") as temp_file:
+            temp_path = Path(temp_file.name)
+            temp_file.write(await file.read())
+        backup = restore_backup_file(engine, temp_path)
+        company = get_current_company(db)
+        write_audit_log(
+            db,
+            action="restore_backup",
+            entity_name="backup",
+            entity_id=backup.filename,
+            company_id=company.id,
+            actor_user=current_user,
+            after_state={"filename": backup.filename},
+        )
+        db.commit()
+        return BackupResult(message="Backup restaurado com sucesso.", backup=backup)
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)

@@ -257,6 +257,7 @@ class PurchasePlanningRow(BaseModel):
     order_date: date | None = None
     expected_delivery_date: date | None = None
     purchased_total: Decimal
+    returns_total: Decimal = Decimal("0.00")
     received_total: Decimal = Decimal("0.00")
     delivered_total: Decimal
     launched_financial_total: Decimal
@@ -293,9 +294,18 @@ class PurchasePlanningUngroupedSupplier(BaseModel):
     total_amount: Decimal
 
 
+class PurchasePlanningCostRow(BaseModel):
+    collection_name: str
+    supplier_name: str
+    purchase_cost_total: Decimal
+    purchase_return_cost_total: Decimal = Decimal("0.00")
+    net_cost_total: Decimal
+
+
 class PurchasePlanningOverview(BaseModel):
     summary: PurchasePlanningSummary
     rows: list[PurchasePlanningRow]
+    cost_totals: list[PurchasePlanningCostRow] = Field(default_factory=list)
     monthly_projection: list[PurchasePlanningMonthlyProjection]
     invoices: list[PurchaseInvoiceRead]
     open_installments: list[PurchaseInstallmentRead]

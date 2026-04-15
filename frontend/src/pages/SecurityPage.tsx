@@ -1,8 +1,17 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { PageHeader } from "../components/PageHeader";
-import { formatBytes, formatDate } from "../lib/format";
-import type { AuthUser, BackupRead, InstanceInfo, MfaSetup, MfaStatus, UserCredentialsUpdatePayload } from "../types";
+import { formatDate } from "../lib/format";
+import type {
+  AuthUser,
+  BackupRead,
+  InstanceInfo,
+  LinxSettings,
+  LinxSettingsUpdatePayload,
+  MfaSetup,
+  MfaStatus,
+  UserCredentialsUpdatePayload,
+} from "../types";
 
 type Props = {
   submitting: boolean;
@@ -10,10 +19,12 @@ type Props = {
   users: AuthUser[];
   backups: BackupRead[];
   instanceInfo: InstanceInfo | null;
+  linxSettings: LinxSettings | null;
   mfaStatus: MfaStatus | null;
   activeMfaSetup: MfaSetup | null;
   onCreateUser: (payload: Record<string, unknown>) => Promise<void>;
   onUpdateCredentials: (payload: UserCredentialsUpdatePayload) => Promise<void>;
+  onUpdateLinxSettings: (payload: LinxSettingsUpdatePayload) => Promise<void>;
   onDeactivateUser: (userId: string) => Promise<void>;
   onCreateBackup: () => Promise<void>;
   onRestoreBackup: (file: File) => Promise<void>;
@@ -30,10 +41,12 @@ export function SecurityPage({
   users,
   backups,
   instanceInfo,
+  linxSettings,
   mfaStatus,
   activeMfaSetup,
   onCreateUser,
   onUpdateCredentials,
+  onUpdateLinxSettings,
   onDeactivateUser,
   onCreateBackup,
   onRestoreBackup,
@@ -49,17 +62,44 @@ export function SecurityPage({
     password: "",
     role: "operador",
   });
-  const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [mfaCode, setMfaCode] = useState("");
   const [credentialsForm, setCredentialsForm] = useState({
     email: currentUser.email,
     password: "",
   });
-  const isLocalBackupMode = (instanceInfo?.backup_mode ?? "local-file") === "local-file";
-
+  const [linxForm, setLinxForm] = useState({
+    base_url: linxSettings?.base_url ?? "https://erp.microvix.com.br",
+    username: linxSettings?.username ?? "",
+    password: "",
+    api_base_url: linxSettings?.api_base_url ?? "https://webapi.microvix.com.br/1.0/api/integracao",
+    api_cnpj: linxSettings?.api_cnpj ?? "",
+    api_key: "",
+    sales_view_name: linxSettings?.sales_view_name ?? "FATURAMENTO SALOMAO",
+    receivables_view_name: linxSettings?.receivables_view_name ?? "CREDIARIO SALOMAO",
+    payables_view_name: linxSettings?.payables_view_name ?? "LANCAR NOTAS SALOMAO",
+    auto_sync_enabled: linxSettings?.auto_sync_enabled ?? false,
+    auto_sync_alert_email: linxSettings?.auto_sync_alert_email ?? "",
+  });
   useEffect(() => {
     setCredentialsForm((current) => ({ ...current, email: currentUser.email }));
   }, [currentUser.email]);
+
+  useEffect(() => {
+    setLinxForm((current) => ({
+      ...current,
+      base_url: linxSettings?.base_url ?? "https://erp.microvix.com.br",
+      username: linxSettings?.username ?? "",
+      api_base_url: linxSettings?.api_base_url ?? "https://webapi.microvix.com.br/1.0/api/integracao",
+      api_cnpj: linxSettings?.api_cnpj ?? "",
+      sales_view_name: linxSettings?.sales_view_name ?? "FATURAMENTO SALOMAO",
+      receivables_view_name: linxSettings?.receivables_view_name ?? "CREDIARIO SALOMAO",
+      payables_view_name: linxSettings?.payables_view_name ?? "LANCAR NOTAS SALOMAO",
+      auto_sync_enabled: linxSettings?.auto_sync_enabled ?? false,
+      auto_sync_alert_email: linxSettings?.auto_sync_alert_email ?? "",
+      password: "",
+      api_key: "",
+    }));
+  }, [linxSettings]);
 
   async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -82,13 +122,31 @@ export function SecurityPage({
     setCredentialsForm((current) => ({ ...current, password: "" }));
   }
 
+  async function handleUpdateLinxSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await onUpdateLinxSettings({
+      base_url: linxForm.base_url,
+      username: linxForm.username,
+      password: linxForm.password || undefined,
+      api_base_url: linxForm.api_base_url,
+      api_cnpj: linxForm.api_cnpj || undefined,
+      api_key: linxForm.api_key || undefined,
+      sales_view_name: linxForm.sales_view_name,
+      receivables_view_name: linxForm.receivables_view_name,
+      payables_view_name: linxForm.payables_view_name,
+      auto_sync_enabled: linxForm.auto_sync_enabled,
+      auto_sync_alert_email: linxForm.auto_sync_alert_email || undefined,
+    });
+    setLinxForm((current) => ({ ...current, password: "", api_key: "" }));
+  }
+
   return (
     <div className="page-layout">
       {!embedded && (
         <PageHeader
           eyebrow="Administração"
           title="Segurança e continuidade"
-          description="Usuários, MFA, backup local e operação segura durante a transição para o ambiente online."
+          description="Usuários, MFA e operação segura durante a transição para o ambiente online."
         />
       )}
       <section className="interactive-grid">
@@ -141,51 +199,135 @@ export function SecurityPage({
           </article>
         )}
 
-        {(view === "all" || view === "backup") && (
+        {(view === "all" || view === "security") && currentUser.role === "admin" && (
           <article className="panel-card">
             <div className="panel-heading">
-              <p className="eyebrow">Backup</p>
-              <h3>{isLocalBackupMode ? "Proteção da base local" : "Backups operacionais do servidor"}</h3>
+              <p className="eyebrow">Integracao Linx</p>
+              <h3>Credenciais e visoes</h3>
             </div>
-            {isLocalBackupMode ? (
-              <>
-                <div className="action-row">
-                  <button className="primary-button" disabled={submitting} onClick={() => void onCreateBackup()} type="button">
-                    Criar backup agora
-                  </button>
+            <form className="form-grid single" onSubmit={handleUpdateLinxSettings}>
+              <label>
+                URL base
+                <input
+                  value={linxForm.base_url}
+                  onChange={(event) => setLinxForm({ ...linxForm, base_url: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Usuario
+                <input
+                  value={linxForm.username}
+                  onChange={(event) => setLinxForm({ ...linxForm, username: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Senha
+                <input
+                  type="password"
+                  value={linxForm.password}
+                  onChange={(event) => setLinxForm({ ...linxForm, password: event.target.value })}
+                  placeholder={linxSettings?.has_password ? "Deixe em branco para manter a atual" : ""}
+                />
+              </label>
+              <label>
+                URL API
+                <input
+                  value={linxForm.api_base_url}
+                  onChange={(event) => setLinxForm({ ...linxForm, api_base_url: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                CNPJ API
+                <input
+                  value={linxForm.api_cnpj}
+                  onChange={(event) => setLinxForm({ ...linxForm, api_cnpj: event.target.value })}
+                  placeholder="Somente numeros"
+                />
+              </label>
+              <label>
+                Chave API
+                <input
+                  type="password"
+                  value={linxForm.api_key}
+                  onChange={(event) => setLinxForm({ ...linxForm, api_key: event.target.value })}
+                  placeholder={linxSettings?.has_api_key ? "Deixe em branco para manter a atual" : ""}
+                />
+              </label>
+              <label>
+                Visao faturamento
+                <input
+                  value={linxForm.sales_view_name}
+                  onChange={(event) => setLinxForm({ ...linxForm, sales_view_name: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Visao faturas a receber
+                <input
+                  value={linxForm.receivables_view_name}
+                  onChange={(event) => setLinxForm({ ...linxForm, receivables_view_name: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Visao faturas a pagar
+                <input
+                  value={linxForm.payables_view_name}
+                  onChange={(event) => setLinxForm({ ...linxForm, payables_view_name: event.target.value })}
+                  required
+                />
+              </label>
+              <label className="checkbox-field">
+                <input
+                  checked={linxForm.auto_sync_enabled}
+                  onChange={(event) => setLinxForm({ ...linxForm, auto_sync_enabled: event.target.checked })}
+                  type="checkbox"
+                />
+                Ativar sincronizacao automatica horaria da API Linx
+              </label>
+              <label>
+                Email para aviso de falha
+                <input
+                  type="email"
+                  value={linxForm.auto_sync_alert_email}
+                  onChange={(event) => setLinxForm({ ...linxForm, auto_sync_alert_email: event.target.value })}
+                  placeholder="financeiro@empresa.com"
+                />
+              </label>
+              <div className="summary-list">
+                <div className="summary-row">
+                  <span>Senha cadastrada</span>
+                  <strong>{linxSettings?.has_password ? "sim" : "nao"}</strong>
                 </div>
-                <div className="upload-box">
-                  <input type="file" accept=".sqlite3,.db" onChange={(event) => setRestoreFile(event.target.files?.[0] ?? null)} />
-                  <button
-                    className="ghost-button"
-                    disabled={submitting || !restoreFile}
-                    onClick={() => restoreFile && void onRestoreBackup(restoreFile)}
-                    type="button"
-                  >
-                    Restaurar backup
-                  </button>
+                <div className="summary-row">
+                  <span>Chave API cadastrada</span>
+                  <strong>{linxSettings?.has_api_key ? "sim" : "nao"}</strong>
                 </div>
-              </>
-            ) : (
-              <p className="empty-state">
-                No modo servidor, os backups do PostgreSQL são operacionais e feitos pelos scripts dedicados, fora da UI.
-              </p>
-            )}
-          </article>
-        )}
-
-        {view === "security" && (
-          <article className="panel-card">
-            <div className="panel-heading">
-              <p className="eyebrow">Segurança</p>
-              <h3>Políticas e endurecimento</h3>
-            </div>
-            <div className="summary-list">
-              <div className="summary-row"><span>Modo da aplicação</span><strong>{instanceInfo?.app_mode ?? "-"}</strong></div>
-              <div className="summary-row"><span>Banco ativo</span><strong>{instanceInfo?.database_backend ?? "-"}</strong></div>
-              <div className="summary-row"><span>MFA obrigatório</span><strong>{mfaStatus?.required ? "sim" : "não"}</strong></div>
-              <div className="summary-row"><span>MFA do usuário atual</span><strong>{mfaStatus?.enabled ? "ativo" : "inativo"}</strong></div>
-            </div>
+                <div className="summary-row">
+                  <span>Agendamento</span>
+                  <strong>{linxSettings?.auto_sync_enabled ? "06h-22h de hora em hora" : "Inativo"}</strong>
+                </div>
+                <div className="summary-row">
+                  <span>Ultima execucao</span>
+                  <strong>{linxSettings?.auto_sync_last_run_at ? formatDate(linxSettings.auto_sync_last_run_at) : "-"}</strong>
+                </div>
+                <div className="summary-row">
+                  <span>Status da ultima execucao</span>
+                  <strong>{linxSettings?.auto_sync_last_status ?? "-"}</strong>
+                </div>
+              </div>
+              {linxSettings?.auto_sync_last_error && (
+                <p className="empty-state">
+                  Ultima falha: {linxSettings.auto_sync_last_error}
+                </p>
+              )}
+              <button className="primary-button" disabled={submitting} type="submit">
+                Salvar configuracao Linx
+              </button>
+            </form>
           </article>
         )}
       </section>
@@ -309,28 +451,6 @@ export function SecurityPage({
         </section>
       )}
 
-      {(view === "all" || view === "backup") && isLocalBackupMode && (
-        <section className="interactive-grid single-column">
-          <article className="panel-card">
-            <div className="panel-heading">
-              <p className="eyebrow">Arquivos de backup</p>
-              <h3>{backups.length} copias locais</h3>
-            </div>
-            <div className="table-list">
-              {backups.map((backup) => (
-                <div key={backup.filename} className="list-row">
-                  <div>
-                    <strong>{backup.filename}</strong>
-                    <p>{formatDate(backup.created_at)}</p>
-                  </div>
-                  <span>{formatBytes(backup.size_bytes)}</span>
-                </div>
-              ))}
-              {!backups.length && <p className="empty-state">Nenhum backup criado ainda.</p>}
-            </div>
-          </article>
-        </section>
-      )}
     </div>
   );
 }

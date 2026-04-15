@@ -25,6 +25,19 @@ class DashboardSeriesPoint(BaseModel):
     value: Decimal
 
 
+class DashboardRevenueComparisonPoint(BaseModel):
+    month: int
+    label: str
+    current_year_value: Decimal
+    previous_year_value: Decimal
+
+
+class DashboardRevenueComparison(BaseModel):
+    current_year: int
+    previous_year: int
+    points: list[DashboardRevenueComparisonPoint]
+
+
 class DashboardPendingItem(BaseModel):
     id: str
     title: str
@@ -46,7 +59,7 @@ class DashboardOverview(BaseModel):
     kpis: DashboardKpis
     dre_cards: list[DashboardSeriesPoint]
     dre_chart: list[DashboardSeriesPoint]
-    revenue_comparison: list[DashboardSeriesPoint]
+    revenue_comparison: DashboardRevenueComparison
     account_balances: list[DashboardAccountBalance]
     overdue_payables: list[DashboardPendingItem]
     overdue_receivables: list[DashboardPendingItem]

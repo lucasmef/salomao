@@ -35,9 +35,12 @@ def ensure_default_company(db: Session) -> Company:
 
 
 def ensure_company_catalog(db: Session, company_id: str) -> None:
-    # Startup must not mutate business data automatically. Baseline catalog
-    # creation happens only when the company is first created.
-    _ = (db, company_id)
+    ensure_category_catalog(db, company_id)
+    ensure_default_financial_category(db, company_id)
+    deactivate_legacy_categories(db, company_id)
+    cleanup_open_linx_sales_entries(db, company_id)
+    deactivate_electronic_receivables_account(db, company_id)
+    db.flush()
 
 
 def run_company_data_maintenance(db: Session, company_id: str) -> None:
@@ -45,12 +48,7 @@ def run_company_data_maintenance(db: Session, company_id: str) -> None:
     if company is not None:
         ensure_historical_purchase_collections(db, company)
         assign_historical_purchase_collections(db, company)
-    ensure_category_catalog(db, company_id)
-    ensure_default_financial_category(db, company_id)
-    deactivate_legacy_categories(db, company_id)
-    cleanup_open_linx_sales_entries(db, company_id)
-    deactivate_electronic_receivables_account(db, company_id)
-    db.flush()
+    ensure_company_catalog(db, company_id)
 
 
 def ensure_company_security(db: Session, company: Company) -> None:
