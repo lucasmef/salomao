@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROD_ENV_FILE="${PROD_ENV_FILE:-/srv/salomao/prod/app/backend/.env}"
 DEV_ENV_FILE="${DEV_ENV_FILE:-/srv/salomao/dev/app/backend/.env}"
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/salomao}"
+BACKUP_DIR="${BACKUP_DIR:-/srv/salomao/backups}"
 DATE_STAMP="$(date +%Y%m%d_%H%M%S)"
 DUMP_FILE="$BACKUP_DIR/prod_to_dev_${DATE_STAMP}.dump"
 DEV_BACKUP_FILE="$BACKUP_DIR/dev_pre_refresh_${DATE_STAMP}.dump"
