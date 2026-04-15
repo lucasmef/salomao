@@ -1,4 +1,4 @@
-﻿import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "./components/AppShell";
@@ -549,9 +549,21 @@ function getLegacySectionsForPath(pathname: string): SectionId[] {
   return ["overview"];
 }
 
+function DevBanner() {
+  const hostname = window.location.hostname;
+  const isDev = hostname.includes("100.") || hostname.includes(".ts.net") || hostname.includes("salomao-vps") || hostname === "localhost" || hostname === "127.0.0.1";
+  if (!isDev) return null;
+  return (
+    <div style={{ background: "#ff9800", color: "#fff", textAlign: "center", padding: "4px", fontSize: "12px", fontWeight: "bold", position: "fixed", top: 0, width: "100%", zIndex: 99999 }}>
+       AMBIENTE DE DESENVOLVIMENTO / HOMOLOGAÇÃO
+    </div>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
+      <DevBanner />
       <AppRuntime />
     </BrowserRouter>
   );
@@ -934,25 +946,24 @@ function AppRuntime() {
         }
         case "planejamento": {
           const planningMode = getPurchasePlanningMode(location.pathname);
-          if (planningMode === "returns") {
-            const returnData = await fetchJson<PurchaseReturn[]>("/purchase-returns?limit=500", {
-              token: activeSession.token,
-            });
-            setPurchaseReturns(returnData);
-          } else {
-            const effectivePurchaseFilters = isInitialSectionLoad ? getDefaultPurchasePlanningFilters() : purchasePlanningFilters;
-            if (isInitialSectionLoad) {
-              setPurchasePlanningFilters(effectivePurchaseFilters);
-            }
-            const planningQuery = buildQuery({
-              ...getPurchasePlanningRequestFilters(effectivePurchaseFilters, planningMode),
-              mode: planningMode,
-            });
-            const planningData = await fetchJson<PurchasePlanningOverview>(`/purchase-planning/overview?${planningQuery}`, {
-              token: activeSession.token,
-            });
-            setPurchasePlanning(planningData);
+          const effectivePurchaseFilters = isInitialSectionLoad ? getDefaultPurchasePlanningFilters() : purchasePlanningFilters;
+          if (isInitialSectionLoad) {
+            setPurchasePlanningFilters(effectivePurchaseFilters);
           }
+          const planningQuery = buildQuery({
+            ...getPurchasePlanningRequestFilters(effectivePurchaseFilters, planningMode),
+            mode: planningMode,
+          });
+          const [planningData, returnsData] = await Promise.all([
+            fetchJson<PurchasePlanningOverview>(`/purchase-planning/overview?${planningQuery}`, {
+              token: activeSession.token,
+            }),
+            fetchJson<PurchaseReturn[]>("/purchase-returns?limit=500", {
+              token: activeSession.token,
+            })
+          ]);
+          setPurchasePlanning(planningData);
+          setPurchaseReturns(returnsData);
           setPurchasePlanningLoadedMode(planningMode);
           break;
         }
@@ -1388,27 +1399,23 @@ function AppRuntime() {
     try {
       const nextFilters = { ...purchasePlanningFilters, ...overrides };
       const planningMode = getPurchasePlanningMode(location.pathname);
-      if (planningMode === "returns") {
-        const response = await fetchJson<PurchaseReturn[]>("/purchase-returns?limit=500", {
+      const [planningData, returnsData] = await Promise.all([
+        fetchJson<PurchasePlanningOverview>(
+          `/purchase-planning/overview?${buildQuery({
+            ...getPurchasePlanningRequestFilters(nextFilters, planningMode),
+            mode: planningMode,
+          })}`,
+          { token: session.token }
+        ),
+        fetchJson<PurchaseReturn[]>("/purchase-returns?limit=500", {
           token: session.token,
-        });
-        setPurchaseReturns(response);
-        setPurchasePlanningLoadedMode(planningMode);
-        return;
-      }
-      const response = await fetchJson<PurchasePlanningOverview>(
-        `/purchase-planning/overview?${buildQuery({
-          ...getPurchasePlanningRequestFilters(nextFilters, planningMode),
-          mode: planningMode,
-        })}`,
-        {
-          token: session.token,
-        },
-      );
+        })
+      ]);
       if (overrides) {
         setPurchasePlanningFilters(nextFilters);
       }
-      setPurchasePlanning(response);
+      setPurchasePlanning(planningData);
+      setPurchaseReturns(returnsData);
       setPurchasePlanningLoadedMode(planningMode);
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });

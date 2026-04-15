@@ -12,8 +12,8 @@ from app.schemas.imports import (
     LinxSyncRequest,
 )
 from app.services.backup import ensure_pre_import_backup
-from app.services.cache_invalidation import clear_finance_analytics_caches
 from app.services.company_context import get_current_company
+from app.services.data_refresh import build_data_refresh_request, finalize_data_refresh
 from app.services.imports import (
     build_import_summary,
     import_historical_cashbook,
@@ -32,6 +32,20 @@ from app.services.inter import sync_inter_statement
 router = APIRouter()
 
 
+def _finalize_import_refresh(
+    db: DbSession,
+    company,
+    *,
+    source_family,
+    affected_dates=None,
+) -> None:
+    refresh_request = build_data_refresh_request(
+        source_family,
+        affected_dates=affected_dates,
+    )
+    finalize_data_refresh(db, company, refresh_request)
+
+
 @router.get("/summary", response_model=ImportSummary)
 def get_import_summary(db: DbSession) -> ImportSummary:
     company = get_current_company(db)
@@ -48,7 +62,7 @@ async def upload_linx_sales(
         ensure_pre_import_backup("linx-sales")
         content = await file.read()
         result = import_linx_sales(db, company, file.filename or "linx-sales.xls", content)
-        clear_finance_analytics_caches(company.id, include_sales_history=True, db=db, company=company)
+        _finalize_import_refresh(db, company, source_family="sales")
         return result
     except ValueError as error:
         db.rollback()
@@ -69,13 +83,9 @@ def trigger_linx_sales_sync(
             start_date=payload.start_date,
             end_date=payload.end_date,
         )
-        clear_finance_analytics_caches(
-            company.id,
-            include_sales_history=True,
-            db=db,
-            company=company,
-            affected_dates=[item for item in (payload.start_date, payload.end_date) if item is not None],
-        )
+        affected_dates = [item for item in (payload.start_date, payload.end_date) if item is not None]
+        _finalize_import_refresh(db, company, source_family="sales", affected_dates=affected_dates)
+>>>>>>> origin/main
         return result
     except ValueError as error:
         db.rollback()
@@ -91,7 +101,9 @@ async def upload_linx_receivables(
     try:
         ensure_pre_import_backup("linx-receivables")
         content = await file.read()
-        return import_linx_receivables(db, company, file.filename or "linx-receivables.xls", content)
+        result = import_linx_receivables(db, company, file.filename or "linx-receivables.xls", content)
+        _finalize_import_refresh(db, company, source_family="receivables")
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -109,13 +121,15 @@ def trigger_linx_customers_sync(
     company = get_current_company(db)
     try:
         ensure_pre_import_backup("linx-customers")
-        return sync_linx_customers(
+        result = sync_linx_customers(
             db,
             company,
             start_date=payload.start_date,
             end_date=payload.end_date,
             full_refresh=payload.full_refresh,
         )
+        _finalize_import_refresh(db, company, source_family="customers")
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -133,11 +147,13 @@ def trigger_linx_products_sync(
     company = get_current_company(db)
     try:
         ensure_pre_import_backup("linx-products")
-        return sync_linx_products(
+        result = sync_linx_products(
             db,
             company,
             full_refresh=payload.full_refresh,
         )
+        _finalize_import_refresh(db, company, source_family="products")
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -155,11 +171,13 @@ def trigger_linx_open_receivables_sync(
     company = get_current_company(db)
     try:
         ensure_pre_import_backup("linx-open-receivables")
-        return sync_linx_open_receivables(
+        result = sync_linx_open_receivables(
             db,
             company,
             full_refresh=payload.full_refresh,
         )
+        _finalize_import_refresh(db, company, source_family="receivables")
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -182,7 +200,7 @@ def trigger_linx_movements_sync(
             company,
             full_refresh=payload.full_refresh,
         )
-        clear_finance_analytics_caches(company.id, db=db, company=company)
+        _finalize_import_refresh(db, company, source_family="movements")
         return result
     except ValueError as error:
         db.rollback()
@@ -201,12 +219,15 @@ def trigger_linx_receivables_sync(
     company = get_current_company(db)
     try:
         ensure_pre_import_backup("linx-receivables")
-        return sync_linx_receivables(
+        result = sync_linx_receivables(
             db,
             company,
             start_date=payload.start_date,
             end_date=payload.end_date,
         )
+        affected_dates = [item for item in (payload.start_date, payload.end_date) if item is not None]
+        _finalize_import_refresh(db, company, source_family="receivables", affected_dates=affected_dates)
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -223,7 +244,7 @@ async def upload_ofx(
         ensure_pre_import_backup("ofx")
         content = await file.read()
         result = import_ofx(db, company, account_id, file.filename or "extrato.ofx", content)
-        clear_finance_analytics_caches(company.id, db=db, company=company)
+        _finalize_import_refresh(db, company, source_family="ofx")
         return result
     except ValueError as error:
         db.rollback()
@@ -249,7 +270,7 @@ async def upload_historical_cashbook(
             file.filename or "livro-caixa-historico.xlsx",
             content,
         )
-        clear_finance_analytics_caches(company.id, db=db, company=company)
+        _finalize_import_refresh(db, company, source_family="historical_cashbook")
         return result
     except ValueError as error:
         db.rollback()
@@ -270,11 +291,12 @@ def trigger_inter_statement_sync(
             start_date=payload.start_date,
             end_date=payload.end_date,
         )
-        clear_finance_analytics_caches(
-            company.id,
-            db=db,
-            company=company,
-            affected_dates=[item for item in (payload.start_date, payload.end_date) if item is not None],
+        affected_dates = [item for item in (payload.start_date, payload.end_date) if item is not None]
+        _finalize_import_refresh(
+            db,
+            company,
+            source_family="inter_statement",
+            affected_dates=affected_dates,
         )
         return result
     except ValueError as error:
