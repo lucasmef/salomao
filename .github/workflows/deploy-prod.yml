@@ -1,0 +1,37 @@
+name: Deploy Prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Branch, tag ou commit para publicar no ambiente prod"
+        required: false
+        default: "main"
+        type: string
+      close_dev_access:
+        description: "Fechar acesso remoto gerenciado para dev ao final"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: salomao-deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-prod:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Deploy prod
+        env:
+          GIT_REF: ${{ inputs.git_ref }}
+          CLOSE_DEV_ACCESS: ${{ inputs.close_dev_access }}
+        run: |
+          bash ./scripts/github-actions-deploy-prod.sh "$GIT_REF" "$CLOSE_DEV_ACCESS"

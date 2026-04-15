@@ -1,0 +1,43 @@
+name: Refresh and Deploy Dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Branch, tag ou commit para publicar no ambiente dev"
+        required: false
+        default: "main"
+        type: string
+      refresh_database:
+        description: "Copiar o banco de prod para dev antes do deploy"
+        required: false
+        default: true
+        type: boolean
+      tailscale_source:
+        description: "Origem liberada para SSH via tailnet"
+        required: false
+        default: "100.64.0.0/10"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: salomao-refresh-deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  refresh-and-deploy-dev:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Refresh DB and deploy dev
+        env:
+          GIT_REF: ${{ inputs.git_ref }}
+          REFRESH_DATABASE: ${{ inputs.refresh_database }}
+          TAILSCALE_SSH_SOURCE: ${{ inputs.tailscale_source }}
+        run: |
+          bash ./scripts/github-actions-refresh-and-deploy-dev.sh "$GIT_REF" "$REFRESH_DATABASE"
