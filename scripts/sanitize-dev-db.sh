@@ -126,6 +126,12 @@ UPDATE users SET
   mfa_secret_encrypted        = NULL,
   mfa_pending_secret_encrypted = NULL,
   mfa_enrolled_at             = NULL;
+
+-- Garante um acesso administrativo previsivel
+UPDATE users SET
+  email     = 'admin@dev.local',
+  full_name = 'Administrador Dev'
+WHERE id = (SELECT id FROM users WHERE role = 'admin' ORDER BY created_at ASC LIMIT 1);
 "
 
 echo "==> Sanitizando tabela: accounts (credenciais Inter)"
@@ -254,3 +260,7 @@ echo "  Dados pessoais anonimizados em todas as tabelas"
 echo ""
 echo "  Um backup pre-sanitizacao foi salvo em:"
 echo "  $SANITIZE_BACKUP_FILE"
+echo ""
+echo "==> Usuarios disponiveis para acesso dev (conforme logs):"
+"${PSQL_CMD[@]}" --command="SELECT full_name, email, role FROM users WHERE is_active = true ORDER BY role, email;"
+echo ""
