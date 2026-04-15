@@ -99,9 +99,21 @@ echo "==> Reiniciando servico $SERVICE_NAME"
 sudo systemctl restart "$SERVICE_NAME"
 
 echo "==> Validando healthcheck"
-sleep 2
-curl --fail --silent --show-error "$HEALTHCHECK_URL"
-echo
+HEALTHCHECK_OK=false
+for attempt in $(seq 1 10); do
+  sleep 3
+  if curl --fail --silent --show-error "$HEALTHCHECK_URL" >/dev/null 2>&1; then
+    HEALTHCHECK_OK=true
+    break
+  fi
+  echo "  tentativa $attempt/10 falhou, aguardando..."
+done
+
+if [[ "$HEALTHCHECK_OK" != "true" ]]; then
+  echo "Healthcheck falhou apos 10 tentativas"
+  exit 1
+fi
+echo "Healthcheck ok: $HEALTHCHECK_URL"
 
 echo "==> Status do servico"
 sudo systemctl status "$SERVICE_NAME" --no-pager

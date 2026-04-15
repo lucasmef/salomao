@@ -20,7 +20,7 @@
 
 ## Sobre o projeto
 
-O Gestor Financeiro foi estruturado para ir além de um CRUD web tradicional. O projeto combina frontend em `React`, API em `FastAPI`, persistência em `PostgreSQL`, autenticação com `MFA`, trilha de auditoria e uma rotina operacional desenhada para rodar em servidor real, com ambientes separados de homologação e produção.
+Este projeto foi estruturado para ir alem de um CRUD web tradicional. Ele combina frontend em `React`, API em `FastAPI`, persistencia em `PostgreSQL`, autenticacao com `MFA`, trilha de auditoria e uma rotina operacional pensada para ambiente de servidor com `dev` (homologacao) e `prod` (producao), cada um com sua branch dedicada.
 
 O resultado é um sistema que não se limita à interface ou ao backend isoladamente: ele cobre produto, regras de negócio, banco de dados, segurança, deploy, observabilidade e continuidade operacional.
 
@@ -31,20 +31,18 @@ O resultado é um sistema que não se limita à interface ou ao backend isoladam
 - Banco oficial em `PostgreSQL`, com migrações versionadas via `Alembic`.
 - Integração nativa com a `API do Banco Inter` para extrato, cobranças e operação de boletos.
 - Deploy oficial em `VPS KingHost`, com `Nginx`, `systemd`, `UFW`, `fail2ban` e healthchecks.
-- Segurança reforçada com `MFA obrigatório`, `cookies HttpOnly`, `rate limit`, criptografia de campos, auditoria e alertas.
-- Scripts operacionais para deploy, validação de ambiente, migração, backup e auditoria rápida de produção.
-- Testes automatizados cobrindo segurança, autenticação e regras críticas de negócio.
+- Seguranca reforcada com `MFA obrigatorio`, `cookies HttpOnly`, `rate limit`, `criptografia de campos`, `auditoria` e `alertas`.
+- CI/CD com `GitHub Actions` e `self-hosted runner` no VPS, com deploy automatico em dev e manual em producao.
+- Scripts operacionais para deploy, validacao de ambiente, migracao, sanitizacao e backup.
+- Testes automatizados cobrindo seguranca, autenticacao e regras de negocio.
 
 ## Novidades recentes
 
-- Cache híbrido de analytics: meses históricos completos podem ser atendidos por snapshots persistidos no banco, enquanto períodos vivos usam `Redis`, com invalidação e rebuild coordenados no backend.
-- Overview e compras não dependem mais de cache no frontend; a estratégia de cache passou a ficar centralizada no backend, com regras diferentes para analytics e planejamento de compras.
-- Configuração de relatórios (`DRE` e `DRO`) com grupos e subgrupos que podem somar e subtrair dentro da mesma linha.
-- Planejamento de compras com controle explícito de `devoluções`, exibidas separadamente do `recebido`.
-- Gestão operacional de coleções com observações por coleção dentro do fluxo de planejamento.
-- Exportação de boletos mais resiliente, com template `.xlsx` interno de fallback e compatibilidade com variações no nome da aba.
-- Regra padrão para boletos mensais sem dia configurado: vencimento assumido no dia `20`.
-- Documentação complementar em `docs/`, incluindo template de cobranças e auditoria recente de regra de negócio.
+- Visao full stack de ponta a ponta, sem separar produto e infraestrutura.
+- Preocupacao com ambiente real de operacao, e nao apenas desenvolvimento local.
+- Implementacao de seguranca em camadas, tanto no codigo quanto na borda do servidor.
+- Organizacao de deploy com `homologacao` e `producao` em branches separadas (`dev` e `main`), com CI/CD automatizado.
+- Capacidade de sustentar uma aplicacao apos a entrega inicial.
 
 ## O que este projeto evidencia
 
@@ -134,11 +132,12 @@ flowchart LR
 
 Topologia oficial no VPS:
 
-- branch `main` -> ambiente `dev`
-- branch `main` -> ambiente `prod`
+- branch `dev` -> ambiente `dev` (homologacao)
+- branch `main` -> ambiente `prod` (producao)
 - checkout `dev`: `/srv/salomao/dev/app`
 - checkout `prod`: `/srv/salomao/prod/app`
-- serviços: `salomao-dev.service` e `salomao-prod.service`
+- servicos: `salomao-dev.service` e `salomao-prod.service`
+- CI/CD: `self-hosted runner` no VPS via GitHub Actions
 
 ## Stack técnica
 
@@ -191,18 +190,31 @@ Um dos diferenciais mais fortes do projeto está na camada de segurança, especi
 - `Validação de segredos e modo de execução` quando `APP_MODE=server`.
 - `PostgreSQL como banco oficial` do ambiente de servidor.
 
-## Fluxo de deploy
+## Fluxo de deploy e CI/CD
 
 O projeto é `vps-first`: a publicação oficial acontece somente no VPS da KingHost.
 
-O branch oficial único é `main`. Os ambientes `dev` e `prod` usam checkouts separados no VPS, mas ambos acompanham `origin/main`.
+Branches oficiais:
+
+- `dev` -> ambiente de homologacao
+- `main` -> ambiente de producao
+
+CI/CD via `GitHub Actions` com `self-hosted runner` no proprio VPS:
+
+| Workflow | Trigger | Funcao |
+| --- | --- | --- |
+| Deploy Dev | push em `dev` + manual | deploy automatico do ambiente dev |
+| Deploy Prod | manual | deploy manual da producao |
+| Refresh Dev DB | manual | copia banco prod → dev com modo seguro |
+| Sanitize Dev DB | manual | anonimizacao de dados sensiveis no banco dev |
+| Set Dev Safety Mode | manual | liga ou desliga modo seguro no dev |
 
 Scripts padronizados:
 
-- `scripts/deploy-dev.sh`
-- `scripts/deploy-prod.sh`
-- `scripts/deploy-vps.sh`
-- `scripts/check-prod.sh`
+- `scripts/deploy-dev.sh` / `scripts/deploy-prod.sh` / `scripts/deploy-vps.sh`
+- `scripts/check-prod.sh` / `scripts/sync-checkout-to-ref.sh`
+- `scripts/refresh-dev-db-from-prod.sh` / `scripts/post-refresh-dev.sh`
+- `scripts/sanitize-dev-db.sh` / `scripts/set-dev-safety-mode.sh`
 
 Fluxo principal executado pelos scripts:
 
@@ -300,6 +312,8 @@ O backend possui testes cobrindo pontos relevantes para produção, incluindo:
 - [scripts/deploy-dev.sh](scripts/deploy-dev.sh)
 - [scripts/deploy-prod.sh](scripts/deploy-prod.sh)
 - [scripts/check-prod.sh](scripts/check-prod.sh)
+- [scripts/sanitize-dev-db.sh](scripts/sanitize-dev-db.sh)
+- [scripts/set-dev-safety-mode.sh](scripts/set-dev-safety-mode.sh)
 
 ## Configuração mínima
 
@@ -335,6 +349,6 @@ Com a conta configurada, o sistema libera:
 
 ## Panorama final
 
-O Gestor Financeiro apresenta uma visão completa de engenharia aplicada: produto financeiro, frontend moderno, backend estruturado, persistência relacional, integração bancária real, segurança em múltiplas camadas, observabilidade operacional e deploy disciplinado em servidor Linux.
+Este projeto se destaca por mostrar uma visao completa de engenharia: produto financeiro, frontend moderno, backend estruturado, persistencia relacional, integracao bancaria real com o Banco Inter, seguranca de autenticacao, observabilidade operacional, CI/CD com GitHub Actions e deploy disciplinado em servidor Linux.
 
 É um projeto que comunica capacidade de construir, evoluir e operar software com responsabilidade técnica, foco em confiabilidade e atenção aos detalhes que normalmente só aparecem em ambientes reais.
