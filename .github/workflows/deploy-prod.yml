@@ -15,9 +15,12 @@ jobs:
     runs-on: self-hosted
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Sincronizar checkout prod
         run: |
-          bash /srv/salomao/prod/app/scripts/sync-checkout-to-ref.sh /srv/salomao/prod/app main
+          bash scripts/sync-checkout-to-ref.sh /srv/salomao/prod/app main
 
       - name: Deploy prod
         run: |

@@ -20,8 +20,15 @@ require_command() {
 require_command git
 
 if [[ ! -d "$APP_DIR/.git" ]]; then
-  echo "Checkout Git nao encontrado em: $APP_DIR"
-  exit 1
+  echo "==> Checkout Git nao encontrado em: $APP_DIR. Inicializando..."
+  mkdir -p "$APP_DIR"
+  
+  # Obtem a URL do repositorio atual (onde este script esta rodando)
+  # Isso garante que usaremos o mesmo transporte (SSH/HTTPS) que o runner ja usa.
+  REPO_URL=$(git remote get-url origin 2>/dev/null || echo "https://github.com/lucasmef/salomao.git")
+  
+  echo "==> Clonando de $REPO_URL para $APP_DIR"
+  git clone "$REPO_URL" "$APP_DIR"
 fi
 
 echo "==> Sincronizando checkout $APP_DIR com $GIT_REF"

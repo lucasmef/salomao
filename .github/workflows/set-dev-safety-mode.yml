@@ -23,6 +23,13 @@ jobs:
     runs-on: self-hosted
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sincronizar checkout dev
+        run: |
+          bash scripts/sync-checkout-to-ref.sh /srv/salomao/dev/app dev
+
       - name: Aplicar modo ${{ inputs.mode }}
         run: |
           bash /srv/salomao/dev/app/scripts/set-dev-safety-mode.sh "${{ inputs.mode }}"
