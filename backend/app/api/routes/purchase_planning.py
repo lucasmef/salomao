@@ -27,6 +27,7 @@ from app.schemas.purchase_planning import (
     SupplierUpdate,
 )
 from app.services.company_context import get_current_company
+from app.services.data_refresh import build_data_refresh_request, finalize_data_refresh
 from app.services.purchase_planning import (
     PurchasePlanningFilters,
     build_purchase_planning_cashflow,
@@ -62,6 +63,11 @@ from app.services.purchase_planning import (
 router = APIRouter()
 
 
+def _finalize_purchase_refresh(db: DbSession, company) -> None:
+    refresh_request = build_data_refresh_request("purchase_payables")
+    finalize_data_refresh(db, company, refresh_request)
+
+
 @router.get("/brands", response_model=list[PurchaseBrandRead])
 def get_brands(db: DbSession) -> list[PurchaseBrandRead]:
     company = get_current_company(db)
@@ -72,6 +78,7 @@ def get_brands(db: DbSession) -> list[PurchaseBrandRead]:
 def post_brand(payload: PurchaseBrandCreate, db: DbSession, current_user: CurrentUser) -> PurchaseBrandRead:
     company = get_current_company(db)
     brand = create_brand(db, company, payload, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
     return brand
 
@@ -85,6 +92,7 @@ def put_brand(
 ) -> PurchaseBrandRead:
     company = get_current_company(db)
     brand = update_brand(db, company, brand_id, payload, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
     return brand
 
@@ -97,6 +105,7 @@ def delete_brand_route(
 ) -> None:
     company = get_current_company(db)
     delete_brand(db, company, brand_id, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
 
 
@@ -116,6 +125,7 @@ def get_purchase_suppliers(db: DbSession) -> list[SupplierRead]:
 def post_supplier(payload: SupplierCreate, db: DbSession, current_user: CurrentUser) -> SupplierRead:
     company = get_current_company(db)
     supplier = create_supplier(db, company, payload, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
     return supplier
 
@@ -129,6 +139,7 @@ def put_supplier(
 ) -> SupplierRead:
     company = get_current_company(db)
     supplier = update_supplier(db, company, supplier_id, payload, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
     return supplier
 
@@ -141,6 +152,7 @@ def delete_supplier_route(
 ) -> None:
     company = get_current_company(db)
     delete_supplier(db, company, supplier_id, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
 
 
@@ -154,6 +166,7 @@ def get_collections(db: DbSession) -> list[CollectionSeasonRead]:
 def post_collection(payload: CollectionSeasonCreate, db: DbSession, current_user: CurrentUser) -> CollectionSeasonRead:
     company = get_current_company(db)
     collection = create_collection(db, company, payload, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
     return collection
 
@@ -167,6 +180,7 @@ def put_collection(
 ) -> CollectionSeasonRead:
     company = get_current_company(db)
     collection = update_collection(db, company, collection_id, payload, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
     return collection
 
@@ -179,6 +193,7 @@ def delete_collection_route(
 ) -> None:
     company = get_current_company(db)
     delete_collection(db, company, collection_id, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
 
 
@@ -195,6 +210,7 @@ def get_purchase_plans(
 def post_purchase_plan(payload: PurchasePlanCreate, db: DbSession, current_user: CurrentUser) -> PurchasePlanRead:
     company = get_current_company(db)
     plan = create_purchase_plan(db, company, payload, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
     return plan
 
@@ -208,6 +224,7 @@ def put_purchase_plan(
 ) -> PurchasePlanRead:
     company = get_current_company(db)
     plan = update_purchase_plan(db, company, plan_id, payload, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
     return plan
 
@@ -220,6 +237,7 @@ def delete_purchase_plan_route(
 ) -> None:
     company = get_current_company(db)
     delete_purchase_plan(db, company, plan_id, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
 
 
@@ -241,6 +259,7 @@ def post_purchase_return(
 ) -> PurchaseReturnRead:
     company = get_current_company(db)
     purchase_return = create_purchase_return(db, company, payload, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
     return purchase_return
 
@@ -254,6 +273,7 @@ def put_purchase_return(
 ) -> PurchaseReturnRead:
     company = get_current_company(db)
     purchase_return = update_purchase_return(db, company, purchase_return_id, payload, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
     return purchase_return
 
@@ -266,6 +286,7 @@ def delete_purchase_return_route(
 ) -> None:
     company = get_current_company(db)
     delete_purchase_return(db, company, purchase_return_id, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
 
 
@@ -295,6 +316,7 @@ def post_purchase_invoice(payload: PurchaseInvoiceCreate, db: DbSession, current
     company = get_current_company(db)
     source_type = "xml" if payload.raw_xml else "text"
     invoice = create_purchase_invoice(db, company, payload, current_user, source_type=source_type)
+    _finalize_purchase_refresh(db, company)
     db.commit()
     return invoice
 
@@ -308,6 +330,7 @@ def post_purchase_installment_link(
 ) -> PurchaseInstallmentRead:
     company = get_current_company(db)
     installment = link_installment_to_entry(db, company, installment_id, payload.financial_entry_id, current_user)
+    _finalize_purchase_refresh(db, company)
     db.commit()
     return installment
 
