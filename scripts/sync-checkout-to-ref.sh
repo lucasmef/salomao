@@ -25,6 +25,8 @@ if [[ ! -d "$APP_DIR/.git" ]]; then
 fi
 
 echo "==> Sincronizando checkout $APP_DIR com $GIT_REF"
+git -C "$APP_DIR" reset --hard HEAD
+git -C "$APP_DIR" clean -fd
 git -C "$APP_DIR" fetch --all --prune
 
 if git -C "$APP_DIR" show-ref --verify --quiet "refs/remotes/origin/$GIT_REF"; then
