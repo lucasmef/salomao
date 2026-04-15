@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import Select, { type MultiValue, type SingleValue } from "react-select";
+import Select, { type SingleValue } from "react-select";
 
+import { ModalCloseButton } from "./ModalCloseButton";
 import { parseApiError } from "../lib/format";
-import type { ReportConfig, ReportConfigLine } from "../types";
+import type { ReportConfig, ReportConfigLine, ReportGroupSelection } from "../types";
 
 type Props = {
   config: ReportConfig | null;
@@ -56,12 +57,15 @@ function normalizeOrders(lines: ReportConfigLine[]) {
   return lines.map((line, index) => ({ ...line, order: index + 1 }));
 }
 
-function asMultiValue(options: MultiValue<SelectOption>) {
-  return options.map((option) => option.value);
-}
-
 function asSingleValue(option: SingleValue<SelectOption>) {
   return option?.value ?? "";
+}
+
+function makeEmptyGroupSelection(defaultOperation: ReportConfigLine["operation"] = "add"): ReportGroupSelection {
+  return {
+    group_name: "",
+    operation: defaultOperation,
+  };
 }
 
 export function ReportConfigModal({ config, kind, loading, saving, onClose, onSave }: Props) {
@@ -76,7 +80,7 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
             ...config,
             lines: config.lines.map((line) => ({
               ...line,
-              category_groups: [...line.category_groups],
+              category_groups: line.category_groups.map((group) => ({ ...group })),
               formula: [...line.formula],
             })),
           }
@@ -120,6 +124,33 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
 
   function updateLine(lineId: string, updater: (line: ReportConfigLine) => ReportConfigLine) {
     setLines((lines) => lines.map((line) => (line.id === lineId ? updater(line) : line)));
+  }
+
+  function addGroupSelection(lineId: string) {
+    updateLine(lineId, (current) => ({
+      ...current,
+      category_groups: [...current.category_groups, makeEmptyGroupSelection(current.operation)],
+    }));
+  }
+
+  function updateGroupSelection(
+    lineId: string,
+    groupIndex: number,
+    updater: (group: ReportGroupSelection) => ReportGroupSelection,
+  ) {
+    updateLine(lineId, (current) => ({
+      ...current,
+      category_groups: current.category_groups.map((group, currentIndex) =>
+        currentIndex === groupIndex ? updater(group) : group,
+      ),
+    }));
+  }
+
+  function removeGroupSelection(lineId: string, groupIndex: number) {
+    updateLine(lineId, (current) => ({
+      ...current,
+      category_groups: current.category_groups.filter((_, currentIndex) => currentIndex !== groupIndex),
+    }));
   }
 
   function removeLine(lineId: string) {
@@ -199,10 +230,13 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
         if (!line.special_source && line.category_groups.length === 0) {
           return `A linha "${line.name}" precisa ter grupos ou uma fonte especial.`;
         }
-        for (const groupName of line.category_groups) {
-          const key = groupName.toLocaleLowerCase();
+        for (const group of line.category_groups) {
+          if (!group.group_name.trim()) {
+            return `A linha "${line.name}" possui um grupo sem selecao.`;
+          }
+          const key = group.group_name.toLocaleLowerCase();
           if (groupOwners.has(key)) {
-            return `O grupo "${groupName}" esta repetido em mais de uma linha.`;
+            return `O grupo "${group.group_name}" esta repetido em mais de uma linha.`;
           }
           groupOwners.set(key, line.id);
         }
@@ -254,9 +288,7 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
             <h3>Configurar {kind.toUpperCase()}</h3>
             <p>Defina a ordem das linhas, escolha grupos com busca e monte os subtotais com referencias entre linhas anteriores.</p>
           </div>
-          <button className="ghost-button" onClick={onClose} type="button">
-            Fechar
-          </button>
+          <ModalCloseButton onClick={onClose} />
         </div>
 
         {loading ? (
@@ -282,7 +314,7 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
             <div className="report-config-lines-header">
               <div>
                 <strong>{draft.lines.length} linhas configuradas</strong>
-                <p>Use linhas agrupadoras para juntar grupos e faturamento. Use linhas totalizadoras para montar subtotais com linhas anteriores.</p>
+                <p>Use linhas agrupadoras para juntar grupos e componentes da API Linx. Use linhas totalizadoras para montar subtotais com linhas anteriores.</p>
               </div>
               <button className="secondary-button" onClick={addLine} type="button">
                 Adicionar linha no fim
@@ -297,7 +329,6 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
                     value: candidate.id,
                     label: `${sourceIndex + 1}. ${candidate.name || "Linha sem nome"}`,
                   }));
-                const selectedGroupOptions = groupOptions.filter((option) => line.category_groups.includes(option.value));
                 const selectedSpecialSourceOption = specialSourceOptions.find((option) => option.value === line.special_source) ?? null;
                 const selectedPercentReferenceOption =
                   referenceOptions.find((option) => option.value === line.percent_reference_line_id) ?? null;
@@ -495,65 +526,124 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
                           <strong>{line.line_type === "source" ? "Composicao da linha" : "Formula da linha"}</strong>
                           <span>
                             {line.line_type === "source"
-                              ? "Junte grupos/subgrupos e, se precisar, um componente do faturamento na mesma linha."
+                              ? "Junte grupos/subgrupos e, se precisar, um componente da API Linx na mesma linha."
                               : "Cada linha totalizadora soma ou diminui linhas anteriores."}
                           </span>
                         </div>
 
                         {line.line_type === "source" ? (
-                          <div className="form-grid wide report-config-form-grid">
-                            <label>
-                              Operacao na tabela
-                              <select
-                                value={line.operation}
-                                onChange={(event) => updateLine(line.id, (current) => ({ ...current, operation: event.target.value as "add" | "subtract" }))}
-                              >
-                                <option value="add">Soma</option>
-                                <option value="subtract">Diminui</option>
-                              </select>
-                            </label>
-
-                            {specialSourceOptions.length > 0 && (
-                              <label className="span-two">
-                                Componente do faturamento
-                                <Select
-                                  classNamePrefix="report-config-select"
-                                  isClearable
-                                  isSearchable
-                                  onChange={(option) =>
-                                    updateLine(line.id, (current) => ({
-                                      ...current,
-                                      special_source: asSingleValue(option) || null,
-                                    }))
-                                  }
-                                  options={specialSourceOptions}
-                                  placeholder="Opcional. Use junto com grupos se precisar"
-                                  value={selectedSpecialSourceOption}
-                                />
+                          <div className="report-config-formula-builder">
+                            <div className="form-grid wide report-config-form-grid">
+                              <label>
+                                Operacao do componente especial
+                                <select
+                                  value={line.operation}
+                                  onChange={(event) => updateLine(line.id, (current) => ({ ...current, operation: event.target.value as "add" | "subtract" }))}
+                                >
+                                  <option value="add">Soma</option>
+                                  <option value="subtract">Diminui</option>
+                                </select>
+                                <small className="report-config-field-help">
+                                  Essa operacao vale para o componente especial e tambem vira o padrao quando voce adiciona um novo grupo.
+                                </small>
                               </label>
+
+                              {specialSourceOptions.length > 0 && (
+                                <label className="span-two">
+                                  Componente da API Linx
+                                  <Select
+                                    classNamePrefix="report-config-select"
+                                    isClearable
+                                    isSearchable
+                                    onChange={(option) =>
+                                      updateLine(line.id, (current) => ({
+                                        ...current,
+                                        special_source: asSingleValue(option) || null,
+                                      }))
+                                    }
+                                    options={specialSourceOptions}
+                                    placeholder="Opcional. Use junto com grupos se precisar"
+                                    value={selectedSpecialSourceOption}
+                                  />
+                                </label>
+                              )}
+                            </div>
+
+                            <div className="report-config-formula-header">
+                              <div>
+                                <strong>Itens do agrupamento</strong>
+                                <p className="report-config-inline-copy">
+                                  Cada grupo ou subgrupo pode somar ou diminuir de forma independente, igual a uma linha totalizadora.
+                                </p>
+                              </div>
+                              <button
+                                className="secondary-button"
+                                disabled={groupOptions.length === 0}
+                                onClick={() => addGroupSelection(line.id)}
+                                type="button"
+                              >
+                                Adicionar grupo
+                              </button>
+                            </div>
+
+                            {line.category_groups.length === 0 ? (
+                              <p className="empty-state">Nenhum grupo vinculado ainda.</p>
+                            ) : (
+                              <div className="report-config-formula-list">
+                                {line.category_groups.map((groupSelection, groupIndex) => {
+                                  const selectedGroupOption = groupOptions.find((option) => option.value === groupSelection.group_name) ?? null;
+                                  return (
+                                    <div className="report-config-formula-row" key={`${line.id}-group-${groupIndex}`}>
+                                      <label>
+                                        Operacao
+                                        <select
+                                          value={groupSelection.operation}
+                                          onChange={(event) =>
+                                            updateGroupSelection(line.id, groupIndex, (currentGroup) => ({
+                                              ...currentGroup,
+                                              operation: event.target.value as "add" | "subtract",
+                                            }))
+                                          }
+                                        >
+                                          <option value="add">Somar</option>
+                                          <option value="subtract">Diminuir</option>
+                                        </select>
+                                      </label>
+
+                                      <label>
+                                        Grupo ou subgrupo
+                                        <Select
+                                          classNamePrefix="report-config-select"
+                                          isClearable={false}
+                                          isSearchable
+                                          onChange={(option) =>
+                                            updateGroupSelection(line.id, groupIndex, (currentGroup) => ({
+                                              ...currentGroup,
+                                              group_name: asSingleValue(option),
+                                            }))
+                                          }
+                                          options={groupOptions}
+                                          placeholder="Busque e selecione um grupo"
+                                          value={selectedGroupOption}
+                                        />
+                                      </label>
+
+                                      <button
+                                        className="ghost-button danger-text-action"
+                                        onClick={() => removeGroupSelection(line.id, groupIndex)}
+                                        type="button"
+                                      >
+                                        Remover
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             )}
 
-                            <label className="span-three">
-                              Grupos e subgrupos
-                              <Select<SelectOption, true>
-                                classNamePrefix="report-config-select"
-                                closeMenuOnSelect={false}
-                                isMulti
-                                isSearchable
-                                onChange={(options) =>
-                                  updateLine(line.id, (current) => ({
-                                    ...current,
-                                    category_groups: asMultiValue(options),
-                                  }))
-                                }
-                                options={groupOptions}
-                                placeholder="Busque e selecione grupos ou subgrupos"
-                                value={selectedGroupOptions}
-                              />
-                              <small className="report-config-field-help">
-                                Use a busca para encontrar grupos e subgrupos rapidamente. Voce pode combinar isso com o faturamento.
-                              </small>
-                            </label>
+                            <small className="report-config-field-help">
+                              Misture entradas positivas e negativas no mesmo agrupamento sem precisar separar a linha em duas.
+                            </small>
                           </div>
                         ) : (
                           <div className="report-config-formula-builder">

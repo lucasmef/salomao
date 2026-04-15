@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -15,17 +15,17 @@ from fastapi import HTTPException
 from app.db.base import Base
 from app.db.models.banking import BankTransaction
 from app.db.models.finance import Account, Category, FinancialEntry
-from app.db.models.linx import SalesSnapshot
+from app.db.models.linx import LinxMovement, SalesSnapshot
 from app.db.models.purchasing import CollectionSeason, PurchasePlan, Supplier
 from app.db.models.security import Company, User
-from app.schemas.reconciliation import ReconciliationCreate
+from app.schemas.reconciliation import BankTransactionActionCreate, ReconciliationCreate
 from app.schemas.transfer import TransferCreate
 from app.services.bootstrap import ensure_company_catalog
 from app.services.cashflow import build_cashflow_overview
 from app.services.finance_ops import create_transfer, settle_entry
 from app.services.import_parsers import ParsedSalesRow
 from app.services.imports import import_linx_sales
-from app.services.reconciliation import create_reconciliation
+from app.services.reconciliation import create_entry_from_bank_transaction, create_reconciliation
 from app.services.reports import build_reports_overview
 from app.schemas.financial_entry import EntrySettlementRequest
 from app.services.category_catalog import ensure_category_catalog
@@ -194,6 +194,31 @@ class FinancialCalculationsTestCase(unittest.TestCase):
         self.db.commit()
         return snapshot
 
+    def _add_linx_movement(
+        self,
+        *,
+        movement_date: date,
+        movement_type: str,
+        total_amount: str,
+        quantity: str = "1.00",
+        cost_price: str = "0.00",
+    ) -> LinxMovement:
+        movement = LinxMovement(
+            company_id=self.company.id,
+            linx_transaction=int(datetime.combine(movement_date, datetime.min.time()).timestamp()),
+            movement_group="sale",
+            movement_type=movement_type,
+            launch_date=datetime.combine(movement_date, datetime.min.time()),
+            issue_date=datetime.combine(movement_date, datetime.min.time()),
+            quantity=Decimal(quantity),
+            cost_price=Decimal(cost_price),
+            total_amount=Decimal(total_amount),
+            net_amount=Decimal(total_amount),
+        )
+        self.db.add(movement)
+        self.db.commit()
+        return movement
+
     def test_current_balance_uses_partial_expense_paid_amount(self) -> None:
         account = self._add_account("Caixa", "1000.00")
         self._add_entry(
@@ -343,10 +368,12 @@ class FinancialCalculationsTestCase(unittest.TestCase):
             report_group="Receitas",
             report_subgroup="Receitas",
         )
-        self._add_sales_snapshot(
-            snapshot_date=date(2026, 3, 23),
-            gross_revenue="1000.00",
-            markup="100.00",
+        self._add_linx_movement(
+            movement_date=date(2026, 3, 23),
+            movement_type="sale",
+            total_amount="1000.00",
+            quantity="2.00",
+            cost_price="250.00",
         )
         self._add_entry(
             account=account,
@@ -659,6 +686,48 @@ class FinancialCalculationsTestCase(unittest.TestCase):
             )
 
         self.assertIn("Data de vencimento obrigatoria", str(context.exception))
+
+    def test_grouped_bank_entry_uses_signed_net_amount_for_mixed_movements(self) -> None:
+        account = self._add_account("Inter", "0.00")
+        category = self._add_category(name="Operacional", code="6.1.1.1", entry_kind="expense")
+        outgoing = self._add_bank_transaction(
+            account=account,
+            posted_at=date(2026, 4, 8),
+            amount="-10000.00",
+            fit_id="ofx-mix-001",
+        )
+        incoming_one = self._add_bank_transaction(
+            account=account,
+            posted_at=date(2026, 4, 9),
+            amount="1000.00",
+            fit_id="ofx-mix-002",
+        )
+        incoming_two = self._add_bank_transaction(
+            account=account,
+            posted_at=date(2026, 4, 9),
+            amount="1000.00",
+            fit_id="ofx-mix-003",
+        )
+
+        result = create_entry_from_bank_transaction(
+            self.db,
+            self.company,
+            BankTransactionActionCreate(
+                bank_transaction_ids=[incoming_one.id, incoming_two.id, outgoing.id],
+                action_type="create_entry",
+                category_id=category.id,
+            ),
+            self.user,
+        )
+        self.db.commit()
+
+        entry = self.db.get(FinancialEntry, result["financial_entry_id"])
+        self.assertIsNotNone(entry)
+        assert entry is not None
+        self.assertEqual(entry.entry_type, "expense")
+        self.assertEqual(entry.total_amount, Decimal("8000.00"))
+        self.assertEqual(entry.principal_amount, Decimal("8000.00"))
+        self.assertEqual(entry.title, "Pagamento agrupado (3 movimentos)")
 
     def test_cashflow_uses_purchase_planning_monthly_simulation(self) -> None:
         supplier = Supplier(

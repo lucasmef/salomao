@@ -10,6 +10,9 @@ type Props = {
   mainNavigation: MainNavItem[];
   children: ReactNode;
   onLogout: () => void;
+  globalProductSearch: string;
+  onGlobalProductSearchChange: (value: string) => void;
+  onSubmitGlobalProductSearch: () => void;
   busy?: boolean;
   busyLabel?: string;
 };
@@ -19,6 +22,9 @@ export function AppShell({
   mainNavigation,
   children,
   onLogout,
+  globalProductSearch,
+  onGlobalProductSearchChange,
+  onSubmitGlobalProductSearch,
   busy = false,
   busyLabel = "",
 }: Props) {
@@ -29,6 +35,23 @@ export function AppShell({
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
+
+  const renderSearchForm = (className: string) => (
+    <form
+      className={className}
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmitGlobalProductSearch();
+      }}
+    >
+      <input
+        aria-label="Busca global de produtos"
+        onChange={(event) => onGlobalProductSearchChange(event.target.value)}
+        placeholder="Buscar produto"
+        value={globalProductSearch}
+      />
+    </form>
+  );
 
   return (
     <div className="app-shell">
@@ -42,6 +65,7 @@ export function AppShell({
           >
             <img alt="Salomao" className="app-shell-brand-logo" src={salomaoLogo} />
           </NavLink>
+          {renderSearchForm("app-shell-search app-shell-search-mobile")}
           <button
             aria-controls="app-shell-primary-navigation"
             aria-expanded={mobileMenuOpen}
@@ -70,7 +94,15 @@ export function AppShell({
           ))}
         </nav>
 
+        <div className="app-shell-mobile-menu-actions">
+          <button className="app-shell-user-action" onClick={onLogout} type="button">
+            Sair
+          </button>
+        </div>
+
         <div className="app-shell-header-tools">
+          {renderSearchForm("app-shell-search app-shell-search-desktop")}
+
           {busy && busyLabel ? (
             <div className="app-shell-status" role="status" aria-live="polite">
               <span aria-hidden="true" className="app-shell-status-dot" />

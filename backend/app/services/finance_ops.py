@@ -434,6 +434,10 @@ def list_entries(
                 FinancialEntry.document_number.ilike(like_value),
             )
         )
+    if filters.amount_min is not None:
+        stmt = stmt.where(FinancialEntry.total_amount >= filters.amount_min)
+    if filters.amount_max is not None:
+        stmt = stmt.where(FinancialEntry.total_amount <= filters.amount_max)
     if not filters.include_legacy:
         stmt = stmt.where(
             or_(
@@ -606,11 +610,11 @@ def _ensure_entry_can_be_deleted(
     *,
     allow_reconciled_generated: bool = False,
 ) -> None:
-    if not allow_reconciled_generated and entry.status not in {"planned", "cancelled"}:
+    if not allow_reconciled_generated and entry.status not in {"planned", "cancelled", "open"}:
         raise HTTPException(status_code=400, detail="Apenas lancamentos em aberto podem ser excluidos")
     if not allow_reconciled_generated and (Decimal(entry.paid_amount or 0) > Decimal("0.00") or entry.settled_at is not None):
         raise HTTPException(status_code=400, detail="Lancamento com baixa nao pode ser excluido")
-    if entry.transfer_id or entry.loan_installment_id or entry.purchase_installment_id or entry.is_recurring_generated:
+    if entry.transfer_id or entry.loan_installment_id or entry.is_recurring_generated:
         raise HTTPException(status_code=400, detail="Lancamento vinculado a outro processo nao pode ser excluido")
     has_reconciliation = db.scalar(
         select(func.count())
@@ -624,6 +628,14 @@ def _ensure_entry_can_be_deleted(
     ) or 0
     if not allow_reconciled_generated and (has_reconciliation or has_group_reconciliation):
         raise HTTPException(status_code=400, detail="Lancamento conciliado nao pode ser excluido")
+
+
+def _detach_purchase_links_for_deleted_entry(db: Session, entry: FinancialEntry) -> None:
+    if not entry.purchase_invoice_id and not entry.purchase_installment_id:
+        return
+    from app.services.purchase_planning import cleanup_deleted_purchase_entry
+
+    cleanup_deleted_purchase_entry(db, entry)
 
 
 def bulk_delete_entries(
@@ -659,6 +671,7 @@ def bulk_delete_entries(
     supplier_ids_to_refresh = {entry.supplier_id for entry in ordered_entries if entry.supplier_id}
     for entry in ordered_entries:
         before_state = _entry_dict(entry)
+        _detach_purchase_links_for_deleted_entry(db, entry)
         entry.is_deleted = True
         entry.status = "cancelled"
         write_audit_log(
@@ -804,6 +817,7 @@ def delete_entry(
     _ensure_entry_can_be_deleted(db, entry, allow_reconciled_generated=allow_reconciled_generated)
     before_state = _entry_dict(entry)
     supplier_ids_to_refresh = {entry.supplier_id} if entry.supplier_id else set()
+    _detach_purchase_links_for_deleted_entry(db, entry)
     entry.is_deleted = True
     entry.status = "cancelled"
     db.flush()

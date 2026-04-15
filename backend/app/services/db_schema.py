@@ -380,6 +380,21 @@ def ensure_schema_updates(engine: Engine) -> None:
         _add_column_if_missing(connection, "purchase_deliveries", "season_phase", "VARCHAR(20) DEFAULT 'main'")
         _add_column_if_missing(connection, "collection_seasons", "season_year", "INTEGER")
         _add_column_if_missing(connection, "collection_seasons", "season_type", "VARCHAR(20)")
+        company_columns = {
+            "linx_base_url": "VARCHAR(255)",
+            "linx_username": "VARCHAR(160)",
+            "linx_password_encrypted": "VARCHAR(512)",
+            "linx_sales_view_name": "VARCHAR(160)",
+            "linx_receivables_view_name": "VARCHAR(160)",
+            "linx_payables_view_name": "VARCHAR(160)",
+            "linx_auto_sync_enabled": "BOOLEAN DEFAULT 0",
+            "linx_auto_sync_alert_email": "VARCHAR(255)",
+            "linx_auto_sync_last_run_at": "DATETIME",
+            "linx_auto_sync_last_status": "VARCHAR(20)",
+            "linx_auto_sync_last_error": "TEXT",
+        }
+        for column_name, sql_type in company_columns.items():
+            _add_column_if_missing(connection, "companies", column_name, sql_type)
 
         user_columns = {
             "mfa_enabled": "BOOLEAN DEFAULT 0",
@@ -412,6 +427,44 @@ def ensure_schema_updates(engine: Engine) -> None:
                 is_active BOOLEAN DEFAULT 1,
                 user_agent VARCHAR(512),
                 FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+            """,
+        )
+        _create_table_if_missing(
+            connection,
+            "purchase_payable_titles",
+            """
+            CREATE TABLE purchase_payable_titles (
+                id VARCHAR(36) PRIMARY KEY,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                company_id VARCHAR(36) NOT NULL,
+                source_batch_id VARCHAR(36),
+                last_seen_batch_id VARCHAR(36),
+                source_reference VARCHAR(120) NOT NULL,
+                issue_date DATE,
+                due_date DATE,
+                payable_code VARCHAR(40),
+                company_code VARCHAR(20),
+                installment_label VARCHAR(20),
+                installment_number INTEGER,
+                installments_total INTEGER,
+                original_amount NUMERIC(14,2) DEFAULT 0,
+                amount_with_charges NUMERIC(14,2),
+                supplier_name VARCHAR(200) NOT NULL,
+                supplier_code VARCHAR(20),
+                document_number VARCHAR(80),
+                document_series VARCHAR(20),
+                status VARCHAR(30) DEFAULT 'open',
+                purchase_invoice_id VARCHAR(36),
+                purchase_installment_id VARCHAR(36),
+                financial_entry_id VARCHAR(36),
+                FOREIGN KEY(company_id) REFERENCES companies(id),
+                FOREIGN KEY(source_batch_id) REFERENCES import_batches(id),
+                FOREIGN KEY(last_seen_batch_id) REFERENCES import_batches(id),
+                FOREIGN KEY(purchase_invoice_id) REFERENCES purchase_invoices(id),
+                FOREIGN KEY(purchase_installment_id) REFERENCES purchase_installments(id),
+                FOREIGN KEY(financial_entry_id) REFERENCES financial_entries(id)
             )
             """,
         )
@@ -535,6 +588,14 @@ def ensure_schema_updates(engine: Engine) -> None:
             "idx_purchase_installments_company_due": ("purchase_installments", (
                 "CREATE INDEX idx_purchase_installments_company_due "
                 "ON purchase_installments(company_id, due_date, status)"
+            )),
+            "idx_purchase_payable_titles_company_source_ref": ("purchase_payable_titles", (
+                "CREATE INDEX idx_purchase_payable_titles_company_source_ref "
+                "ON purchase_payable_titles(company_id, source_reference)"
+            )),
+            "idx_purchase_payable_titles_company_due": ("purchase_payable_titles", (
+                "CREATE INDEX idx_purchase_payable_titles_company_due "
+                "ON purchase_payable_titles(company_id, due_date, status)"
             )),
             "idx_purchase_deliveries_company_supplier_collection": ("purchase_deliveries", (
                 "CREATE INDEX idx_purchase_deliveries_company_supplier_collection "

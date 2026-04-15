@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.models.base import Base, IdMixin, TimestampMixin
@@ -73,3 +73,46 @@ class ReportLayoutFormulaItem(Base, IdMixin, TimestampMixin):
 
     line = relationship("ReportLayoutLine", back_populates="formula_items", foreign_keys=[line_id])
     referenced_line = relationship("ReportLayoutLine", foreign_keys=[referenced_line_id])
+
+
+class AnalyticsMonthlySnapshot(Base, IdMixin, TimestampMixin):
+    __tablename__ = "analytics_monthly_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id",
+            "analytics_kind",
+            "snapshot_month",
+            "params_key",
+            name="uq_analytics_month_snapshot_scope",
+        ),
+    )
+
+    company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), index=True)
+    analytics_kind: Mapped[str] = mapped_column(String(40), index=True)
+    snapshot_month: Mapped[object] = mapped_column(Date, index=True)
+    params_key: Mapped[str] = mapped_column(String(64), default="", index=True)
+    params_json: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
+    payload_json: Mapped[dict[str, object]] = mapped_column(JSON)
+
+
+class AnalyticsSnapshotRebuildTask(Base, IdMixin, TimestampMixin):
+    __tablename__ = "analytics_snapshot_rebuild_tasks"
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id",
+            "analytics_kind",
+            "snapshot_month",
+            "params_key",
+            name="uq_analytics_snapshot_rebuild_scope",
+        ),
+    )
+
+    company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), index=True)
+    analytics_kind: Mapped[str] = mapped_column(String(40), index=True)
+    snapshot_month: Mapped[object] = mapped_column(Date, index=True)
+    params_key: Mapped[str] = mapped_column(String(64), default="", index=True)
+    params_json: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)

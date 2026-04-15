@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -12,13 +13,36 @@ from fastapi import FastAPI, Request
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 RUNTIME_DIR = PROJECT_ROOT / ".runtime"
 RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+RUNTIME_DIR.chmod(0o750)
 ERROR_LOG_PATH = RUNTIME_DIR / "backend.error.log"
 CLIENT_ERROR_LOG_PATH = RUNTIME_DIR / "client.error.log"
 ROUTE_LOG_PATH = RUNTIME_DIR / "backend.routes.log"
+LOG_FILE_MODE = 0o640
+
+
+def _apply_mode(path: Path, mode: int) -> None:
+    try:
+        os.chmod(path, mode)
+    except OSError:
+        pass
+
+
+class SecureRotatingFileHandler(RotatingFileHandler):
+    def _open(self):
+        stream = super()._open()
+        _apply_mode(Path(self.baseFilename), LOG_FILE_MODE)
+        return stream
+
+    def doRollover(self) -> None:
+        super().doRollover()
+        log_path = Path(self.baseFilename)
+        for candidate in log_path.parent.glob(f"{log_path.name}*"):
+            if candidate.is_file():
+                _apply_mode(candidate, LOG_FILE_MODE)
 
 
 def _build_rotating_handler(path: Path) -> RotatingFileHandler:
-    handler = RotatingFileHandler(path, maxBytes=1_500_000, backupCount=5, encoding="utf-8")
+    handler = SecureRotatingFileHandler(path, maxBytes=1_500_000, backupCount=5, encoding="utf-8")
     handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
     return handler
 
@@ -86,6 +110,7 @@ def write_route_manifest(app: FastAPI) -> None:
         )
 
     ROUTE_LOG_PATH.write_text(json.dumps(routes, ensure_ascii=False, indent=2), encoding="utf-8")
+    _apply_mode(ROUTE_LOG_PATH, LOG_FILE_MODE)
     backend_error_logger.info(
         json.dumps(
             {

@@ -12,21 +12,21 @@ from app.db.models.banking import (
     Reconciliation,
     ReconciliationGroup,
     ReconciliationLine,
-    ReconciliationRule,
 )
-from app.db.models.finance import FinancialEntry
+from app.db.models.finance import Account, FinancialEntry
 from app.db.models.security import Company, User
+from app.schemas.dashboard import DashboardAccountBalance
 from app.schemas.financial_entry import FinancialEntryCreate
 from app.schemas.reconciliation import (
     ReconciliationAppliedEntry,
     BankTransactionActionCreate,
     BankTransactionWorkItem,
-    ReconciliationCandidate,
     ReconciliationCreate,
     ReconciliationUndoResponse,
     ReconciliationWorklist,
 )
 from app.services.audit import write_audit_log
+from app.services.cashflow import RECEIVABLES_CONTROL_ACCOUNT_TYPE, _current_balance_for_account
 from app.services.finance_ops import apply_settlement_breakdown, create_entry, create_transfer, delete_entry
 from app.schemas.transfer import TransferCreate
 from app.services.bootstrap import ensure_default_financial_category
@@ -112,7 +112,8 @@ def _build_grouped_transaction_title(transactions: list[BankTransaction]) -> str
         transaction = transactions[0]
         return transaction.memo or transaction.name or transaction.fit_id or "Lancamento bancario"
 
-    is_income = Decimal(transactions[0].amount) > 0
+    net_amount = sum(Decimal(transaction.amount) for transaction in transactions)
+    is_income = net_amount > 0
     base_title = "Recebimento agrupado" if is_income else "Pagamento agrupado"
     return f"{base_title} ({len(transactions)} movimentos)"
 
@@ -333,15 +334,6 @@ def build_reconciliation_worklist(
         )
     )
 
-    rules = list(
-        db.scalars(
-            select(ReconciliationRule).where(
-                ReconciliationRule.company_id == company.id,
-                ReconciliationRule.is_active.is_(True),
-            )
-        )
-    )
-
     transaction_ids = [transaction.id for transaction in transactions]
     reconciliation_lines = list(
         db.scalars(
@@ -376,49 +368,8 @@ def build_reconciliation_worklist(
     for reconciliation in legacy_reconciliations:
         legacy_map.setdefault(reconciliation.bank_transaction_id, []).append(reconciliation)
 
-    unreconciled_transactions = [
-        transaction
-        for transaction in transactions
-        if transaction.id not in line_map and transaction.id not in legacy_map
-    ]
-    candidate_entries: list[FinancialEntry] = []
-    if unreconciled_transactions:
-        candidate_types = {
-            "income" if Decimal(transaction.amount) > 0 else "expense"
-            for transaction in unreconciled_transactions
-        }
-        candidate_types.add("transfer")
-        account_ids = {transaction.account_id for transaction in unreconciled_transactions if transaction.account_id}
-        min_date = min(transaction.posted_at for transaction in unreconciled_transactions) - timedelta(days=15)
-        max_date = max(transaction.posted_at for transaction in unreconciled_transactions) + timedelta(days=15)
-
-        candidate_stmt = (
-            select(FinancialEntry)
-            .options(joinedload(FinancialEntry.account))
-            .where(
-                FinancialEntry.company_id == company.id,
-                FinancialEntry.is_deleted.is_(False),
-                FinancialEntry.status.in_(["planned", "partial"]),
-                FinancialEntry.entry_type.in_(list(candidate_types)),
-                or_(
-                    FinancialEntry.due_date.is_(None),
-                    FinancialEntry.due_date.between(min_date, max_date),
-                    FinancialEntry.competence_date.between(min_date, max_date),
-                ),
-            )
-        )
-        if account_ids:
-            candidate_stmt = candidate_stmt.where(
-                or_(
-                    FinancialEntry.account_id.is_(None),
-                    FinancialEntry.account_id.in_(list(account_ids)),
-                )
-            )
-        candidate_entries = list(db.scalars(candidate_stmt))
-
     items: list[BankTransactionWorkItem] = []
     for transaction in transactions:
-        tx_text = _normalize_text(" ".join(filter(None, [transaction.memo, transaction.name])))
         applied_entries: list[ReconciliationAppliedEntry] = []
         transaction_lines = line_map.get(transaction.id, [])
         transaction_legacy = legacy_map.get(transaction.id, [])
@@ -451,36 +402,7 @@ def build_reconciliation_worklist(
                     )
                 )
 
-        ranked: list[ReconciliationCandidate] = []
         is_reconciled = bool(applied_entries)
-        if not is_reconciled:
-            for entry in candidate_entries:
-                if entry.entry_type != "transfer":
-                    transaction_type = "income" if Decimal(transaction.amount) > 0 else "expense"
-                    if entry.entry_type != transaction_type:
-                        continue
-                score, reasons = _score_candidate(transaction, entry)
-                for rule in rules:
-                    if rule.pattern.lower() in tx_text:
-                        score += 12
-                        reasons.append("regra salva")
-                if score < 20:
-                    continue
-                ranked.append(
-                    ReconciliationCandidate(
-                        financial_entry_id=entry.id,
-                        title=entry.title,
-                        counterparty_name=entry.counterparty_name,
-                        entry_type=entry.entry_type,
-                        status=entry.status,
-                        due_date=entry.due_date,
-                        total_amount=entry.total_amount,
-                        account_name=entry.account.name if entry.account else None,
-                        score=round(score, 2),
-                        reasons=list(dict.fromkeys(reasons)),
-                    )
-                )
-        ranked.sort(key=lambda candidate: candidate.score, reverse=True)
         items.append(
             BankTransactionWorkItem(
                 bank_transaction_id=transaction.id,
@@ -495,7 +417,34 @@ def build_reconciliation_worklist(
                 reconciliation_status="matched" if is_reconciled else "pending",
                 undo_mode=_undo_mode_from_entries(applied_entries) if is_reconciled else None,
                 applied_entries=applied_entries,
-                candidates=ranked[:5],
+                candidates=[],
+            )
+        )
+
+    balance_accounts = sorted(
+        [
+            account
+            for account in db.scalars(
+                select(Account).where(
+                    Account.company_id == company.id,
+                    Account.is_active.is_(True),
+                )
+            )
+            if account.account_type != RECEIVABLES_CONTROL_ACCOUNT_TYPE
+        ],
+        key=lambda item: (item.name or "").lower(),
+    )
+    total_account_balance = Decimal("0.00")
+    account_balances: list[DashboardAccountBalance] = []
+    for account in balance_accounts:
+        balance = _current_balance_for_account(db, company.id, account)
+        total_account_balance += balance
+        account_balances.append(
+            DashboardAccountBalance(
+                account_id=account.id,
+                account_name=account.name,
+                account_type=account.account_type,
+                current_balance=balance,
             )
         )
 
@@ -506,6 +455,8 @@ def build_reconciliation_worklist(
         total=total_count,
         page=page,
         page_size=limit,
+        total_account_balance=total_account_balance,
+        account_balances=account_balances,
         items=items,
     )
 
@@ -527,6 +478,13 @@ def create_reconciliation(
         raise ValueError("Data de vencimento obrigatoria para conciliar e baixar o lancamento")
     if any(_transaction_already_reconciled(db, transaction.id) for transaction in transactions if transaction):
         raise ValueError("Um dos movimentos bancarios ja foi conciliado")
+    transaction_signs = {Decimal(item.amount) > 0 for item in transactions if item and Decimal(item.amount) != Decimal("0.00")}
+    is_mixed_action_create_entry = (
+        payload.match_type == "action_create_entry"
+        and len(entries) == 1
+        and len(transactions) > 1
+        and len(transaction_signs) > 1
+    )
     total_transactions = sum(abs(Decimal(item.amount)) for item in transactions if item)
     if total_transactions <= Decimal("0.00"):
         raise ValueError("Os movimentos selecionados nao possuem valor valido para conciliacao")
@@ -564,11 +522,17 @@ def create_reconciliation(
             raise ValueError("Ajustes de principal, juros, multa ou desconto exigem 1 movimento e 1 lancamento")
         if total_remaining <= 0:
             raise ValueError("Os lancamentos selecionados nao possuem saldo aberto")
-        amount_difference = abs(total_transactions - total_remaining)
+        comparison_total = total_transactions
+        if is_mixed_action_create_entry:
+            comparison_total = abs(sum(Decimal(item.amount) for item in transactions if item))
+        amount_difference = abs(comparison_total - total_remaining)
         if amount_difference > TWO_PLACES:
             raise ValueError("Conciliacao multipla exige que a soma do extrato seja igual a soma dos lancamentos.")
 
-    confidence_score = min(float((min(total_transactions, total_remaining) / max(total_transactions, Decimal("0.01"))) * 100), 100.0)
+    confidence_base = total_transactions
+    if is_mixed_action_create_entry:
+        confidence_base = abs(sum(Decimal(item.amount) for item in transactions if item))
+    confidence_score = min(float((min(confidence_base, total_remaining) / max(confidence_base, Decimal("0.01"))) * 100), 100.0)
 
     group = ReconciliationGroup(
         company_id=company.id,
@@ -608,6 +572,35 @@ def create_reconciliation(
             line_entry.paid_amount = Decimal(line_entry.total_amount)
             line_entry.status = "settled"
             line_entry.settled_at = datetime.combine(transaction.posted_at, time.min, tzinfo=timezone.utc)
+    elif is_mixed_action_create_entry:
+        entry = entries[0]
+        settled_dates: list[date] = []
+        for transaction in transactions:
+            signed_amount = Decimal(transaction.amount)
+            if signed_amount == Decimal("0.00"):
+                transaction_remaining[transaction.id] = Decimal("0.00")
+                continue
+
+            db.add(
+                ReconciliationLine(
+                    company_id=company.id,
+                    reconciliation_group_id=group.id,
+                    bank_transaction_id=transaction.id,
+                    financial_entry_id=entry.id,
+                    amount_applied=signed_amount,
+                )
+            )
+            transaction_remaining[transaction.id] = Decimal("0.00")
+            settled_dates.append(transaction.posted_at)
+
+        entry.paid_amount = Decimal(entry.total_amount)
+        entry.status = "settled"
+        if settled_dates:
+            entry.settled_at = datetime.combine(max(settled_dates), time.min, tzinfo=timezone.utc)
+        if not entry.account_id:
+            matched_account_ids = [transaction.account_id for transaction in transactions if transaction.account_id]
+            if matched_account_ids:
+                entry.account_id = matched_account_ids[0]
     else:
         for entry in entries:
             open_amount = max(Decimal(entry.total_amount) - Decimal(entry.paid_amount or 0), Decimal("0.00"))
@@ -792,10 +785,6 @@ def create_entry_from_bank_transaction(
     account_ids = {transaction.account_id for transaction in transactions}
     if len(account_ids) != 1:
         raise ValueError("Selecione apenas movimentos da mesma conta para criar um lancamento consolidado")
-
-    amount_signs = {Decimal(transaction.amount) > 0 for transaction in transactions}
-    if len(amount_signs) != 1:
-        raise ValueError("Selecione movimentos apenas de entrada ou apenas de saida para criar um lancamento consolidado")
 
     entry_type = "income" if net_amount > 0 else "expense"
     title = payload.title or _build_grouped_transaction_title(transactions)

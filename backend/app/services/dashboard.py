@@ -1,7 +1,7 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.banking import BankTransaction, Reconciliation, ReconciliationLine
@@ -13,23 +13,170 @@ from app.schemas.dashboard import (
     DashboardKpis,
     DashboardOverview,
     DashboardPendingItem,
+    DashboardRevenueComparison,
+    DashboardRevenueComparisonPoint,
     DashboardSeriesPoint,
 )
-from app.services.cashflow import build_cashflow_overview
-from app.services.reports import build_reports_overview
+from app.services.analytics_hybrid import (
+    ANALYTICS_DASHBOARD_OVERVIEW,
+    ANALYTICS_REVENUE_COMPARISON,
+    clear_live_cache,
+    is_full_month_period,
+    is_historical_period,
+    read_live_cache,
+    read_live_json_cache,
+    read_snapshot_or_rebuild,
+    upsert_monthly_snapshot,
+    write_live_cache,
+    write_live_json_cache,
+)
+from app.services.cashflow import get_cached_cashflow_overview
+from app.services.reports import get_cached_reports_overview
+
+MONTH_LABELS = ("Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez")
+CURRENT_MONTH_OVERVIEW_CACHE_TTL_SECONDS = 86400
+HISTORICAL_MONTH_OVERVIEW_CACHE_TTL_SECONDS = 604800
+MAX_OVERVIEW_CACHE_ITEMS = 24
+HISTORICAL_REVENUE_COMPARISON_CACHE_TTL_SECONDS = 21600
 
 
-def _safe_month_range(start: date, end: date, year: int) -> tuple[date, date]:
-    def replace_day(value: date, target_year: int) -> date:
-        day = value.day
-        while day > 0:
-            try:
-                return date(target_year, value.month, day)
-            except ValueError:
-                day -= 1
-        return date(target_year, value.month, 1)
+def _month_start(value: date) -> date:
+    return date(value.year, value.month, 1)
 
-    return replace_day(start, year), replace_day(end, year)
+
+def _month_end(value: date) -> date:
+    if value.month == 12:
+        return date(value.year + 1, 1, 1).replace(day=1) - date.resolution
+    return date(value.year, value.month + 1, 1) - date.resolution
+
+
+def _is_full_month_period(start: date, end: date) -> bool:
+    return start == _month_start(start) and end == _month_end(start)
+
+
+def _overview_cache_ttl_seconds(start: date, end: date, *, today: date | None = None) -> int | None:
+    if not _is_full_month_period(start, end):
+        return None
+    reference_day = today or date.today()
+    current_month_start = _month_start(reference_day)
+    current_month_end = _month_end(reference_day)
+    if start == current_month_start and end == current_month_end:
+        return CURRENT_MONTH_OVERVIEW_CACHE_TTL_SECONDS
+    return HISTORICAL_MONTH_OVERVIEW_CACHE_TTL_SECONDS
+
+def clear_dashboard_overview_cache(company_id: str | None = None) -> None:
+    clear_live_cache(company_id, kinds=[ANALYTICS_DASHBOARD_OVERVIEW])
+
+
+def clear_dashboard_revenue_comparison_cache(company_id: str | None = None) -> None:
+    clear_live_cache(company_id, kinds=[ANALYTICS_REVENUE_COMPARISON])
+
+
+def _query_revenue_totals_by_year_month(
+    db: Session,
+    company_id: str,
+    *,
+    start_date: date,
+    end_date: date,
+) -> dict[tuple[int, int], Decimal]:
+    if end_date < start_date:
+        return {}
+    year_expr = extract("year", SalesSnapshot.snapshot_date)
+    month_expr = extract("month", SalesSnapshot.snapshot_date)
+    rows = db.execute(
+        select(
+            year_expr.label("year"),
+            month_expr.label("month"),
+            func.coalesce(func.sum(SalesSnapshot.gross_revenue), 0).label("amount"),
+        )
+        .where(
+            SalesSnapshot.company_id == company_id,
+            SalesSnapshot.snapshot_date >= start_date,
+            SalesSnapshot.snapshot_date <= end_date,
+        )
+        .group_by(year_expr, month_expr)
+    ).all()
+    return {
+        (int(row.year), int(row.month)): Decimal(row.amount or 0)
+        for row in rows
+        if row.year and row.month
+    }
+
+
+def _get_revenue_comparison_totals(
+    db: Session,
+    company_id: str,
+    current_year: int,
+    *,
+    today: date | None = None,
+) -> dict[tuple[int, int], Decimal]:
+    reference_day = today or date.today()
+    previous_year = current_year - 1
+    start_date = date(previous_year, 1, 1)
+    current_year_end = date(current_year, 12, 31)
+    cacheable_end = current_year_end
+    live_totals: dict[tuple[int, int], Decimal] = {}
+    cache_params = {
+        "current_year": current_year,
+        "reference_day": reference_day.isoformat(),
+    }
+
+    if current_year == reference_day.year:
+        cacheable_end = min(current_year_end, reference_day - timedelta(days=1))
+        live_totals = _query_revenue_totals_by_year_month(
+            db,
+            company_id,
+            start_date=reference_day,
+            end_date=min(reference_day, current_year_end),
+        )
+
+    historical_totals: dict[tuple[int, int], Decimal] = {}
+    if cacheable_end >= start_date:
+        cached_payload = read_live_json_cache(
+            kind=ANALYTICS_REVENUE_COMPARISON,
+            company_id=company_id,
+            start=start_date,
+            end=cacheable_end,
+            params=cache_params,
+        )
+        if cached_payload is not None:
+            historical_totals = {
+                (int(item["year"]), int(item["month"])): Decimal(item["amount"])
+                for item in cached_payload.get("totals", [])
+            }
+        else:
+            historical_totals = _query_revenue_totals_by_year_month(
+                db,
+                company_id,
+                start_date=start_date,
+                end_date=cacheable_end,
+            )
+            write_live_json_cache(
+                {
+                    "totals": [
+                        {
+                            "year": year,
+                            "month": month,
+                            "amount": str(amount),
+                        }
+                        for (year, month), amount in sorted(historical_totals.items())
+                    ]
+                },
+                kind=ANALYTICS_REVENUE_COMPARISON,
+                company_id=company_id,
+                start=start_date,
+                end=cacheable_end,
+                ttl_seconds=HISTORICAL_REVENUE_COMPARISON_CACHE_TTL_SECONDS,
+                params=cache_params,
+            )
+
+    if not live_totals:
+        return historical_totals
+
+    combined_totals = dict(historical_totals)
+    for key, amount in live_totals.items():
+        combined_totals[key] = combined_totals.get(key, Decimal("0.00")) + amount
+    return combined_totals
 
 
 def build_dashboard_overview(
@@ -37,9 +184,11 @@ def build_dashboard_overview(
     company: Company,
     start: date,
     end: date,
+    reports_override=None,
+    cashflow_override=None,
 ) -> DashboardOverview:
-    reports = build_reports_overview(db, company, start=start, end=end)
-    cashflow = build_cashflow_overview(db, company, start_date=start, end_date=end)
+    reports = reports_override or get_cached_reports_overview(db, company, start=start, end=end)
+    cashflow = cashflow_override or get_cached_cashflow_overview(db, company, start_date=start, end_date=end)
 
     gross_revenue = Decimal(reports.dre.gross_revenue)
     net_revenue = Decimal(reports.dre.net_revenue)
@@ -100,17 +249,21 @@ def build_dashboard_overview(
     ) or 0
 
     current_year = end.year
-    revenue_comparison: list[DashboardSeriesPoint] = []
-    for year in range(current_year - 2, current_year + 1):
-        year_start, year_end = _safe_month_range(start, end, year)
-        amount = db.scalar(
-            select(func.coalesce(func.sum(SalesSnapshot.gross_revenue), 0)).where(
-                SalesSnapshot.company_id == company.id,
-                SalesSnapshot.snapshot_date >= year_start,
-                SalesSnapshot.snapshot_date <= year_end,
+    previous_year = current_year - 1
+    revenue_by_year_month = _get_revenue_comparison_totals(db, company.id, current_year)
+    revenue_comparison = DashboardRevenueComparison(
+        current_year=current_year,
+        previous_year=previous_year,
+        points=[
+            DashboardRevenueComparisonPoint(
+                month=month,
+                label=label,
+                current_year_value=revenue_by_year_month.get((current_year, month), Decimal("0.00")),
+                previous_year_value=revenue_by_year_month.get((previous_year, month), Decimal("0.00")),
             )
-        ) or Decimal("0.00")
-        revenue_comparison.append(DashboardSeriesPoint(label=str(year), value=Decimal(amount)))
+            for month, label in enumerate(MONTH_LABELS, start=1)
+        ],
+    )
 
     period_label = f"{start.isoformat()} a {end.isoformat()}"
     dre_cards = [
@@ -163,3 +316,87 @@ def build_dashboard_overview(
         overdue_receivables=[pending_item(entry) for entry in overdue_receivables_entries],
         pending_reconciliations=pending_reconciliations,
     )
+
+
+def get_cached_dashboard_overview(
+    db: Session,
+    company: Company,
+    start: date,
+    end: date,
+    refresh: bool = False,
+) -> DashboardOverview:
+    if not is_full_month_period(start, end):
+        if refresh:
+            reports = get_cached_reports_overview(db, company, start=start, end=end, refresh=True)
+            cashflow = get_cached_cashflow_overview(db, company, start_date=start, end_date=end, refresh=True)
+            return build_dashboard_overview(
+                db,
+                company,
+                start=start,
+                end=end,
+                reports_override=reports,
+                cashflow_override=cashflow,
+            )
+        return build_dashboard_overview(db, company, start=start, end=end)
+    if is_historical_period(start, end):
+        if refresh:
+            reports = get_cached_reports_overview(db, company, start=start, end=end, refresh=True)
+            cashflow = get_cached_cashflow_overview(db, company, start_date=start, end_date=end, refresh=True)
+            overview = build_dashboard_overview(
+                db,
+                company,
+                start=start,
+                end=end,
+                reports_override=reports,
+                cashflow_override=cashflow,
+            )
+            upsert_monthly_snapshot(
+                db,
+                overview,
+                company_id=company.id,
+                kind=ANALYTICS_DASHBOARD_OVERVIEW,
+                snapshot_month=start,
+            )
+            return overview
+        return read_snapshot_or_rebuild(
+            db,
+            DashboardOverview,
+            company=company,
+            kind=ANALYTICS_DASHBOARD_OVERVIEW,
+            snapshot_month=start,
+            build_func=lambda: build_dashboard_overview(db, company, start=start, end=end),
+        )
+    ttl_seconds = _overview_cache_ttl_seconds(start, end)
+    if not refresh:
+        cached = read_live_cache(
+            DashboardOverview,
+            kind=ANALYTICS_DASHBOARD_OVERVIEW,
+            company_id=company.id,
+            start=start,
+            end=end,
+        )
+        if cached is not None:
+            return cached
+    if refresh:
+        reports = get_cached_reports_overview(db, company, start=start, end=end, refresh=True)
+        cashflow = get_cached_cashflow_overview(db, company, start_date=start, end_date=end, refresh=True)
+        overview = build_dashboard_overview(
+            db,
+            company,
+            start=start,
+            end=end,
+            reports_override=reports,
+            cashflow_override=cashflow,
+        )
+    else:
+        overview = build_dashboard_overview(db, company, start=start, end=end)
+    if ttl_seconds:
+        write_live_cache(
+            overview,
+            kind=ANALYTICS_DASHBOARD_OVERVIEW,
+            company_id=company.id,
+            start=start,
+            end=end,
+            ttl_seconds=ttl_seconds,
+        )
+    return overview

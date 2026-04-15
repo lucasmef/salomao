@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import CreatableSelect from "react-select/creatable";
 
+import { ModalCloseButton } from "../components/ModalCloseButton";
 import { MoneyInput } from "../components/MoneyInput";
-import { formatDate, formatEntryStatus, formatMoney, isGroupedEntryTitle, normalizeDisplayText } from "../lib/format";
+import { formatDate, formatMoney, normalizeDisplayText } from "../lib/format";
 import { formatPtBrMoneyInput, normalizePtBrMoneyInput } from "../lib/money";
 import type {
   Account,
@@ -31,7 +32,6 @@ type Props = {
   submitting: boolean;
   onChangeFilters: (filters: ReconciliationFilters) => void;
   onApplyFilters: (filters?: ReconciliationFilters) => Promise<void>;
-  onUploadOfx: (file: File, accountId: string) => Promise<void>;
   onSyncInterStatement: () => Promise<void>;
   onReconcile: (
     bankTransactionIds: string[],
@@ -95,8 +95,59 @@ function compactSingleLine(value: string | null | undefined, fallback = "-") {
   return normalized || fallback;
 }
 
-function displayCounterparty(entry: FinancialEntry) {
-  return isGroupedEntryTitle(entry.title) ? "-" : compactSingleLine(entry.counterparty_name);
+function normalizeStatementKey(value: string | null | undefined) {
+  return compactSingleLine(value, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function limitStatementPreview(value: string, maxLength: number) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, Math.max(0, maxLength - 1)).trimEnd()}...`;
+}
+
+function trimStatementDetail(detail: string, description: string) {
+  const normalizedDetail = normalizeStatementKey(detail);
+  const normalizedDescription = normalizeStatementKey(description);
+  if (!normalizedDetail || normalizedDetail === normalizedDescription) {
+    return "";
+  }
+
+  const escapedDescription = description.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const duplicateSuffixMatch = detail.match(new RegExp(`^(.+?)\\s*[:|-]\\s*["“]?${escapedDescription}["”]?$`, "i"));
+  if (duplicateSuffixMatch?.[1]) {
+    return compactSingleLine(duplicateSuffixMatch[1], "");
+  }
+
+  if (normalizedDetail.startsWith(normalizedDescription)) {
+    return compactSingleLine(detail.slice(description.length).replace(/^[\s:|,-]+/, ""), "");
+  }
+
+  return detail;
+}
+
+function buildStatementCell(item: ReconciliationWorklist["items"][number]) {
+  const memoParts = compactSingleLine(item.memo, "")
+    .split("|")
+    .map((part) => compactSingleLine(part, ""))
+    .filter(Boolean);
+  const description = compactSingleLine(item.name, "") || memoParts[0] || compactSingleLine(item.fit_id);
+  const details = memoParts
+    .map((part) => trimStatementDetail(part, description))
+    .filter((part) => normalizeStatementKey(part) !== normalizeStatementKey(description));
+  const fallbackDetails = !details.length ? trimStatementDetail(compactSingleLine(item.memo, ""), description) : "";
+  const fullDetails = [...details, fallbackDetails].filter(Boolean).join(" | ");
+  const tooltip = [description, fullDetails].filter(Boolean).join(" | ");
+
+  return {
+    description: limitStatementPreview(description, 52),
+    details: fullDetails ? limitStatementPreview(fullDetails, 72) : "",
+    tooltip: tooltip || undefined,
+  };
 }
 
 function formatReconciliationAmount(value: string | number | null | undefined) {
@@ -107,6 +158,16 @@ function formatReconciliationAmount(value: string | number | null | undefined) {
     maximumFractionDigits: 2,
   }).format(absolute);
   return numeric < 0 ? `- ${formatted}` : formatted;
+}
+
+function formatRangeLabel(start: string, end: string) {
+  if (!start && !end) {
+    return "Selecionar período";
+  }
+  if (start && end) {
+    return `${formatDate(start)} - ${formatDate(end)}`;
+  }
+  return start ? `${formatDate(start)} - ...` : `... - ${formatDate(end)}`;
 }
 
 function formatDecimalInput(value: string | number | null | undefined) {
@@ -148,39 +209,20 @@ function buildGroupedEntryNotes(items: ReconciliationWorklist["items"]) {
     .join("\n");
 }
 
-function extractFinderKeyword(value: string) {
-  const normalized = value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
-
-  return normalized.find((token) => token.length >= 3) ?? normalized[0] ?? "";
-}
-
-function buildFinderCounterparty(item: ReconciliationWorklist["items"][number] | null) {
+function buildFinderAmountRange(item: ReconciliationWorklist["items"][number] | null) {
   if (!item) {
-    return "";
+    return null;
   }
 
-  const directName = compactSingleLine(item.name, "");
-  if (directName) {
-    return extractFinderKeyword(directName);
+  const amount = Math.abs(Number(item.amount));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return null;
   }
 
-  const rawMemo = compactSingleLine(item.memo, "")
-    .replace(/^pix enviado:\s*/i, "")
-    .replace(/^pix recebido:\s*/i, "")
-    .replace(/^pagamento efetuado:\s*/i, "")
-    .replace(/^transferencia recebida:\s*/i, "")
-    .replace(/^transferencia enviada:\s*/i, "")
-    .replace(/^boleto de cobranca recebido:\s*/i, "")
-    .replace(/^credito domicilio cartao:\s*/i, "")
-    .trim();
-
-  return extractFinderKeyword(rawMemo);
+  return {
+    min: (amount * 0.99).toFixed(2),
+    max: (amount * 1.1).toFixed(2),
+  };
 }
 
 function SelectionIcon() {
@@ -192,20 +234,98 @@ function SelectionIcon() {
   );
 }
 
-function SelectionClearIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
-      <rect height="10" rx="2" stroke="currentColor" strokeWidth="1.4" width="10" x="3" y="3" />
-      <path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.4" />
-    </svg>
-  );
-}
-
 function RefreshIcon() {
   return (
     <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
       <path d="M13 5.25V2.75m0 0h-2.5m2.5 0-2.1 2.1a4.75 4.75 0 1 0 1.2 4.75" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
     </svg>
+  );
+}
+
+function CalendarRangeIcon() {
+  return (
+    <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M4 1.75a.75.75 0 0 1 1.5 0V3h5V1.75a.75.75 0 0 1 1.5 0V3h.75A2.25 2.25 0 0 1 15 5.25v7.5A2.25 2.25 0 0 1 12.75 15h-9.5A2.25 2.25 0 0 1 1 12.75v-7.5A2.25 2.25 0 0 1 3.25 3H4V1.75ZM2.5 6.5v6.25c0 .414.336.75.75.75h9.5a.75.75 0 0 0 .75-.75V6.5h-11Zm11-1.5v-.75a.75.75 0 0 0-.75-.75h-.75v.5a.75.75 0 0 1-1.5 0v-.5h-5v.5a.75.75 0 0 1-1.5 0v-.5h-.75a.75.75 0 0 0-.75.75V5h11Z" />
+    </svg>
+  );
+}
+
+function FilterFunnelIcon() {
+  return (
+    <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M2 3.25C2 2.56 2.56 2 3.25 2h9.5a1.25 1.25 0 0 1 .965 2.045L10 8.56v3.19a1.25 1.25 0 0 1-.553 1.036l-1.75 1.167A.75.75 0 0 1 6.5 13.33V8.56L2.285 4.045A1.24 1.24 0 0 1 2 3.25Zm1.545.25L7.882 8.15a.75.75 0 0 1 .203.512v3.266L8.5 11.65V8.662a.75.75 0 0 1 .203-.512L12.455 3.5h-8.91Z" />
+    </svg>
+  );
+}
+
+function TransferIcon() {
+  return (
+    <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M3.22 5.03a.75.75 0 0 1 0-1.06l2-2a.75.75 0 1 1 1.06 1.06L5.56 3.75h6.69a.75.75 0 0 1 0 1.5H5.56l.72.72a.75.75 0 0 1-1.06 1.06l-2-2Zm9.56 5.94a.75.75 0 0 1 0 1.06l-2 2a.75.75 0 1 1-1.06-1.06l.72-.72H3.75a.75.75 0 0 1 0-1.5h6.69l-.72-.72a.75.75 0 0 1 1.06-1.06l2 2Z" />
+    </svg>
+  );
+}
+
+function PlusSquareIcon() {
+  return (
+    <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M3.25 2A2.25 2.25 0 0 0 1 4.25v7.5A2.25 2.25 0 0 0 3.25 14h9.5A2.25 2.25 0 0 0 15 11.75v-7.5A2.25 2.25 0 0 0 12.75 2h-9.5ZM2.5 4.25a.75.75 0 0 1 .75-.75h9.5a.75.75 0 0 1 .75.75v7.5a.75.75 0 0 1-.75.75h-9.5a.75.75 0 0 1-.75-.75v-7.5ZM8 5a.75.75 0 0 1 .75.75v1.5h1.5a.75.75 0 0 1 0 1.5h-1.5v1.5a.75.75 0 0 1-1.5 0v-1.5h-1.5a.75.75 0 0 1 0-1.5h1.5v-1.5A.75.75 0 0 1 8 5Z" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
+      <circle cx="7" cy="7" r="4.75" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M10.5 10.5 14 14" stroke="currentColor" strokeLinecap="round" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+function CheckActionIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
+      <path d="m5.25 8.15 1.7 1.7 3.8-4.1" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+function ListIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M5 4h8M5 8h8M5 12h8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.4" />
+      <circle cx="2.5" cy="4" fill="currentColor" r="1" />
+      <circle cx="2.5" cy="8" fill="currentColor" r="1" />
+      <circle cx="2.5" cy="12" fill="currentColor" r="1" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height="14"
+      viewBox="0 0 16 16"
+      width="14"
+      style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.16s ease" }}
+    >
+      <path d="m4 6 4 4 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+function PaidStatusIcon({ active }: { active: boolean }) {
+  return (
+    <span className={`reconciliation-status-indicator ${active ? "is-active" : ""}`} aria-label={active ? "Pago" : "Não pago"} title={active ? "Pago" : "Não pago"}>
+      <svg aria-hidden="true" fill="none" height="12" viewBox="0 0 12 12" width="12">
+        <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2" />
+        <path d="m3.7 6.2 1.5 1.5 3.1-3.4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.2" />
+      </svg>
+    </span>
   );
 }
 
@@ -267,7 +387,6 @@ export function ReconciliationPage({
   submitting,
   onChangeFilters,
   onApplyFilters,
-  onUploadOfx,
   onSyncInterStatement,
   onReconcile,
   onUnreconcile,
@@ -277,6 +396,9 @@ export function ReconciliationPage({
   onCreateSupplier,
   embedded = false,
 }: Props) {
+  const periodPopoverRef = useRef<HTMLDivElement | null>(null);
+  const presetMenuRef = useRef<HTMLDivElement | null>(null);
+  const balancePopoverRef = useRef<HTMLDivElement | null>(null);
   const [selectedBankIds, setSelectedBankIds] = useState<string[]>([]);
   const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
   const [bankSearch, setBankSearch] = useState("");
@@ -292,9 +414,6 @@ export function ReconciliationPage({
     search: string;
     status: string;
   } | null>(null);
-  const [ofxFile, setOfxFile] = useState<File | null>(null);
-  const [ofxAccountId, setOfxAccountId] = useState(filters.account_id);
-  const [ofxModalOpen, setOfxModalOpen] = useState(false);
   const [modal, setModal] = useState<ModalState>(null);
   const [createDraft, setCreateDraft] = useState<CreateDraft>(emptyDraft);
   const [reconcileAdjustmentDraft, setReconcileAdjustmentDraft] = useState<ReconcileAdjustmentDraft>(emptyAdjustmentDraft);
@@ -302,6 +421,9 @@ export function ReconciliationPage({
   const [creatingSupplier, setCreatingSupplier] = useState(false);
   const [categoryCreationModalOpen, setCategoryCreationModalOpen] = useState(false);
   const [categoryCreationDraft, setCategoryCreationDraft] = useState<CategoryCreationDraft>(emptyCategoryCreationDraft);
+  const [showPeriodPopover, setShowPeriodPopover] = useState(false);
+  const [showPresetMenu, setShowPresetMenu] = useState(false);
+  const [showBalancePopover, setShowBalancePopover] = useState(false);
   const hasMountedFilterAutoApplyRef = useRef(false);
   const entryRequestIdRef = useRef(0);
 
@@ -338,12 +460,16 @@ export function ReconciliationPage({
 
   const selectedBankNetAmount = selectedBankItems.reduce((total, item) => total + Number(item.amount), 0);
   const selectedBankTotal = Math.abs(selectedBankNetAmount);
-  const selectedBankGrossAmount = selectedBankItems.reduce((total, item) => total + Math.abs(Number(item.amount)), 0);
   const overallPendingCount = worklist?.overall_unreconciled_count ?? 0;
-  const latestOfxBatch = useMemo(
-    () => importSummary.import_batches.find((batch) => batch.source_type.startsWith("ofx:")) ?? null,
-    [importSummary.import_batches],
+  const selectableFilteredBankIds = useMemo(
+    () =>
+      filteredBankItems
+        .filter((item) => item.reconciliation_status !== "matched")
+        .map((item) => item.bank_transaction_id),
+    [filteredBankItems],
   );
+  const allFilteredBankSelected = selectableFilteredBankIds.length > 0
+    && selectableFilteredBankIds.every((id) => selectedBankIds.includes(id));
   const hasInterApiAccount = useMemo(
     () => accounts.some((account) => account.is_active && account.inter_api_enabled),
     [accounts],
@@ -354,6 +480,12 @@ export function ReconciliationPage({
   );
 
   const selectedEntryRows = entryRows.filter((entry) => selectedEntryIds.includes(entry.id));
+  const selectableEntryIds = useMemo(
+    () => entryRows.filter((entry) => canSelectEntry(entry)).map((entry) => entry.id),
+    [entryRows],
+  );
+  const allVisibleEntriesSelected = selectableEntryIds.length > 0
+    && selectableEntryIds.every((id) => selectedEntryIds.includes(id));
   const selectedEntryTotal = selectedEntryRows.reduce(
     (total, entry) => total + Number(entry.total_amount),
     0,
@@ -384,10 +516,6 @@ export function ReconciliationPage({
     () => new Set(selectedBankItems.map((item) => item.account_id).filter(Boolean)).size,
     [selectedBankItems],
   );
-  const selectedBankDirectionCount = useMemo(
-    () => new Set(selectedBankItems.map((item) => (Number(item.amount) >= 0 ? "in" : "out"))).size,
-    [selectedBankItems],
-  );
   const createEntryValidationMessage = useMemo(() => {
     if (!selectedBankItems.length) {
       return "";
@@ -398,11 +526,8 @@ export function ReconciliationPage({
     if (selectedBankAccountCount > 1) {
       return "Selecione apenas movimentos da mesma conta para criar um lançamento consolidado.";
     }
-    if (selectedBankDirectionCount > 1) {
-      return "Selecione apenas entradas ou apenas saídas para criar um lançamento consolidado.";
-    }
     return "";
-  }, [selectedBankAccountCount, selectedBankDirectionCount, selectedBankItems, selectedBankNetAmount]);
+  }, [selectedBankAccountCount, selectedBankItems, selectedBankNetAmount]);
   const selectedTransferItem = selectedBankItems[0] ?? null;
   const transferIsIncoming = selectedBankItems.length ? selectedBankNetAmount >= 0 : true;
   const selectedTransferAccountName = useMemo(() => {
@@ -547,15 +672,58 @@ export function ReconciliationPage({
       .toLowerCase();
   }
 
+  function setDateRange(start: string, end: string) {
+    onChangeFilters({ ...filters, start, end });
+  }
+
+  function applyPresetRange(kind: "today" | "current_month" | "previous_month" | "current_year") {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const formatValue = (value: Date) => value.toISOString().slice(0, 10);
+
+    if (kind === "today") {
+      const current = formatValue(today);
+      setDateRange(current, current);
+      return;
+    }
+
+    if (kind === "current_month") {
+      setDateRange(formatValue(new Date(year, month, 1)), formatValue(new Date(year, month + 1, 0)));
+      return;
+    }
+
+    if (kind === "previous_month") {
+      setDateRange(formatValue(new Date(year, month - 1, 1)), formatValue(new Date(year, month, 0)));
+      return;
+    }
+
+    setDateRange(formatValue(new Date(year, 0, 1)), formatValue(new Date(year, 11, 31)));
+  }
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      if (showPeriodPopover && periodPopoverRef.current && !periodPopoverRef.current.contains(target)) {
+        setShowPeriodPopover(false);
+      }
+      if (showPresetMenu && presetMenuRef.current && !presetMenuRef.current.contains(target)) {
+        setShowPresetMenu(false);
+      }
+      if (showBalancePopover && balancePopoverRef.current && !balancePopoverRef.current.contains(target)) {
+        setShowBalancePopover(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showBalancePopover, showPeriodPopover, showPresetMenu]);
+
   useEffect(() => {
     setSelectedBankIds([]);
     setSelectedEntryIds([]);
     setBankSearch("");
   }, [worklist]);
-
-  useEffect(() => {
-    setOfxAccountId((current) => current || filters.account_id);
-  }, [filters.account_id]);
 
   useEffect(() => {
     if (!hasMountedFilterAutoApplyRef.current) {
@@ -570,9 +738,8 @@ export function ReconciliationPage({
       return;
     }
 
-    const suggestedSearch = buildFinderCounterparty(selectedBankItems[0]);
     setSelectedEntryIds([]);
-    setEntrySearch(suggestedSearch);
+    setEntrySearch("");
     setEntryStatus("open");
   }, [finderModeActive, selectedBankItems]);
 
@@ -582,7 +749,7 @@ export function ReconciliationPage({
     }, 220);
 
     return () => window.clearTimeout(timeoutId);
-  }, [entrySearch, entryStatus, filters.end, filters.start]);
+  }, [entrySearch, entryStatus, filters.end, filters.start, finderModeActive, selectedBankItems]);
 
   useEffect(() => {
     if (!supplierRequired || createDraft.supplier_id || !inferredSupplierId) {
@@ -609,11 +776,17 @@ export function ReconciliationPage({
     entryRequestIdRef.current = requestId;
     setEntryLoading(true);
     try {
+      const finderRange =
+        finderModeActive && selectedBankItems.length === 1
+          ? buildFinderAmountRange(selectedBankItems[0])
+          : null;
       const response = await onSearchEntries({
         date_from: filters.start,
         date_to: filters.end,
         status,
         search,
+        amount_min: finderRange?.min ?? "",
+        amount_max: finderRange?.max ?? "",
         page: "1",
         page_size: String(RECONCILIATION_ENTRY_FETCH_LIMIT),
       });
@@ -820,15 +993,12 @@ export function ReconciliationPage({
     return entry.status === "planned" || entry.status === "partial";
   }
 
-  function selectFilteredBankItems() {
-    const eligibleIds = filteredBankItems
-      .filter((item) => item.reconciliation_status !== "matched")
-      .map((item) => item.bank_transaction_id);
-    setSelectedBankIds(eligibleIds);
+  function toggleAllFilteredBankItems() {
+    setSelectedBankIds(allFilteredBankSelected ? [] : selectableFilteredBankIds);
   }
 
-  function clearBankSelection() {
-    setSelectedBankIds([]);
+  function toggleAllVisibleEntries() {
+    setSelectedEntryIds(allVisibleEntriesSelected ? [] : selectableEntryIds);
   }
 
   function openCreateModal() {
@@ -856,54 +1026,122 @@ export function ReconciliationPage({
     setModal("transfer");
   }
 
-  async function handleOfxImport() {
-    if (!ofxFile || !ofxAccountId) {
-      return;
-    }
-    await onUploadOfx(ofxFile, ofxAccountId);
-    setOfxFile(null);
-    setOfxModalOpen(false);
-  }
-
   const reconciliationFiltersContent = (
-    <div className="reconciliation-toolbar-stack">
-      <div className="reconciliation-filter-group reconciliation-filter-group--primary reconciliation-filter-group--top">
-        <label>
-          Conta
-          <select
-            value={filters.account_id}
-            onChange={(event) => onChangeFilters({ ...filters, account_id: event.target.value })}
-            disabled={!ofxAccounts.length}
-          >
-            {!ofxAccounts.length && <option value="">Nenhuma conta OFX</option>}
-            {ofxAccounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Inicio
-          <input type="date" value={filters.start} onChange={(event) => onChangeFilters({ ...filters, start: event.target.value })} />
-        </label>
-        <label>
-          Fim
-          <input type="date" value={filters.end} onChange={(event) => onChangeFilters({ ...filters, end: event.target.value })} />
-        </label>
-        <div className="reconciliation-inline-meta">
-          <div className="reconciliation-inline-stat">
-            <span>Pendentes</span>
-            <strong>{overallPendingCount}</strong>
+    <div className="reconciliation-top-toolbar">
+      <select
+        aria-label="Conta do extrato"
+        className="reconciliation-top-select"
+        value={filters.account_id}
+        onChange={(event) => onChangeFilters({ ...filters, account_id: event.target.value })}
+        disabled={!ofxAccounts.length}
+      >
+        {!ofxAccounts.length && <option value="">Nenhuma conta OFX</option>}
+        {ofxAccounts.map((account) => (
+          <option key={account.id} value={account.id}>
+            {account.name}
+          </option>
+        ))}
+      </select>
+      <div className="entries-period-group reconciliation-period-group" ref={periodPopoverRef}>
+        <button
+          aria-expanded={showPeriodPopover}
+          aria-label="Selecionar período"
+          className={`entries-period-trigger ${showPeriodPopover ? "is-active" : ""}`}
+          onClick={() => {
+            setShowPresetMenu(false);
+            setShowPeriodPopover((current) => !current);
+          }}
+          type="button"
+        >
+          <CalendarRangeIcon />
+          <span>{formatRangeLabel(filters.start, filters.end)}</span>
+        </button>
+        {showPeriodPopover && (
+          <div className="entries-floating-panel entries-period-popover">
+            <div className="entries-period-fields">
+              <label>
+                Início
+                <input type="date" value={filters.start} onChange={(event) => setDateRange(event.target.value, filters.end)} />
+              </label>
+              <label>
+                Fim
+                <input type="date" value={filters.end} onChange={(event) => setDateRange(filters.start, event.target.value)} />
+              </label>
+            </div>
+            <div className="entries-period-footer">
+              <button
+                className="secondary-button compact-button"
+                onClick={() => {
+                  setDateRange("", "");
+                  setShowPeriodPopover(false);
+                }}
+                type="button"
+              >
+                Limpar
+              </button>
+              <button className="primary-button compact-button" onClick={() => setShowPeriodPopover(false)} type="button">
+                Concluir
+              </button>
+            </div>
           </div>
-          <span className="reconciliation-import-meta">
-            Último lançamento importado: {importSummary.latest_ofx_transaction_date ? formatDate(importSummary.latest_ofx_transaction_date) : "nenhum"}
-          </span>
+        )}
+      </div>
+      <div className="entries-toolbar-icon-wrap" ref={presetMenuRef}>
+        <button
+          aria-expanded={showPresetMenu}
+          aria-label="Períodos pré-definidos"
+          className={`entries-toolbar-icon ${showPresetMenu ? "is-active" : ""}`}
+          onClick={() => {
+            setShowPeriodPopover(false);
+            setShowPresetMenu((current) => !current);
+          }}
+          title="Períodos pré-definidos"
+          type="button"
+        >
+          <FilterFunnelIcon />
+          <span className="entries-toolbar-icon-label">Atalhos</span>
+        </button>
+        {showPresetMenu && (
+          <div className="entries-floating-panel entries-icon-menu">
+            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("today"); setShowPresetMenu(false); }} type="button">Hoje</button>
+            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("current_month"); setShowPresetMenu(false); }} type="button">Mês atual</button>
+            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("previous_month"); setShowPresetMenu(false); }} type="button">Mês anterior</button>
+            <button className="entries-icon-menu-item" onClick={() => { applyPresetRange("current_year"); setShowPresetMenu(false); }} type="button">Ano atual</button>
+          </div>
+        )}
+      </div>
+      <div className="reconciliation-inline-meta">
+        <span className="reconciliation-import-meta">
+          Pendentes: <strong>{overallPendingCount}</strong> Último lançamento importado: {importSummary.latest_ofx_transaction_date ? formatDate(importSummary.latest_ofx_transaction_date) : "nenhum"}
+        </span>
+        <div className="reconciliation-balance-wrap" ref={balancePopoverRef}>
+          <button
+            aria-expanded={showBalancePopover}
+            className={`reconciliation-balance-trigger ${showBalancePopover ? "is-active" : ""}`}
+            onClick={() => setShowBalancePopover((current) => !current)}
+            type="button"
+          >
+            <span>Saldo total</span>
+            <strong>{formatMoney(worklist?.total_account_balance ?? 0)}</strong>
+            <ChevronDownIcon expanded={showBalancePopover} />
+          </button>
+          {showBalancePopover && (
+            <div className="reconciliation-balance-popover">
+              {(worklist?.account_balances ?? []).map((account) => (
+                <div className="reconciliation-balance-row" key={account.account_id}>
+                  <span title={compactSingleLine(account.account_name)}>{compactSingleLine(account.account_name)}</span>
+                  <strong>{formatMoney(account.current_balance)}</strong>
+                </div>
+              ))}
+              {!worklist?.account_balances?.length && (
+                <div className="reconciliation-balance-empty">Nenhum saldo disponível.</div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
-
   return (
     <div className="page-layout">
       {!embedded && (
@@ -924,94 +1162,70 @@ export function ReconciliationPage({
 
       <section className="reconciliation-erp-grid">
         <article className="panel reconciliation-panel">
-          <div className="panel-title">
-            <h3>Extrato bancário</h3>
-            <div className="panel-mini-actions">
-              <button
-                aria-label="Selecionar filtrados"
-                className="secondary-button reconciliation-icon-button"
-                disabled={!filteredBankItems.length}
-                onClick={selectFilteredBankItems}
-                title="Selecionar filtrados"
-                type="button"
-              >
-                <SelectionIcon />
-              </button>
-              <button
-                aria-label="Limpar seleção"
-                className="ghost-button reconciliation-icon-button"
-                disabled={!selectedBankIds.length}
-                onClick={clearBankSelection}
-                title="Limpar seleção"
-                type="button"
-              >
-                <SelectionClearIcon />
-              </button>
-              <button className="secondary-button" type="button" disabled={!selectedBankIds.length} onClick={openTransferModal}>
-                Transferência
-              </button>
-              <button className="secondary-button" type="button" disabled={!selectedBankIds.length} onClick={openCreateModal}>
-                Efetuar lançamento
-              </button>
+          <div className="panel-title reconciliation-panel-title">
+            <div className="reconciliation-panel-heading">
+              <h3>Extrato</h3>
+              <div className="reconciliation-panel-inline-filters">
+                <input aria-label="Buscar no extrato" placeholder="Buscar no extrato" value={bankSearch} onChange={(event) => setBankSearch(event.target.value)} />
+                <select aria-label="Tipo do extrato" value={bankDirectionFilter} onChange={(event) => setBankDirectionFilter(event.target.value)}>
+                  <option value="all">Todos</option>
+                  <option value="in">Entradas</option>
+                  <option value="out">Saídas</option>
+                </select>
+              </div>
             </div>
-          </div>
-          <div className="section-toolbar-content reconciliation-bank-toolbar">
-            <label>
-              Buscar no extrato
-              <input value={bankSearch} onChange={(event) => setBankSearch(event.target.value)} />
-            </label>
-            <label>
-              Tipo do extrato
-              <select value={bankDirectionFilter} onChange={(event) => setBankDirectionFilter(event.target.value)}>
-                <option value="all">Todos</option>
-                <option value="in">Entradas</option>
-                <option value="out">Saídas</option>
-              </select>
-            </label>
-            <div className="reconciliation-panel-toolbar-actions">
-              <label className="reconciliation-subtle-toggle">
-                <input
-                  type="checkbox"
-                  checked={hideMatchedBankItems}
-                  onChange={(event) => {
-                    setHideMatchedBankItems(event.target.checked);
-                  }}
-                />
-                <span>Ocultar conciliados</span>
-              </label>
-              <button className="secondary-button reconciliation-import-button" type="button" onClick={() => setOfxModalOpen(true)}>
-                OFX
-              </button>
+            <div className="panel-mini-actions reconciliation-panel-icon-actions">
               <button
-                className="secondary-button icon-button reconciliation-import-button"
-                disabled={submitting || !hasInterApiAccount}
-                onClick={() => void onSyncInterStatement()}
-                title="Atualizar extrato do Inter"
+                aria-label={hideMatchedBankItems ? "Mostrar conciliados" : "Ocultar conciliados"}
+                className={`entries-toolbar-icon ${hideMatchedBankItems ? "is-active" : ""}`}
+                onClick={() => setHideMatchedBankItems((current) => !current)}
+                title={hideMatchedBankItems ? "Mostrar conciliados" : "Ocultar conciliados"}
                 type="button"
               >
+                <ListIcon />
+                <span className="entries-toolbar-icon-label">Conciliados</span>
+              </button>
+              <button className="entries-toolbar-icon" disabled={submitting || !hasInterApiAccount} onClick={() => void onSyncInterStatement()} title="Atualizar extrato do Inter" type="button">
                 <RefreshIcon />
+                <span className="entries-toolbar-icon-label">Atualizar</span>
+              </button>
+              <button aria-label="Nova transferência" className="entries-toolbar-icon" disabled={!selectedBankIds.length} onClick={openTransferModal} title="Nova transferência" type="button">
+                <TransferIcon />
+                <span className="entries-toolbar-icon-label">Transferir</span>
+              </button>
+              <button aria-label="Novo lançamento" className="entries-toolbar-icon" disabled={!selectedBankIds.length} onClick={openCreateModal} title="Novo lançamento" type="button">
+                <PlusSquareIcon />
+                <span className="entries-toolbar-icon-label">Novo</span>
               </button>
             </div>
           </div>
-
           <div className="table-shell tall compact-table-shell">
-            <table className="erp-table compact-table">
+            <table className="erp-table compact-table reconciliation-bank-table">
               <thead>
                 <tr>
-                  <th></th>
+                  <th className="checkbox-cell">
+                    <input
+                      aria-label={allFilteredBankSelected ? "Desselecionar extrato visível" : "Selecionar extrato visível"}
+                      checked={allFilteredBankSelected}
+                      disabled={!selectableFilteredBankIds.length}
+                      onChange={toggleAllFilteredBankItems}
+                      type="checkbox"
+                    />
+                  </th>
                   <th>Data</th>
-                  <th>Histórico</th>
-                  <th>Conta</th>
+                  <th>Extrato</th>
                   <th className="numeric-cell">Valor</th>
-                  <th>Situacao</th>
+                  <th>Situação</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredBankItems.map((item) => {
                   const isMatched = item.reconciliation_status === "matched";
+                  const entryTitles = item.applied_entries.map((entry) => compactSingleLine(entry.title)).join(", ");
+                  const statementCell = buildStatementCell(item);
                   return (
                     <tr key={item.bank_transaction_id}>
-                      <td>
+                      <td className="checkbox-cell">
                         <input
                           type="checkbox"
                           checked={selectedBankIds.includes(item.bank_transaction_id)}
@@ -1020,39 +1234,29 @@ export function ReconciliationPage({
                         />
                       </td>
                       <td>{formatDate(item.posted_at)}</td>
-                      <td>
-                        <div className="cell-stack reconciliation-cell-stack">
-                          <strong className="single-line-cell">{compactSingleLine(item.name ?? item.memo ?? item.fit_id)}</strong>
-                          <span className="compact-muted compact-detail-line">{compactSingleLine(item.memo ?? item.fit_id)}</span>
+                      <td title={statementCell.tooltip}>
+                        <div className="reconciliation-cell-stack">
+                          <span className="single-line-cell">{statementCell.description}</span>
+                          {statementCell.details ? <span className="compact-detail-line reconciliation-statement-detail">{statementCell.details}</span> : null}
                         </div>
                       </td>
-                      <td>{compactSingleLine(item.account_name)}</td>
                       <td className="numeric-cell compact-amount-cell">{formatReconciliationAmount(item.amount)}</td>
-                      <td>
-                        {isMatched ? "Conciliado" : "Pendente"}
-                        {item.applied_entries.length > 0 && (
-                          <div className="compact-muted compact-detail-line">
-                            {item.applied_entries.map((entry) => compactSingleLine(entry.title)).join(", ")}
-                          </div>
-                        )}
-                        {isMatched && (
-                          <div className="compact-row-actions">
-                            <button
-                              className="text-action-button"
-                              type="button"
-                              onClick={() => void handleUnreconcile(item.bank_transaction_id, item.undo_mode)}
-                            >
+                      <td title={entryTitles || undefined}>
+                        <div className="reconciliation-inline-status">
+                          <span className="single-line-cell">{isMatched ? "Conciliado" : "Pendente"}</span>
+                          {isMatched && (
+                            <button className="text-action-button reconciliation-inline-link" type="button" onClick={() => void handleUnreconcile(item.bank_transaction_id, item.undo_mode)}>
                               Desconciliar
                             </button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
                 })}
-                {!worklist?.items.length && (
+                {!filteredBankItems.length && (
                   <tr>
-                    <td colSpan={6} className="empty-cell">
+                    <td colSpan={5} className="empty-cell">
                       Nenhum movimento encontrado para o periodo.
                     </td>
                   </tr>
@@ -1068,41 +1272,42 @@ export function ReconciliationPage({
         </article>
 
         <article className="panel reconciliation-panel">
-          <div className="panel-title">
-            <h3>Lançamentos do sistema</h3>
-            <div className="panel-mini-actions">
+          <div className="panel-title reconciliation-panel-title">
+            <div className="reconciliation-panel-heading">
+              <h3>Lançamentos</h3>
+              <div className="reconciliation-panel-inline-filters">
+                <input aria-label="Buscar lançamentos" placeholder="Buscar lançamentos" value={entrySearch} onChange={(event) => setEntrySearch(event.target.value)} />
+                <select aria-label="Status dos lançamentos" value={entryStatus} onChange={(event) => setEntryStatus(event.target.value)}>
+                  <option value="">Todos</option>
+                  <option value="open">Em aberto</option>
+                  <option value="settled">Pago</option>
+                </select>
+              </div>
+            </div>
+            <div className="panel-mini-actions reconciliation-panel-icon-actions">
               <button
-                className={finderModeActive ? "primary-button" : "secondary-button"}
+                aria-label={finderModeActive ? "Busca por extrato ativa" : "Encontrar fatura"}
+                className={`entries-toolbar-icon ${finderModeActive ? "is-active" : ""}`}
                 type="button"
                 onClick={() => void toggleFinderMode()}
+                title={finderModeActive ? "Busca por extrato ativa" : "Encontrar fatura"}
               >
-                {finderModeActive ? "Busca por extrato ativa" : "Encontrar fatura em aberto"}
+                <SearchIcon />
+                <span className="entries-toolbar-icon-label">Buscar</span>
               </button>
               <button
-                className="primary-button"
+                aria-label="Conciliar lançamentos"
+                className="entries-toolbar-icon entries-toolbar-icon-primary"
                 type="button"
                 disabled={!selectedBankIds.length || !selectedEntryIds.length || loading}
                 onClick={() => void handleBulkReconcile()}
+                title="Conciliar lançamentos"
               >
-                Conciliar selecionados
+                <CheckActionIcon />
+                <span className="entries-toolbar-icon-label">Conciliar</span>
               </button>
             </div>
           </div>
-          <div className="section-toolbar-content reconciliation-entry-toolbar">
-            <label>
-              Buscar lançamentos
-              <input value={entrySearch} onChange={(event) => setEntrySearch(event.target.value)} />
-            </label>
-        <label>
-          Status
-          <select value={entryStatus} onChange={(event) => setEntryStatus(event.target.value)}>
-            <option value="">Todos</option>
-            <option value="open">Em aberto</option>
-            <option value="settled">Pago</option>
-          </select>
-        </label>
-          </div>
-
           {selectedReconciliationEntry && selectedReconciliationTransaction && (
             <div className="inline-adjustment-panel">
               <div className="inline-adjustment-header">
@@ -1170,21 +1375,29 @@ export function ReconciliationPage({
           )}
 
           <div className="table-shell tall compact-table-shell">
-            <table className="erp-table compact-table">
+            <table className="erp-table compact-table reconciliation-entry-table">
               <thead>
                 <tr>
-                  <th></th>
+                  <th className="checkbox-cell">
+                    <input
+                      aria-label={allVisibleEntriesSelected ? "Desselecionar lançamentos visíveis" : "Selecionar lançamentos visíveis"}
+                      checked={allVisibleEntriesSelected}
+                      disabled={!selectableEntryIds.length}
+                      onChange={toggleAllVisibleEntries}
+                      type="checkbox"
+                    />
+                  </th>
                   <th>Vencimento</th>
-                  <th>Fatura/Lançamento</th>
-                  <th>Cliente/Fornecedor</th>
+                  <th>Lançamentos</th>
+                  <th>Categoria</th>
                   <th className="numeric-cell">Valor</th>
-                  <th>Status</th>
+                  <th>Pago</th>
                 </tr>
               </thead>
               <tbody>
                 {entryRows.map((entry) => (
                   <tr key={entry.id}>
-                    <td>
+                    <td className="checkbox-cell">
                       <input
                         type="checkbox"
                         checked={selectedEntryIds.includes(entry.id)}
@@ -1193,17 +1406,10 @@ export function ReconciliationPage({
                       />
                     </td>
                     <td>{formatDate(entry.due_date)}</td>
-                    <td>
-                      <div className="cell-stack reconciliation-cell-stack">
-                        <strong className="single-line-cell">{compactSingleLine(entry.title)}</strong>
-                        <span className="compact-muted compact-detail-line">
-                          {compactSingleLine(entry.document_number ?? entry.category_name ?? "Sem documento")}
-                        </span>
-                      </div>
-                    </td>
-                    <td>{displayCounterparty(entry)}</td>
-                    <td className="numeric-cell">{formatMoney(Number(entry.total_amount))}</td>
-                    <td>{formatEntryStatus(entry.status)}</td>
+                    <td title={compactSingleLine(entry.title)}><span className="single-line-cell">{compactSingleLine(entry.title)}</span></td>
+                    <td title={compactSingleLine(entry.category_name ?? "-")}><span className="single-line-cell">{compactSingleLine(entry.category_name ?? "-")}</span></td>
+                    <td className="numeric-cell compact-amount-cell">{formatReconciliationAmount(entry.total_amount)}</td>
+                    <td><PaidStatusIcon active={entry.status === "settled"} /></td>
                   </tr>
                 ))}
                 {!entryRows.length && (
@@ -1232,13 +1438,11 @@ export function ReconciliationPage({
           <div className="modal-card">
             <div className="panel-title">
               <h3>Efetuar lançamento a partir do extrato</h3>
-              <button className="ghost-button" type="button" onClick={() => setModal(null)}>
-                Fechar
-              </button>
+              <ModalCloseButton onClick={() => setModal(null)} />
             </div>
             <div className="form-grid dense">
               <label>
-                Titulo
+                Título
                 <input value={createDraft.title} onChange={(event) => setCreateDraft({ ...createDraft, title: event.target.value })} />
               </label>
               <label className="span-three">
@@ -1288,7 +1492,7 @@ export function ReconciliationPage({
             </div>
             <div className="modal-summary">
               <span>Movimentos selecionados: {selectedBankIds.length}</span>
-              <strong>{formatMoney(selectedBankDirectionCount > 1 ? selectedBankGrossAmount : selectedBankTotal)}</strong>
+              <strong>{formatMoney(selectedBankNetAmount)}</strong>
             </div>
             {!!createEntryValidationMessage && <div className="import-last-meta">{createEntryValidationMessage}</div>}
             <div className="action-row">
@@ -1310,13 +1514,11 @@ export function ReconciliationPage({
           <div className="modal-card">
             <div className="panel-title">
               <h3>Lançar transferência entre contas</h3>
-              <button className="ghost-button" type="button" onClick={() => setModal(null)}>
-                Fechar
-              </button>
+              <ModalCloseButton onClick={() => setModal(null)} />
             </div>
             <div className="form-grid dense">
               <label>
-                Titulo
+                Título
                 <input value={createDraft.title} onChange={(event) => setCreateDraft({ ...createDraft, title: event.target.value })} />
               </label>
               <label>
@@ -1367,16 +1569,12 @@ export function ReconciliationPage({
           <div className="modal-card purchase-modal-card">
             <div className="panel-title">
               <h3>Selecionar grupo da categoria</h3>
-              <button
-                className="ghost-button"
-                type="button"
+              <ModalCloseButton
                 onClick={() => {
                   setCategoryCreationModalOpen(false);
                   setCategoryCreationDraft(emptyCategoryCreationDraft);
                 }}
-              >
-                Fechar
-              </button>
+              />
             </div>
             <div className="form-grid dense">
               <label>
@@ -1425,49 +1623,6 @@ export function ReconciliationPage({
         </div>
       )}
 
-      {ofxModalOpen && (
-        <div className="modal-backdrop" role="presentation">
-          <div className="modal-card purchase-modal-card">
-            <div className="panel-title">
-              <h3>OFX</h3>
-              <button className="ghost-button" type="button" onClick={() => setOfxModalOpen(false)}>
-                Fechar
-              </button>
-            </div>
-            <div className="form-grid dense">
-              <label>
-                Conta
-                <select value={ofxAccountId} onChange={(event) => setOfxAccountId(event.target.value)}>
-                  <option value="">Selecionar conta</option>
-                  {ofxAccounts.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Arquivo OFX
-                <input type="file" accept=".ofx" onChange={(event) => setOfxFile(event.target.files?.[0] ?? null)} />
-              </label>
-            </div>
-            {!ofxAccounts.length && <div className="import-last-meta">Nenhuma conta com importacao OFX habilitada.</div>}
-            <div className="import-last-meta">
-              {latestOfxBatch ? `Ultima importacao: ${latestOfxBatch.filename} em ${formatDate(latestOfxBatch.created_at)}` : "Ultima importacao: nenhuma"}
-            </div>
-            <div className="action-row">
-              <button
-                className="primary-button"
-                disabled={submitting || !ofxFile || !ofxAccountId}
-                onClick={() => void handleOfxImport()}
-                type="button"
-              >
-                OFX
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

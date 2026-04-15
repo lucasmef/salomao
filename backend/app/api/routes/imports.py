@@ -2,8 +2,17 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
 from app.api.deps import DbSession
 from app.schemas.inter import InterStatementSyncRequest
-from app.schemas.imports import ImportResult, ImportSummary
+from app.schemas.imports import (
+    ImportResult,
+    ImportSummary,
+    LinxCustomerSyncRequest,
+    LinxMovementSyncRequest,
+    LinxOpenReceivableSyncRequest,
+    LinxProductSyncRequest,
+    LinxSyncRequest,
+)
 from app.services.backup import ensure_pre_import_backup
+from app.services.cache_invalidation import clear_finance_analytics_caches
 from app.services.company_context import get_current_company
 from app.services.imports import (
     build_import_summary,
@@ -11,7 +20,13 @@ from app.services.imports import (
     import_linx_receivables,
     import_linx_sales,
     import_ofx,
+    sync_linx_receivables,
+    sync_linx_sales,
 )
+from app.services.linx_customers import sync_linx_customers
+from app.services.linx_movements import sync_linx_movements
+from app.services.linx_open_receivables import sync_linx_open_receivables
+from app.services.linx_products import sync_linx_products
 from app.services.inter import sync_inter_statement
 
 router = APIRouter()
@@ -32,7 +47,36 @@ async def upload_linx_sales(
     try:
         ensure_pre_import_backup("linx-sales")
         content = await file.read()
-        return import_linx_sales(db, company, file.filename or "linx-sales.xls", content)
+        result = import_linx_sales(db, company, file.filename or "linx-sales.xls", content)
+        clear_finance_analytics_caches(company.id, include_sales_history=True, db=db, company=company)
+        return result
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/linx-sales/sync", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+def trigger_linx_sales_sync(
+    payload: LinxSyncRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        ensure_pre_import_backup("linx-sales")
+        result = sync_linx_sales(
+            db,
+            company,
+            start_date=payload.start_date,
+            end_date=payload.end_date,
+        )
+        clear_finance_analytics_caches(
+            company.id,
+            include_sales_history=True,
+            db=db,
+            company=company,
+            affected_dates=[item for item in (payload.start_date, payload.end_date) if item is not None],
+        )
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -53,6 +97,121 @@ async def upload_linx_receivables(
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
+@router.post(
+    "/linx-customers/sync",
+    response_model=ImportResult,
+    status_code=status.HTTP_201_CREATED,
+)
+def trigger_linx_customers_sync(
+    payload: LinxCustomerSyncRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        ensure_pre_import_backup("linx-customers")
+        return sync_linx_customers(
+            db,
+            company,
+            start_date=payload.start_date,
+            end_date=payload.end_date,
+            full_refresh=payload.full_refresh,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post(
+    "/linx-products/sync",
+    response_model=ImportResult,
+    status_code=status.HTTP_201_CREATED,
+)
+def trigger_linx_products_sync(
+    payload: LinxProductSyncRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        ensure_pre_import_backup("linx-products")
+        return sync_linx_products(
+            db,
+            company,
+            full_refresh=payload.full_refresh,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post(
+    "/linx-open-receivables/sync",
+    response_model=ImportResult,
+    status_code=status.HTTP_201_CREATED,
+)
+def trigger_linx_open_receivables_sync(
+    payload: LinxOpenReceivableSyncRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        ensure_pre_import_backup("linx-open-receivables")
+        return sync_linx_open_receivables(
+            db,
+            company,
+            full_refresh=payload.full_refresh,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post(
+    "/linx-movements/sync",
+    response_model=ImportResult,
+    status_code=status.HTTP_201_CREATED,
+)
+def trigger_linx_movements_sync(
+    payload: LinxMovementSyncRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        ensure_pre_import_backup("linx-movements")
+        result = sync_linx_movements(
+            db,
+            company,
+            full_refresh=payload.full_refresh,
+        )
+        clear_finance_analytics_caches(company.id, db=db, company=company)
+        return result
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post(
+    "/linx-receivables/sync",
+    response_model=ImportResult,
+    status_code=status.HTTP_201_CREATED,
+)
+def trigger_linx_receivables_sync(
+    payload: LinxSyncRequest,
+    db: DbSession,
+) -> ImportResult:
+    company = get_current_company(db)
+    try:
+        ensure_pre_import_backup("linx-receivables")
+        return sync_linx_receivables(
+            db,
+            company,
+            start_date=payload.start_date,
+            end_date=payload.end_date,
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
 @router.post("/ofx", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
 async def upload_ofx(
     db: DbSession,
@@ -63,7 +222,9 @@ async def upload_ofx(
     try:
         ensure_pre_import_backup("ofx")
         content = await file.read()
-        return import_ofx(db, company, account_id, file.filename or "extrato.ofx", content)
+        result = import_ofx(db, company, account_id, file.filename or "extrato.ofx", content)
+        clear_finance_analytics_caches(company.id, db=db, company=company)
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -82,12 +243,14 @@ async def upload_historical_cashbook(
     try:
         ensure_pre_import_backup("historical-cashbook")
         content = await file.read()
-        return import_historical_cashbook(
+        result = import_historical_cashbook(
             db,
             company,
             file.filename or "livro-caixa-historico.xlsx",
             content,
         )
+        clear_finance_analytics_caches(company.id, db=db, company=company)
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -100,13 +263,20 @@ def trigger_inter_statement_sync(
 ) -> ImportResult:
     company = get_current_company(db)
     try:
-        return sync_inter_statement(
+        result = sync_inter_statement(
             db,
             company,
             account_id=payload.account_id,
             start_date=payload.start_date,
             end_date=payload.end_date,
         )
+        clear_finance_analytics_caches(
+            company.id,
+            db=db,
+            company=company,
+            affected_dates=[item for item in (payload.start_date, payload.end_date) if item is not None],
+        )
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error

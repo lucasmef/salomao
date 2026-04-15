@@ -4,6 +4,7 @@ export type MainNavChild = {
   path: string;
   title: string;
   description: string;
+  children?: MainNavChild[];
 };
 
 export type MainNavItem = {
@@ -68,16 +69,58 @@ export const mainNavigation: MainNavItem[] = [
   {
     key: "cobranca",
     label: "Cobrança",
-    path: "/financeiro/cobranca",
+    path: "/financeiro/cobranca/faturas-em-aberto",
     title: "Cobrança",
-    description: "Resumo, clientes e faturas com filtros de cobrança e importação de recebíveis.",
+    description: "Cobrança operacional com clientes, boletos e pendências organizados por visão.",
     children: [
       {
-        key: "cobranca",
-        label: "Cobrança",
-        path: "/financeiro/cobranca",
-        title: "Cobrança",
-        description: "Resumo, clientes e faturas com filtros de cobrança e importação de recebíveis.",
+        key: "faturas-em-aberto",
+        label: "Faturas em aberto",
+        path: "/financeiro/cobranca/faturas-em-aberto",
+        title: "Faturas em aberto",
+        description: "Faturas em aberto com saldo pendente de recebimento.",
+      },
+      {
+        key: "boletos-em-aberto",
+        label: "Boletos em aberto",
+        path: "/financeiro/cobranca/boletos-em-aberto",
+        title: "Boletos em aberto",
+        description: "Boletos emitidos ainda em aberto.",
+      },
+      {
+        key: "atrasados",
+        label: "Atrasados",
+        path: "/financeiro/cobranca/atrasados",
+        title: "Atrasados",
+        description: "Boletos e cobranças com atraso.",
+      },
+      {
+        key: "pagas-sem-baixa",
+        label: "Pagas sem baixa",
+        path: "/financeiro/cobranca/pagas-sem-baixa",
+        title: "Pagas sem baixa",
+        description: "Títulos pagos que ainda precisam de baixa.",
+      },
+      {
+        key: "boletos-faltando",
+        label: "Boletos faltando",
+        path: "/financeiro/cobranca/boletos-faltando",
+        title: "Boletos faltando",
+        description: "Boletos pendentes de emissão.",
+      },
+      {
+        key: "boletos-avulsos",
+        label: "Boletos avulsos",
+        path: "/financeiro/cobranca/boletos-avulsos",
+        title: "Boletos avulsos",
+        description: "Área reservada para boletos emitidos manualmente, fora da cobrança recorrente.",
+      },
+      {
+        key: "boletos-em-excesso",
+        label: "Boletos em excesso",
+        path: "/financeiro/cobranca/boletos-em-excesso",
+        title: "Boletos em excesso",
+        description: "Boletos emitidos a mais em relação às faturas.",
       },
     ],
   },
@@ -146,7 +189,7 @@ export const mainNavigation: MainNavItem[] = [
     label: "Sistema",
     path: "/cadastros/contas",
     title: "Sistema",
-    description: "Administração, cadastros base, backup, segurança, importações técnicas e auditoria.",
+    description: "Administração, cadastros base, segurança e importações técnicas.",
     children: [
       {
         key: "contas",
@@ -163,11 +206,41 @@ export const mainNavigation: MainNavItem[] = [
         description: "Tipos, grupos e categorias do financeiro.",
       },
       {
-        key: "clientes",
-        label: "Clientes",
+        key: "linx",
+        label: "Linx",
         path: "/cadastros/clientes",
-        title: "Clientes",
-        description: "Cadastro-base de clientes e configurações de cobrança.",
+        title: "Linx",
+        description: "Bases integradas do Linx para clientes, produtos, movimentos e faturas a receber.",
+        children: [
+          {
+            key: "clientes",
+            label: "Clientes e fornecedores",
+            path: "/cadastros/clientes",
+            title: "Clientes e fornecedores",
+            description: "Base Linx de clientes e fornecedores com visão das configurações de cobrança.",
+          },
+          {
+            key: "produtos",
+            label: "Produtos",
+            path: "/cadastros/produtos",
+            title: "Produtos",
+            description: "Base Linx de produtos com custo, venda, fornecedor e coleção.",
+          },
+          {
+            key: "movimentos",
+            label: "Movimentos",
+            path: "/cadastros/movimentos",
+            title: "Movimentos",
+            description: "Espelho Linx detalhado por produto para vendas e compras relevantes ao lucro por coleção.",
+          },
+          {
+            key: "faturas-receber",
+            label: "Faturas a receber",
+            path: "/cadastros/faturas-a-receber",
+            title: "Faturas a receber",
+            description: "Espelho Linx das faturas em aberto do crediário, sem alterar a cobrança atual.",
+          },
+        ],
       },
       {
         key: "regras",
@@ -177,32 +250,11 @@ export const mainNavigation: MainNavItem[] = [
         description: "Regras recorrentes e padrões operacionais.",
       },
       {
-        key: "fornecedores",
-        label: "Fornecedores",
-        path: "/cadastros/fornecedores",
-        title: "Fornecedores",
-        description: "Cadastro dos fornecedores usados no módulo de compras.",
-      },
-      {
-        key: "usuarios",
-        label: "Usuários",
-        path: "/sistema/usuarios",
-        title: "Usuários",
-        description: "Usuários locais, perfis e acessos.",
-      },
-      {
-        key: "backup",
-        label: "Backup",
-        path: "/sistema/backup",
-        title: "Backup",
-        description: "Criação, restauração e histórico de backups.",
-      },
-      {
         key: "seguranca",
         label: "Segurança",
         path: "/sistema/seguranca",
         title: "Segurança",
-        description: "Políticas, proteção da base e continuidade.",
+        description: "Usuários, acessos, MFA, integrações e continuidade.",
       },
       {
         key: "importacoes-gerais",
@@ -210,13 +262,6 @@ export const mainNavigation: MainNavItem[] = [
         path: "/sistema/importacoes-gerais",
         title: "Importações gerais",
         description: "Histórico central de importações e cargas históricas do sistema.",
-      },
-      {
-        key: "auditoria",
-        label: "Auditoria",
-        path: "/sistema/auditoria",
-        title: "Auditoria",
-        description: "Histórico de eventos relevantes, importações e restaurações.",
       },
     ],
   },
@@ -226,23 +271,30 @@ export const legacySectionPathMap: Record<string, string> = {
   overview: "/overview/resumo",
   lancamentos: "/financeiro/lancamentos",
   conciliacao: "/financeiro/conciliacao",
-  boletos: "/financeiro/cobranca",
+  boletos: "/financeiro/cobranca/faturas-em-aberto",
   importacoes: "/sistema/importacoes-gerais",
   planejamento: "/compras/planejamento",
   operacoes: "/caixa-resultados/projecoes",
   caixa: "/caixa-resultados/fluxo-caixa",
   relatorios: "/caixa-resultados/dre",
   cadastros: "/cadastros/contas",
-  seguranca: "/sistema/usuarios",
+  seguranca: "/sistema/seguranca",
 };
 
 export function findMainNavItem(pathname: string) {
+  function childMatchesPath(child: MainNavChild): boolean {
+    if (pathname === child.path || pathname.startsWith(`${child.path}/`)) {
+      return true;
+    }
+    return child.children?.some(childMatchesPath) ?? false;
+  }
+
   const matchedItem =
     mainNavigation.find(
       (item) =>
         pathname === item.path ||
         pathname.startsWith(`${item.path}/`) ||
-        item.children.some((child) => pathname === child.path || pathname.startsWith(`${child.path}/`)),
+        item.children.some(childMatchesPath),
     ) ?? null;
   if (matchedItem) {
     return matchedItem;
@@ -254,9 +306,47 @@ export function findMainNavItem(pathname: string) {
 }
 
 export function findChildNavItem(pathname: string) {
+  function findMatchingChild(items: MainNavChild[]): MainNavChild | null {
+    for (const item of items) {
+      if (pathname === item.path || pathname.startsWith(`${item.path}/`)) {
+        return item.children ? findMatchingChild(item.children) ?? item : item;
+      }
+      if (item.children) {
+        const nestedMatch = findMatchingChild(item.children);
+        if (nestedMatch) {
+          return nestedMatch;
+        }
+      }
+    }
+    return null;
+  }
+
+  function firstNavigableChild(items: MainNavChild[]): MainNavChild {
+    const firstItem = items[0];
+    if (!firstItem) {
+      return overviewNavigationItem.children[0];
+    }
+    return firstItem.children ? firstNavigableChild(firstItem.children) : firstItem;
+  }
+
   const section = findMainNavItem(pathname);
   if (!section) {
     return overviewNavigationItem.children[0];
   }
-  return section.children.find((child) => pathname === child.path || pathname.startsWith(`${child.path}/`)) ?? section.children[0];
+  return findMatchingChild(section.children) ?? firstNavigableChild(section.children);
+}
+
+export function findNavChildByKey(items: MainNavChild[], key: string): MainNavChild | null {
+  for (const item of items) {
+    if (item.key === key) {
+      return item;
+    }
+    if (item.children) {
+      const nestedMatch = findNavChildByKey(item.children, key);
+      if (nestedMatch) {
+        return nestedMatch;
+      }
+    }
+  }
+  return null;
 }
