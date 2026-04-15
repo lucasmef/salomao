@@ -1,0 +1,35 @@
+name: Sanitize Dev DB
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: salomao-deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  sanitize-dev-db:
+    runs-on: self-hosted
+
+    steps:
+      - name: Sincronizar checkout dev
+        run: |
+          bash /srv/salomao/dev/app/scripts/sync-checkout-to-ref.sh /srv/salomao/dev/app dev
+
+      - name: Sanitizar banco dev
+        run: |
+          bash /srv/salomao/dev/app/scripts/sanitize-dev-db.sh
+
+      - name: Reiniciar servico dev
+        run: |
+          sudo systemctl restart salomao-dev.service
+
+      - name: Healthcheck
+        run: |
+          sleep 3
+          curl --fail --silent --show-error http://127.0.0.1:8101/api/v1/health
+          echo
+          echo "Sanitizacao do banco dev concluida com sucesso"
