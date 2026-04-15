@@ -1,0 +1,35 @@
+name: Refresh Dev DB
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: salomao-deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  refresh-dev-db:
+    runs-on: self-hosted
+
+    steps:
+      - name: Sincronizar checkout dev
+        run: |
+          bash /srv/salomao/dev/app/scripts/sync-checkout-to-ref.sh /srv/salomao/dev/app dev
+
+      - name: Refresh banco dev a partir de prod
+        run: |
+          bash /srv/salomao/dev/app/scripts/refresh-dev-db-from-prod.sh
+
+      - name: Deploy dev
+        run: |
+          bash /srv/salomao/dev/app/scripts/deploy-dev.sh
+
+      - name: Healthcheck
+        run: |
+          sleep 3
+          curl --fail --silent --show-error http://127.0.0.1:8101/api/v1/health
+          echo
+          echo "Refresh do banco dev concluido com sucesso"

@@ -28,8 +28,12 @@ Criar uma base unica para refresh e invalidacao de cache, separando de forma exp
 
 ## Proximos passos
 
-1. Migrar `imports.py` para usar `build_data_refresh_request(...)` e `finalize_data_refresh(...)`
-2. Migrar `purchase_planning.py` para o mesmo fechamento central
-3. Migrar `linx_auto_sync.py` para usar o mesmo orquestrador no final de cada ciclo
-4. Revisar quais familias realmente precisam aquecer visoes live apos o sync
-5. Criar testes de coerencia pos-sync
+1. [x] Migrar `imports.py` para usar `build_data_refresh_request(...)` e `finalize_data_refresh(...)`
+2. [x] Migrar `purchase_planning.py` para o mesmo fechamento central
+3. [x] Migrar `linx_auto_sync.py` para usar o mesmo orquestrador no final de cada ciclo (Job `linx_auto_sync_refresh.py` acoplado em paralelo)
+4. [ ] Revisar quais familias realmente precisam aquecer visoes live apos o sync
+5. [x] Criar testes de coerencia pos-sync
+
+## Workflow & Schedulers (CI/CD Sync)
+
+> **ATENÇÃO:** A arquitetura legada (systemd timer) foi preterida em favor da rotina CI/CD via scripts no servidor, gerida pela branch `dev`. Para garantir a estratégia dual-job aprovada, o job antigo (`app.jobs.linx_auto_sync`) E o job novo (`app.jobs.linx_auto_sync_refresh`) devem ser configurados em ambiente de Produção como complementares no crontab ou scheduler interno da VPS.

@@ -1,0 +1,34 @@
+name: Deploy Dev
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: salomao-deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy-dev:
+    runs-on: self-hosted
+
+    steps:
+      - name: Sincronizar checkout dev
+        run: |
+          bash /srv/salomao/dev/app/scripts/sync-checkout-to-ref.sh /srv/salomao/dev/app dev
+
+      - name: Deploy dev
+        run: |
+          bash /srv/salomao/dev/app/scripts/deploy-dev.sh
+
+      - name: Healthcheck
+        run: |
+          sleep 3
+          curl --fail --silent --show-error http://127.0.0.1:8101/api/v1/health
+          echo
+          echo "Deploy dev concluido com sucesso"

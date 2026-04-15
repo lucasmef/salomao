@@ -1,0 +1,34 @@
+name: Deploy Prod
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: salomao-deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-prod:
+    runs-on: self-hosted
+
+    steps:
+      - name: Sincronizar checkout prod
+        run: |
+          bash /srv/salomao/prod/app/scripts/sync-checkout-to-ref.sh /srv/salomao/prod/app main
+
+      - name: Deploy prod
+        run: |
+          bash /srv/salomao/prod/app/scripts/deploy-prod.sh
+
+      - name: Auditoria de producao
+        run: |
+          bash /srv/salomao/prod/app/scripts/check-prod.sh
+
+      - name: Healthcheck
+        run: |
+          curl --fail --silent --show-error http://127.0.0.1:8100/api/v1/health
+          echo
+          echo "Deploy prod concluido com sucesso"
