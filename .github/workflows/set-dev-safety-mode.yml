@@ -1,0 +1,35 @@
+name: Set Dev Safety Mode
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Modo de seguranca do ambiente dev"
+        required: true
+        type: choice
+        options:
+          - safe
+          - validate
+
+permissions:
+  contents: read
+
+concurrency:
+  group: salomao-deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  set-dev-safety-mode:
+    runs-on: self-hosted
+
+    steps:
+      - name: Aplicar modo ${{ inputs.mode }}
+        run: |
+          bash /srv/salomao/dev/app/scripts/set-dev-safety-mode.sh "${{ inputs.mode }}"
+
+      - name: Healthcheck
+        run: |
+          sleep 3
+          curl --fail --silent --show-error http://127.0.0.1:8101/api/v1/health
+          echo
+          echo "Modo ${{ inputs.mode }} aplicado com sucesso"

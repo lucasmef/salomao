@@ -20,7 +20,7 @@
 
 ## Sobre o projeto
 
-Este projeto foi estruturado para ir alem de um CRUD web tradicional. Ele combina frontend em `React`, API em `FastAPI`, persistencia em `PostgreSQL`, autenticacao com `MFA`, trilha de auditoria e uma rotina operacional pensada para ambiente de servidor com `dev` e `prod`, ambos derivados do mesmo branch oficial.
+Este projeto foi estruturado para ir alem de um CRUD web tradicional. Ele combina frontend em `React`, API em `FastAPI`, persistencia em `PostgreSQL`, autenticacao com `MFA`, trilha de auditoria e uma rotina operacional pensada para ambiente de servidor com `dev` (homologacao) e `prod` (producao), cada um com sua branch dedicada.
 
 Do ponto de vista de portfolio, ele mostra capacidade de entregar produto, backend, frontend, banco e operacao com foco em confiabilidade e seguranca.
 
@@ -32,7 +32,8 @@ Do ponto de vista de portfolio, ele mostra capacidade de entregar produto, backe
 - Integracao nativa com a `API do Banco Inter` para extrato, cobrancas e operacao de boletos.
 - Deploy oficial em `VPS KingHost`, com `Nginx`, `systemd`, `UFW`, `fail2ban` e healthchecks.
 - Seguranca reforcada com `MFA obrigatorio`, `cookies HttpOnly`, `rate limit`, `criptografia de campos`, `auditoria` e `alertas`.
-- Scripts operacionais para deploy, validacao de ambiente, migracao e backup.
+- CI/CD com `GitHub Actions` e `self-hosted runner` no VPS, com deploy automatico em dev e manual em producao.
+- Scripts operacionais para deploy, validacao de ambiente, migracao, sanitizacao e backup.
 - Testes automatizados cobrindo seguranca, autenticacao e regras de negocio.
 
 ## O que este projeto comunica para recrutadores
@@ -40,7 +41,7 @@ Do ponto de vista de portfolio, ele mostra capacidade de entregar produto, backe
 - Visao full stack de ponta a ponta, sem separar produto e infraestrutura.
 - Preocupacao com ambiente real de operacao, e nao apenas desenvolvimento local.
 - Implementacao de seguranca em camadas, tanto no codigo quanto na borda do servidor.
-- Organizacao de deploy com homologacao e producao separadas a partir de um branch unico.
+- Organizacao de deploy com `homologacao` e `producao` em branches separadas (`dev` e `main`), com CI/CD automatizado.
 - Capacidade de sustentar uma aplicacao apos a entrega inicial.
 
 ## Modulos do sistema
@@ -88,11 +89,12 @@ flowchart LR
 
 Topologia oficial no VPS:
 
-- branch `main` -> ambiente `dev`
-- branch `main` -> ambiente `prod`
+- branch `dev` -> ambiente `dev` (homologacao)
+- branch `main` -> ambiente `prod` (producao)
 - checkout `dev`: `/srv/salomao/dev/app`
 - checkout `prod`: `/srv/salomao/prod/app`
 - servicos: `salomao-dev.service` e `salomao-prod.service`
+- CI/CD: `self-hosted runner` no VPS via GitHub Actions
 
 ## Stack tecnica
 
@@ -136,18 +138,31 @@ Um dos diferenciais mais fortes do projeto esta na camada de seguranca, principa
 - `Validacao de segredos e modo de execucao` quando `APP_MODE=server`.
 - `PostgreSQL como banco oficial` do ambiente de servidor.
 
-## Fluxo de deploy
+## Fluxo de deploy e CI/CD
 
 O projeto e `vps-first`: a publicacao oficial acontece somente no VPS da KingHost.
 
-O branch oficial unico e `main`. Os ambientes `dev` e `prod` usam checkouts separados no VPS, mas ambos acompanham `origin/main`.
+Branches oficiais:
+
+- `dev` -> ambiente de homologacao
+- `main` -> ambiente de producao
+
+CI/CD via `GitHub Actions` com `self-hosted runner` no proprio VPS:
+
+| Workflow | Trigger | Funcao |
+| --- | --- | --- |
+| Deploy Dev | push em `dev` + manual | deploy automatico do ambiente dev |
+| Deploy Prod | manual | deploy manual da producao |
+| Refresh Dev DB | manual | copia banco prod → dev com modo seguro |
+| Sanitize Dev DB | manual | anonimizacao de dados sensiveis no banco dev |
+| Set Dev Safety Mode | manual | liga ou desliga modo seguro no dev |
 
 Scripts padronizados:
 
-- `scripts/deploy-dev.sh`
-- `scripts/deploy-prod.sh`
-- `scripts/deploy-vps.sh`
-- `scripts/check-prod.sh`
+- `scripts/deploy-dev.sh` / `scripts/deploy-prod.sh` / `scripts/deploy-vps.sh`
+- `scripts/check-prod.sh` / `scripts/sync-checkout-to-ref.sh`
+- `scripts/refresh-dev-db-from-prod.sh` / `scripts/post-refresh-dev.sh`
+- `scripts/sanitize-dev-db.sh` / `scripts/set-dev-safety-mode.sh`
 
 Fluxo principal executado pelos scripts:
 
@@ -229,6 +244,8 @@ O backend possui testes cobrindo pontos relevantes para producao, incluindo:
 - [scripts/deploy-dev.sh](scripts/deploy-dev.sh)
 - [scripts/deploy-prod.sh](scripts/deploy-prod.sh)
 - [scripts/check-prod.sh](scripts/check-prod.sh)
+- [scripts/sanitize-dev-db.sh](scripts/sanitize-dev-db.sh)
+- [scripts/set-dev-safety-mode.sh](scripts/set-dev-safety-mode.sh)
 
 ## Configuracao minima
 
@@ -262,6 +279,6 @@ Com a conta configurada, o sistema libera:
 
 ## Resumo final
 
-Este projeto se destaca por mostrar uma visao completa de engenharia: produto financeiro, frontend moderno, backend estruturado, persistencia relacional, integracao bancaria real com o Banco Inter, seguranca de autenticacao, observabilidade operacional e deploy disciplinado em servidor Linux.
+Este projeto se destaca por mostrar uma visao completa de engenharia: produto financeiro, frontend moderno, backend estruturado, persistencia relacional, integracao bancaria real com o Banco Inter, seguranca de autenticacao, observabilidade operacional, CI/CD com GitHub Actions e deploy disciplinado em servidor Linux.
 
 Para um perfil GitHub, ele comunica bem capacidade de construir e sustentar uma aplicacao real, com preocupacoes de entrega, confiabilidade e seguranca.

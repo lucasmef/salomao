@@ -33,3 +33,8 @@ if git -C "$APP_DIR" show-ref --verify --quiet "refs/remotes/origin/$GIT_REF"; t
 else
   git -C "$APP_DIR" checkout "$GIT_REF"
 fi
+
+git -C "$APP_DIR" clean -fd
+
+FINAL_SHA="$(git -C "$APP_DIR" rev-parse HEAD)"
+echo "==> Checkout sincronizado: $GIT_REF @ $FINAL_SHA"

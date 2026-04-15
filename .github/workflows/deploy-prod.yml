@@ -2,17 +2,6 @@ name: Deploy Prod
 
 on:
   workflow_dispatch:
-    inputs:
-      git_ref:
-        description: "Branch, tag ou commit para publicar no ambiente prod"
-        required: false
-        default: "main"
-        type: string
-      close_dev_access:
-        description: "Fechar acesso remoto gerenciado para dev ao final"
-        required: false
-        default: true
-        type: boolean
 
 permissions:
   contents: read
@@ -26,12 +15,20 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - name: Sincronizar checkout prod
+        run: |
+          bash /srv/salomao/prod/app/scripts/sync-checkout-to-ref.sh /srv/salomao/prod/app main
 
       - name: Deploy prod
-        env:
-          GIT_REF: ${{ inputs.git_ref }}
-          CLOSE_DEV_ACCESS: ${{ inputs.close_dev_access }}
         run: |
-          bash ./scripts/github-actions-deploy-prod.sh "$GIT_REF" "$CLOSE_DEV_ACCESS"
+          bash /srv/salomao/prod/app/scripts/deploy-prod.sh
+
+      - name: Auditoria de producao
+        run: |
+          bash /srv/salomao/prod/app/scripts/check-prod.sh
+
+      - name: Healthcheck
+        run: |
+          curl --fail --silent --show-error http://127.0.0.1:8100/api/v1/health
+          echo
+          echo "Deploy prod concluido com sucesso"

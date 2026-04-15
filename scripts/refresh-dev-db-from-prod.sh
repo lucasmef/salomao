@@ -6,6 +6,9 @@ DEV_ENV_FILE="${DEV_ENV_FILE:-/srv/salomao/dev/app/backend/.env}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/salomao}"
 DATE_STAMP="$(date +%Y%m%d_%H%M%S)"
 DUMP_FILE="$BACKUP_DIR/prod_to_dev_${DATE_STAMP}.dump"
+DEV_BACKUP_FILE="$BACKUP_DIR/dev_pre_refresh_${DATE_STAMP}.dump"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 require_command() {
   local command_name="$1"
@@ -85,6 +88,10 @@ eval "$(parse_database_url DEV "$DEV_DATABASE_URL")"
 
 mkdir -p "$BACKUP_DIR"
 
+echo "==> Backup preventivo do banco dev em $DEV_BACKUP_FILE"
+export PGPASSWORD="$DEV_PASSWORD"
+pg_dump   --host="$DEV_HOST"   --port="$DEV_PORT"   --username="$DEV_USER"   --dbname="$DEV_NAME"   --format=custom   --no-owner   --no-privileges   --file="$DEV_BACKUP_FILE" || echo "[WARN] Backup do banco dev falhou (banco pode estar vazio)"
+
 echo "==> Gerando dump de prod em $DUMP_FILE"
 export PGPASSWORD="$PROD_PASSWORD"
 pg_dump   --host="$PROD_HOST"   --port="$PROD_PORT"   --username="$PROD_USER"   --dbname="$PROD_NAME"   --format=custom   --no-owner   --no-privileges   --file="$DUMP_FILE"
@@ -102,3 +109,6 @@ echo "==> Restaurando dump de prod em dev"
 pg_restore   --host="$DEV_HOST"   --port="$DEV_PORT"   --username="$DEV_USER"   --dbname="$DEV_NAME"   --clean   --if-exists   --no-owner   --no-privileges   "$DUMP_FILE"
 
 echo "==> Copia do banco concluida"
+
+echo "==> Executando pos-refresh de seguranca"
+bash "$SCRIPT_DIR/post-refresh-dev.sh"
