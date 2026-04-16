@@ -309,6 +309,61 @@ function FilterFunnelIcon() {
   );
 }
 
+function UsersIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
+      <path d="M7 10a2.75 2.75 0 1 0 0-5.5A2.75 2.75 0 0 0 7 10Z" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M13.5 9a2.25 2.25 0 1 0 0-4.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M3.75 15.5a3.75 3.75 0 0 1 6.5-2.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M11.75 15.5a3 3 0 0 1 4.5-2.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FileIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
+      <path d="M6 3.75h5.5L15 7.25v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M11.5 3.75v3.5H15" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M7.5 11h5M7.5 13.75h5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
+      <path d="M15.75 10a5.75 5.75 0 1 1-1.6-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M12.75 4.5h2.75v2.75" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
+      <path d="M16 4 9 11" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="m16 4-9.5 11 1-4.5L16 4Zm0 0-4.5 1-5 5" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
+      <path d="M10 4.5v11M4.5 10h11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
+      <path d="M5.5 4.25v2.5M14.5 4.25v2.5M4.5 7h11M5.25 5.5h9.5a1 1 0 0 1 1 1v8.25a1 1 0 0 1-1 1h-9.5a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function BillingPage({
   accounts,
   view,
@@ -1046,13 +1101,8 @@ export function BillingPage({
   ) {
     const effectivePageSize = resolvePageSizeLimit(pageSize, total);
     const totalPages = Math.max(1, Math.ceil(total / effectivePageSize));
-    const start = total === 0 ? 0 : (page - 1) * effectivePageSize + 1;
-    const end = Math.min(total, page * effectivePageSize);
     return (
       <div className="table-pagination">
-        <div className="table-pagination-meta">
-          {total === 0 ? "Nenhum registro encontrado." : `Exibindo ${start}-${end} de ${total} registro(s).`}
-        </div>
         <div className="table-pagination-actions">
           <label className="pagination-size">
             <span>Linhas</span>
@@ -1318,37 +1368,82 @@ export function BillingPage({
 
           <div className="billing-section-toolbar">
             <div className="billing-section-actions">
-            <button className="secondary-button" disabled={submitting} onClick={() => setClientsModalOpen(true)} type="button">
-              Clientes
+            <button
+              aria-label="Clientes"
+              className="secondary-button icon-only-button billing-toolbar-icon-button"
+              disabled={submitting}
+              onClick={() => setClientsModalOpen(true)}
+              title="Clientes"
+              type="button"
+            >
+              <UsersIcon />
             </button>
-            <button className="secondary-button" disabled={submitting} onClick={() => setC6ModalOpen(true)} type="button">
-              Relatorio C6
+            <button
+              aria-label="Relatorio C6"
+              className="secondary-button icon-only-button billing-toolbar-icon-button"
+              disabled={submitting}
+              onClick={() => setC6ModalOpen(true)}
+              title="Relatorio C6"
+              type="button"
+            >
+              <FileIcon />
             </button>
-            <label className="checkbox-line compact-inline">
+            <label className="checkbox-line compact-inline billing-toolbar-toggle" title="Mostrar todos os boletos mensais">
+              <CalendarIcon />
               <input checked={showAllMonthlyMissingBoletos} disabled={submitting} onChange={(event) => void onToggleAllMonthlyMissingBoletos(event.target.checked)} type="checkbox" />
-              <span>Exibe todos boletos de clientes mensal</span>
+              <span>Mostrar todos os boletos mensais</span>
             </label>
             {showMissingExportFallback ? (
-              <button className="ghost-button billing-secondary-action" disabled={submitting || !selectedMissingKeys.length} onClick={() => void onExportMissingBoletos(selectedMissingKeys)} type="button">
-                Gerar XLSX
+              <button
+                aria-label="Gerar XLSX"
+                className="ghost-button icon-only-button billing-toolbar-icon-button"
+                disabled={submitting || !selectedMissingKeys.length}
+                onClick={() => void onExportMissingBoletos(selectedMissingKeys)}
+                title="Gerar XLSX"
+                type="button"
+              >
+                <FileIcon />
               </button>
             ) : null}
             <button
-              className="secondary-button"
+              aria-label="Baixar selecionados"
+              className="secondary-button icon-only-button billing-toolbar-icon-button"
               disabled={submitting || !selectedDownloadableBoletoIds.length}
               onClick={() => void onDownloadInterBoletoPdfBatch(selectedDownloadableBoletoIds)}
+              title="Baixar selecionados"
               type="button"
             >
-              Baixar selecionados
+              <DownloadIcon />
             </button>
-            <button className="primary-button" disabled={submitting || !selectedMissingKeys.length || !hasInterApiAccount} onClick={() => void onIssueInterCharges(selectedMissingKeys)} type="button">
-              Emitir no Inter
+            <button
+              aria-label="Emitir no Inter"
+              className="primary-button icon-only-button billing-toolbar-icon-button"
+              disabled={submitting || !selectedMissingKeys.length || !hasInterApiAccount}
+              onClick={() => void onIssueInterCharges(selectedMissingKeys)}
+              title="Emitir no Inter"
+              type="button"
+            >
+              <SendIcon />
             </button>
-            <button className="secondary-button" disabled={submitting || !hasInterApiAccount} onClick={() => void onSyncStandaloneBoletos()} type="button">
-              Atualizar Inter
+            <button
+              aria-label="Atualizar Inter"
+              className="secondary-button icon-only-button billing-toolbar-icon-button"
+              disabled={submitting || !hasInterApiAccount}
+              onClick={() => void onSyncStandaloneBoletos()}
+              title="Atualizar Inter"
+              type="button"
+            >
+              <RefreshIcon />
             </button>
-            <button className="primary-button" disabled={submitting} onClick={openStandaloneBoletoModal} type="button">
-              Novo boleto avulso
+            <button
+              aria-label="Novo boleto avulso"
+              className="primary-button icon-only-button billing-toolbar-icon-button"
+              disabled={submitting}
+              onClick={openStandaloneBoletoModal}
+              title="Novo boleto avulso"
+              type="button"
+            >
+              <PlusIcon />
             </button>
             </div>
 

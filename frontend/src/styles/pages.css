@@ -2947,11 +2947,35 @@ textarea {
   min-height: 34px;
 }
 
+.billing-toolbar-icon-button {
+  min-width: 38px;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 12px;
+}
+
+.billing-toolbar-icon-button .button-icon {
+  width: 16px;
+  height: 16px;
+}
+
 .billing-section-actions .checkbox-line {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 0 4px;
+}
+
+.billing-toolbar-toggle {
+  color: #607087;
+  font-size: 0.74rem;
+}
+
+.billing-toolbar-toggle .button-icon {
+  width: 15px;
+  height: 15px;
+  color: #7b8aa1;
 }
 
 .billing-section-pagination {
