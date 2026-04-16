@@ -314,17 +314,23 @@ def trigger_inter_statement_sync(
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 @router.get("/rebuild-sales-snapshots", include_in_schema=False)
-def trigger_snapshot_rebuild(db: DbSession):
+def trigger_snapshot_rebuild():
+    from app.db.session import SessionLocal
     from app.services.linx_sales_snapshot import rebuild_sales_snapshots_from_movements
     from app.services.cache_invalidation import clear_dashboard_revenue_comparison_cache
     from app.db.models.security import Company
     
-    results = []
-    companies = db.query(Company).filter(Company.is_active == True).all()
-    for company in companies:
-        result = rebuild_sales_snapshots_from_movements(db, company, affected_dates=None)
-        clear_dashboard_revenue_comparison_cache(company_id=company.id)
-        results.append({"company": company.trade_name, "message": result.message})
-        db.commit()
-        
-    return {"status": "rebuilt", "results": results}
+    db = SessionLocal()
+    try:
+        results = []
+        companies = db.query(Company).filter(Company.is_active == True).all()
+        for company in companies:
+            # Passando None em affected_dates força o rebuild de TODO o histórico de movimentos
+            result = rebuild_sales_snapshots_from_movements(db, company, affected_dates=None)
+            clear_dashboard_revenue_comparison_cache(company_id=company.id)
+            results.append({"company": company.trade_name, "message": result.message})
+            db.commit()
+            
+        return {"status": "rebuilt", "results": results}
+    finally:
+        db.close()
