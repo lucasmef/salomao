@@ -50,7 +50,7 @@ type DateRange = {
   start: string;
   end: string;
 };
-type FilterPopover = "status" | "client" | "due_date" | null;
+type FilterPopover = "status" | "client" | "due_date" | "type" | null;
 type StandaloneBoletoDraft = {
   account_id: string;
   client_name: string;
@@ -68,6 +68,7 @@ type BoletoStatusKey =
   | "missing"
   | "excess"
   | "standalone";
+type BoletoTypeKey = "recurring" | "standalone" | "paid_pending" | "missing" | "excess";
 type InvoiceRow = {
   id: string;
   client_name: string;
@@ -91,6 +92,8 @@ type BoletoRow = {
   bank: string | null;
   status: string;
   status_key: BoletoStatusKey;
+  type_key: BoletoTypeKey;
+  type_label: string;
   status_loja: string;
   status_banco: string;
   filter_keys: BoletoStatusKey[];
@@ -108,6 +111,8 @@ const PAGE_SIZE_OPTIONS = [25, 50, 100];
 const DEFAULT_PAGE_SIZE = 25;
 const DEFAULT_INVOICE_FILTERS: InvoiceStatusKey[] = ["overdue"];
 const DEFAULT_BOLETO_FILTERS: BoletoStatusKey[] = ["overdue"];
+const ALL_BOLETO_STATUS_FILTERS: BoletoStatusKey[] = ["open", "paid", "overdue", "paid_pending", "missing", "excess", "standalone"];
+const ALL_BOLETO_TYPE_FILTERS: BoletoTypeKey[] = ["recurring", "standalone", "paid_pending", "missing", "excess"];
 
 function getTodayInputDate() {
   return new Date().toISOString().slice(0, 10);
@@ -164,6 +169,22 @@ function boletoStatusLabel(status: BoletoStatusKey) {
     case "open":
     default:
       return "Em aberto";
+  }
+}
+
+function boletoTypeLabel(type: BoletoTypeKey) {
+  switch (type) {
+    case "standalone":
+      return "Boleto avulso";
+    case "paid_pending":
+      return "Pago sem baixa";
+    case "missing":
+      return "Boleto faltando";
+    case "excess":
+      return "Boleto em excesso";
+    case "recurring":
+    default:
+      return "Cobranca recorrente";
   }
 }
 
@@ -306,6 +327,7 @@ export function BillingPage({
   });
   const [invoiceStatusFilters, setInvoiceStatusFilters] = useState<InvoiceStatusKey[]>(DEFAULT_INVOICE_FILTERS);
   const [boletoStatusFilters, setBoletoStatusFilters] = useState<BoletoStatusKey[]>(DEFAULT_BOLETO_FILTERS);
+  const [boletoTypeFilters, setBoletoTypeFilters] = useState<BoletoTypeKey[]>([]);
   const [invoiceClientFilters, setInvoiceClientFilters] = useState<string[]>([]);
   const [boletoClientFilters, setBoletoClientFilters] = useState<string[]>([]);
   const [invoiceClientSearch, setInvoiceClientSearch] = useState("");
@@ -359,6 +381,9 @@ export function BillingPage({
 
     dashboard.all_boletos.forEach((item) => {
       const statusKey = resolveRegularBoletoStatus(item);
+      if (statusKey === "cancelled") {
+        return;
+      }
       rows.push({
         id: `bank:${item.id}`,
         kind: "bank",
@@ -371,7 +396,9 @@ export function BillingPage({
         bank: item.bank ?? "-",
         status: boletoStatusLabel(statusKey),
         status_key: statusKey,
-        status_loja: "Cobranca recorrente",
+        type_key: "recurring",
+        type_label: boletoTypeLabel("recurring"),
+        status_loja: boletoTypeLabel("recurring"),
         status_banco: formatEntryStatus(item.status),
         filter_keys: [statusKey],
         selection_key: null,
@@ -387,6 +414,9 @@ export function BillingPage({
 
     dashboard.standalone_boletos.forEach((item) => {
       const statusKey = resolveRegularBoletoStatus(item);
+      if (statusKey === "cancelled") {
+        return;
+      }
       rows.push({
         id: `standalone:${item.id}`,
         kind: "standalone",
@@ -399,7 +429,9 @@ export function BillingPage({
         bank: item.bank ?? "-",
         status: boletoStatusLabel(statusKey),
         status_key: statusKey,
-        status_loja: "Boleto avulso",
+        type_key: "standalone",
+        type_label: boletoTypeLabel("standalone"),
+        status_loja: boletoTypeLabel("standalone"),
         status_banco: formatEntryStatus(item.status),
         filter_keys: [statusKey, "standalone"],
         selection_key: null,
@@ -426,7 +458,9 @@ export function BillingPage({
         bank: item.bank ?? null,
         status: boletoStatusLabel("paid_pending"),
         status_key: "paid_pending",
-        status_loja: "Pago sem baixa",
+        type_key: "paid_pending",
+        type_label: boletoTypeLabel("paid_pending"),
+        status_loja: boletoTypeLabel("paid_pending"),
         status_banco: formatStatusSummary(item.boletos),
         filter_keys: ["paid_pending"],
         selection_key: null,
@@ -453,7 +487,9 @@ export function BillingPage({
         bank: null,
         status: boletoStatusLabel("missing"),
         status_key: "missing",
-        status_loja: "Boleto faltando",
+        type_key: "missing",
+        type_label: boletoTypeLabel("missing"),
+        status_loja: boletoTypeLabel("missing"),
         status_banco: "-",
         filter_keys: ["missing"],
         selection_key: item.selection_key,
@@ -480,7 +516,9 @@ export function BillingPage({
         bank: item.bank ?? null,
         status: boletoStatusLabel("excess"),
         status_key: "excess",
-        status_loja: "Boleto em excesso",
+        type_key: "excess",
+        type_label: boletoTypeLabel("excess"),
+        status_loja: boletoTypeLabel("excess"),
         status_banco: formatStatusSummary(item.boletos),
         filter_keys: ["excess"],
         selection_key: null,
@@ -557,11 +595,16 @@ export function BillingPage({
   }, [invoiceClientFilters, invoiceDateRange.end, invoiceDateRange.start, invoiceRows, invoiceStatusFilters]);
 
   const filteredBoletos = useMemo(() => {
-    const selectedStatuses = boletoStatusFilters.length
-      ? boletoStatusFilters
-      : (["open", "paid", "overdue", "cancelled", "paid_pending", "missing", "excess", "standalone"] as BoletoStatusKey[]);
+    const selectedStatuses = boletoStatusFilters.length ? boletoStatusFilters : ALL_BOLETO_STATUS_FILTERS;
+    const ignoreDefaultStatusFilter =
+      boletoTypeFilters.length > 0 &&
+      boletoStatusFilters.length === DEFAULT_BOLETO_FILTERS.length &&
+      boletoStatusFilters.every((value, index) => value === DEFAULT_BOLETO_FILTERS[index]);
     return boletoRows
-      .filter((item) => item.filter_keys.some((key) => selectedStatuses.includes(key)))
+      .filter((item) => !boletoTypeFilters.length || boletoTypeFilters.includes(item.type_key))
+      // When the user chooses a type filter from the header, don't keep the default
+      // "Atrasado" filter silently hiding the selected type.
+      .filter((item) => ignoreDefaultStatusFilter || item.filter_keys.some((key) => selectedStatuses.includes(key)))
       .filter((item) => !boletoClientFilters.length || boletoClientFilters.includes(item.client_name))
       .filter((item) => {
         if (!boletoDateRange.start && !boletoDateRange.end) {
@@ -578,15 +621,15 @@ export function BillingPage({
         }
         return true;
       });
-  }, [boletoClientFilters, boletoDateRange.end, boletoDateRange.start, boletoRows, boletoStatusFilters]);
+  }, [boletoClientFilters, boletoDateRange.end, boletoDateRange.start, boletoRows, boletoStatusFilters, boletoTypeFilters]);
 
   useEffect(() => {
     setInvoicePage(1);
-  }, [filteredInvoices.length, invoicePageSize]);
+  }, [invoiceClientFilters, invoiceDateRange.end, invoiceDateRange.start, invoicePageSize, invoiceStatusFilters]);
 
   useEffect(() => {
     setBoletoPage(1);
-  }, [filteredBoletos.length, boletoPageSize]);
+  }, [boletoClientFilters, boletoDateRange.end, boletoDateRange.start, boletoPageSize, boletoStatusFilters, boletoTypeFilters]);
 
   const paginatedInvoices = useMemo(
     () => filteredInvoices.slice((invoicePage - 1) * invoicePageSize, invoicePage * invoicePageSize),
@@ -818,6 +861,40 @@ export function BillingPage({
         </div>
         <div className="entries-column-filter-popover-actions">
           <button className="ghost-button" onClick={onReset} type="button">
+            Limpar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderBoletoTypePopover() {
+    return (
+      <div className="entries-column-filter-popover entries-category-filter-popover">
+        <div className="entries-category-filter-head">
+          <strong>Filtrar tipo</strong>
+          <small className="compact-muted">Use para ver so avulso, excesso, faltando ou recorrente.</small>
+        </div>
+        <div className="entries-category-filter-list">
+          {ALL_BOLETO_TYPE_FILTERS.map((value) => (
+            <label className="entries-category-filter-option" key={value}>
+              <input
+                checked={boletoTypeFilters.includes(value)}
+                onChange={() =>
+                  setBoletoTypeFilters((current) =>
+                    current.includes(value) ? current.filter((item) => item !== value) : [...current, value],
+                  )
+                }
+                type="checkbox"
+              />
+              <div className="entries-category-filter-text">
+                <strong>{boletoTypeLabel(value)}</strong>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div className="entries-column-filter-popover-actions">
+          <button className="ghost-button" onClick={() => setBoletoTypeFilters([])} type="button">
             Limpar
           </button>
         </div>
@@ -1275,7 +1352,7 @@ export function BillingPage({
                   {renderHeaderFilterButton("Status", boletoPopover === "status", () => setBoletoPopover((current) => (current === "status" ? null : "status")))}
                   {boletoPopover === "status"
                     ? renderStatusPopover<BoletoStatusKey>(
-                        ["open", "paid", "overdue", "cancelled", "paid_pending", "missing", "excess", "standalone"],
+                        ALL_BOLETO_STATUS_FILTERS,
                         boletoStatusFilters,
                         (value) =>
                           setBoletoStatusFilters((current) =>
@@ -1285,7 +1362,10 @@ export function BillingPage({
                       )
                     : null}
                 </th>
-                <th>Status loja</th>
+                <th className="billing-filter-header-cell">
+                  {renderHeaderFilterButton("Status loja", boletoPopover === "type", () => setBoletoPopover((current) => (current === "type" ? null : "type")))}
+                  {boletoPopover === "type" ? renderBoletoTypePopover() : null}
+                </th>
                 <th>Banco</th>
                 <th>Acoes</th>
               </tr>
