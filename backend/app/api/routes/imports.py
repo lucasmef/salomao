@@ -199,6 +199,17 @@ def trigger_linx_movements_sync(
             company,
             full_refresh=payload.full_refresh,
         )
+        from app.services.linx_sales_snapshot import _affected_dates_from_batch, rebuild_sales_snapshots_from_movements
+        from app.services.cache_invalidation import clear_dashboard_revenue_comparison_cache
+        batch_id = getattr(result.batch, "id", None)
+        if batch_id:
+            affected_dates = _affected_dates_from_batch(db, company_id=company.id, batch_id=batch_id)
+            if affected_dates:
+                snapshot_result = rebuild_sales_snapshots_from_movements(db, company, affected_dates=affected_dates)
+                if getattr(snapshot_result, "message", None):
+                    result.message = f"{result.message} {snapshot_result.message}"
+                clear_dashboard_revenue_comparison_cache(company_id=company.id)
+
         _finalize_import_refresh(db, company, source_family="movements")
         return result
     except ValueError as error:
@@ -301,3 +312,19 @@ def trigger_inter_statement_sync(
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+@router.get("/rebuild-sales-snapshots", include_in_schema=False)
+def trigger_snapshot_rebuild(db: DbSession):
+    from app.services.linx_sales_snapshot import rebuild_sales_snapshots_from_movements
+    from app.services.cache_invalidation import clear_dashboard_revenue_comparison_cache
+    from app.db.models.security import Company
+    
+    results = []
+    companies = db.query(Company).filter(Company.is_active == True).all()
+    for company in companies:
+        result = rebuild_sales_snapshots_from_movements(db, company, affected_dates=None)
+        clear_dashboard_revenue_comparison_cache(company_id=company.id)
+        results.append({"company": company.trade_name, "message": result.message})
+        db.commit()
+        
+    return {"status": "rebuilt", "results": results}
