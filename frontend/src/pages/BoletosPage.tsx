@@ -2,6 +2,7 @@
 import { MoneyInput } from "../components/MoneyInput";
 import { ModalCloseButton } from "../components/ModalCloseButton";
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
+import { normalizePtBrMoneyInput } from "../lib/money";
 import type { Account, BoletoAlertItem, BoletoClient, BoletoDashboard } from "../types";
 
 type Props = {
@@ -1025,7 +1026,7 @@ export function BoletosPage({
 
   async function handleCreateStandaloneBoleto() {
     const clientName = String(standaloneBoletoDraft.client_name ?? "").trim();
-    const amount = String(standaloneBoletoDraft.amount ?? "").trim();
+    const amount = normalizePtBrMoneyInput(standaloneBoletoDraft.amount);
     const notes = String(standaloneBoletoDraft.notes ?? "").trim();
     await onCreateStandaloneBoleto({
       account_id: standaloneBoletoDraft.account_id || null,

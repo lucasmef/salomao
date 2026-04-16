@@ -54,11 +54,38 @@ export function formatBytes(value: number) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function extractApiErrorMessage(detail: unknown): string | null {
+  if (typeof detail === "string") {
+    return detail;
+  }
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => extractApiErrorMessage(item))
+      .filter((item): item is string => Boolean(item));
+    return messages.length ? messages.join(" | ") : null;
+  }
+  if (detail && typeof detail === "object") {
+    const record = detail as Record<string, unknown>;
+    if (typeof record.msg === "string") {
+      const loc = Array.isArray(record.loc)
+        ? record.loc
+            .filter((item) => typeof item === "string" || typeof item === "number")
+            .join(".")
+        : "";
+      return loc ? `${loc}: ${record.msg}` : record.msg;
+    }
+    if ("detail" in record) {
+      return extractApiErrorMessage(record.detail);
+    }
+  }
+  return null;
+}
+
 export function parseApiError(error: unknown) {
   if (error instanceof Error) {
     try {
-      const parsed = JSON.parse(error.message) as { detail?: string };
-      return parsed.detail ?? error.message;
+      const parsed = JSON.parse(error.message) as { detail?: unknown };
+      return extractApiErrorMessage(parsed.detail) ?? error.message;
     } catch {
       return error.message;
     }
