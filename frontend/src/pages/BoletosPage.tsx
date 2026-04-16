@@ -93,7 +93,7 @@ function getTodayInputDate() {
 }
 
 function uniqueStandaloneClientNames(clients: BoletoClient[]) {
-  return Array.from(new Set(clients.map((item) => item.client_name.trim()).filter(Boolean))).sort((left, right) =>
+  return Array.from(new Set(clients.map((item) => String(item?.client_name ?? "").trim()).filter(Boolean))).sort((left, right) =>
     left.localeCompare(right, "pt-BR"),
   );
 }
@@ -1024,12 +1024,15 @@ export function BoletosPage({
   }
 
   async function handleCreateStandaloneBoleto() {
+    const clientName = String(standaloneBoletoDraft.client_name ?? "").trim();
+    const amount = String(standaloneBoletoDraft.amount ?? "").trim();
+    const notes = String(standaloneBoletoDraft.notes ?? "").trim();
     await onCreateStandaloneBoleto({
       account_id: standaloneBoletoDraft.account_id || null,
-      client_name: standaloneBoletoDraft.client_name.trim(),
-      amount: standaloneBoletoDraft.amount.trim(),
+      client_name: clientName,
+      amount,
       due_date: standaloneBoletoDraft.due_date,
-      notes: standaloneBoletoDraft.notes.trim() || null,
+      notes: notes || null,
     });
     setStandaloneBoletoDraft({
       account_id: "",

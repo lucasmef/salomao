@@ -276,6 +276,66 @@ const emptyBoletoDashboard: BoletoDashboard = {
 
 function normalizeBoletoDashboard(payload: Partial<BoletoDashboard> | null | undefined): BoletoDashboard {
   const nextDashboard = payload ?? {};
+  const safeFiles = Array.isArray(nextDashboard.files)
+    ? nextDashboard.files.filter(
+        (item): item is BoletoDashboard["files"][number] =>
+          Boolean(item) && typeof item === "object" && "source_type" in item,
+      )
+    : emptyBoletoDashboard.files;
+  const safeClients = Array.isArray(nextDashboard.clients)
+    ? nextDashboard.clients.filter(
+        (item): item is BoletoDashboard["clients"][number] =>
+          Boolean(item) && typeof item === "object" && "client_key" in item,
+      )
+    : emptyBoletoDashboard.clients;
+  const safeReceivables = Array.isArray(nextDashboard.receivables)
+    ? nextDashboard.receivables.filter(
+        (item): item is BoletoDashboard["receivables"][number] =>
+          Boolean(item) && typeof item === "object" && "document" in item,
+      )
+    : emptyBoletoDashboard.receivables;
+  const safeOpenBoletos = Array.isArray(nextDashboard.open_boletos)
+    ? nextDashboard.open_boletos.filter(
+        (item): item is BoletoDashboard["open_boletos"][number] =>
+          Boolean(item) && typeof item === "object" && "id" in item,
+      )
+    : emptyBoletoDashboard.open_boletos;
+  const safeOverdueBoletos = Array.isArray(nextDashboard.overdue_boletos)
+    ? nextDashboard.overdue_boletos.filter(
+        (item): item is BoletoDashboard["overdue_boletos"][number] =>
+          Boolean(item) && typeof item === "object" && "selection_key" in item,
+      )
+    : emptyBoletoDashboard.overdue_boletos;
+  const safeOverdueInvoices = Array.isArray(nextDashboard.overdue_invoices)
+    ? nextDashboard.overdue_invoices.filter(
+        (item): item is BoletoDashboard["overdue_invoices"][number] =>
+          Boolean(item) && typeof item === "object" && "client_name" in item,
+      )
+    : emptyBoletoDashboard.overdue_invoices;
+  const safePaidPending = Array.isArray(nextDashboard.paid_pending)
+    ? nextDashboard.paid_pending.filter(
+        (item): item is BoletoDashboard["paid_pending"][number] =>
+          Boolean(item) && typeof item === "object" && "selection_key" in item,
+      )
+    : emptyBoletoDashboard.paid_pending;
+  const safeMissingBoletos = Array.isArray(nextDashboard.missing_boletos)
+    ? nextDashboard.missing_boletos.filter(
+        (item): item is BoletoDashboard["missing_boletos"][number] =>
+          Boolean(item) && typeof item === "object" && "selection_key" in item,
+      )
+    : emptyBoletoDashboard.missing_boletos;
+  const safeExcessBoletos = Array.isArray(nextDashboard.excess_boletos)
+    ? nextDashboard.excess_boletos.filter(
+        (item): item is BoletoDashboard["excess_boletos"][number] =>
+          Boolean(item) && typeof item === "object" && "selection_key" in item,
+      )
+    : emptyBoletoDashboard.excess_boletos;
+  const safeStandaloneBoletos = Array.isArray(nextDashboard.standalone_boletos)
+    ? nextDashboard.standalone_boletos.filter(
+        (item): item is BoletoDashboard["standalone_boletos"][number] =>
+          Boolean(item) && typeof item === "object" && "id" in item,
+      )
+    : emptyBoletoDashboard.standalone_boletos;
   return {
     ...emptyBoletoDashboard,
     ...nextDashboard,
@@ -283,16 +343,16 @@ function normalizeBoletoDashboard(payload: Partial<BoletoDashboard> | null | und
       ...emptyBoletoDashboard.summary,
       ...(nextDashboard.summary ?? {}),
     },
-    files: nextDashboard.files ?? emptyBoletoDashboard.files,
-    clients: nextDashboard.clients ?? emptyBoletoDashboard.clients,
-    receivables: nextDashboard.receivables ?? emptyBoletoDashboard.receivables,
-    open_boletos: nextDashboard.open_boletos ?? emptyBoletoDashboard.open_boletos,
-    overdue_boletos: nextDashboard.overdue_boletos ?? emptyBoletoDashboard.overdue_boletos,
-    overdue_invoices: nextDashboard.overdue_invoices ?? emptyBoletoDashboard.overdue_invoices,
-    paid_pending: nextDashboard.paid_pending ?? emptyBoletoDashboard.paid_pending,
-    missing_boletos: nextDashboard.missing_boletos ?? emptyBoletoDashboard.missing_boletos,
-    excess_boletos: nextDashboard.excess_boletos ?? emptyBoletoDashboard.excess_boletos,
-    standalone_boletos: (nextDashboard.standalone_boletos ?? emptyBoletoDashboard.standalone_boletos).map((item) => ({
+    files: safeFiles,
+    clients: safeClients,
+    receivables: safeReceivables,
+    open_boletos: safeOpenBoletos,
+    overdue_boletos: safeOverdueBoletos,
+    overdue_invoices: safeOverdueInvoices,
+    paid_pending: safePaidPending,
+    missing_boletos: safeMissingBoletos,
+    excess_boletos: safeExcessBoletos,
+    standalone_boletos: safeStandaloneBoletos.map((item) => ({
       ...item,
       bank: item.bank ?? "INTER",
       client_name: item.client_name ?? "",
