@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Select, { type MultiValue, type SingleValue } from "react-select";
 
 import { MoneyInput } from "../components/MoneyInput";
@@ -1462,9 +1462,9 @@ export function PurchasePlanningPage({
     }
     const normalizedAmount = normalizePtBrMoneyInput(inlinePlanEdit.value);
     const collectionSnapshot = snapshot.collections.get(collection.id);
-    const editablePlan =
-      (inlinePlanEdit.plan_id ? collectionSnapshot?.plans.find((plan) => plan.id === inlinePlanEdit.plan_id) ?? null : null) ??
-      getInlineEditablePlan(collectionSnapshot);
+    const editablePlan = inlinePlanEdit.plan_id
+      ? collectionSnapshot?.plans.find((plan) => plan.id === inlinePlanEdit.plan_id)
+      : getInlineEditablePlan(collectionSnapshot);
     const supplierIds = editablePlan?.supplier_ids?.length ? editablePlan.supplier_ids : snapshot.supplierIds;
     const brand = snapshot.brandId ? brandMap.get(snapshot.brandId) : undefined;
     const paymentTerm =

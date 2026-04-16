@@ -4,24 +4,24 @@ version = "0.1.0"
 description = "Backend do gestor financeiro offline"
 requires-python = ">=3.12"
 dependencies = [
-  "alembic>=1.14.0,<2.0.0",
-  "cryptography>=46.0.7,<47.0.0",
-  "fastapi>=0.115.0,<1.0.0",
-  "httpx>=0.27.0,<1.0.0",
+  "alembic>=1.18.0,<2.0.0",
+  "cryptography>=46.0.0,<47.0.0",
+  "fastapi>=0.135.0,<1.0.0",
+  "httpx>=0.28.0,<1.0.0",
   "playwright>=1.58.0,<2.0.0",
-  "psycopg[binary]>=3.2.0,<4.0.0",
-  "uvicorn[standard]>=0.30.0,<1.0.0",
-  "sqlalchemy>=2.0.0,<3.0.0",
-  "pydantic-settings>=2.6.0,<3.0.0",
-  "python-multipart>=0.0.20,<1.0.0",
-  "redis>=6.0.0,<7.0.0"
+  "psycopg[binary]>=3.3.0,<4.0.0",
+  "uvicorn[standard]>=0.44.0,<1.0.0",
+  "sqlalchemy>=2.0.40,<3.0.0",
+  "pydantic-settings>=2.13.0,<3.0.0",
+  "python-multipart>=0.0.26,<1.0.0",
+  "redis>=7.4.0,<8.0.0"
 ]
 
 [project.optional-dependencies]
 dev = [
   "pygments>=2.20.0,<3.0.0",
-  "pytest>=8.0.0,<9.0.0",
-  "ruff>=0.7.0,<1.0.0"
+  "pytest>=9.0.0,<10.0.0",
+  "ruff>=0.15.0,<1.0.0"
 ]
 
 [tool.uv]
