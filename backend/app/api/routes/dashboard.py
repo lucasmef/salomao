@@ -38,3 +38,42 @@ def refresh_dashboard_analytics(
         "status": "refresh_started",
         "refreshed_at": datetime.utcnow().isoformat(timespec="seconds"),
     }
+@router.get("/debug/revenue", include_in_schema=False)
+def debug_revenue_data(db: DbSession):
+    from app.db.models.linx import SalesSnapshot
+    from sqlalchemy import func, select
+    
+    # Summary for 2026
+    summary = db.execute(
+        select(
+            func.count(SalesSnapshot.id),
+            func.sum(SalesSnapshot.gross_revenue),
+            func.min(SalesSnapshot.snapshot_date),
+            func.max(SalesSnapshot.snapshot_date)
+        ).where(SalesSnapshot.snapshot_date >= date(2026, 1, 1))
+    ).one()
+    
+    # Detailed April 2026
+    details = db.execute(
+        select(
+            SalesSnapshot.snapshot_date,
+            SalesSnapshot.gross_revenue,
+            SalesSnapshot.company_id
+        ).where(
+            SalesSnapshot.snapshot_date >= date(2026, 4, 1),
+            SalesSnapshot.snapshot_date <= date(2026, 4, 30)
+        ).order_by(SalesSnapshot.snapshot_date)
+    ).all()
+    
+    return {
+        "summary_2026": {
+            "count": summary[0],
+            "total_revenue": str(summary[1]),
+            "min_date": str(summary[2]),
+            "max_date": str(summary[3]),
+        },
+        "april_details": [
+            {"date": str(d[0]), "revenue": str(d[1]), "company_id": d[2]}
+            for d in details
+        ]
+    }

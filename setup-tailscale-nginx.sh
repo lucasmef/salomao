@@ -10,10 +10,13 @@ OLD_LINK="/etc/nginx/sites-enabled/dev.raquel-talita.vps-kinghost.net"
 echo "Criando diretório para certificados SSL..."
 mkdir -p "$NGINX_SSL_DIR"
 
-echo "Gerando certificados nativos do Tailscale para $DOMAIN..."
-tailscale cert --cert-file "$NGINX_SSL_DIR/$DOMAIN.crt" --key-file "$NGINX_SSL_DIR/$DOMAIN.key" "$DOMAIN"
+SSL_CERT="$NGINX_SSL_DIR/$DOMAIN.crt"
+SSL_KEY="$NGINX_SSL_DIR/$DOMAIN.key"
 
-echo "Configurando Nginx..."
+echo "Gerando certificados nativos do Tailscale para $DOMAIN..."
+tailscale cert --cert-file "$SSL_CERT" --key-file "$SSL_KEY" "$DOMAIN"
+
+echo "Configurando Nginx (Dev Tailscale)..."
 cat > "$CONF_FILE" << 'NGINX'
 server {
     listen 80;
@@ -52,6 +55,38 @@ server {
 NGINX
 
 ln -sf "$CONF_FILE" "$LINK_FILE"
+
+# Hardening: Garantir que domínios não reconhecidos retornem 404
+# Isso resolve o problema de dev.raquel-talita.vps-kinghost.net ainda responder
+DEFAULT_CONF="/etc/nginx/sites-available/default-404"
+DEFAULT_LINK="/etc/nginx/sites-enabled/default-404"
+DOMAIN_OLD="dev.raquel-talita.vps-kinghost.net"
+
+echo "Configurando hardening (default 404)..."
+cat > "$DEFAULT_CONF" << EOF
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    return 404;
+}
+
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name _;
+    ssl_certificate $SSL_CERT;
+    ssl_certificate_key $SSL_KEY;
+    return 404;
+}
+EOF
+
+ln -sf "$DEFAULT_CONF" "$DEFAULT_LINK"
+
+# Remove link padrão antigo do Debian se existir
+[ -L "/etc/nginx/sites-enabled/default" ] && rm "/etc/nginx/sites-enabled/default"
+
+# Remove especificamente o link do domínio antigo se ainda estiver lá
 if [ -L "$OLD_LINK" ]; then
     rm "$OLD_LINK"
 fi
@@ -60,4 +95,4 @@ echo "Testando e reiniciando Nginx..."
 nginx -t
 systemctl restart nginx
 
-echo "Sucesso! Ambiente dev migrado estritamente para Tailscale SSL."
+echo "Sucesso! Ambiente dev migrado estritamente para Tailscale SSL e hardening aplicado."
