@@ -1,18 +1,19 @@
 import { NavLink } from "react-router-dom";
 import { NavIcon } from "./NavIcon";
-import type { AuthUser, NavGroup } from "../types";
+import { MainNavItem } from "../data/navigation";
+import type { AuthUser } from "../types";
 import "./AppSidebar.css";
 
 type Props = {
   collapsed: boolean;
-  groups: NavGroup[];
+  groups: MainNavItem[];
   section: string;
   user: AuthUser;
   onToggle: () => void;
   onLogout: () => void;
 };
 
-export function AppSidebar({ collapsed, groups, section, onToggle, onLogout }: Props) {
+export function AppSidebar({ collapsed, groups, onToggle, onLogout }: Props) {
   return (
     <aside className={`app-sidebar ${collapsed ? "is-collapsed" : ""}`}>
       <div className="sidebar-header">
@@ -26,23 +27,20 @@ export function AppSidebar({ collapsed, groups, section, onToggle, onLogout }: P
       </div>
 
       <nav className="sidebar-nav-container">
-        {groups.map((group) => (
-          <div key={group.id} className="nav-group">
-            {!collapsed && <h3 className="group-title">{group.label}</h3>}
+        {groups.map((item) => (
+          <div key={item.key} className="nav-group">
+            {!collapsed && <h3 className="group-title">{item.label}</h3>}
             <div className="group-items">
-              {group.items.map((item) => (
-                <NavLink
-                  key={item.id}
-                  to={item.path}
-                  className={({ isActive }) => `nav-item ${isActive ? "is-active" : ""}`}
-                  title={item.label}
-                >
-                  <span className="item-icon">
-                    <NavIcon name={item.icon} />
-                  </span>
-                  {!collapsed && <span className="item-label">{item.label}</span>}
-                </NavLink>
-              ))}
+              <NavLink
+                to={item.path}
+                className={({ isActive }) => `nav-item ${isActive ? "is-active" : ""}`}
+                title={item.label}
+              >
+                <span className="item-icon">
+                  <NavIcon name={item.icon} />
+                </span>
+                {!collapsed && <span className="item-label">{item.label}</span>}
+              </NavLink>
             </div>
           </div>
         ))}

@@ -1,9 +1,13 @@
+import type { NavIconName, SectionId } from "../types";
+
 export type MainNavChild = {
   key: string;
   label: string;
   path: string;
   title: string;
   description: string;
+  id?: SectionId;
+  icon?: NavIconName;
   children?: MainNavChild[];
 };
 
@@ -13,6 +17,8 @@ export type MainNavItem = {
   path: string;
   title: string;
   description: string;
+  id: SectionId;
+  icon: NavIconName;
   children: MainNavChild[];
 };
 
@@ -22,6 +28,8 @@ export const overviewNavigationItem: MainNavItem = {
   path: "/overview/resumo",
   title: "Visão Geral",
   description: "Leitura gerencial consolidada do período com indicadores e saldos.",
+  id: "overview",
+  icon: "overview",
   children: [
     {
       key: "resumo",
@@ -40,6 +48,8 @@ export const mainNavigation: MainNavItem[] = [
     path: "/financeiro/lancamentos",
     title: "Lançamentos",
     description: "Consulta principal, filtros, baixas e títulos em aberto em uma única tela.",
+    id: "lancamentos",
+    icon: "finance",
     children: [
       {
         key: "lancamentos",
@@ -56,6 +66,8 @@ export const mainNavigation: MainNavItem[] = [
     path: "/financeiro/conciliacao",
     title: "Conciliação",
     description: "Extrato bancário, importação OFX e conciliação com o sistema financeiro.",
+    id: "conciliacao",
+    icon: "reconciliation",
     children: [
       {
         key: "conciliacao",
@@ -72,6 +84,8 @@ export const mainNavigation: MainNavItem[] = [
     path: "/financeiro/cobranca/faturas",
     title: "Cobrança",
     description: "Cobrança operacional consolidada em faturas e boletos.",
+    id: "boletos",
+    icon: "billing",
     children: [
       {
         key: "faturas",
@@ -95,6 +109,8 @@ export const mainNavigation: MainNavItem[] = [
     path: "/compras/planejamento",
     title: "Compras",
     description: "Planejamento operacional das compras, notas fiscais e devoluções.",
+    id: "planejamento",
+    icon: "planning",
     children: [
       {
         key: "planejamento",
@@ -111,6 +127,8 @@ export const mainNavigation: MainNavItem[] = [
     path: "/caixa-resultados/fluxo-caixa",
     title: "Resultados",
     description: "Fluxo de caixa, demonstrativos e comparativos de desempenho.",
+    id: "caixa",
+    icon: "cashflow",
     children: [
       {
         key: "fluxo-caixa",
@@ -155,6 +173,8 @@ export const mainNavigation: MainNavItem[] = [
     path: "/cadastros/contas",
     title: "Sistema",
     description: "Administração, cadastros base, segurança e importações técnicas.",
+    id: "cadastros",
+    icon: "security",
     children: [
       {
         key: "contas",

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
-import { mainNavigation } from "../data/navigation";
+import { mainNavigation, overviewNavigationItem } from "../data/navigation";
 import type { AuthUser } from "../types";
 import "./AppShell.css";
 
@@ -37,10 +37,9 @@ export function AppShell({
     <div className={`app-shell-container ${sidebarCollapsed ? "is-collapsed" : ""}`}>
       <AppSidebar
         collapsed={sidebarCollapsed}
-        groups={mainNavigation}
+        groups={[overviewNavigationItem, ...mainNavigation]}
         onLogout={onLogout}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-        section={location.pathname}
         user={user}
       />
 
