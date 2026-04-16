@@ -302,7 +302,10 @@ export function OverviewSectionPage({
                 <tbody>
                   {(dashboard?.account_balances ?? []).map((account) => (
                     <tr className={account.exclude_from_balance ? "is-ignored-account" : ""} key={account.account_id}>
-                      <td>{account.account_name}</td>
+                      <td>
+                        {account.account_name}
+                        {account.exclude_from_balance && <span className="ignored-badge"> (Ignorado)</span>}
+                      </td>
                       <td className="numeric-cell">{formatMoney(account.current_balance)}</td>
                     </tr>
                   ))}

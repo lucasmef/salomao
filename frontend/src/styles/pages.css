@@ -1016,6 +1016,14 @@ textarea {
 .is-ignored-account td {
   color: #8fa0b5 !important;
 }
+ 
+.ignored-badge {
+  font-size: 0.7rem;
+  font-style: italic;
+  font-weight: normal;
+  opacity: 0.8;
+  margin-left: 4px;
+}
 
 .reconciliation-balance-empty {
   padding: 8px;

@@ -317,7 +317,10 @@ export function CashflowPage({
             <div className="reconciliation-balance-popover">
               {(cashflow?.account_balances ?? []).map((item) => (
                 <div className={`reconciliation-balance-row ${item.exclude_from_balance ? "is-ignored-account" : ""}`} key={item.account_id}>
-                  <span title={`${item.account_name} | ${item.account_type}`}>{item.account_name}</span>
+                  <span title={`${item.account_name} | ${item.account_type}`}>
+                    {item.account_name}
+                    {item.exclude_from_balance && <span className="ignored-badge"> (Ignorado)</span>}
+                  </span>
                   <strong>{formatMoneyNumber(item.current_balance)}</strong>
                 </div>
               ))}

@@ -1129,7 +1129,10 @@ export function ReconciliationPage({
             <div className="reconciliation-balance-popover">
               {(worklist?.account_balances ?? []).map((account) => (
                 <div className={`reconciliation-balance-row ${account.exclude_from_balance ? "is-ignored-account" : ""}`} key={account.account_id}>
-                  <span title={compactSingleLine(account.account_name)}>{compactSingleLine(account.account_name)}</span>
+                  <span title={compactSingleLine(account.account_name)}>
+                    {compactSingleLine(account.account_name)}
+                    {account.exclude_from_balance && <span className="ignored-badge"> (Ignorado)</span>}
+                  </span>
                   <strong>{formatMoney(account.current_balance)}</strong>
                 </div>
               ))}
