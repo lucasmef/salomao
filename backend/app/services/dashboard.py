@@ -109,6 +109,7 @@ def _get_revenue_comparison_totals(
     current_year: int,
     *,
     today: date | None = None,
+    refresh: bool = False,
 ) -> dict[tuple[int, int], Decimal]:
     reference_day = today or date.today()
     previous_year = current_year - 1
@@ -138,7 +139,7 @@ def _get_revenue_comparison_totals(
             start=start_date,
             end=cacheable_end,
             params=cache_params,
-        )
+        ) if not refresh else None
         if cached_payload is not None:
             historical_totals = {
                 (int(item["year"]), int(item["month"])): Decimal(item["amount"])
@@ -186,6 +187,7 @@ def build_dashboard_overview(
     end: date,
     reports_override=None,
     cashflow_override=None,
+    refresh: bool = False,
 ) -> DashboardOverview:
     reports = reports_override or get_cached_reports_overview(db, company, start=start, end=end)
     cashflow = cashflow_override or get_cached_cashflow_overview(db, company, start_date=start, end_date=end)
@@ -250,7 +252,7 @@ def build_dashboard_overview(
 
     current_year = end.year
     previous_year = current_year - 1
-    revenue_by_year_month = _get_revenue_comparison_totals(db, company.id, current_year)
+    revenue_by_year_month = _get_revenue_comparison_totals(db, company.id, current_year, refresh=refresh)
     revenue_comparison = DashboardRevenueComparison(
         current_year=current_year,
         previous_year=previous_year,
@@ -326,6 +328,8 @@ def get_cached_dashboard_overview(
     end: date,
     refresh: bool = False,
 ) -> DashboardOverview:
+    refresh = True # TEMPORARY FORCE
+
     if not is_full_month_period(start, end):
         if refresh:
             reports = get_cached_reports_overview(db, company, start=start, end=end, refresh=True)
@@ -337,6 +341,7 @@ def get_cached_dashboard_overview(
                 end=end,
                 reports_override=reports,
                 cashflow_override=cashflow,
+                refresh=refresh,
             )
         return build_dashboard_overview(db, company, start=start, end=end)
     if is_historical_period(start, end):
@@ -350,6 +355,7 @@ def get_cached_dashboard_overview(
                 end=end,
                 reports_override=reports,
                 cashflow_override=cashflow,
+                refresh=refresh,
             )
             upsert_monthly_snapshot(
                 db,
@@ -365,7 +371,7 @@ def get_cached_dashboard_overview(
             company=company,
             kind=ANALYTICS_DASHBOARD_OVERVIEW,
             snapshot_month=start,
-            build_func=lambda: build_dashboard_overview(db, company, start=start, end=end),
+            build_func=lambda: build_dashboard_overview(db, company, start=start, end=end, refresh=refresh),
         )
     ttl_seconds = _overview_cache_ttl_seconds(start, end)
     if not refresh:
@@ -388,9 +394,10 @@ def get_cached_dashboard_overview(
             end=end,
             reports_override=reports,
             cashflow_override=cashflow,
+            refresh=refresh,
         )
     else:
-        overview = build_dashboard_overview(db, company, start=start, end=end)
+        overview = build_dashboard_overview(db, company, start=start, end=end, refresh=refresh)
     if ttl_seconds:
         write_live_cache(
             overview,
