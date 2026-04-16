@@ -368,7 +368,7 @@ def get_cached_dashboard_overview(
             build_func=lambda: build_dashboard_overview(db, company, start=start, end=end),
         )
     ttl_seconds = _overview_cache_ttl_seconds(start, end)
-    if False and not refresh:
+    if not refresh:
         cached = read_live_cache(
             DashboardOverview,
             kind=ANALYTICS_DASHBOARD_OVERVIEW,
