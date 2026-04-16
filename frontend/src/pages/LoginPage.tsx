@@ -19,32 +19,21 @@ type Props = {
   onCancelChallenge: () => void;
 };
 
-const highlights = [
-  "Fluxo de caixa, DRE e DRO no mesmo painel",
-  "Importacoes e conciliacao com trilha operacional",
-  "Cobranca, boletos e controle de recebiveis em um fluxo unico",
+const highlights = ["Fluxo de caixa vivo", "Cobranca integrada", "Governanca com auditoria"];
+
+const dashboardKpis = [
+  { label: "Caixa projetado", value: "R$ 412 mil", tone: "primary" },
+  { label: "Recebiveis", value: "128 titulos", tone: "neutral" },
+  { label: "Atrasos criticos", value: "7 clientes", tone: "warning" },
 ];
 
-const pillars = [
-  {
-    title: "Operacao viva",
-    body: "Acompanhe entradas, saidas e cobranca com leitura rapida para a rotina do escritorio.",
-  },
-  {
-    title: "Controle financeiro",
-    body: "Centralize caixa, faturamento, conciliacao, relatorios gerenciais e governanca em uma unica camada.",
-  },
-  {
-    title: "Seguranca aplicada",
-    body: "Acesso com MFA, trilha de auditoria e separacao clara entre processos locais e online.",
-  },
+const dashboardRows = [
+  { client: "Clinica Aurora", status: "Atrasado", amount: "R$ 18.420" },
+  { client: "Grupo Vértice", status: "Pago", amount: "R$ 42.900" },
+  { client: "Orto Prime", status: "Em aberto", amount: "R$ 9.870" },
 ];
 
-const statCards = [
-  { value: "Financeiro", label: "operacao centralizada" },
-  { value: "Cobranca", label: "visao consolidada" },
-  { value: "Auditoria", label: "seguranca rastreavel" },
-];
+const proofPoints = ["DRE e DRO", "Conciliacao", "Boletos", "Auditoria"];
 
 export function LoginPage({ loading, challenge, onLogin, onVerifyMfa, onConfirmMfaSetup, onCancelChallenge }: Props) {
   const [email, setEmail] = useState("");
@@ -93,10 +82,10 @@ export function LoginPage({ loading, challenge, onLogin, onVerifyMfa, onConfirmM
           </div>
 
           <div className="login-hero-copy">
-            <h1>Uma entrada unica para comandar a operacao financeira do Salomao.</h1>
+            <h1>Controle financeiro com cara de produto, nao de tela fria de sistema.</h1>
             <p className="supporting">
-              Acesse caixa, cobranca, conciliacao, auditoria e relatorios em uma experiencia pensada para decisao
-              rapida e rotina pesada.
+              O Salomao organiza caixa, cobranca, conciliacao e relatorios em uma operacao visual, direta e pronta para
+              uso diario.
             </p>
           </div>
 
@@ -109,21 +98,82 @@ export function LoginPage({ loading, challenge, onLogin, onVerifyMfa, onConfirmM
             ))}
           </div>
 
-          <div className="login-stat-grid">
-            {statCards.map((card) => (
-              <article className="login-stat-card" key={card.value}>
-                <strong>{card.value}</strong>
-                <span>{card.label}</span>
-              </article>
-            ))}
+          <div className="login-visual-stage">
+            <div className="login-dashboard-window">
+              <div className="login-dashboard-topbar">
+                <div className="login-dashboard-dots">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <div className="login-dashboard-title">Painel financeiro Salomao</div>
+              </div>
+
+              <div className="login-dashboard-body">
+                <aside className="login-dashboard-sidebar">
+                  <span className="is-active">Overview</span>
+                  <span>Cobranca</span>
+                  <span>Fluxo</span>
+                  <span>Relatorios</span>
+                </aside>
+
+                <div className="login-dashboard-main">
+                  <div className="login-dashboard-kpis">
+                    {dashboardKpis.map((item) => (
+                      <article className={`login-dashboard-kpi is-${item.tone}`.trim()} key={item.label}>
+                        <span>{item.label}</span>
+                        <strong>{item.value}</strong>
+                      </article>
+                    ))}
+                  </div>
+
+                  <div className="login-dashboard-grid">
+                    <section className="login-dashboard-chart">
+                      <div className="login-chart-bars" aria-hidden="true">
+                        <span style={{ height: "44%" }} />
+                        <span style={{ height: "63%" }} />
+                        <span style={{ height: "57%" }} />
+                        <span style={{ height: "78%" }} />
+                        <span style={{ height: "72%" }} />
+                        <span style={{ height: "88%" }} />
+                        <span style={{ height: "68%" }} />
+                      </div>
+                    </section>
+
+                    <section className="login-dashboard-list">
+                      {dashboardRows.map((row) => (
+                        <article className="login-dashboard-row" key={row.client}>
+                          <div>
+                            <strong>{row.client}</strong>
+                            <span>{row.status}</span>
+                          </div>
+                          <b>{row.amount}</b>
+                        </article>
+                      ))}
+                    </section>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <article className="login-floating-card login-floating-card-primary">
+              <span>Fluxo de caixa</span>
+              <strong>+12,4%</strong>
+              <small>comparado ao fechamento anterior</small>
+            </article>
+
+            <article className="login-floating-card login-floating-card-secondary">
+              <span>Cobranca</span>
+              <strong>Inter + avulso</strong>
+              <small>operacao centralizada</small>
+            </article>
           </div>
 
-          <div className="login-pillar-grid">
-            {pillars.map((pillar) => (
-              <article className="login-pillar-card" key={pillar.title}>
-                <strong>{pillar.title}</strong>
-                <p>{pillar.body}</p>
-              </article>
+          <div className="login-proof-strip">
+            {proofPoints.map((item) => (
+              <span className="login-proof-chip" key={item}>
+                {item}
+              </span>
             ))}
           </div>
         </div>
