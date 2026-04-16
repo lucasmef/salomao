@@ -307,6 +307,14 @@ export function MasterDataPage({
                 />
                 Conta ativa
               </label>
+              <label className="checkbox-line">
+                <input
+                  type="checkbox"
+                  checked={accountForm.import_ofx_enabled}
+                  onChange={(event) =>
+                    setAccountForm({ ...accountForm, import_ofx_enabled: event.target.checked })
+                  }
+                />
                 Importa OFX
               </label>
               <label className="checkbox-line">
