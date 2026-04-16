@@ -540,7 +540,7 @@ def build_cashflow_overview(
         db.scalars(
             select(Account).where(
                 Account.company_id == company.id,
-                Account.is_active.is_(True),
+                or_(Account.is_active.is_(True), Account.exclude_from_balance.is_(True)),
             )
         )
     )

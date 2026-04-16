@@ -427,7 +427,7 @@ def build_reconciliation_worklist(
             for account in db.scalars(
                 select(Account).where(
                     Account.company_id == company.id,
-                    Account.is_active.is_(True),
+                    or_(Account.is_active.is_(True), Account.exclude_from_balance.is_(True)),
                 )
             )
             if account.account_type != RECEIVABLES_CONTROL_ACCOUNT_TYPE
