@@ -2877,6 +2877,7 @@ textarea {
 .billing-table-shell {
   max-height: none;
   overflow: visible;
+  margin-top: 8px;
 }
 
 .billing-table-shell--expanded {
@@ -3101,6 +3102,7 @@ textarea {
 }
 
 .billing-column-filter-popover {
+  min-width: 280px;
   right: 0;
   left: auto;
   z-index: 20;
@@ -3419,6 +3421,8 @@ textarea {
 
 .billing-filter-header-cell {
   position: relative;
+  overflow: visible;
+  z-index: 1;
 }
 
 .billing-filter-header-button {

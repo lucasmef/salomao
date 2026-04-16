@@ -107,7 +107,7 @@ type BoletoRow = {
   local_status: string | null;
 };
 
-const PAGE_SIZE_OPTIONS = [25, 50, 100];
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 const DEFAULT_PAGE_SIZE = 25;
 const DEFAULT_INVOICE_FILTERS: InvoiceStatusKey[] = ["overdue"];
 const DEFAULT_BOLETO_FILTERS: BoletoStatusKey[] = ["overdue"];
@@ -144,6 +144,13 @@ function matchesDateRange(value: string | null | undefined, range: DateRange) {
     return false;
   }
   return true;
+}
+
+function resolvePageSizeLimit(pageSize: number, total: number) {
+  if (pageSize === -1) {
+    return Math.max(total, 1);
+  }
+  return pageSize;
 }
 
 function uniqueValues(values: Array<string | null | undefined>) {
@@ -629,11 +636,17 @@ export function BillingPage({
   }, [boletoBankFilters, boletoClientFilters, boletoDateRange, boletoIssueDateRange, boletoPageSize, boletoStatusFilters, boletoTypeFilters]);
 
   const paginatedInvoices = useMemo(
-    () => filteredInvoices.slice((invoicePage - 1) * invoicePageSize, invoicePage * invoicePageSize),
+    () => {
+      const limit = resolvePageSizeLimit(invoicePageSize, filteredInvoices.length);
+      return filteredInvoices.slice((invoicePage - 1) * limit, invoicePage * limit);
+    },
     [filteredInvoices, invoicePage, invoicePageSize],
   );
   const paginatedBoletos = useMemo(
-    () => filteredBoletos.slice((boletoPage - 1) * boletoPageSize, boletoPage * boletoPageSize),
+    () => {
+      const limit = resolvePageSizeLimit(boletoPageSize, filteredBoletos.length);
+      return filteredBoletos.slice((boletoPage - 1) * limit, boletoPage * limit);
+    },
     [filteredBoletos, boletoPage, boletoPageSize],
   );
   const visibleMissingPageKeys = useMemo(
@@ -865,10 +878,9 @@ export function BillingPage({
       return boletoStatusLabel(value as BoletoStatusKey);
     };
     return (
-      <div className="entries-column-filter-popover entries-category-filter-popover">
+      <div className="entries-floating-panel entries-column-filter-popover entries-category-filter-popover billing-column-filter-popover">
         <div className="entries-category-filter-head">
           <strong>Filtrar status</strong>
-          <small className="compact-muted">Selecione um ou mais status.</small>
         </div>
         <div className="entries-category-filter-list">
           {values.map((value) => (
@@ -891,10 +903,9 @@ export function BillingPage({
 
   function renderBoletoTypePopover() {
     return (
-      <div className="entries-column-filter-popover entries-category-filter-popover">
+      <div className="entries-floating-panel entries-column-filter-popover entries-category-filter-popover billing-column-filter-popover">
         <div className="entries-category-filter-head">
           <strong>Filtrar tipo</strong>
-          <small className="compact-muted">Use para ver so avulso, excesso, faltando ou recorrente.</small>
         </div>
         <div className="entries-category-filter-list">
           {ALL_BOLETO_TYPE_FILTERS.map((value) => (
@@ -925,10 +936,9 @@ export function BillingPage({
 
   function renderBankPopover() {
     return (
-      <div className="entries-column-filter-popover entries-category-filter-popover">
+      <div className="entries-floating-panel entries-column-filter-popover entries-category-filter-popover billing-column-filter-popover">
         <div className="entries-category-filter-head">
           <strong>Filtrar banco</strong>
-          <small className="compact-muted">Selecione um ou mais bancos.</small>
         </div>
         <div className="entries-category-filter-list">
           {boletoBanks.map((value) => (
@@ -967,10 +977,9 @@ export function BillingPage({
     onReset: () => void,
   ) {
     return (
-      <div className="entries-column-filter-popover entries-category-filter-popover">
+      <div className="entries-floating-panel entries-column-filter-popover entries-category-filter-popover billing-column-filter-popover">
         <div className="entries-category-filter-head">
           <strong>Filtrar cliente</strong>
-          <small className="compact-muted">A busca so aparece aqui no titulo da tabela.</small>
         </div>
         <div className="billing-filter-search">
           <input placeholder="Buscar cliente" type="search" value={search} onChange={(event) => onSearchChange(event.target.value)} />
@@ -990,7 +999,6 @@ export function BillingPage({
           <button className="ghost-button" onClick={onReset} type="button">
             Limpar
           </button>
-          <small className="compact-muted">{selectedValues.length || values.length} visivel(is)</small>
         </div>
       </div>
     );
@@ -1003,10 +1011,9 @@ export function BillingPage({
     onClear: () => void,
   ) {
     return (
-      <div className="entries-column-filter-popover entries-category-filter-popover">
+      <div className="entries-floating-panel entries-column-filter-popover entries-category-filter-popover billing-column-filter-popover">
         <div className="entries-category-filter-head">
-          <strong>Filtrar vencimento</strong>
-          <small className="compact-muted">Defina inicio e fim do periodo.</small>
+          <strong>Filtrar periodo</strong>
         </div>
         <div className="billing-date-filter-grid">
           <label className="billing-date-filter-field">
@@ -1037,9 +1044,10 @@ export function BillingPage({
     onPageChange: (nextPage: number) => void,
     onPageSizeChange: (nextSize: number) => void,
   ) {
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
-    const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
-    const end = Math.min(total, page * pageSize);
+    const effectivePageSize = resolvePageSizeLimit(pageSize, total);
+    const totalPages = Math.max(1, Math.ceil(total / effectivePageSize));
+    const start = total === 0 ? 0 : (page - 1) * effectivePageSize + 1;
+    const end = Math.min(total, page * effectivePageSize);
     return (
       <div className="table-pagination">
         <div className="table-pagination-meta">
@@ -1047,13 +1055,14 @@ export function BillingPage({
         </div>
         <div className="table-pagination-actions">
           <label className="pagination-size">
-            <span>Pagina</span>
-            <select value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
+            <span>Linhas</span>
+            <select value={String(pageSize)} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
               {PAGE_SIZE_OPTIONS.map((option) => (
-                <option key={option} value={option}>
+                <option key={option} value={String(option)}>
                   {option}
                 </option>
               ))}
+              <option value="-1">Todos</option>
             </select>
           </label>
           <button className="secondary-button" disabled={page <= 1} onClick={() => onPageChange(page - 1)} type="button">
@@ -1101,13 +1110,14 @@ export function BillingPage({
         <div className="panel-title compact-title-row">
           <div>
             <h3>Faturas</h3>
-            <small className="compact-muted">Inicia filtrado por atrasado e usa a carga mais recente de faturas.</small>
           </div>
           <div className="action-row">
             {renderFileMeta("linx_receivables")}
             <span>{filteredInvoices.length}</span>
           </div>
         </div>
+
+        {renderTablePagination(filteredInvoices.length, invoicePage, invoicePageSize, setInvoicePage, setInvoicePageSize)}
 
         <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
           <table className="erp-table entries-list-table billing-alert-table billing-open-receivables-table">
@@ -1205,7 +1215,6 @@ export function BillingPage({
           </table>
         </div>
 
-        {renderTablePagination(filteredInvoices.length, invoicePage, invoicePageSize, setInvoicePage, setInvoicePageSize)}
       </section>
     );
   }
@@ -1294,7 +1303,6 @@ export function BillingPage({
         <div className="panel-title compact-title-row">
           <div>
             <h3>Boletos</h3>
-            <small className="compact-muted">Aba consolidada com status operacional, status banco e cobrancas avulsas.</small>
           </div>
           <div className="action-row">
             <button className="secondary-button" disabled={submitting} onClick={() => setClientsModalOpen(true)} type="button">
@@ -1332,6 +1340,8 @@ export function BillingPage({
             <span>{filteredBoletos.length}</span>
           </div>
         </div>
+
+        {renderTablePagination(filteredBoletos.length, boletoPage, boletoPageSize, setBoletoPage, setBoletoPageSize)}
 
         <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
           <table className="erp-table entries-list-table billing-alert-table billing-open-boletos-table">
@@ -1498,7 +1508,6 @@ export function BillingPage({
           </table>
         </div>
 
-        {renderTablePagination(filteredBoletos.length, boletoPage, boletoPageSize, setBoletoPage, setBoletoPageSize)}
       </section>
     );
   }
