@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useLocation } from "react-router-dom";
-import { AppSidebar } from "./AppSidebar";
+import { NavLink, useLocation } from "react-router-dom";
 import { mainNavigation, overviewNavigationItem } from "../data/navigation";
 import type { AuthUser } from "../types";
 import "./AppShell.css";
@@ -27,74 +26,112 @@ export function AppShell({
   busyLabel = "",
 }: Props) {
   const location = useLocation();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    // Optional: auto-collapse on mobile, etc.
+    setMobileMenuOpen(false);
   }, [location.pathname]);
 
-  return (
-    <div className={`app-shell-container ${sidebarCollapsed ? "is-collapsed" : ""}`}>
-      <AppSidebar
-        collapsed={sidebarCollapsed}
-        groups={[overviewNavigationItem, ...mainNavigation]}
-        onLogout={onLogout}
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-        user={user}
-      />
+  const allNavigation = [overviewNavigationItem, ...mainNavigation];
 
-      <div className="app-main-view">
-        <header className="app-top-bar">
-          <div className="top-bar-left">
-            {busy && busyLabel ? (
-              <div className="status-indicator">
-                <span className="dot pulse" />
-                <span className="label">{busyLabel}</span>
-              </div>
-            ) : (
-              <div className="page-context">
-                <span className="context-label">Plataforma Salomão</span>
-              </div>
-            )}
+  return (
+    <div className="modern-shell">
+      <header className="main-header">
+        <div className="header-inner">
+          <div className="header-brand">
+            <NavLink to="/overview/resumo" className="brand-link">
+              <span className="brand-logo">S</span>
+              <span className="brand-text">Salomão</span>
+            </NavLink>
           </div>
 
-          <div className="top-bar-center">
+          <nav className="header-nav">
+            {allNavigation.map((item) => (
+              <NavLink
+                key={item.key}
+                to={item.path}
+                className={({ isActive }) => `nav-link ${isActive ? "is-active" : ""}`}
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+
+          <div className="header-actions">
             <form
-              className="global-search-form"
+              className="top-search"
               onSubmit={(e) => {
                 e.preventDefault();
                 onSubmitGlobalProductSearch();
               }}
             >
-              <span className="search-icon">🔍</span>
               <input
                 onChange={(e) => onGlobalProductSearchChange(e.target.value)}
-                placeholder="Buscar produto (Ctrl + K)"
+                placeholder="Buscar produto..."
                 type="text"
                 value={globalProductSearch}
               />
             </form>
-          </div>
 
-          <div className="top-bar-right">
-            <div className="user-profile">
-              <div className="user-info">
-                <span className="user-name">{user.full_name}</span>
-                <span className="user-role">{user.role}</span>
-              </div>
-              <div className="user-avatar">{user.full_name.charAt(0)}</div>
+            <div className="user-dropdown">
+              <button className="user-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+                <div className="avatar small">{user.full_name.charAt(0)}</div>
+                <span className="user-name-compact">{user.full_name.split(" ")[0]}</span>
+              </button>
+              
+              {mobileMenuOpen && (
+                <div className="user-menu-popover">
+                  <div className="popover-header">
+                    <strong>{user.full_name}</strong>
+                    <span>{user.email}</span>
+                  </div>
+                  <div className="popover-divider" />
+                  <button className="logout-item" onClick={onLogout}>
+                    Sair do Sistema
+                  </button>
+                </div>
+              )}
             </div>
+            
+            <button className="mobile-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+              {mobileMenuOpen ? "✕" : "☰"}
+            </button>
           </div>
-        </header>
-
-        <main className="app-content-area">
-          {children}
-        </main>
-
-        <div className={`global-progress-bar ${busy ? "is-active" : ""}`}>
-          <div className="progress-fill" />
         </div>
+      </header>
+
+      <div className={`mobile-nav-overlay ${mobileMenuOpen ? "is-open" : ""}`}>
+        <nav className="mobile-nav-links">
+          {allNavigation.map((item) => (
+            <NavLink
+              key={item.key}
+              to={item.path}
+              className="mobile-nav-item"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              {item.label}
+            </NavLink>
+          ))}
+          <div className="popover-divider" />
+          <button className="logout-item" onClick={onLogout}>
+            Sair do Sistema
+          </button>
+        </nav>
       </div>
+
+      <main className="main-viewport">
+        {busy && busyLabel && (
+          <div className="top-busy-banner">
+            <span className="spinner" />
+            <span>{busyLabel}</span>
+          </div>
+        )}
+        <div className="viewport-container">
+          {children}
+        </div>
+      </main>
+
+      <div className={`top-loading-bar ${busy ? "is-active" : ""}`} />
     </div>
   );
 }

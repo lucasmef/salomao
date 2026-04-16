@@ -7,11 +7,13 @@
 
 .tabs-container {
   display: flex;
-  gap: 0.5rem;
-  background: #f1f5f9;
-  padding: 6px;
-  border-radius: 14px;
+  gap: 0.25rem;
+  background: white;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
   width: fit-content;
+  box-shadow: var(--shadow-sm);
 }
 
 .tab-link {
