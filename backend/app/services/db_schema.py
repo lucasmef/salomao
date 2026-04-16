@@ -343,6 +343,7 @@ def ensure_schema_updates(engine: Engine) -> None:
 
         account_columns = {
             "import_ofx_enabled": "BOOLEAN DEFAULT 0",
+            "exclude_from_balance": "BOOLEAN DEFAULT 0",
             "inter_api_enabled": "BOOLEAN DEFAULT 0",
             "inter_environment": "VARCHAR(20) DEFAULT 'production'",
             "inter_api_base_url": "VARCHAR(255)",

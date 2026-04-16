@@ -97,6 +97,7 @@ export type Account = {
   opening_balance: string;
   is_active?: boolean;
   import_ofx_enabled?: boolean;
+  exclude_from_balance?: boolean;
   inter_api_enabled?: boolean;
   inter_environment?: string;
   inter_api_base_url?: string | null;

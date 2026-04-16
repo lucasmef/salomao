@@ -5,6 +5,7 @@ from app.api.deps import CurrentUser, DbSession
 from app.core.crypto import encrypt_text
 from app.db.models.finance import Account
 from app.schemas.account import AccountCreate, AccountRead
+from app.services.analytics_hybrid import invalidate_live_analytics, queue_historical_rebuilds
 from app.services.audit import write_audit_log
 from app.services.company_context import get_current_company
 
@@ -23,6 +24,7 @@ def _serialize_account(account: Account) -> AccountRead:
         opening_balance=account.opening_balance,
         is_active=account.is_active,
         import_ofx_enabled=account.import_ofx_enabled,
+        exclude_from_balance=account.exclude_from_balance,
         inter_api_enabled=account.inter_api_enabled,
         inter_environment=account.inter_environment,
         inter_api_base_url=account.inter_api_base_url,
@@ -91,6 +93,14 @@ def create_account(payload: AccountCreate, db: DbSession, current_user: CurrentU
     db.flush()
     if account.inter_api_enabled:
         _ensure_single_inter_account(db, company.id, account.id)
+
+    invalidate_live_analytics(company.id)
+    queue_historical_rebuilds(
+        db,
+        company_id=company.id,
+        reason="account_balance_settings_changed",
+    )
+
     write_audit_log(
         db,
         action="create_account",
@@ -102,6 +112,7 @@ def create_account(payload: AccountCreate, db: DbSession, current_user: CurrentU
             "name": account.name,
             "account_type": account.account_type,
             "import_ofx_enabled": account.import_ofx_enabled,
+            "exclude_from_balance": account.exclude_from_balance,
         },
     )
     db.commit()
@@ -125,11 +136,20 @@ def update_account(
         "account_type": account.account_type,
         "is_active": account.is_active,
         "import_ofx_enabled": account.import_ofx_enabled,
+        "exclude_from_balance": account.exclude_from_balance,
     }
     _apply_account_payload(account, payload, preserve_inter_secrets=True)
     db.flush()
     if account.inter_api_enabled:
         _ensure_single_inter_account(db, company.id, account.id)
+
+    invalidate_live_analytics(company.id)
+    queue_historical_rebuilds(
+        db,
+        company_id=company.id,
+        reason="account_balance_settings_changed",
+    )
+
     write_audit_log(
         db,
         action="update_account",
@@ -143,6 +163,7 @@ def update_account(
             "account_type": account.account_type,
             "is_active": account.is_active,
             "import_ofx_enabled": account.import_ofx_enabled,
+            "exclude_from_balance": account.exclude_from_balance,
         },
     )
     db.commit()

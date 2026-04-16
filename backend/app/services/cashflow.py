@@ -37,6 +37,10 @@ HISTORICAL_MONTH_CASHFLOW_CACHE_TTL_SECONDS = 604800
 MAX_CASHFLOW_CACHE_ITEMS = 48
 
 
+def _should_ignore_account_in_consolidated_balance(account: Account) -> bool:
+    return account.account_type == RECEIVABLES_CONTROL_ACCOUNT_TYPE or bool(account.exclude_from_balance)
+
+
 @dataclass(slots=True)
 class CashflowOverviewCacheEntry:
     expires_at: float
@@ -450,6 +454,7 @@ def _future_events(
     account_id: str | None = None,
     include_purchase_planning: bool = True,
     include_crediario_receivables: bool = True,
+    ignored_account_ids: set[str] | None = None,
 ) -> list[CashflowEvent]:
     events: list[CashflowEvent] = []
 
@@ -487,6 +492,8 @@ def _future_events(
     )
     for entry in planned_entries:
         if account_id and entry.account_id != account_id:
+            continue
+        if ignored_account_ids and entry.account_id and entry.account_id in ignored_account_ids:
             continue
         remaining_amount = Decimal(entry.total_amount) - Decimal(entry.paid_amount or 0)
         if remaining_amount <= 0:
@@ -537,10 +544,14 @@ def build_cashflow_overview(
             )
         )
     )
+    ignored_account_ids: set[str] = set()
     if account_id:
         accounts = [account for account in accounts if account.id == account_id]
     else:
-        accounts = [account for account in accounts if account.account_type != RECEIVABLES_CONTROL_ACCOUNT_TYPE]
+        ignored_account_ids = {
+            account.id for account in accounts if _should_ignore_account_in_consolidated_balance(account)
+        }
+        accounts = [account for account in accounts if not _should_ignore_account_in_consolidated_balance(account)]
     account_balances: list[AccountBalance] = []
     current_balance = Decimal("0.00")
     for account in accounts:
@@ -563,6 +574,7 @@ def build_cashflow_overview(
         account_id=account_id,
         include_purchase_planning=include_purchase_planning,
         include_crediario_receivables=include_crediario_receivables,
+        ignored_account_ids=ignored_account_ids,
     )
 
     planned_purchase_outflows = sum((event.planned_purchase_outflow for event in events), Decimal("0.00"))

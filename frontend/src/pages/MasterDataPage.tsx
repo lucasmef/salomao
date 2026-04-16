@@ -30,6 +30,7 @@ const emptyAccount = {
   opening_balance: "0.00",
   is_active: true,
   import_ofx_enabled: true,
+  exclude_from_balance: false,
   inter_api_enabled: false,
   inter_environment: "production",
   inter_api_base_url: "",
@@ -306,15 +307,17 @@ export function MasterDataPage({
                 />
                 Conta ativa
               </label>
+                Importa OFX
+              </label>
               <label className="checkbox-line">
                 <input
                   type="checkbox"
-                  checked={accountForm.import_ofx_enabled}
+                  checked={accountForm.exclude_from_balance}
                   onChange={(event) =>
-                    setAccountForm({ ...accountForm, import_ofx_enabled: event.target.checked })
+                    setAccountForm({ ...accountForm, exclude_from_balance: event.target.checked })
                   }
                 />
-                Importa OFX
+                Ignorar no saldo e no fluxo de caixa
               </label>
               <label className="checkbox-line">
                 <input
@@ -550,6 +553,7 @@ export function MasterDataPage({
                   <th>Tipo</th>
                   <th>Saldo inicial</th>
                   <th>OFX</th>
+                  <th>Saldo</th>
                   <th>Inter</th>
                   <th>Status</th>
                   <th></th>
@@ -562,6 +566,7 @@ export function MasterDataPage({
                     <td>{account.account_type}</td>
                     <td>{formatMoney(account.opening_balance)}</td>
                     <td>{account.import_ofx_enabled ? "Habilitado" : "Bloqueado"}</td>
+                    <td>{account.exclude_from_balance ? "Ignorado" : "Considerado"}</td>
                     <td>
                       {account.inter_api_enabled
                         ? account.has_inter_client_secret && account.has_inter_certificate && account.has_inter_private_key
@@ -585,6 +590,7 @@ export function MasterDataPage({
                             opening_balance: account.opening_balance,
                             is_active: account.is_active ?? true,
                             import_ofx_enabled: account.import_ofx_enabled ?? false,
+                            exclude_from_balance: account.exclude_from_balance ?? false,
                             inter_api_enabled: account.inter_api_enabled ?? false,
                             inter_environment: account.inter_environment ?? "production",
                             inter_api_base_url: account.inter_api_base_url ?? "",

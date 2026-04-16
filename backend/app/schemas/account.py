@@ -12,6 +12,7 @@ class AccountBase(BaseModel):
     opening_balance: Decimal = Decimal("0.00")
     is_active: bool = True
     import_ofx_enabled: bool = False
+    exclude_from_balance: bool = False
     inter_api_enabled: bool = False
     inter_environment: str = Field(default="production", max_length=20)
     inter_api_base_url: str | None = Field(default=None, max_length=255)

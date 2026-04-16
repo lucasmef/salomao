@@ -430,7 +430,7 @@ def build_reconciliation_worklist(
                     Account.is_active.is_(True),
                 )
             )
-            if account.account_type != RECEIVABLES_CONTROL_ACCOUNT_TYPE
+            if account.account_type != RECEIVABLES_CONTROL_ACCOUNT_TYPE and not account.exclude_from_balance
         ],
         key=lambda item: (item.name or "").lower(),
     )
