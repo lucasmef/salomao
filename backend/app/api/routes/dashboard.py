@@ -41,7 +41,10 @@ def refresh_dashboard_analytics(
 @router.get("/debug/revenue", include_in_schema=False)
 def debug_revenue_data(db: DbSession):
     from app.db.models.linx import SalesSnapshot
+    from app.services.company_context import get_current_company
     from sqlalchemy import func, select
+    
+    company = get_current_company(db)
     
     # Summary for 2026
     summary = db.execute(
@@ -50,22 +53,33 @@ def debug_revenue_data(db: DbSession):
             func.sum(SalesSnapshot.gross_revenue),
             func.min(SalesSnapshot.snapshot_date),
             func.max(SalesSnapshot.snapshot_date)
-        ).where(SalesSnapshot.snapshot_date >= date(2026, 1, 1))
+        ).where(
+            SalesSnapshot.company_id == company.id,
+            SalesSnapshot.snapshot_date >= date(2026, 1, 1)
+        )
     ).one()
     
     # Detailed April 2026
     details = db.execute(
         select(
             SalesSnapshot.snapshot_date,
-            SalesSnapshot.gross_revenue,
-            SalesSnapshot.company_id
+            SalesSnapshot.gross_revenue
         ).where(
+            SalesSnapshot.company_id == company.id,
             SalesSnapshot.snapshot_date >= date(2026, 4, 1),
             SalesSnapshot.snapshot_date <= date(2026, 4, 30)
         ).order_by(SalesSnapshot.snapshot_date)
     ).all()
     
     return {
+        "company": {
+            "id": company.id,
+            "name": company.trade_name,
+            "linx_sync_enabled": company.linx_auto_sync_enabled,
+            "linx_last_run": str(company.linx_auto_sync_last_run_at),
+            "linx_last_status": company.linx_auto_sync_last_status,
+            "linx_last_error": company.linx_auto_sync_last_error,
+        },
         "summary_2026": {
             "count": summary[0],
             "total_revenue": str(summary[1]),
@@ -73,7 +87,7 @@ def debug_revenue_data(db: DbSession):
             "max_date": str(summary[3]),
         },
         "april_details": [
-            {"date": str(d[0]), "revenue": str(d[1]), "company_id": d[2]}
+            {"date": str(d[0]), "revenue": str(d[1])}
             for d in details
         ]
     }
