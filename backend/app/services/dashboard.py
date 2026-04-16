@@ -337,7 +337,6 @@ def get_cached_dashboard_overview(
     end: date,
     refresh: bool = False,
 ) -> DashboardOverview:
-    refresh = True # TEMPORARY FORCE
 
     if not is_full_month_period(start, end):
         if refresh:
