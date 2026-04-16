@@ -31,19 +31,32 @@ if [[ ! -d "$APP_DIR/.git" ]]; then
   git clone "$REPO_URL" "$APP_DIR"
 fi
 
-echo "==> Sincronizando checkout $APP_DIR com $GIT_REF"
-git -C "$APP_DIR" reset --hard HEAD
-git -C "$APP_DIR" clean -fd
-git -C "$APP_DIR" fetch --all --prune
+echo "==> Sincronizando checkout em $APP_DIR"
+git -C "$APP_DIR" fetch --all --prune --tags --quiet
 
+# Resolve o SHA alvo a partir do GIT_REF informado
+TARGET_SHA=$(git -C "$APP_DIR" rev-parse --verify "$GIT_REF^{commit}")
+echo "==> Ref alvo: $GIT_REF"
+echo "==> SHA alvo: $TARGET_SHA"
+
+# Limpeza e sincronizacao
+git -C "$APP_DIR" reset --hard HEAD --quiet
+git -C "$APP_DIR" clean -fd --quiet
+
+# Tenta checkout inteligente:
+# 1. Se for uma branch remota (origin/ref), cria/reseta branch local
+# 2. Caso contrario (SHA ou tag), faz checkout desatachado (detached HEAD)
 if git -C "$APP_DIR" show-ref --verify --quiet "refs/remotes/origin/$GIT_REF"; then
-  git -C "$APP_DIR" checkout -B "$GIT_REF" "origin/$GIT_REF"
-  git -C "$APP_DIR" reset --hard "origin/$GIT_REF"
+  echo "==> Detectado branch remota. Sincronizando branch local..."
+  git -C "$APP_DIR" checkout -B "$GIT_REF" "origin/$GIT_REF" --quiet
+  git -C "$APP_DIR" reset --hard "origin/$GIT_REF" --quiet
 else
-  git -C "$APP_DIR" checkout "$GIT_REF"
+  echo "==> Fazendo checkout imutavel (detached HEAD)..."
+  git -C "$APP_DIR" checkout "$TARGET_SHA" --quiet
 fi
 
-git -C "$APP_DIR" clean -fd
+# Limpeza final
+git -C "$APP_DIR" clean -fd --quiet
 
-FINAL_SHA="$(git -C "$APP_DIR" rev-parse HEAD)"
-echo "==> Checkout sincronizado: $GIT_REF @ $FINAL_SHA"
+FINAL_SHA=$(git -C "$APP_DIR" rev-parse HEAD)
+echo "==> Checkout sincronizado com sucesso: @ $FINAL_SHA"

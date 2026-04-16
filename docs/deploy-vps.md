@@ -11,13 +11,13 @@ Nao existe mais deploy local, empacotamento desktop ou fluxo operacional via exe
 
 ## Branches oficiais
 
-- branch `dev` publica no ambiente `dev` (homologacao)
-- branch `main` publica no ambiente `prod` (producao)
+- branch `dev`: publica no ambiente `dev` (homologacao) e serve de base para promocoes.
+- branch `main`: espelho (mirror) do que esta em producao no ambiente `prod`.
 
 Checkouts esperados no servidor:
 
 - `/srv/salomao/dev/app` → segue `origin/dev`
-- `/srv/salomao/prod/app` → segue `origin/main`
+- `/srv/salomao/prod/app` → segue o SHA imutavel implantado (detached HEAD)
 
 Servicos esperados:
 
@@ -46,7 +46,8 @@ O SSH fica sempre restrito ao Tailscale.
 2. Quando precisar validar com dados reais: rodar `Refresh Dev DB`
 3. Testar no ambiente dev com dados reais (janela de validacao)
 4. Quando a validacao terminar: rodar `Sanitize Dev DB`
-5. Quando pronto para producao: merge `dev → main` e rodar `Deploy Prod`
+5. Quando pronto para producao: rodar o workflow `Deploy Prod` (Promocao de Commit).
+6. O workflow resolve o SHA da `dev`, publica em producao e entao atualiza a `main`.
 
 ### Modo seguro
 
@@ -113,14 +114,20 @@ O script `deploy-dev.sh` delega para `deploy-vps.sh dev`, que:
 
 ## Deploy de producao
 
-Deploy sempre manual via GitHub Actions (`Deploy Prod`).
+Deploy sempre manual via GitHub Actions (`Deploy Prod`) usando o modelo de **Promocao de Commit**.
+
+Diferente do ambiente dev, a producao nao segue uma branch mutavel. O workflow resolve um SHA unico e imutavel (por padrao o `HEAD` da `dev`) e garante que apenas esse commit seja implantado.
 
 O workflow executa:
 
-1. `sync-checkout-to-ref.sh /srv/salomao/prod/app main`
-2. `deploy-prod.sh`
-3. `check-prod.sh`
-4. healthcheck em `http://127.0.0.1:8100/api/v1/health`
+1. **Resolucao e Validacao**: Identifica o SHA alvo e garante que ele pertence a linhagem da branch `dev`.
+2. **Sincronizacao**: `sync-checkout-to-ref.sh /srv/salomao/prod/app <TARGET_SHA>`
+3. **Deploy**: `deploy-prod.sh`
+4. **Auditoria**: `check-prod.sh`
+5. **Healthcheck**: em `http://127.0.0.1:8100/api/v1/health`
+6. **Espelhamento (Mirroring)**: Atualiza a branch `main` remota para apontar para o SHA implantado.
+
+Para promover um commit especifico (ex: tag ou SHA antigo), use o modo `specific_ref` nos inputs do workflow.
 
 ## Auditoria de producao
 

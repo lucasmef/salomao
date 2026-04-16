@@ -2,9 +2,24 @@ name: Deploy Prod
 
 on:
   workflow_dispatch:
+    inputs:
+      promotion_mode:
+        description: "Modo de promocao"
+        required: true
+        default: "latest_dev"
+        type: choice
+        options:
+          - latest_dev
+          - specific_ref
+      ref:
+        description: "SHA, tag ou branch (usado apenas se promotion_mode = specific_ref)"
+        required: false
+        type: string
+
+run-name: "Deploy Prod: ${{ inputs.promotion_mode }}${{ github.event.inputs.ref && format(' ({0})', github.event.inputs.ref) || '' }} por ${{ github.actor }}"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: salomao-deploy-prod
@@ -17,10 +32,44 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolver e Validar SHA
+        id: resolve
+        run: |
+          echo "==> Modo: ${{ inputs.promotion_mode }}"
+          
+          git fetch origin dev --tags --quiet
+          
+          if [[ "${{ inputs.promotion_mode }}" == "latest_dev" ]]; then
+            TARGET_SHA=$(git rev-parse origin/dev)
+            echo "==> Promovendo o HEAD da branch dev"
+          else
+            REF="${{ inputs.ref }}"
+            if [[ -z "$REF" ]]; then
+              echo "!!! ERRO: Promotion mode 'specific_ref' exige que o campo 'ref' seja preenchido."
+              exit 1
+            fi
+            TARGET_SHA=$(git rev-parse "$REF^{commit}")
+            echo "==> Promovendo ref especifica: $REF"
+          fi
+          
+          echo "==> SHA resolvido: $TARGET_SHA"
+          
+          # Validacao de linhagem: o commit deve pertencer a historia da branch dev
+          if ! git merge-base --is-ancestor "$TARGET_SHA" origin/dev; then
+            echo "!!! ERRO: O commit $TARGET_SHA nao faz parte da linhagem da branch 'dev'."
+            echo "Por seguranca, apenas commits que passaram por dev podem ser promovidos para prod."
+            exit 1
+          fi
+          
+          echo "TARGET_SHA=$TARGET_SHA" >> $GITHUB_OUTPUT
+          echo "==> Validacao concluida com sucesso."
 
       - name: Sincronizar checkout prod
         run: |
-          bash scripts/sync-checkout-to-ref.sh /srv/salomao/prod/app main
+          bash scripts/sync-checkout-to-ref.sh /srv/salomao/prod/app ${{ steps.resolve.outputs.TARGET_SHA }}
 
       - name: Deploy prod
         run: |
@@ -34,4 +83,20 @@ jobs:
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8100/api/v1/health
           echo
-          echo "Deploy prod concluido com sucesso"
+          echo "Deploy prod (@ ${{ steps.resolve.outputs.TARGET_SHA }}) concluido com sucesso"
+
+      - name: Atualizar branch main (Mirror)
+        run: |
+          TARGET_SHA=${{ steps.resolve.outputs.TARGET_SHA }}
+          echo "==> Atualizando branch 'main' para o commit implantado: $TARGET_SHA"
+          
+          # Tenta atualizar a main remota para o mesmo SHA
+          # Se houver protecao de branch, este passo deve falhar para sinalizar a discrepancia.
+          if git push origin "$TARGET_SHA:refs/heads/main" --force-with-lease; then
+            echo "==> Branch 'main' atualizada com sucesso."
+          else
+            echo "!!! ERRO: Nao foi possivel atualizar a branch 'main' automaticamente."
+            echo "Causa provavel: Branch Protection (regras de protecao de branch no GitHub)."
+            echo "A acao recomendada e fazer um merge manual de fast-forward da dev para a main."
+            exit 1
+          fi
