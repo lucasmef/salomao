@@ -3349,6 +3349,17 @@ textarea {
   width: 36px;
 }
 
+.billing-selection-stack {
+  display: inline-grid;
+  gap: 4px;
+  justify-items: center;
+}
+
+.billing-selection-placeholder {
+  width: 14px;
+  height: 14px;
+}
+
 .billing-open-boletos-table input[type="checkbox"] {
   width: 14px;
   height: 14px;
@@ -3404,6 +3415,82 @@ textarea {
 .billing-open-boletos-table .icon-only-button .button-icon {
   width: 13px;
   height: 13px;
+}
+
+.billing-filter-header-cell {
+  position: relative;
+}
+
+.billing-filter-header-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.billing-filter-search {
+  margin-top: 10px;
+}
+
+.billing-filter-search input {
+  width: 100%;
+  min-height: 34px;
+}
+
+.billing-date-filter-grid {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.billing-date-filter-field {
+  display: grid;
+  gap: 4px;
+  color: #607087;
+  font-size: 0.74rem;
+}
+
+.billing-date-filter-field input {
+  min-height: 34px;
+}
+
+.billing-status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.billing-status-pill.is-open {
+  background: #eef6ff;
+  color: #2458b8;
+}
+
+.billing-status-pill.is-paid {
+  background: #ebfbf2;
+  color: #1f7a45;
+}
+
+.billing-status-pill.is-overdue,
+.billing-status-pill.is-missing,
+.billing-status-pill.is-excess {
+  background: #fff1ef;
+  color: #b5473f;
+}
+
+.billing-status-pill.is-cancelled {
+  background: #f2f4f7;
+  color: #667085;
+}
+
+.billing-status-pill.is-paid_pending,
+.billing-status-pill.is-standalone {
+  background: #fff7e8;
+  color: #9a6700;
 }
 
 @media (max-width: 1100px) {

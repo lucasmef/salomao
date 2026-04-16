@@ -102,6 +102,7 @@ class BoletoReceivableRead(BaseModel):
     corrected_amount: Decimal
     document: str
     status: str
+    status_bucket: str = "open"
 
 
 class BoletoRecordRead(BaseModel):
@@ -115,6 +116,7 @@ class BoletoRecordRead(BaseModel):
     amount: Decimal
     paid_amount: Decimal
     status: str
+    status_bucket: str = "open"
     barcode: str | None = None
     linha_digitavel: str | None = None
     pix_copia_e_cola: str | None = None
@@ -133,6 +135,7 @@ class StandaloneBoletoRead(BaseModel):
     amount: Decimal
     paid_amount: Decimal
     status: str
+    status_bucket: str = "open"
     local_status: str
     description: str | None = None
     notes: str | None = None
@@ -179,7 +182,9 @@ class BoletoDashboardRead(BaseModel):
     summary: BoletoSummaryRead
     clients: list[BoletoClientRead]
     receivables: list[BoletoReceivableRead]
+    invoice_items: list[BoletoReceivableRead] = []
     open_boletos: list[BoletoRecordRead]
+    all_boletos: list[BoletoRecordRead] = []
     overdue_boletos: list[BoletoMatchItem]
     overdue_invoices: list[BoletoOverdueInvoiceSummaryRead]
     paid_pending: list[BoletoMatchItem]

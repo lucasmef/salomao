@@ -265,7 +265,9 @@ const emptyBoletoDashboard: BoletoDashboard = {
   },
   clients: [],
   receivables: [],
+  invoice_items: [],
   open_boletos: [],
+  all_boletos: [],
   overdue_boletos: [],
   overdue_invoices: [],
   paid_pending: [],
@@ -294,12 +296,24 @@ function normalizeBoletoDashboard(payload: Partial<BoletoDashboard> | null | und
           Boolean(item) && typeof item === "object" && "document" in item,
       )
     : emptyBoletoDashboard.receivables;
+  const safeInvoiceItems = Array.isArray(nextDashboard.invoice_items)
+    ? nextDashboard.invoice_items.filter(
+        (item): item is BoletoDashboard["invoice_items"][number] =>
+          Boolean(item) && typeof item === "object" && "document" in item,
+      )
+    : emptyBoletoDashboard.invoice_items;
   const safeOpenBoletos = Array.isArray(nextDashboard.open_boletos)
     ? nextDashboard.open_boletos.filter(
         (item): item is BoletoDashboard["open_boletos"][number] =>
           Boolean(item) && typeof item === "object" && "id" in item,
       )
     : emptyBoletoDashboard.open_boletos;
+  const safeAllBoletos = Array.isArray(nextDashboard.all_boletos)
+    ? nextDashboard.all_boletos.filter(
+        (item): item is BoletoDashboard["all_boletos"][number] =>
+          Boolean(item) && typeof item === "object" && "id" in item,
+      )
+    : emptyBoletoDashboard.all_boletos;
   const safeOverdueBoletos = Array.isArray(nextDashboard.overdue_boletos)
     ? nextDashboard.overdue_boletos.filter(
         (item): item is BoletoDashboard["overdue_boletos"][number] =>
@@ -345,8 +359,24 @@ function normalizeBoletoDashboard(payload: Partial<BoletoDashboard> | null | und
     },
     files: safeFiles,
     clients: safeClients,
-    receivables: safeReceivables,
-    open_boletos: safeOpenBoletos,
+    receivables: safeReceivables.map((item) => ({
+      ...item,
+      status_bucket: item.status_bucket ?? "open",
+    })),
+    invoice_items: safeInvoiceItems.map((item) => ({
+      ...item,
+      status_bucket: item.status_bucket ?? "open",
+    })),
+    open_boletos: safeOpenBoletos.map((item) => ({
+      ...item,
+      status_bucket: item.status_bucket ?? "open",
+      payment_date: item.payment_date ?? null,
+    })),
+    all_boletos: safeAllBoletos.map((item) => ({
+      ...item,
+      status_bucket: item.status_bucket ?? "open",
+      payment_date: item.payment_date ?? null,
+    })),
     overdue_boletos: safeOverdueBoletos,
     overdue_invoices: safeOverdueInvoices,
     paid_pending: safePaidPending,
@@ -359,6 +389,7 @@ function normalizeBoletoDashboard(payload: Partial<BoletoDashboard> | null | und
       document_id: item.document_id ?? "",
       paid_amount: item.paid_amount ?? "0.00",
       status: item.status ?? "",
+      status_bucket: item.status_bucket ?? "open",
       local_status: item.local_status ?? "open",
       description: item.description ?? null,
       notes: item.notes ?? null,
@@ -437,7 +468,7 @@ const emptyLinxOpenReceivableDirectory: LinxOpenReceivableDirectory = {
 
 const RECONCILIATION_WORKLIST_LIMIT = 200;
 
-const BoletosPage = lazy(() => import("./pages/BoletosPage").then((module) => ({ default: module.BoletosPage })));
+const BillingPage = lazy(() => import("./pages/BillingPage").then((module) => ({ default: module.BillingPage })));
 const CadastrosClientsPage = lazy(() =>
   import("./pages/CadastrosClientsPage").then((module) => ({ default: module.CadastrosClientsPage })),
 );
@@ -2769,16 +2800,18 @@ function AppRuntime() {
           }
           path="/financeiro/conciliacao"
         />
-        <Route element={<Navigate replace to="/financeiro/cobranca/faturas-em-aberto" />} path="/financeiro/cobranca" />
-        <Route element={<Navigate replace to="/financeiro/cobranca/faturas-em-aberto" />} path="/financeiro/cobranca/resumo" />
+        <Route element={<Navigate replace to="/financeiro/cobranca/faturas" />} path="/financeiro/cobranca" />
+        <Route element={<Navigate replace to="/financeiro/cobranca/faturas" />} path="/financeiro/cobranca/resumo" />
+        <Route element={<Navigate replace to="/financeiro/cobranca/faturas" />} path="/financeiro/cobranca/faturas-em-aberto" />
+        <Route element={<Navigate replace to="/financeiro/cobranca/boletos" />} path="/financeiro/cobranca/boletos-em-aberto" />
+        <Route element={<Navigate replace to="/financeiro/cobranca/boletos" />} path="/financeiro/cobranca/atrasados" />
+        <Route element={<Navigate replace to="/financeiro/cobranca/boletos" />} path="/financeiro/cobranca/pagas-sem-baixa" />
+        <Route element={<Navigate replace to="/financeiro/cobranca/boletos" />} path="/financeiro/cobranca/boletos-faltando" />
+        <Route element={<Navigate replace to="/financeiro/cobranca/boletos" />} path="/financeiro/cobranca/boletos-avulsos" />
+        <Route element={<Navigate replace to="/financeiro/cobranca/boletos" />} path="/financeiro/cobranca/boletos-em-excesso" />
         {[
-        { key: "faturas-em-aberto", path: "/financeiro/cobranca/faturas-em-aberto", view: "open" as const },
-        { key: "boletos-em-aberto", path: "/financeiro/cobranca/boletos-em-aberto", view: "open-boletos" as const },
-        { key: "atrasados", path: "/financeiro/cobranca/atrasados", view: "overdue" as const },
-        { key: "pagas-sem-baixa", path: "/financeiro/cobranca/pagas-sem-baixa", view: "paid-pending" as const },
-        { key: "boletos-faltando", path: "/financeiro/cobranca/boletos-faltando", view: "missing" as const },
-        { key: "boletos-avulsos", path: "/financeiro/cobranca/boletos-avulsos", view: "standalone" as const },
-        { key: "boletos-em-excesso", path: "/financeiro/cobranca/boletos-em-excesso", view: "excess" as const },
+        { key: "faturas", path: "/financeiro/cobranca/faturas", view: "invoices" as const },
+        { key: "boletos", path: "/financeiro/cobranca/boletos", view: "boletos" as const },
       ].map((billingRoute) => {
           const billingTab =
             billingNavigation.children.find((item) => item.key === billingRoute.key) ?? billingNavigation.children[0];
@@ -2793,7 +2826,7 @@ function AppRuntime() {
                 tabs={billingNavigation.children}
                 title={billingTab.title}
               >
-                <BoletosPage
+                <BillingPage
                   accounts={accounts}
                   view={billingRoute.view}
                   onCancelInterBoleto={cancelInterBoleto}

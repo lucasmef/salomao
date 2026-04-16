@@ -769,6 +769,17 @@ def _receivable_is_open(status: str) -> bool:
     return True
 
 
+def _receivable_status_bucket(status: str, due_date: date | None, *, today: date) -> str:
+    normalized = normalize_text(status).lower()
+    if any(keyword in normalized for keyword in CANCELLED_RECEIVABLE_STATUS_KEYWORDS):
+        return "cancelled"
+    if any(keyword in normalized for keyword in PAID_RECEIVABLE_STATUS_KEYWORDS):
+        return "paid"
+    if due_date and due_date < today:
+        return "overdue"
+    return "open"
+
+
 def _build_linx_customer_lookup(db: Session, company_id: str) -> LinxCustomerLookup:
     customers = list(
         db.scalars(
@@ -899,6 +910,48 @@ def _load_receivable_items(db: Session, company_id: str) -> list[ReceivableItem]
             )
         )
     return items
+
+
+def _load_all_receivable_items(db: Session, company_id: str) -> list[ReceivableItem]:
+    latest_batch = db.scalar(
+        select(ImportBatch)
+        .where(
+            ImportBatch.company_id == company_id,
+            ImportBatch.source_type == "linx_receivables",
+            ImportBatch.status == "processed",
+        )
+        .order_by(desc(ImportBatch.created_at))
+        .limit(1)
+    )
+    if latest_batch:
+        items: list[ReceivableItem] = []
+        for title in db.scalars(
+            select(ReceivableTitle)
+            .where(
+                ReceivableTitle.company_id == company_id,
+                ReceivableTitle.source_batch_id == latest_batch.id,
+            )
+            .order_by(ReceivableTitle.due_date.asc(), ReceivableTitle.customer_name.asc())
+        ):
+            client_name, inline_code = split_client_name(title.customer_name.strip())
+            items.append(
+                ReceivableItem(
+                    client_name=client_name,
+                    client_code=title.company_code or inline_code or "",
+                    client_key=normalize_text(client_name),
+                    issue_date=title.issue_date,
+                    due_date=title.due_date,
+                    invoice_number=title.invoice_number or "",
+                    installment=title.installment_label or "",
+                    amount=Decimal(title.original_amount or 0),
+                    corrected_amount=Decimal(title.amount_with_interest or title.original_amount or 0),
+                    document=title.document_reference or "",
+                    status=title.status,
+                )
+            )
+        if items:
+            return items
+    return _load_receivable_items(db, company_id)
 
 
 def _load_customer_configs(db: Session, company_id: str) -> dict[str, BoletoCustomerConfig]:
@@ -1277,10 +1330,16 @@ def _serialize_receivable(receivable: ReceivableItem) -> BoletoReceivableRead:
         corrected_amount=receivable.corrected_amount,
         document=receivable.document,
         status=receivable.status,
+        status_bucket=_receivable_status_bucket(receivable.status, receivable.due_date, today=date.today()),
     )
 
 
 def _serialize_boleto(boleto: BoletoRecord) -> BoletoRecordRead:
+    status_bucket = _boleto_status_bucket(boleto)
+    if status_bucket == "active" and boleto.due_date and boleto.due_date < date.today():
+        status_bucket = "overdue"
+    elif status_bucket == "active":
+        status_bucket = "open"
     return BoletoRecordRead(
         id=boleto.id,
         bank=boleto.bank,
@@ -1292,6 +1351,7 @@ def _serialize_boleto(boleto: BoletoRecord) -> BoletoRecordRead:
         amount=Decimal(boleto.amount or 0),
         paid_amount=Decimal(boleto.paid_amount or 0),
         status=boleto.status,
+        status_bucket=status_bucket,
         barcode=boleto.barcode,
         linha_digitavel=boleto.linha_digitavel,
         pix_copia_e_cola=boleto.pix_copia_e_cola,
@@ -1302,6 +1362,15 @@ def _serialize_boleto(boleto: BoletoRecord) -> BoletoRecordRead:
 
 
 def _serialize_standalone_boleto(boleto: StandaloneBoletoRecord) -> StandaloneBoletoRead:
+    normalized_status = normalize_text(boleto.status).lower()
+    if "cancelado" in normalized_status:
+        status_bucket = "cancelled"
+    elif "recebido" in normalized_status or "pago" in normalized_status:
+        status_bucket = "paid"
+    elif boleto.due_date and boleto.due_date < date.today():
+        status_bucket = "overdue"
+    else:
+        status_bucket = "open"
     return StandaloneBoletoRead(
         id=boleto.id,
         bank=boleto.bank,
@@ -1312,6 +1381,7 @@ def _serialize_standalone_boleto(boleto: StandaloneBoletoRecord) -> StandaloneBo
         amount=Decimal(boleto.amount or 0),
         paid_amount=Decimal(boleto.paid_amount or 0),
         status=boleto.status,
+        status_bucket=status_bucket,
         local_status=boleto.local_status,
         description=boleto.description,
         notes=boleto.notes,
@@ -1325,23 +1395,6 @@ def _serialize_standalone_boleto(boleto: StandaloneBoletoRecord) -> StandaloneBo
         pdf_available=bool(boleto.bank == "INTER" and boleto.inter_codigo_solicitacao),
         downloaded_at=boleto.downloaded_at.isoformat() if boleto.downloaded_at else None,
     )
-
-
-def _serialize_receivable(receivable: ReceivableItem) -> BoletoReceivableRead:
-    return BoletoReceivableRead(
-        client_name=receivable.client_name,
-        client_code=receivable.client_code or None,
-        invoice_number=receivable.invoice_number,
-        installment=receivable.installment,
-        issue_date=receivable.issue_date,
-        due_date=receivable.due_date,
-        amount=receivable.amount,
-        corrected_amount=receivable.corrected_amount,
-        document=receivable.document,
-        status=receivable.status,
-    )
-
-
 def _build_overdue_boleto_item(
     *,
     client_key: str,
@@ -1531,6 +1584,7 @@ def build_boleto_dashboard(
 ) -> BoletoDashboardRead:
     today = date.today()
     receivables = _load_receivable_items(db, company.id)
+    invoice_items = _load_all_receivable_items(db, company.id)
     boleto_records = list(db.scalars(select(BoletoRecord).where(BoletoRecord.company_id == company.id)))
     standalone_boleto_records = list(
         db.scalars(
@@ -1871,7 +1925,15 @@ def build_boleto_dashboard(
             [_serialize_receivable(item) for item in receivables],
             key=lambda item: (item.due_date or date.max, item.client_name, item.invoice_number, item.installment),
         ),
+        invoice_items=sorted(
+            [_serialize_receivable(item) for item in invoice_items],
+            key=lambda item: (item.due_date or date.max, item.client_name, item.invoice_number, item.installment),
+        ),
         open_boletos=open_boletos,
+        all_boletos=sorted(
+            [_serialize_boleto(item) for item in boleto_records],
+            key=lambda item: (item.due_date or date.max, item.client_name, item.document_id),
+        ),
         overdue_boletos=sorted(overdue_boletos, key=lambda item: (item.due_date or date.max, item.client_name)),
         overdue_invoices=sorted(overdue_invoices, key=lambda item: (-item.days_overdue, -item.overdue_amount, item.client_name)),
         paid_pending=sorted(paid_pending, key=lambda item: (item.client_name, item.due_date or date.max, item.amount)),

@@ -449,6 +449,20 @@ export type BoletoDashboard = {
     corrected_amount: string;
     document: string;
     status: string;
+    status_bucket: string;
+  }>;
+  invoice_items: Array<{
+    client_name: string;
+    client_code: string | null;
+    invoice_number: string;
+    installment: string;
+    issue_date: string | null;
+    due_date: string | null;
+    amount: string;
+    corrected_amount: string;
+    document: string;
+    status: string;
+    status_bucket: string;
   }>;
   open_boletos: Array<{
     id: string;
@@ -457,9 +471,30 @@ export type BoletoDashboard = {
     document_id: string;
     issue_date: string | null;
     due_date: string | null;
+    payment_date?: string | null;
     amount: string;
     paid_amount: string;
     status: string;
+    status_bucket: string;
+    barcode: string | null;
+    linha_digitavel: string | null;
+    pix_copia_e_cola: string | null;
+    inter_codigo_solicitacao: string | null;
+    inter_account_id: string | null;
+    pdf_available: boolean;
+  }>;
+  all_boletos: Array<{
+    id: string;
+    bank: string;
+    client_name: string;
+    document_id: string;
+    issue_date: string | null;
+    due_date: string | null;
+    payment_date?: string | null;
+    amount: string;
+    paid_amount: string;
+    status: string;
+    status_bucket: string;
     barcode: string | null;
     linha_digitavel: string | null;
     pix_copia_e_cola: string | null;
@@ -482,6 +517,7 @@ export type BoletoDashboard = {
     amount: string;
     paid_amount: string;
     status: string;
+    status_bucket: string;
     local_status: string;
     description: string | null;
     notes: string | null;
