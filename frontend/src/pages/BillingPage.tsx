@@ -1107,17 +1107,23 @@ export function BillingPage({
   function renderInvoiceTable() {
     return (
       <section className="panel compact-panel-card">
-        <div className="panel-title compact-title-row">
-          <div>
-            <h3>Faturas</h3>
+        <div className="billing-section-header">
+          <div className="billing-section-header-top">
+            <div className="billing-section-heading">
+              <h3>Faturas</h3>
+            </div>
           </div>
-          <div className="action-row">
-            {renderFileMeta("linx_receivables")}
-            <span>{filteredInvoices.length}</span>
+
+          <div className="billing-section-toolbar">
+            <div className="billing-section-meta">
+              {renderFileMeta("linx_receivables")}
+              <span className="billing-section-count">{filteredInvoices.length}</span>
+            </div>
+            <div className="billing-section-pagination">
+              {renderTablePagination(filteredInvoices.length, invoicePage, invoicePageSize, setInvoicePage, setInvoicePageSize)}
+            </div>
           </div>
         </div>
-
-        {renderTablePagination(filteredInvoices.length, invoicePage, invoicePageSize, setInvoicePage, setInvoicePageSize)}
 
         <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
           <table className="erp-table entries-list-table billing-alert-table billing-open-receivables-table">
@@ -1300,11 +1306,18 @@ export function BillingPage({
 
     return (
       <section className="panel compact-panel-card">
-        <div className="panel-title compact-title-row">
-          <div>
-            <h3>Boletos</h3>
+        <div className="billing-section-header">
+          <div className="billing-section-header-top">
+            <div className="billing-section-heading">
+              <h3>Boletos</h3>
+            </div>
+            <div className="billing-section-meta">
+              <span className="billing-section-count">{filteredBoletos.length}</span>
+            </div>
           </div>
-          <div className="action-row">
+
+          <div className="billing-section-toolbar">
+            <div className="billing-section-actions">
             <button className="secondary-button" disabled={submitting} onClick={() => setClientsModalOpen(true)} type="button">
               Clientes
             </button>
@@ -1337,11 +1350,13 @@ export function BillingPage({
             <button className="primary-button" disabled={submitting} onClick={openStandaloneBoletoModal} type="button">
               Novo boleto avulso
             </button>
-            <span>{filteredBoletos.length}</span>
+            </div>
+
+            <div className="billing-section-pagination">
+              {renderTablePagination(filteredBoletos.length, boletoPage, boletoPageSize, setBoletoPage, setBoletoPageSize)}
+            </div>
           </div>
         </div>
-
-        {renderTablePagination(filteredBoletos.length, boletoPage, boletoPageSize, setBoletoPage, setBoletoPageSize)}
 
         <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
           <table className="erp-table entries-list-table billing-alert-table billing-open-boletos-table">

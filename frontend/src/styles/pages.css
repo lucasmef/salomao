@@ -2874,6 +2874,124 @@ textarea {
   padding: 8px 10px;
 }
 
+.billing-section-header {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.billing-section-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.billing-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.billing-section-heading h3 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.billing-section-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.billing-section-actions,
+.billing-section-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.billing-section-meta {
+  color: #607087;
+  font-size: 0.74rem;
+}
+
+.billing-section-meta .compact-muted {
+  margin: 0;
+}
+
+.billing-section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #d7e1ef;
+  border-radius: 999px;
+  background: #f8fbff;
+  color: #31445d;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.billing-section-actions > button,
+.billing-section-actions .checkbox-line {
+  min-height: 34px;
+}
+
+.billing-section-actions .checkbox-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.billing-section-pagination {
+  margin-left: auto;
+}
+
+.billing-section-pagination .table-pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+
+.billing-section-pagination .table-pagination-meta {
+  white-space: nowrap;
+  color: #607087;
+  font-size: 0.74rem;
+}
+
+.billing-section-pagination .table-pagination-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.billing-section-pagination .pagination-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.billing-section-pagination .pagination-size select {
+  min-width: 104px;
+  min-height: 38px;
+}
+
+.billing-section-pagination .secondary-button {
+  min-height: 38px;
+}
+
 .billing-table-shell {
   max-height: none;
   overflow: visible;
@@ -3531,6 +3649,10 @@ textarea {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .billing-section-toolbar {
+    align-items: flex-start;
+  }
+
   .entries-toolbar-fields,
   .entries-top-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3625,6 +3747,33 @@ textarea {
   .compact-kpis-four,
   .billing-summary-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .billing-section-header-top,
+  .billing-section-toolbar,
+  .billing-section-actions,
+  .billing-section-meta {
+    align-items: stretch;
+  }
+
+  .billing-section-pagination {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .billing-section-pagination .table-pagination,
+  .billing-section-pagination .table-pagination-actions {
+    display: flex;
+    width: 100%;
+  }
+
+  .billing-section-pagination .table-pagination {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .billing-section-pagination .table-pagination-meta {
+    white-space: normal;
   }
 
   .overview-balance-kpis {
