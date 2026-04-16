@@ -71,6 +71,20 @@ def debug_revenue_data(db: DbSession):
         ).order_by(SalesSnapshot.snapshot_date)
     ).all()
     
+    # LinxMovement totals for April 2026
+    from app.db.models.linx import LinxMovement
+    movement_summary = db.execute(
+        select(
+            func.count(LinxMovement.id),
+            func.sum(case((LinxMovement.movement_type == "sale", LinxMovement.total_amount), else_=0)) -
+            func.sum(case((LinxMovement.movement_type == "sale_return", LinxMovement.total_amount), else_=0))
+        ).where(
+            LinxMovement.company_id == company.id,
+            LinxMovement.launch_date >= datetime(2026, 4, 1),
+            LinxMovement.launch_date <= datetime(2026, 4, 30, 23, 59, 59)
+        )
+    ).one()
+    
     return {
         "company": {
             "id": company.id,
@@ -79,6 +93,10 @@ def debug_revenue_data(db: DbSession):
             "linx_last_run": str(company.linx_auto_sync_last_run_at),
             "linx_last_status": company.linx_auto_sync_last_status,
             "linx_last_error": company.linx_auto_sync_last_error,
+        },
+        "movements_april_2026": {
+            "count": movement_summary[0],
+            "net_revenue": str(movement_summary[1]),
         },
         "summary_2026": {
             "count": summary[0],
