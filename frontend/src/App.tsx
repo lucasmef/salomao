@@ -273,6 +273,48 @@ const emptyBoletoDashboard: BoletoDashboard = {
   excess_boletos: [],
   standalone_boletos: [],
 };
+
+function normalizeBoletoDashboard(payload: Partial<BoletoDashboard> | null | undefined): BoletoDashboard {
+  const nextDashboard = payload ?? {};
+  return {
+    ...emptyBoletoDashboard,
+    ...nextDashboard,
+    summary: {
+      ...emptyBoletoDashboard.summary,
+      ...(nextDashboard.summary ?? {}),
+    },
+    files: nextDashboard.files ?? emptyBoletoDashboard.files,
+    clients: nextDashboard.clients ?? emptyBoletoDashboard.clients,
+    receivables: nextDashboard.receivables ?? emptyBoletoDashboard.receivables,
+    open_boletos: nextDashboard.open_boletos ?? emptyBoletoDashboard.open_boletos,
+    overdue_boletos: nextDashboard.overdue_boletos ?? emptyBoletoDashboard.overdue_boletos,
+    overdue_invoices: nextDashboard.overdue_invoices ?? emptyBoletoDashboard.overdue_invoices,
+    paid_pending: nextDashboard.paid_pending ?? emptyBoletoDashboard.paid_pending,
+    missing_boletos: nextDashboard.missing_boletos ?? emptyBoletoDashboard.missing_boletos,
+    excess_boletos: nextDashboard.excess_boletos ?? emptyBoletoDashboard.excess_boletos,
+    standalone_boletos: (nextDashboard.standalone_boletos ?? emptyBoletoDashboard.standalone_boletos).map((item) => ({
+      ...item,
+      bank: item.bank ?? "INTER",
+      client_name: item.client_name ?? "",
+      document_id: item.document_id ?? "",
+      paid_amount: item.paid_amount ?? "0.00",
+      status: item.status ?? "",
+      local_status: item.local_status ?? "open",
+      description: item.description ?? null,
+      notes: item.notes ?? null,
+      tax_id: item.tax_id ?? null,
+      email: item.email ?? null,
+      barcode: item.barcode ?? null,
+      linha_digitavel: item.linha_digitavel ?? null,
+      pix_copia_e_cola: item.pix_copia_e_cola ?? null,
+      inter_codigo_solicitacao: item.inter_codigo_solicitacao ?? null,
+      inter_account_id: item.inter_account_id ?? null,
+      pdf_available: Boolean(item.pdf_available),
+      downloaded_at: item.downloaded_at ?? null,
+    })),
+  };
+}
+
 const emptyLinxCustomerDirectory: LinxCustomerDirectory = {
   generated_at: "",
   summary: {
@@ -803,7 +845,7 @@ function AppRuntime() {
   async function fetchBoletoDashboard(activeSession: SessionState, includeAllMonthlyMissing = showAllMonthlyMissingBoletos) {
     const query = includeAllMonthlyMissing ? "?include_all_monthly_missing=true" : "";
     const boletoData = await fetchJson<BoletoDashboard>(`/boletos/dashboard${query}`, { token: activeSession.token });
-    setBoletoDashboard(boletoData);
+    setBoletoDashboard(normalizeBoletoDashboard(boletoData));
   }
 
   async function fetchLinxCustomerDirectory(activeSession: SessionState) {
