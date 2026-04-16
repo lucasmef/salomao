@@ -551,18 +551,23 @@ def build_cashflow_overview(
         ignored_account_ids = {
             account.id for account in accounts if _should_ignore_account_in_consolidated_balance(account)
         }
-        accounts = [account for account in accounts if not _should_ignore_account_in_consolidated_balance(account)]
+
     account_balances: list[AccountBalance] = []
     current_balance = Decimal("0.00")
     for account in accounts:
         balance = _current_balance_for_account(db, company.id, account)
-        current_balance += balance
+        is_ignored = account.id in ignored_account_ids
+
+        if not is_ignored:
+            current_balance += balance
+
         account_balances.append(
             AccountBalance(
                 account_id=account.id,
                 account_name=account.name,
                 account_type=account.account_type,
                 current_balance=balance,
+                exclude_from_balance=is_ignored,
             )
         )
 

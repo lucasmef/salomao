@@ -52,6 +52,7 @@ class DashboardAccountBalance(BaseModel):
     account_name: str
     account_type: str
     current_balance: Decimal
+    exclude_from_balance: bool = False
 
 
 class DashboardOverview(BaseModel):

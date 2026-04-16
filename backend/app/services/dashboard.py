@@ -309,6 +309,7 @@ def build_dashboard_overview(
                 account_name=balance.account_name,
                 account_type=balance.account_type,
                 current_balance=balance.current_balance,
+                exclude_from_balance=balance.exclude_from_balance,
             )
             for balance in cashflow.account_balances
         ],

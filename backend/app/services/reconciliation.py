@@ -421,7 +421,7 @@ def build_reconciliation_worklist(
             )
         )
 
-    balance_accounts = sorted(
+    all_active_accounts = sorted(
         [
             account
             for account in db.scalars(
@@ -430,21 +430,24 @@ def build_reconciliation_worklist(
                     Account.is_active.is_(True),
                 )
             )
-            if account.account_type != RECEIVABLES_CONTROL_ACCOUNT_TYPE and not account.exclude_from_balance
+            if account.account_type != RECEIVABLES_CONTROL_ACCOUNT_TYPE
         ],
         key=lambda item: (item.name or "").lower(),
     )
     total_account_balance = Decimal("0.00")
     account_balances: list[DashboardAccountBalance] = []
-    for account in balance_accounts:
+    for account in all_active_accounts:
         balance = _current_balance_for_account(db, company.id, account)
-        total_account_balance += balance
+        if not account.exclude_from_balance:
+            total_account_balance += balance
+
         account_balances.append(
             DashboardAccountBalance(
                 account_id=account.id,
                 account_name=account.name,
                 account_type=account.account_type,
                 current_balance=balance,
+                exclude_from_balance=account.exclude_from_balance,
             )
         )
 

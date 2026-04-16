@@ -182,7 +182,7 @@ export function CashflowPage({
           <option value="">Todas as contas</option>
           {accounts.map((account) => (
             <option key={account.id} value={account.id}>
-              {account.name}
+              {account.name} {account.exclude_from_balance ? "(ignorado)" : ""}
             </option>
           ))}
         </select>
@@ -316,7 +316,7 @@ export function CashflowPage({
           {showBalancePopover && (
             <div className="reconciliation-balance-popover">
               {(cashflow?.account_balances ?? []).map((item) => (
-                <div className="reconciliation-balance-row" key={item.account_id}>
+                <div className={`reconciliation-balance-row ${item.exclude_from_balance ? "is-ignored-account" : ""}`} key={item.account_id}>
                   <span title={`${item.account_name} | ${item.account_type}`}>{item.account_name}</span>
                   <strong>{formatMoneyNumber(item.current_balance)}</strong>
                 </div>

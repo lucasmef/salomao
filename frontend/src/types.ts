@@ -502,6 +502,7 @@ export type AccountBalance = {
   account_name: string;
   account_type: string;
   current_balance: string;
+  exclude_from_balance?: boolean;
 };
 
 export type CashflowPoint = {
@@ -918,6 +919,7 @@ export type DashboardAccountBalance = {
   account_name: string;
   account_type: string;
   current_balance: string;
+  exclude_from_balance?: boolean;
 };
 
 export type DashboardOverview = {

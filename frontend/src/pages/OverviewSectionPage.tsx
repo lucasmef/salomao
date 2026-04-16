@@ -301,7 +301,7 @@ export function OverviewSectionPage({
                 </thead>
                 <tbody>
                   {(dashboard?.account_balances ?? []).map((account) => (
-                    <tr key={account.account_id}>
+                    <tr className={account.exclude_from_balance ? "is-ignored-account" : ""} key={account.account_id}>
                       <td>{account.account_name}</td>
                       <td className="numeric-cell">{formatMoney(account.current_balance)}</td>
                     </tr>

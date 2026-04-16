@@ -1007,6 +1007,16 @@ textarea {
   font-size: 0.75rem;
 }
 
+.is-ignored-account {
+  opacity: 0.65;
+}
+
+.is-ignored-account span,
+.is-ignored-account strong,
+.is-ignored-account td {
+  color: #8fa0b5 !important;
+}
+
 .reconciliation-balance-empty {
   padding: 8px;
   color: #70829b;

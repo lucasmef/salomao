@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CreatableSelect from "react-select/creatable";
 
 import { ModalCloseButton } from "../components/ModalCloseButton";
@@ -1128,7 +1128,7 @@ export function ReconciliationPage({
           {showBalancePopover && (
             <div className="reconciliation-balance-popover">
               {(worklist?.account_balances ?? []).map((account) => (
-                <div className="reconciliation-balance-row" key={account.account_id}>
+                <div className={`reconciliation-balance-row ${account.exclude_from_balance ? "is-ignored-account" : ""}`} key={account.account_id}>
                   <span title={compactSingleLine(account.account_name)}>{compactSingleLine(account.account_name)}</span>
                   <strong>{formatMoney(account.current_balance)}</strong>
                 </div>
