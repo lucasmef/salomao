@@ -1378,33 +1378,12 @@ export function BillingPage({
             >
               <UsersIcon />
             </button>
-            <button
-              aria-label="Relatorio C6"
-              className="secondary-button icon-only-button billing-toolbar-icon-button"
-              disabled={submitting}
-              onClick={() => setC6ModalOpen(true)}
-              title="Relatorio C6"
-              type="button"
-            >
-              <FileIcon />
-            </button>
             <label className="checkbox-line compact-inline billing-toolbar-toggle" title="Mostrar todos os boletos mensais">
               <CalendarIcon />
               <input checked={showAllMonthlyMissingBoletos} disabled={submitting} onChange={(event) => void onToggleAllMonthlyMissingBoletos(event.target.checked)} type="checkbox" />
               <span>Mostrar todos os boletos mensais</span>
             </label>
-            {showMissingExportFallback ? (
-              <button
-                aria-label="Gerar XLSX"
-                className="ghost-button icon-only-button billing-toolbar-icon-button"
-                disabled={submitting || !selectedMissingKeys.length}
-                onClick={() => void onExportMissingBoletos(selectedMissingKeys)}
-                title="Gerar XLSX"
-                type="button"
-              >
-                <FileIcon />
-              </button>
-            ) : null}
+            {showMissingExportFallback ? null : null}
             <button
               aria-label="Baixar selecionados"
               className="secondary-button icon-only-button billing-toolbar-icon-button"
