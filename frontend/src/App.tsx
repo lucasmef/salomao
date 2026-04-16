@@ -2694,7 +2694,7 @@ function AppRuntime() {
   return (
     <AppShell
       user={session.user}
-      mainNavigation={mainNavigation}
+
       globalProductSearch={globalProductSearchInput}
       onGlobalProductSearchChange={setGlobalProductSearchInput}
       onSubmitGlobalProductSearch={() => {

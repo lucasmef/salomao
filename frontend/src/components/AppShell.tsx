@@ -1,13 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { NavLink, useLocation } from "react-router-dom";
-
-import salomaoLogo from "../assets/salomao-logo.png";
-import { findMainNavItem, type MainNavItem } from "../data/navigation";
+import { useLocation } from "react-router-dom";
+import { AppSidebar } from "./AppSidebar";
+import { mainNavigation } from "../data/navigation";
 import type { AuthUser } from "../types";
+import "./AppShell.css";
 
 type Props = {
   user: AuthUser;
-  mainNavigation: MainNavItem[];
   children: ReactNode;
   onLogout: () => void;
   globalProductSearch: string;
@@ -18,8 +17,7 @@ type Props = {
 };
 
 export function AppShell({
-  user: _user,
-  mainNavigation,
+  user,
   children,
   onLogout,
   globalProductSearch,
@@ -29,102 +27,75 @@ export function AppShell({
   busyLabel = "",
 }: Props) {
   const location = useLocation();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const activeMainItem = findMainNavItem(location.pathname);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
-    setMobileMenuOpen(false);
+    // Optional: auto-collapse on mobile, etc.
   }, [location.pathname]);
 
-  const renderSearchForm = (className: string) => (
-    <form
-      className={className}
-      onSubmit={(event) => {
-        event.preventDefault();
-        onSubmitGlobalProductSearch();
-      }}
-    >
-      <input
-        aria-label="Busca global de produtos"
-        onChange={(event) => onGlobalProductSearchChange(event.target.value)}
-        placeholder="Buscar produto"
-        value={globalProductSearch}
-      />
-    </form>
-  );
-
   return (
-    <div className="app-shell">
-      <header className={`app-shell-header ${mobileMenuOpen ? "mobile-menu-open" : ""}`}>
-        <div className="app-shell-brand">
-          <NavLink
-            aria-label="Ir para Visão Geral"
-            className="app-shell-brand-home"
-            onClick={() => setMobileMenuOpen(false)}
-            to="/overview/resumo"
-          >
-            <img alt="Salomao" className="app-shell-brand-logo" src={salomaoLogo} />
-          </NavLink>
-          {renderSearchForm("app-shell-search app-shell-search-mobile")}
-          <button
-            aria-controls="app-shell-primary-navigation"
-            aria-expanded={mobileMenuOpen}
-            aria-label={mobileMenuOpen ? "Fechar menu principal" : "Abrir menu principal"}
-            className="app-shell-mobile-menu-button"
-            onClick={() => setMobileMenuOpen((current) => !current)}
-            type="button"
-          >
-            <span aria-hidden="true" className="app-shell-mobile-menu-icon">
-              {mobileMenuOpen ? "x" : "="}
-            </span>
-            <span>Menu</span>
-          </button>
-        </div>
+    <div className={`app-shell-container ${sidebarCollapsed ? "is-collapsed" : ""}`}>
+      <AppSidebar
+        collapsed={sidebarCollapsed}
+        groups={mainNavigation}
+        onLogout={onLogout}
+        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        section={location.pathname}
+        user={user}
+      />
 
-        <nav className="app-shell-main-nav" aria-label="Navegacao principal" id="app-shell-primary-navigation">
-          {mainNavigation.map((item) => (
-            <NavLink
-              key={item.key}
-              className={`app-shell-main-link ${activeMainItem?.key === item.key ? "active" : ""}`}
-              onClick={() => setMobileMenuOpen(false)}
-              to={item.path}
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-
-        <div className="app-shell-mobile-menu-actions">
-          <button className="app-shell-user-action" onClick={onLogout} type="button">
-            Sair
-          </button>
-        </div>
-
-        <div className="app-shell-header-tools">
-          {renderSearchForm("app-shell-search app-shell-search-desktop")}
-
-          {busy && busyLabel ? (
-            <div className="app-shell-status" role="status" aria-live="polite">
-              <span aria-hidden="true" className="app-shell-status-dot" />
-              <span>{busyLabel}</span>
-            </div>
-          ) : null}
-
-          <div className="app-shell-user-actions">
-            <button className="app-shell-user-action" onClick={onLogout} type="button">
-              Sair
-            </button>
+      <div className="app-main-view">
+        <header className="app-top-bar">
+          <div className="top-bar-left">
+            {busy && busyLabel ? (
+              <div className="status-indicator">
+                <span className="dot pulse" />
+                <span className="label">{busyLabel}</span>
+              </div>
+            ) : (
+              <div className="page-context">
+                <span className="context-label">Plataforma Salomão</span>
+              </div>
+            )}
           </div>
+
+          <div className="top-bar-center">
+            <form
+              className="global-search-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                onSubmitGlobalProductSearch();
+              }}
+            >
+              <span className="search-icon">🔍</span>
+              <input
+                onChange={(e) => onGlobalProductSearchChange(e.target.value)}
+                placeholder="Buscar produto (Ctrl + K)"
+                type="text"
+                value={globalProductSearch}
+              />
+            </form>
+          </div>
+
+          <div className="top-bar-right">
+            <div className="user-profile">
+              <div className="user-info">
+                <span className="user-name">{user.full_name}</span>
+                <span className="user-role">{user.role}</span>
+              </div>
+              <div className="user-avatar">{user.full_name.charAt(0)}</div>
+            </div>
+          </div>
+        </header>
+
+        <main className="app-content-area">
+          {children}
+        </main>
+
+        <div className={`global-progress-bar ${busy ? "is-active" : ""}`}>
+          <div className="progress-fill" />
         </div>
-      </header>
-
-      <div aria-hidden="true" className={`app-shell-progress ${busy ? "active" : ""}`}>
-        <span />
       </div>
-
-      <main aria-busy={busy} className="app-shell-content">
-        {children}
-      </main>
     </div>
   );
 }

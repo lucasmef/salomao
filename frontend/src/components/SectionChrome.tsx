@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-
 import { SectionTabs } from "./SectionTabs";
 import type { MainNavChild } from "../data/navigation";
+import "./SectionChrome.css";
 
 type Props = {
   sectionLabel: string;
@@ -15,12 +15,21 @@ type Props = {
 export function SectionChrome({
   tabs,
   children,
+  title,
+  description,
 }: Props) {
   return (
-    <div className="section-page">
+    <div className="section-container">
+      <header className="section-header">
+        <h1 className="section-title">{title}</h1>
+        {description && <p className="section-description">{description}</p>}
+      </header>
+
       {tabs.length > 1 ? <SectionTabs items={tabs} /> : null}
 
-      <div className="section-page-body">{children}</div>
+      <div className="section-content-card">
+        {children}
+      </div>
     </div>
   );
 }

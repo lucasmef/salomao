@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
-
 import type { MainNavChild } from "../data/navigation";
+import "./SectionTabs.css";
 
 type Props = {
   items: MainNavChild[];
@@ -22,12 +22,12 @@ export function SectionTabs({ items }: Props) {
   const activeItem = items.find((item) => isTabActive(item, pathname)) ?? items[0] ?? null;
 
   return (
-    <div className="section-tabs-stack">
-      <nav className="section-tabs" aria-label="Abas da secao">
+    <div className="section-navigation">
+      <nav className="tabs-container" aria-label="Abas da seção">
         {items.map((item) => (
           <NavLink
             key={item.key}
-            className={`section-tab-link ${isTabActive(item, pathname) ? "active" : ""}`}
+            className={({ isActive }) => `tab-link ${isTabActive(item, pathname) || isActive ? "is-active" : ""}`}
             to={item.path}
           >
             {item.label}
@@ -36,11 +36,11 @@ export function SectionTabs({ items }: Props) {
       </nav>
 
       {activeItem?.children?.length ? (
-        <nav className="section-subtabs" aria-label={`Subabas de ${activeItem.label}`}>
+        <nav className="subtabs-container" aria-label={`Subabas de ${activeItem.label}`}>
           {activeItem.children.map((item) => (
             <NavLink
               key={item.key}
-              className={`section-subtab-link ${isTabActive(item, pathname) ? "active" : ""}`}
+              className={({ isActive }) => `subtab-link ${isTabActive(item, pathname) || isActive ? "is-active" : ""}`}
               to={item.path}
             >
               {item.label}

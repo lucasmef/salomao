@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import "./PageHeader.css";
 
 type Props = {
   eyebrow?: string;
@@ -9,13 +10,15 @@ type Props = {
 
 export function PageHeader({ eyebrow, title, description, actions }: Props) {
   return (
-    <section className="page-header">
-      <div className="page-header-copy">
-        {eyebrow && <p className="section-label">{eyebrow}</p>}
-        <h2>{title}</h2>
-        {description ? <p className="page-description">{description}</p> : null}
+    <header className="premium-page-header">
+      <div className="header-main-content">
+        <div className="header-copy">
+          {eyebrow && <span className="header-eyebrow">{eyebrow}</span>}
+          <h1 className="header-title">{title}</h1>
+          {description && <p className="header-description">{description}</p>}
+        </div>
+        {actions && <div className="header-actions">{actions}</div>}
       </div>
-      {actions ? <div className="page-header-actions">{actions}</div> : null}
-    </section>
+    </header>
   );
 }
