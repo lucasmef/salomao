@@ -1,7 +1,7 @@
 """add account exclude_from_balance flag
 
-Revision ID: 20260415_0014
-Revises: 20260402_0013
+Revision ID: 20260415_0029
+Revises: 20260410_0028
 Create Date: 2026-04-15 21:35:00
 """
 
@@ -11,8 +11,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "20260415_0014"
-down_revision = "20260402_0013"
+revision = "20260415_0029"
+down_revision = "20260410_0028"
 branch_labels = None
 depends_on = None
 
