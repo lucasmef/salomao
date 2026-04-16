@@ -7,7 +7,6 @@ import "./AppSidebar.css";
 type Props = {
   collapsed: boolean;
   groups: MainNavItem[];
-  section: string;
   user: AuthUser;
   onToggle: () => void;
   onLogout: () => void;
