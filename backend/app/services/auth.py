@@ -230,30 +230,30 @@ def authenticate_login(
 ) -> LoginResponse:
     settings = get_settings()
     user = authenticate_user(db, email, password)
-    if settings.require_mfa:
-        trusted_device = get_valid_mfa_trusted_device(db, user, trusted_device_token)
-        if trusted_device is not None:
-            auth_session, token = create_auth_session(db, user)
-            return LoginResponse(
-                status="authenticated",
-                token=token,
-                expires_at=auth_session.expires_at,
-                trusted_device_expires_at=trusted_device.expires_at,
-                user=serialize_user(user),
-            )
-        if user.mfa_enabled and user.mfa_secret_encrypted:
-            return LoginResponse(
-                status="mfa_required",
-                pending_token=_pending_auth_token(user, "mfa-login"),
-                user=serialize_user(user),
-            )
-        setup = start_mfa_enrollment(db, user)
-        return LoginResponse(
-            status="mfa_setup_required",
-            pending_token=_pending_auth_token(user, "mfa-setup"),
-            user=serialize_user(user),
-            mfa_setup=setup,
-        )
+    # if settings.require_mfa:
+    #     trusted_device = get_valid_mfa_trusted_device(db, user, trusted_device_token)
+    #     if trusted_device is not None:
+    #         auth_session, token = create_auth_session(db, user)
+    #         return LoginResponse(
+    #             status="authenticated",
+    #             token=token,
+    #             expires_at=auth_session.expires_at,
+    #             trusted_device_expires_at=trusted_device.expires_at,
+    #             user=serialize_user(user),
+    #         )
+    #     if user.mfa_enabled and user.mfa_secret_encrypted:
+    #         return LoginResponse(
+    #             status="mfa_required",
+    #             pending_token=_pending_auth_token(user, "mfa-login"),
+    #             user=serialize_user(user),
+    #         )
+    #     setup = start_mfa_enrollment(db, user)
+    #     return LoginResponse(
+    #         status="mfa_setup_required",
+    #         pending_token=_pending_auth_token(user, "mfa-setup"),
+    #         user=serialize_user(user),
+    #         mfa_setup=setup,
+    #     )
 
     auth_session, token = create_auth_session(db, user)
     return LoginResponse(
