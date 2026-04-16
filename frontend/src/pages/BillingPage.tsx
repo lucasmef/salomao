@@ -50,7 +50,7 @@ type DateRange = {
   start: string;
   end: string;
 };
-type FilterPopover = "status" | "client" | "due_date" | "type" | null;
+type FilterPopover = "status" | "client" | "issue_date" | "due_date" | "type" | "bank" | null;
 type StandaloneBoletoDraft = {
   account_id: string;
   client_name: string;
@@ -128,6 +128,22 @@ function compareDate(left: string | null | undefined, right: string | null | und
 
 function compareAmount(left: string | number, right: string | number) {
   return Number(left) - Number(right);
+}
+
+function matchesDateRange(value: string | null | undefined, range: DateRange) {
+  if (!range.start && !range.end) {
+    return true;
+  }
+  if (!value) {
+    return false;
+  }
+  if (range.start && value < range.start) {
+    return false;
+  }
+  if (range.end && value > range.end) {
+    return false;
+  }
+  return true;
 }
 
 function uniqueValues(values: Array<string | null | undefined>) {
@@ -332,10 +348,15 @@ export function BillingPage({
   const [boletoClientFilters, setBoletoClientFilters] = useState<string[]>([]);
   const [invoiceClientSearch, setInvoiceClientSearch] = useState("");
   const [boletoClientSearch, setBoletoClientSearch] = useState("");
+  const [invoiceIssueDateDraft, setInvoiceIssueDateDraft] = useState<DateRange>({ start: "", end: "" });
+  const [invoiceIssueDateRange, setInvoiceIssueDateRange] = useState<DateRange>({ start: "", end: "" });
   const [invoiceDateDraft, setInvoiceDateDraft] = useState<DateRange>({ start: "", end: "" });
   const [invoiceDateRange, setInvoiceDateRange] = useState<DateRange>({ start: "", end: "" });
+  const [boletoIssueDateDraft, setBoletoIssueDateDraft] = useState<DateRange>({ start: "", end: "" });
+  const [boletoIssueDateRange, setBoletoIssueDateRange] = useState<DateRange>({ start: "", end: "" });
   const [boletoDateDraft, setBoletoDateDraft] = useState<DateRange>({ start: "", end: "" });
   const [boletoDateRange, setBoletoDateRange] = useState<DateRange>({ start: "", end: "" });
+  const [boletoBankFilters, setBoletoBankFilters] = useState<string[]>([]);
   const [invoicePopover, setInvoicePopover] = useState<FilterPopover>(null);
   const [boletoPopover, setBoletoPopover] = useState<FilterPopover>(null);
   const [invoicePage, setInvoicePage] = useState(1);
@@ -556,6 +577,7 @@ export function BillingPage({
 
   const invoiceClients = useMemo(() => uniqueValues(invoiceRows.map((item) => item.client_name)), [invoiceRows]);
   const boletoClients = useMemo(() => uniqueValues(boletoRows.map((item) => item.client_name)), [boletoRows]);
+  const boletoBanks = useMemo(() => uniqueValues(boletoRows.map((item) => item.bank || "-")), [boletoRows]);
 
   const visibleInvoiceClients = useMemo(() => {
     const query = invoiceClientSearch.trim().toLowerCase();
@@ -577,22 +599,9 @@ export function BillingPage({
     return invoiceRows
       .filter((item) => selectedStatuses.includes(item.status_key))
       .filter((item) => !invoiceClientFilters.length || invoiceClientFilters.includes(item.client_name))
-      .filter((item) => {
-        if (!invoiceDateRange.start && !invoiceDateRange.end) {
-          return true;
-        }
-        if (!item.due_date) {
-          return false;
-        }
-        if (invoiceDateRange.start && item.due_date < invoiceDateRange.start) {
-          return false;
-        }
-        if (invoiceDateRange.end && item.due_date > invoiceDateRange.end) {
-          return false;
-        }
-        return true;
-      });
-  }, [invoiceClientFilters, invoiceDateRange.end, invoiceDateRange.start, invoiceRows, invoiceStatusFilters]);
+      .filter((item) => matchesDateRange(item.issue_date, invoiceIssueDateRange))
+      .filter((item) => matchesDateRange(item.due_date, invoiceDateRange));
+  }, [invoiceClientFilters, invoiceDateRange, invoiceIssueDateRange, invoiceRows, invoiceStatusFilters]);
 
   const filteredBoletos = useMemo(() => {
     const selectedStatuses = boletoStatusFilters.length ? boletoStatusFilters : ALL_BOLETO_STATUS_FILTERS;
@@ -606,30 +615,18 @@ export function BillingPage({
       // "Atrasado" filter silently hiding the selected type.
       .filter((item) => ignoreDefaultStatusFilter || item.filter_keys.some((key) => selectedStatuses.includes(key)))
       .filter((item) => !boletoClientFilters.length || boletoClientFilters.includes(item.client_name))
-      .filter((item) => {
-        if (!boletoDateRange.start && !boletoDateRange.end) {
-          return true;
-        }
-        if (!item.due_date) {
-          return false;
-        }
-        if (boletoDateRange.start && item.due_date < boletoDateRange.start) {
-          return false;
-        }
-        if (boletoDateRange.end && item.due_date > boletoDateRange.end) {
-          return false;
-        }
-        return true;
-      });
-  }, [boletoClientFilters, boletoDateRange.end, boletoDateRange.start, boletoRows, boletoStatusFilters, boletoTypeFilters]);
+      .filter((item) => !boletoBankFilters.length || boletoBankFilters.includes(item.bank || "-"))
+      .filter((item) => matchesDateRange(item.issue_date, boletoIssueDateRange))
+      .filter((item) => matchesDateRange(item.due_date, boletoDateRange));
+  }, [boletoBankFilters, boletoClientFilters, boletoDateRange, boletoIssueDateRange, boletoRows, boletoStatusFilters, boletoTypeFilters]);
 
   useEffect(() => {
     setInvoicePage(1);
-  }, [invoiceClientFilters, invoiceDateRange.end, invoiceDateRange.start, invoicePageSize, invoiceStatusFilters]);
+  }, [invoiceClientFilters, invoiceDateRange, invoiceIssueDateRange, invoicePageSize, invoiceStatusFilters]);
 
   useEffect(() => {
     setBoletoPage(1);
-  }, [boletoClientFilters, boletoDateRange.end, boletoDateRange.start, boletoPageSize, boletoStatusFilters, boletoTypeFilters]);
+  }, [boletoBankFilters, boletoClientFilters, boletoDateRange, boletoIssueDateRange, boletoPageSize, boletoStatusFilters, boletoTypeFilters]);
 
   const paginatedInvoices = useMemo(
     () => filteredInvoices.slice((invoicePage - 1) * invoicePageSize, invoicePage * invoicePageSize),
@@ -799,10 +796,22 @@ export function BillingPage({
     setInvoicePopover(null);
   }
 
+  function applyInvoiceIssueDateFilter() {
+    setInvoiceIssueDateRange(invoiceIssueDateDraft);
+    setInvoicePopover(null);
+  }
+
   function clearInvoiceDateFilter() {
     const nextRange = { start: "", end: "" };
     setInvoiceDateDraft(nextRange);
     setInvoiceDateRange(nextRange);
+    setInvoicePopover(null);
+  }
+
+  function clearInvoiceIssueDateFilter() {
+    const nextRange = { start: "", end: "" };
+    setInvoiceIssueDateDraft(nextRange);
+    setInvoiceIssueDateRange(nextRange);
     setInvoicePopover(null);
   }
 
@@ -811,10 +820,22 @@ export function BillingPage({
     setBoletoPopover(null);
   }
 
+  function applyBoletoIssueDateFilter() {
+    setBoletoIssueDateRange(boletoIssueDateDraft);
+    setBoletoPopover(null);
+  }
+
   function clearBoletoDateFilter() {
     const nextRange = { start: "", end: "" };
     setBoletoDateDraft(nextRange);
     setBoletoDateRange(nextRange);
+    setBoletoPopover(null);
+  }
+
+  function clearBoletoIssueDateFilter() {
+    const nextRange = { start: "", end: "" };
+    setBoletoIssueDateDraft(nextRange);
+    setBoletoIssueDateRange(nextRange);
     setBoletoPopover(null);
   }
 
@@ -895,6 +916,40 @@ export function BillingPage({
         </div>
         <div className="entries-column-filter-popover-actions">
           <button className="ghost-button" onClick={() => setBoletoTypeFilters([])} type="button">
+            Limpar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderBankPopover() {
+    return (
+      <div className="entries-column-filter-popover entries-category-filter-popover">
+        <div className="entries-category-filter-head">
+          <strong>Filtrar banco</strong>
+          <small className="compact-muted">Selecione um ou mais bancos.</small>
+        </div>
+        <div className="entries-category-filter-list">
+          {boletoBanks.map((value) => (
+            <label className="entries-category-filter-option" key={value}>
+              <input
+                checked={boletoBankFilters.includes(value)}
+                onChange={() =>
+                  setBoletoBankFilters((current) =>
+                    current.includes(value) ? current.filter((item) => item !== value) : [...current, value],
+                  )
+                }
+                type="checkbox"
+              />
+              <div className="entries-category-filter-text">
+                <strong>{value}</strong>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div className="entries-column-filter-popover-actions">
+          <button className="ghost-button" onClick={() => setBoletoBankFilters([])} type="button">
             Limpar
           </button>
         </div>
@@ -1089,7 +1144,14 @@ export function BillingPage({
                     : null}
                 </th>
                 <th>Titulo</th>
-                <th>Emissao</th>
+                <th className="billing-filter-header-cell">
+                  {renderHeaderFilterButton("Emissao", invoicePopover === "issue_date", () =>
+                    setInvoicePopover((current) => (current === "issue_date" ? null : "issue_date")),
+                  )}
+                  {invoicePopover === "issue_date"
+                    ? renderDatePopover(invoiceIssueDateDraft, setInvoiceIssueDateDraft, applyInvoiceIssueDateFilter, clearInvoiceIssueDateFilter)
+                    : null}
+                </th>
                 <th className="billing-filter-header-cell">
                   {renderHeaderFilterButton("Vencimento", invoicePopover === "due_date", () =>
                     setInvoicePopover((current) => (current === "due_date" ? null : "due_date")),
@@ -1342,7 +1404,14 @@ export function BillingPage({
                 </th>
                 <th>Documento</th>
                 <th>Descricao</th>
-                <th>Emissao</th>
+                <th className="billing-filter-header-cell">
+                  {renderHeaderFilterButton("Emissao", boletoPopover === "issue_date", () =>
+                    setBoletoPopover((current) => (current === "issue_date" ? null : "issue_date")),
+                  )}
+                  {boletoPopover === "issue_date"
+                    ? renderDatePopover(boletoIssueDateDraft, setBoletoIssueDateDraft, applyBoletoIssueDateFilter, clearBoletoIssueDateFilter)
+                    : null}
+                </th>
                 <th className="billing-filter-header-cell">
                   {renderHeaderFilterButton("Vencimento", boletoPopover === "due_date", () => setBoletoPopover((current) => (current === "due_date" ? null : "due_date")))}
                   {boletoPopover === "due_date" ? renderDatePopover(boletoDateDraft, setBoletoDateDraft, applyBoletoDateFilter, clearBoletoDateFilter) : null}
@@ -1366,7 +1435,10 @@ export function BillingPage({
                   {renderHeaderFilterButton("Status loja", boletoPopover === "type", () => setBoletoPopover((current) => (current === "type" ? null : "type")))}
                   {boletoPopover === "type" ? renderBoletoTypePopover() : null}
                 </th>
-                <th>Banco</th>
+                <th className="billing-filter-header-cell">
+                  {renderHeaderFilterButton("Banco", boletoPopover === "bank", () => setBoletoPopover((current) => (current === "bank" ? null : "bank")))}
+                  {boletoPopover === "bank" ? renderBankPopover() : null}
+                </th>
                 <th>Acoes</th>
               </tr>
             </thead>
