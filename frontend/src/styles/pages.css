@@ -4730,3 +4730,39 @@ textarea {
   border: 1px solid rgba(16, 185, 129, 0.25);
   box-shadow: 0 1px 2px rgba(16, 185, 129, 0.08);
 }
+
+.planning-metric-stack {
+  display: grid;
+  gap: 1px;
+  text-align: right;
+  font-family: 'Inter', 'Roboto', 'Tabular-nums', sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-line {
+  font-size: 0.74rem;
+  line-height: 1.15;
+  font-weight: 500;
+}
+
+.metric-line-compra { color: #64748b; }
+.metric-line-devolucao { color: #ef4444; }
+.metric-line-venda { color: #2f5be7; font-weight: 600; }
+.metric-line-lucro { color: #10b981; font-weight: 600; }
+
+.planning-brand-performance {
+  font-size: 0.72rem;
+  color: #10b981;
+  font-weight: 600;
+  margin-top: 2px;
+  display: block;
+}
+
+.purchase-toggle-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 0 8px;
+  border-right: 1px solid #e2e8f0;
+  margin-right: 4px;
+}

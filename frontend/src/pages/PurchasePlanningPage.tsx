@@ -520,6 +520,7 @@ export function PurchasePlanningPage({
   const [compareCollectionIds, setCompareCollectionIds] = useState<string[]>([]);
   const [showPlanningReturns, setShowPlanningReturns] = useState(true);
   const [showPlanningSales, setShowPlanningSales] = useState(true);
+  const [showPlanningProfit, setShowPlanningProfit] = useState(true);
   const [inlinePlanEdit, setInlinePlanEdit] = useState<PlanningInlineEditState | null>(null);
   const [unassignedSupplierTargets, setUnassignedSupplierTargets] = useState<Record<string, string>>({});
   const [selectedUnassignedSupplierIds, setSelectedUnassignedSupplierIds] = useState<string[]>([]);
@@ -1788,26 +1789,38 @@ export function PurchasePlanningPage({
               menuPortalTarget={portalTarget}
             />
           </label>
-          <label className="purchase-filter-toggle">
-            <span className="purchase-filter-toggle-control">
-              <input
-                type="checkbox"
-                checked={showPlanningReturns}
-                onChange={(event) => setShowPlanningReturns(event.target.checked)}
-              />
-              <span>{"Mostrar devolu\u00e7\u00f5es"}</span>
-            </span>
-          </label>
-          <label className="purchase-filter-toggle">
-            <span className="purchase-filter-toggle-control">
-              <input
-                type="checkbox"
-                checked={showPlanningSales}
-                onChange={(event) => setShowPlanningSales(event.target.checked)}
-              />
-              <span>{"Mostrar vendas"}</span>
-            </span>
-          </label>
+          <div className="purchase-toggle-group">
+            <label className="purchase-filter-toggle">
+              <span className="purchase-filter-toggle-control">
+                <input
+                  type="checkbox"
+                  checked={showPlanningReturns}
+                  onChange={(event) => setShowPlanningReturns(event.target.checked)}
+                />
+                <span>Devoluções</span>
+              </span>
+            </label>
+            <label className="purchase-filter-toggle">
+              <span className="purchase-filter-toggle-control">
+                <input
+                  type="checkbox"
+                  checked={showPlanningSales}
+                  onChange={(event) => setShowPlanningSales(event.target.checked)}
+                />
+                <span>Vendas</span>
+              </span>
+            </label>
+            <label className="purchase-filter-toggle">
+              <span className="purchase-filter-toggle-control">
+                <input
+                  type="checkbox"
+                  checked={showPlanningProfit}
+                  onChange={(event) => setShowPlanningProfit(event.target.checked)}
+                />
+                <span>Lucro</span>
+              </span>
+            </label>
+          </div>
           <div className="action-row">
             <button className="secondary-button" type="button" onClick={() => openBrandModal()}>
               Nova marca
@@ -2188,31 +2201,45 @@ export function PurchasePlanningPage({
                             <div className="planning-brand-cell">
                               <strong>{snapshot.brandName}</strong>
                               <span>{snapshot.groupedBrandIds?.length ?? 0} marcas agrupadas</span>
-                              {showPlanningSales && currentSnapshot && (
-                                <div className="planning-sales-badges">
-                                  <span className={`planning-sales-badge sold`}>
-                                    {formatPurchaseDisplayAmount(currentSnapshot.soldAmount)}
-                                  </span>
-                                  <span className={`planning-sales-badge margin ${Number(currentSnapshot.profitMargin) > 30 ? "high-performance" : ""}`}>
-                                    {currentSnapshot.profitMargin}%
-                                  </span>
-                                </div>
+                              {showPlanningProfit && (
+                                <span className="planning-brand-performance">
+                                  {(() => {
+                                    let totalSales = 0;
+                                    let totalNetPurchase = 0;
+                                    selectedComparisonCollections.forEach(coll => {
+                                      const collSnap = snapshot.collections.get(coll.id);
+                                      if (collSnap) {
+                                        totalSales += Number(collSnap.soldAmount);
+                                        totalNetPurchase += (Number(collSnap.plannedAmount) - Number(collSnap.returnsAmount));
+                                      }
+                                    });
+                                    if (totalNetPurchase <= 0) return "0%";
+                                    return `${Math.round((totalSales / totalNetPurchase) * 100)}% lucro período`;
+                                  })()}
+                                </span>
                               )}
                             </div>
                           ) : (
                             <div className="planning-brand-cell">
                               <strong>{snapshot.brandName}</strong>
-                              {showPlanningSales && currentSnapshot && (
-                              <div className="planning-sales-badges">
-                                <span className={`planning-sales-badge sold`}>
-                                  {formatPurchaseDisplayAmount(currentSnapshot.soldAmount)}
+                              {showPlanningProfit && (
+                                <span className="planning-brand-performance">
+                                  {(() => {
+                                    let totalSales = 0;
+                                    let totalNetPurchase = 0;
+                                    selectedComparisonCollections.forEach(coll => {
+                                      const collSnap = snapshot.collections.get(coll.id);
+                                      if (collSnap) {
+                                        totalSales += Number(collSnap.soldAmount);
+                                        totalNetPurchase += (Number(collSnap.plannedAmount) - Number(collSnap.returnsAmount));
+                                      }
+                                    });
+                                    if (totalNetPurchase <= 0) return "0%";
+                                    return `${Math.round((totalSales / totalNetPurchase) * 100)}% lucro período`;
+                                  })()}
                                 </span>
-                                <span className={`planning-sales-badge margin ${Number(currentSnapshot.profitMargin) > 30 ? 'high-performance' : ''}`}>
-                                  {currentSnapshot.profitMargin}%
-                                </span>
-                              </div>
-                            )}
-                          </div>
+                              )}
+                            </div>
                         )}
                         </td>
                         {selectedComparisonCollections.map((collection) => {
@@ -2228,14 +2255,22 @@ export function PurchasePlanningPage({
                               className={`numeric-cell${planningCollection?.id === collection.id ? " planning-current-column" : ""}`}
                               key={`${snapshot.key}-${collection.id}`}
                             >
-                              {!snapshot.isInactiveGroup && snapshot.brandId
-                                ? renderInlinePlannedAmount(snapshot, collection, { highlight: planningCollection?.id === collection.id })
-                                : (
-                                  <div className="planning-inline-readonly-stack">
-                                    <span>{formatPurchaseDisplayAmount(collectionSnapshot?.plannedAmount ?? "0.00")}</span>
-                                    {netDisplayLine ? <span className="planning-inline-return-value">{netDisplayLine}</span> : null}
+                              {(() => {
+                                const purchase = Math.round(Number(collectionSnapshot?.plannedAmount || 0));
+                                const returns = Math.round(Number(collectionSnapshot?.returnsAmount || 0));
+                                const sales = Math.round(Number(collectionSnapshot?.soldAmount || 0));
+                                const netPurchase = Number(collectionSnapshot?.plannedAmount || 0) - Number(collectionSnapshot?.returnsAmount || 0);
+                                const profitRatio = netPurchase > 0 ? (Number(collectionSnapshot?.soldAmount || 0) / netPurchase) * 100 : 0;
+
+                                return (
+                                  <div className="planning-metric-stack">
+                                    <div className="metric-line metric-line-compra">{purchase || "0"}</div>
+                                    {showPlanningReturns && <div className="metric-line metric-line-devolucao">{returns || "0"}</div>}
+                                    {showPlanningSales && <div className="metric-line metric-line-venda">{sales || "0"}</div>}
+                                    {showPlanningProfit && <div className="metric-line metric-line-lucro">{Math.round(profitRatio)}%</div>}
                                   </div>
-                                )}
+                                );
+                              })()}
                             </td>
                           );
                         })}
