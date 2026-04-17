@@ -1822,7 +1822,14 @@ export function PurchasePlanningPage({
           </label>
           <div className="status-select-switch">
             <button
-              className={filters.status !== "confirmed" ? "active" : ""}
+              className={!filters.status ? "active" : ""}
+              type="button"
+              onClick={() => onChangeFilters({ ...filters, status: "" })}
+            >
+              Todos
+            </button>
+            <button
+              className={filters.status === "planned" ? "active" : ""}
               type="button"
               onClick={() => onChangeFilters({ ...filters, status: "planned" })}
             >
@@ -1853,7 +1860,7 @@ export function PurchasePlanningPage({
               </span>
             </label>
           </div>
-          <div className="action-row">
+          <div className="action-row action-row--toolbar">
             <button 
               className="icon-action-button" 
               type="button" 

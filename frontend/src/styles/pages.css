@@ -4795,17 +4795,27 @@ textarea {
 
 .confirm-toggle-button.inline-button {
   padding: 0;
-  width: 14px;
-  height: 14px;
-  min-width: 14px;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
   font-size: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 2px;
+  border-radius: 4px;
   border: 1px solid #e2e8f0;
   color: #94a3b8;
   background: #fff;
+}
+
+.confirm-toggle-button.inline-button .planning-confirm-icon {
+  width: 100%;
+  height: 100%;
+  background: none !important;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .confirm-toggle-button.inline-button.is-confirmed {
@@ -4886,14 +4896,15 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #ffffff;
   border: 1px solid #d7e1ef;
-  color: #607087;
+  color: #61738d;
   transition: all 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .icon-action-button:hover {
@@ -4901,4 +4912,12 @@ textarea {
   color: #2f5be7;
   background: #f8faff;
   transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(47, 91, 231, 0.1);
+}
+
+.action-row--toolbar {
+  padding-left: 16px;
+  border-left: 1px solid #e2e8f0;
+  margin-left: 8px;
+  gap: 8px !important;
 }
