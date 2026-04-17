@@ -99,12 +99,46 @@ export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onA
         </section>
       ) : dashboard?.dre_cards?.length ? (
         <section className="kpi-grid dashboard-kpis">
-          {dashboard.dre_cards.map((card) => (
-            <article className={`kpi-card ${getKpiTone(card.label, Number(card.value))}`} key={card.label}>
-              <span>{card.label}</span>
-              <strong className="tabular-nums">{formatMoney(card.value)}</strong>
-            </article>
-          ))}
+          {dashboard.dre_cards.map((card) => {
+            const tone = getKpiTone(card.label, Number(card.value));
+            const label = card.label.toLowerCase();
+            const isRevenue = label.includes("receita") || label.includes("faturamento");
+            const isExpense = label.includes("despesa") || label.includes("custo");
+            const isProfit = label.includes("lucro") || label.includes("margem");
+            
+            return (
+              <article className={`kpi-card ${tone}`} key={card.label}>
+                <div className="kpi-card-icon">
+                  {isRevenue && (
+                    <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="24">
+                      <line x1="12" x2="12" y1="1" y2="23" />
+                      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                    </svg>
+                  )}
+                  {isExpense && (
+                    <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="24">
+                      <rect height="14" rx="2" ry="2" width="20" x="2" y="5" />
+                      <line x1="2" x2="22" y1="10" y2="10" />
+                    </svg>
+                  )}
+                  {isProfit && (
+                    <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="24">
+                      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                      <polyline points="17 6 23 6 23 12" />
+                    </svg>
+                  )}
+                  {!isRevenue && !isExpense && !isProfit && (
+                    <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="24">
+                      <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+                      <path d="M22 12A10 10 0 0 0 12 2v10z" />
+                    </svg>
+                  )}
+                </div>
+                <span>{card.label}</span>
+                <strong className="tabular-nums">{formatMoney(card.value)}</strong>
+              </article>
+            );
+          })}
         </section>
       ) : (
         <div className="premium-empty-state dashboard-empty">

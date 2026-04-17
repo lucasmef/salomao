@@ -20,10 +20,10 @@ export function BarChart({ title, data, tone = "default", formatValue = formatMo
           const rawValue = Number(item.value);
           const width = `${(Math.abs(rawValue) / maxValue) * 100}%`;
           return (
-            <div key={item.label} className="chart-row">
+            <div key={item.label} className="chart-row" title={`${item.label}: ${formatValue(item.value)}`}>
               <div className="chart-labels">
                 <span>{item.label}</span>
-                <strong>{formatValue(item.value)}</strong>
+                <strong className="tabular-nums">{formatValue(item.value)}</strong>
               </div>
               <div className="chart-track">
                 <div className={`chart-bar ${tone} ${rawValue < 0 ? "negative" : ""}`} style={{ width }} />

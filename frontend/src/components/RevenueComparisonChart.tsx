@@ -109,6 +109,13 @@ export function RevenueComparisonChart({ title, comparison, formatValue = format
         ) : null}
 
         <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title} preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="revenue-gradient" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#2563eb" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+
           {Array.from({ length: gridSteps + 1 }, (_, index) => {
             const y = padding.top + (chartHeight / gridSteps) * index;
             return (
@@ -136,6 +143,7 @@ export function RevenueComparisonChart({ title, comparison, formatValue = format
             </text>
           ))}
 
+          <path className="revenue-area-gradient" d={`${currentPath} L ${chartPoints[chartPoints.length - 1].x} ${padding.top + chartHeight} L ${chartPoints[0].x} ${padding.top + chartHeight} Z`} />
           <path className="revenue-line current-year" d={currentPath} />
           <path className="revenue-line previous-year" d={previousPath} />
 
