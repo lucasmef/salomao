@@ -2433,9 +2433,9 @@ textarea {
 
 .purchase-filter-bar {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+  grid-template-columns: minmax(220px, 1.15fr) minmax(220px, 1.1fr) auto auto auto;
   gap: 10px;
-  align-items: end;
+  align-items: center;
 }
 
 .purchase-filter-bar--compact {
@@ -2452,17 +2452,21 @@ textarea {
 
 .purchase-filter-toggle {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
 }
 
 .purchase-filter-toggle-control {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
-  color: #304254;
-  font-size: 0.9rem;
-  font-weight: 500;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 .purchase-filter-toggle-control input {
@@ -5024,11 +5028,11 @@ textarea {
 
 .purchase-toggle-group {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 0 8px;
-  border-right: 1px solid #e2e8f0;
-  margin-right: 4px;
+  padding: 0;
+  border-right: none;
+  margin-right: 0;
 }
 
 .metric-line-lucro.negative { color: #ef4444; }
@@ -5176,21 +5180,21 @@ textarea {
 .status-select-switch {
   display: flex;
   align-items: center;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
   padding: 3px;
-  border-radius: 10px;
-  gap: 2px;
+  border-radius: 8px;
+  gap: 3px;
 }
 
 .status-select-switch button {
-  border: none;
-  padding: 4px 10px;
-  font-size: 0.76rem;
+  border: 1px solid transparent;
+  padding: 5px 12px;
+  font-size: 0.78rem;
   font-weight: 600;
   background: transparent;
-  color: #64748b;
-  border-radius: 8px;
+  color: #475569;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
@@ -5202,32 +5206,32 @@ textarea {
 
 .status-select-switch button.active {
   background: #ffffff;
-  color: #2f5be7;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e2e8f0;
+  color: #1d4ed8;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  border-color: #bfdbfe;
 }
 
 .icon-action-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   border-radius: 8px;
   background: #ffffff;
-  border: 1px solid #d7e1ef;
-  color: #61738d;
+  border: 1px solid #cbd5e1;
+  color: #475569;
   transition: all 0.2s;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
 }
 
 .icon-action-button:hover {
-  border-color: #2f5be7;
-  color: #2f5be7;
-  background: #f8faff;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(47, 91, 231, 0.1);
+  border-color: #94a3b8;
+  color: #0f172a;
+  background: #f8fafc;
+  transform: none;
+  box-shadow: none;
 }
 
 .action-row--toolbar {
@@ -5237,11 +5241,6 @@ textarea {
   padding: 0 !important;
   display: flex;
   align-items: center;
-}
-
-.purchase-filter-bar * {
-  border-left: none !important;
-  border-right: none !important;
 }
 
 /* Brand Modal Enhancements */
@@ -5360,6 +5359,15 @@ textarea {
   margin-bottom: 8px;
 }
 
+.purchase-toolbar-panel {
+  padding: 10px 12px;
+}
+
+.purchase-toolbar-panel .purchase-filter-bar > label,
+.purchase-toolbar-panel .purchase-filter-bar > div {
+  min-width: 0;
+}
+
 .brand-modal-unified-content {
   gap: 10px !important;
   padding: 2px 0 0 !important;
@@ -5468,10 +5476,7 @@ textarea {
 }
 
 .brand-modal-table-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 0 0 2px 0;
+  display: none;
 }
 
 .brand-modal-table-title-row span {
@@ -5513,6 +5518,19 @@ textarea {
 
 .purchase-brand-modal-card .table-shell.brand-collection-table-shell {
   margin-top: 0;
+}
+
+.brand-collection-note-header {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.brand-collection-note-header .detail-toggle-btn {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
 }
 
 .purchase-brand-modal-card > .action-row {

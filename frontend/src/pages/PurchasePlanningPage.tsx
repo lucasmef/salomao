@@ -198,19 +198,19 @@ const PAYMENT_TERM_OPTIONS = [
 const purchaseSelectStyles = {
   control: (base: Record<string, unknown>, state: { isFocused: boolean }) => ({
     ...base,
-    minHeight: 36,
-    borderRadius: 10,
-    borderColor: state.isFocused ? "#c5d0df" : "#d7e1ef",
-    boxShadow: "none",
+    minHeight: 34,
+    borderRadius: 8,
+    borderColor: state.isFocused ? "#93c5fd" : "#cbd5e1",
+    boxShadow: state.isFocused ? "0 0 0 3px rgba(29, 78, 216, 0.08)" : "none",
     backgroundColor: "#ffffff",
-    fontSize: "0.84rem",
+    fontSize: "0.82rem",
     ":hover": {
-      borderColor: "#c5d0df",
+      borderColor: state.isFocused ? "#93c5fd" : "#94a3b8",
     },
   }),
   valueContainer: (base: Record<string, unknown>) => ({
     ...base,
-    padding: "0 10px",
+    padding: "0 8px",
   }),
   placeholder: (base: Record<string, unknown>) => ({
     ...base,
@@ -228,11 +228,40 @@ const purchaseSelectStyles = {
     ...base,
     fontSize: "0.82rem",
     backgroundColor: state.isSelected
-      ? "#2f5be7"
+      ? "#1d4ed8"
       : state.isFocused
-        ? "#eef4ff"
+        ? "#eff6ff"
         : "#fff",
     color: state.isSelected ? "#fff" : "#24364f",
+  }),
+  indicatorsContainer: (base: Record<string, unknown>) => ({
+    ...base,
+    paddingRight: 4,
+  }),
+  multiValue: (base: Record<string, unknown>) => ({
+    ...base,
+    backgroundColor: "#eef2f7",
+    borderRadius: 6,
+  }),
+  multiValueLabel: (base: Record<string, unknown>) => ({
+    ...base,
+    color: "#334155",
+    fontSize: "0.76rem",
+  }),
+  multiValueRemove: (base: Record<string, unknown>) => ({
+    ...base,
+    color: "#475569",
+    ":hover": {
+      backgroundColor: "#dbe4f0",
+      color: "#0f172a",
+    },
+  }),
+  menu: (base: Record<string, unknown>) => ({
+    ...base,
+    borderRadius: 10,
+    overflow: "hidden",
+    border: "1px solid #dbe4f1",
+    boxShadow: "0 10px 30px rgba(15, 23, 42, 0.12)",
   }),
   menuPortal: (base: Record<string, unknown>) => ({
     ...base,
@@ -2254,7 +2283,7 @@ export function PurchasePlanningPage({
 
   function renderSummaryFilters() {
     return (
-      <section className="panel">
+      <section className="section-toolbar-panel purchase-toolbar-panel">
         <div className="purchase-filter-bar">
           <label>
             Ano
@@ -2455,7 +2484,7 @@ export function PurchasePlanningPage({
   }
   function renderCadastrosToolbar() {
     return (
-      <section className="panel">
+      <section className="section-toolbar-panel purchase-toolbar-panel">
         <div className="purchase-filter-bar purchase-filter-bar--compact">
           <label>
             Coleção atual
@@ -2896,9 +2925,6 @@ export function PurchasePlanningPage({
         {renderPlanningFilters()}
 
         <article className="panel-card">
-          <div className="purchase-panel-heading">
-            <h3>Planejamento por marca</h3>
-          </div>
           <div className="table-shell purchase-brand-planning-table-shell">
             <table className="erp-table compact-table">
               <thead>
@@ -4058,7 +4084,17 @@ export function PurchasePlanningPage({
                           </>
                         )}
                         <th className="centered-cell brand-collection-col-note">
-                          Obs
+                          <span className="brand-collection-note-header">
+                            <span>Obs</span>
+                            <button
+                              className={`table-button icon-button cockpit-btn detail-toggle-btn${brandModalDetailed ? " active" : ""}`}
+                              type="button"
+                              onClick={() => setBrandModalDetailed(!brandModalDetailed)}
+                              title="Alternar detalhamento analítico"
+                            >
+                              <EyeIcon />
+                            </button>
+                          </span>
                         </th>
                       </tr>
                     </thead>

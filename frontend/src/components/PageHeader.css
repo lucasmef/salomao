@@ -11,6 +11,16 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+.premium-page-header--actions-only {
+  margin-bottom: 0.5rem;
+}
+
+.premium-page-header--actions-only .header-main-content {
+  justify-content: flex-end;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
 .header-title {
   font-family: var(--font-heading);
   font-size: 1.25rem;

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import { mainNavigation, overviewNavigationItem, type MainNavItem } from "../data/navigation";
+import { NavLink } from "react-router-dom";
+import { mainNavigation, type MainNavItem } from "../data/navigation";
 import type { AuthUser } from "../types";
 import "./AppShell.css";
 
@@ -25,7 +25,6 @@ export function AppShell({
   busy = false,
   busyLabel = "",
 }: Props) {
-  const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
@@ -44,7 +43,7 @@ export function AppShell({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const allNavigation: MainNavItem[] = [overviewNavigationItem, ...mainNavigation];
+  const allNavigation: MainNavItem[] = mainNavigation;
 
   return (
     <div className="modern-shell">
