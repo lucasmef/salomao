@@ -2654,6 +2654,14 @@ textarea {
   font-weight: 700;
 }
 
+.planning-inline-edit-input-micro {
+  width: 70px !important;
+  height: 24px !important;
+  padding: 2px 4px !important;
+  font-size: 0.78rem !important;
+  border-radius: 4px !important;
+}
+
 .planning-inline-edit-input {
   width: 100%;
   min-width: 0;
