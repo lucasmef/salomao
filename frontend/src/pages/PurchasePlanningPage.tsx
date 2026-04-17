@@ -2346,28 +2346,53 @@ export function PurchasePlanningPage({
                           const confirmed = getCollectionConfirmedState(collection, collectionSnapshot);
 
                           return (
-                                      title={!hasOrderToConfirm ? "Cadastre o pedido para confirmar" : confirmed ? "Confirmado" : "Planejado"}
-                                    >
-                                      <ConfirmIcon confirmed={confirmed} />
-                                    </button>
-                                  )}
+                            <td
+                              className={`numeric-cell${planningCollection?.id === collection.id ? " planning-current-column" : ""}`}
+                              key={`cell-${snapshot.key}-${collection.id}`}
+                            >
+                              <div className="planning-metric-stack">
+                                {/* Line 1: Pedido + Actions Zone */}
+                                <div className="metric-line metric-line-pedido" title="Pedido">
+                                  {renderInlinePlannedAmount(snapshot, collection, { compact: true, highlight: true })}
+                                  <div className="metric-actions-container-confirm">
+                                    {isConfirmationVisible && (
+                                      <button 
+                                        className={`cockpit-btn cockpit-btn-confirm${confirmed ? " is-confirmed" : ""}`}
+                                        type="button"
+                                        onClick={() => void handleToggleCollectionConfirmation(snapshot, collection)}
+                                        disabled={!hasOrderToConfirm}
+                                        title={!hasOrderToConfirm ? "Cadastre o pedido para confirmar" : confirmed ? "Confirmado" : "Planejado"}
+                                      >
+                                        <ConfirmIcon confirmed={confirmed} />
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
 
                                 {showPlanningDetail && (
                                   <>
                                     <div className="metric-line metric-line-recebido" title="Recebido">
-                                      {formatPurchaseDisplayAmount(collectionSnapshot?.receivedAmount || 0)}
+                                      <div className="metric-value-container">
+                                        {formatPurchaseDisplayAmount(collectionSnapshot?.receivedAmount || 0)}
+                                      </div>
+                                      <div className="metric-actions-container" />
                                     </div>
                                     <div className="metric-line metric-line-devolucao" title="Devolvido">
-                                      {formatPurchaseDisplayAmount(collectionSnapshot?.returnsAmount || 0)}
+                                      <div className="metric-value-container">
+                                        {formatPurchaseDisplayAmount(collectionSnapshot?.returnsAmount || 0)}
+                                      </div>
+                                      <div className="metric-actions-container" />
                                     </div>
                                     <div className="metric-line metric-line-venda" title="Vendido">
-                                      {formatPurchaseDisplayAmount(collectionSnapshot?.soldAmount || 0)}
+                                      <div className="metric-value-container">
+                                        {formatPurchaseDisplayAmount(collectionSnapshot?.soldAmount || 0)}
+                                      </div>
+                                      <div className="metric-actions-container" />
                                     </div>
                                   </>
                                 )}
 
-                                {/* Line 5: Lucro (Always) */}
+                                {/* Line 5: Lucro */}
                                 {(() => {
                                   const netReceived = Number(collectionSnapshot?.receivedAmount || 0) - Number(collectionSnapshot?.returnsAmount || 0);
                                   let percentage = 0;
@@ -2375,12 +2400,11 @@ export function PurchasePlanningPage({
                                     percentage = Math.round(((Number(collectionSnapshot?.soldAmount || 0) / netReceived) - 1) * 100);
                                   }
                                   return (
-                                    <div
-                                      className="metric-line metric-line-lucro"
-                                      title="Lucro %"
-                                      style={{ color: percentage >= 0 ? "#10b981" : "#ef4444" }}
-                                    >
-                                      {percentage}%
+                                    <div className="metric-line metric-line-lucro" title="Lucro %">
+                                      <div className="metric-value-container" style={{ color: percentage >= 0 ? "#10b981" : "#ef4444" }}>
+                                        {percentage}%
+                                      </div>
+                                      <div className="metric-actions-container" />
                                     </div>
                                   );
                                 })()}

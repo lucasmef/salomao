@@ -5002,17 +5002,24 @@ textarea {
   align-items: flex-end;
 }
 
-.metric-line-pedido {
+.metric-line-pedido,
+.metric-line-recebido,
+.metric-line-devolucao,
+.metric-line-venda,
+.metric-line-lucro {
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
   width: 100%;
+  white-space: nowrap;
+  padding-left: 4px;
+}
+
+.metric-line-pedido {
   font-weight: 700;
   font-size: 0.82rem;
   color: #1e293b;
-  white-space: nowrap;
-  padding-left: 4px;
 }
 
 .metric-value-container {
@@ -5021,6 +5028,7 @@ textarea {
   flex-direction: column;
   align-items: flex-end;
   min-width: 0;
+  text-align: right;
 }
 
 .metric-actions-container,
@@ -5068,7 +5076,8 @@ textarea {
   background: #f5f7fa !important;
 }
 
-.cockpit-btn.is-success:hover {
+.cockpit-btn.is-success:hover,
+.cockpit-btn-confirm.is-confirmed:hover {
   border-color: #10b981 !important;
   color: #10b981 !important;
   background: #ecfdf5 !important;
@@ -5077,6 +5086,12 @@ textarea {
 .cockpit-btn-confirm {
   font-size: 14px !important;
   line-height: 1 !important;
+}
+
+.cockpit-btn-confirm.is-confirmed {
+  color: #059669 !important;
+  border-color: #10b98166 !important;
+  background: #ecfdf5 !important;
 }
 
 .metric-line-recebido { color: #64748b; }
