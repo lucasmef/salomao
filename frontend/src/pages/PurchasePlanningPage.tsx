@@ -440,10 +440,14 @@ function CloseIcon() {
 }
 
 function ConfirmIcon({ confirmed }: { confirmed: boolean }) {
-  return (
-    <span aria-label={confirmed ? "Confirmado" : "Nao confirmado"} className={`planning-confirm-icon${confirmed ? " is-confirmed" : ""}`}>
-      {confirmed ? "\u2713" : "\u2212"}
-    </span>
+  return confirmed ? (
+    <svg aria-hidden="true" className="button-icon" fill="none" viewBox="0 0 16 16">
+      <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z" fill="currentColor" />
+    </svg>
+  ) : (
+    <svg aria-hidden="true" className="button-icon" fill="none" viewBox="0 0 16 16">
+      <path d="M2 8a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8Z" fill="currentColor" />
+    </svg>
   );
 }
 
@@ -2371,23 +2375,26 @@ export function PurchasePlanningPage({
 
                                 {showPlanningDetail && (
                                   <>
-                                    <div className="metric-line metric-line-recebido" title="Recebido">
-                                      <div className="metric-value-container">
+                                    <div className="metric-line" title="Recebido">
+                                      <div className="metric-value-container color-recebido">
                                         {formatPurchaseDisplayAmount(collectionSnapshot?.receivedAmount || 0)}
                                       </div>
                                       <div className="metric-actions-container" />
+                                      <div className="metric-actions-container-confirm" />
                                     </div>
-                                    <div className="metric-line metric-line-devolucao" title="Devolvido">
-                                      <div className="metric-value-container">
+                                    <div className="metric-line" title="Devolvido">
+                                      <div className="metric-value-container color-devolucao">
                                         {formatPurchaseDisplayAmount(collectionSnapshot?.returnsAmount || 0)}
                                       </div>
                                       <div className="metric-actions-container" />
+                                      <div className="metric-actions-container-confirm" />
                                     </div>
-                                    <div className="metric-line metric-line-venda" title="Vendido">
-                                      <div className="metric-value-container">
+                                    <div className="metric-line" title="Vendido">
+                                      <div className="metric-value-container color-venda">
                                         {formatPurchaseDisplayAmount(collectionSnapshot?.soldAmount || 0)}
                                       </div>
                                       <div className="metric-actions-container" />
+                                      <div className="metric-actions-container-confirm" />
                                     </div>
                                   </>
                                 )}
@@ -2400,11 +2407,12 @@ export function PurchasePlanningPage({
                                     percentage = Math.round(((Number(collectionSnapshot?.soldAmount || 0) / netReceived) - 1) * 100);
                                   }
                                   return (
-                                    <div className="metric-line metric-line-lucro" title="Lucro %">
+                                    <div className="metric-line" title="Lucro %">
                                       <div className="metric-value-container" style={{ color: percentage >= 0 ? "#10b981" : "#ef4444" }}>
                                         {percentage}%
                                       </div>
                                       <div className="metric-actions-container" />
+                                      <div className="metric-actions-container-confirm" />
                                     </div>
                                   );
                                 })()}

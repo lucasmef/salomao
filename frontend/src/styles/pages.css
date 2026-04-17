@@ -5002,18 +5002,14 @@ textarea {
   align-items: flex-end;
 }
 
-.metric-line-pedido,
-.metric-line-recebido,
-.metric-line-devolucao,
-.metric-line-venda,
-.metric-line-lucro {
-  display: flex;
-  flex-direction: row;
+.metric-line {
+  display: grid;
+  grid-template-columns: 1fr 24px 24px;
+  gap: 4px;
   align-items: center;
-  justify-content: space-between;
   width: 100%;
   white-space: nowrap;
-  padding-left: 4px;
+  min-height: 24px;
 }
 
 .metric-line-pedido {
@@ -5023,23 +5019,24 @@ textarea {
 }
 
 .metric-value-container {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  min-width: 0;
   text-align: right;
+  overflow: hidden;
 }
 
 .metric-actions-container,
 .metric-actions-container-confirm {
-  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 3px;
-  justify-content: flex-start;
-  min-width: 24px;
+  justify-content: center;
+  width: 24px;
 }
+
+.color-recebido { color: #64748b; }
+.color-devolucao { color: #ef4444; }
+.color-venda { color: #304254; }
 
 .metric-actions-container {
   margin-left: 2px;
