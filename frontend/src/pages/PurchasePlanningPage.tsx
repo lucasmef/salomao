@@ -576,6 +576,7 @@ export function PurchasePlanningPage({
   const [purchaseReturnModalOpen, setPurchaseReturnModalOpen] = useState(false);
   const [purchaseReturnsPanelOpen, setPurchaseReturnsPanelOpen] = useState(false);
   const [brandModal, setBrandModal] = useState<BrandModalState>(emptyBrandModal());
+  const [brandModalDetailed, setBrandModalDetailed] = useState(false);
   const [supplierModal, setSupplierModal] = useState<SupplierModalState>(emptySupplierModal());
   const [collectionModal, setCollectionModal] = useState<CollectionModalState>(emptyCollectionModal());
   const [collectionObservationModal, setCollectionObservationModal] = useState<CollectionObservationModalState | null>(null);
@@ -2956,81 +2957,130 @@ export function PurchasePlanningPage({
                 />
                 <span>Marca ativa</span>
               </label>
-              <div className="purchase-panel-heading">
+              <div className="purchase-panel-heading brand-modal-header-actions">
                 <h3>Coleções e pedidos</h3>
+                <label className="checkbox-line detail-toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={brandModalDetailed}
+                    onChange={(e) => setBrandModalDetailed(e.target.checked)}
+                  />
+                  <span>Detalhamentos</span>
+                </label>
               </div>
               <div className="table-shell brand-collection-table-shell">
                 <table className="erp-table brand-collection-table compact-table">
                   <colgroup>
                     <col className="brand-collection-col-name" />
                     <col className="brand-collection-col-amount" />
+                    {brandModalDetailed && (
+                      <>
+                        <col className="brand-collection-col-detail" />
+                        <col className="brand-collection-col-detail" />
+                        <col className="brand-collection-col-detail" />
+                      </>
+                    )}
                     <col className="brand-collection-col-check" />
+                    {brandModalDetailed && <col className="brand-collection-col-profit" />}
                     <col className="brand-collection-col-note" />
                   </colgroup>
                   <thead>
                     <tr>
-                      <th>Coleção</th>
-                      <th className="numeric-cell">Valor do pedido</th>
-                      <th className="centered-cell">Confirmado</th>
-                      <th className="centered-cell">Observação</th>
+                      <th className="brand-collection-col-name">Coleção</th>
+                      <th className="numeric-cell brand-collection-col-amount">Pedido</th>
+                      {brandModalDetailed && (
+                        <>
+                          <th className="numeric-cell brand-collection-col-detail">Recebido</th>
+                          <th className="numeric-cell brand-collection-col-detail">Devolvido</th>
+                          <th className="numeric-cell brand-collection-col-detail">Vendido</th>
+                        </>
+                      )}
+                      <th className="centered-cell brand-collection-col-check">Status</th>
+                      {brandModalDetailed && <th className="numeric-cell brand-collection-col-profit">% Lucro</th>}
+                      <th className="centered-cell brand-collection-col-note">Obs</th>
                     </tr>
                   </thead>
                   <tbody>
                     {collectionsChronological.length ? (
-                      collectionsChronological.map((collection) => {
+                      collectionsChronological.slice().reverse().map((collection) => {
                         const collectionSnapshot = currentBrandSnapshot?.collections.get(collection.id) ?? null;
                         const isEditable = isCollectionConfirmationEditable(collection);
                         const isConfirmed = getCollectionConfirmedState(collection, collectionSnapshot);
                         const hasConfirmableOrder = hasCollectionConfirmableOrder(collectionSnapshot);
                         const observationText = getCollectionObservationText(collectionSnapshot);
                         const hasObservation = Boolean(observationText);
+
+                        const netReceived = Number(collectionSnapshot?.receivedAmount || 0) - Number(collectionSnapshot?.returnsAmount || 0);
+                        let profitPercentage = 0;
+                        if (netReceived > 0) {
+                          profitPercentage = Math.round(((Number(collectionSnapshot?.soldAmount || 0) / netReceived) - 1) * 100);
+                        }
+
                         return (
                           <tr key={`${brandModal.id ?? brandModal.name}-${collection.id}`}>
                             <td>{collection.season_label || collection.name}</td>
                             <td className="numeric-cell">
-                              {currentBrandSnapshot
-                                ? renderInlinePlannedAmount(currentBrandSnapshot, collection, { compact: true })
-                                : formatPurchaseDisplayAmount("0.00")}
+                              <span className={`planning-inline-edit-value ${isConfirmed ? "is-confirmed" : "is-planned"}`}>
+                                {formatPurchaseDisplayAmount(collectionSnapshot?.plannedAmount || 0)}
+                              </span>
                             </td>
+                            {brandModalDetailed && (
+                              <>
+                                <td className="numeric-cell color-recebido">
+                                  {formatPurchaseDisplayAmount(collectionSnapshot?.receivedAmount || 0)}
+                                </td>
+                                <td className="numeric-cell color-devolucao">
+                                  {formatPurchaseDisplayAmount(collectionSnapshot?.returnsAmount || 0)}
+                                </td>
+                                <td className="numeric-cell color-venda">
+                                  {formatPurchaseDisplayAmount(collectionSnapshot?.soldAmount || 0)}
+                                </td>
+                              </>
+                            )}
                             <td className="centered-cell">
                               {isEditable ? (
                                 <button
-                                  className={`table-button icon-button confirm-toggle-button${isConfirmed ? " is-confirmed" : ""}`}
+                                  className={`table-button icon-button cockpit-btn cockpit-btn-confirm${isConfirmed ? " is-confirmed" : ""}`}
                                   type="button"
                                   onClick={() => currentBrandSnapshot ? void handleToggleCollectionConfirmation(currentBrandSnapshot, collection) : undefined}
                                   disabled={!currentBrandSnapshot || !hasConfirmableOrder}
                                   title={
                                     !hasConfirmableOrder
-                                      ? "Cadastre o pedido desta coleção para confirmar"
+                                      ? "Cadastre o pedido para confirmar"
                                       : isConfirmed
-                                        ? "Marcar como não confirmado"
-                                        : "Marcar como confirmado"
+                                        ? "Planejado (clique para confirmar)"
+                                        : "Confirmado (clique para desfazer)"
                                   }
                                 >
                                   <ConfirmIcon confirmed={isConfirmed} />
                                 </button>
                               ) : (
-                                <span>-</span>
+                                <span className="status-placeholder">-</span>
                               )}
                             </td>
+                            {brandModalDetailed && (
+                              <td className="numeric-cell" style={{ color: profitPercentage >= 0 ? "#10b981" : "#ef4444", fontWeight: 600 }}>
+                                {profitPercentage}%
+                              </td>
+                            )}
                             <td className="centered-cell">
                               <button
-                                aria-label={`${hasObservation ? "Editar" : "Adicionar"} observação da coleção ${collection.season_label || collection.name}`}
-                                className={`table-button icon-button collection-observation-button${hasObservation ? " has-observation" : ""}`}
+                                aria-label={`${hasObservation ? "Editar" : "Adicionar"} observação`}
+                                className={`table-button icon-button cockpit-btn collection-observation-button${hasObservation ? " has-observation" : ""}`}
                                 type="button"
                                 onClick={() => currentBrandSnapshot ? openCollectionObservationModal(currentBrandSnapshot, collection) : undefined}
                                 disabled={!currentBrandSnapshot}
-                                title={observationText ? `Observação: ${observationText}` : "Adicionar observação"}
+                                title={observationText || "Adicionar observação"}
                               >
                                 <ObservationIcon />
                               </button>
                             </td>
                           </tr>
-                      );
-                    })
+                        );
+                      })
                     ) : (
                       <tr>
-                        <td colSpan={4}>Nenhuma coleção cadastrada.</td>
+                        <td colSpan={brandModalDetailed ? 8 : 4}>Nenhuma coleção cadastrada.</td>
                       </tr>
                     )}
                   </tbody>
@@ -3050,7 +3100,6 @@ export function PurchasePlanningPage({
       </div>
     );
   }
-
   function renderCollectionObservationModal() {
     if (!collectionObservationModal) return null;
     const collection = collectionMap.get(collectionObservationModal.collectionId);

@@ -2732,7 +2732,24 @@ textarea {
 }
 
 .purchase-brand-modal-card {
-  width: min(980px, calc(100vw - 24px));
+  width: min(1200px, calc(100vw - 24px));
+}
+
+.brand-modal-header-actions {
+  display: flex !important;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.detail-toggle-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .purchase-returns-panel-modal {
@@ -2749,6 +2766,18 @@ textarea {
 .purchase-brand-planning-table-shell {
   max-height: none;
   overflow: visible;
+}
+
+.brand-collection-col-name { width: auto; min-width: 140px; }
+.brand-collection-col-amount { width: 95px; }
+.brand-collection-col-detail { width: 90px; color: #64748b; font-size: 0.75rem; }
+.brand-collection-col-check { width: 55px; }
+.brand-collection-col-profit { width: 75px; }
+.brand-collection-col-note { width: 45px; }
+
+.status-placeholder {
+  color: #cad1d8;
+  font-size: 0.8rem;
 }
 
 .purchase-planning-totals-dashboard {
