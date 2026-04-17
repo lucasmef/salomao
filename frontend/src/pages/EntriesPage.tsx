@@ -298,6 +298,7 @@ export function EntriesPage({
   const presetMenuRef = useRef<HTMLDivElement | null>(null);
   const bulkMenuRef = useRef<HTMLDivElement | null>(null);
   const rowMenuRef = useRef<HTMLDivElement | null>(null);
+  const [focusedRowIndex, setFocusedRowIndex] = useState<number>(-1);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [quickPaidAmounts, setQuickPaidAmounts] = useState<Record<string, string>>({});
@@ -431,6 +432,54 @@ export function EntriesPage({
     () => visibleEntries.filter((entry) => selectedEntryIds.includes(entry.id)),
     [selectedEntryIds, visibleEntries],
   );
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if an input is focused, unless it's the Escape key
+      const activeEl = document.activeElement?.tagName;
+      const isInputFocused = ["INPUT", "TEXTAREA", "SELECT"].includes(activeEl ?? "");
+      
+      if (e.key === "Escape") {
+        setShowPeriodPopover(false);
+        setShowPresetMenu(false);
+        setShowEntryModal(false);
+        setShowTransferModal(false);
+        setShowBulkMenu(false);
+        setShowCategoryFilterPopover(false);
+        setActiveRowMenuId(null);
+        return;
+      }
+
+      if (isInputFocused) return;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setFocusedRowIndex((prev) => Math.min(prev + 1, visibleEntries.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setFocusedRowIndex((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === " ") {
+        if (focusedRowIndex >= 0) {
+          e.preventDefault();
+          const entryId = visibleEntries[focusedRowIndex].id;
+          toggleEntrySelection(entryId);
+        }
+      } else if (e.key === "Enter") {
+        if (focusedRowIndex >= 0) {
+          e.preventDefault();
+          startEditing(visibleEntries[focusedRowIndex]);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [visibleEntries, focusedRowIndex, selectedEntryIds]);
+
+  useEffect(() => {
+    // Reset focus when filters change or data is reloaded
+    setFocusedRowIndex(-1);
+  }, [filters, entryList]);
   const selectedEntryKind = useMemo(() => {
     if (!selectedEntries.length) {
       return "";
@@ -1383,8 +1432,8 @@ export function EntriesPage({
               </tr>
             </thead>
             <tbody>
-              {visibleEntries.map((entry) => (
-                <tr key={entry.id}>
+              {visibleEntries.map((entry, index) => (
+                <tr className={index === focusedRowIndex ? "is-keyboard-focused" : ""} key={entry.id}>
                   <td className="checkbox-cell">
                     <input
                       checked={selectedEntryIds.includes(entry.id)}
@@ -1490,7 +1539,21 @@ export function EntriesPage({
                   </td>
                 </tr>
               ))}
-              {!visibleEntries.length && <tr><td colSpan={9} className="empty-cell">Nenhum lançamento encontrado para os filtros atuais.</td></tr>}
+              {!visibleEntries.length && (
+                <tr>
+                  <td colSpan={9}>
+                    <div className="premium-empty-state">
+                      <div className="empty-state-icon">
+                        <svg aria-hidden="true" fill="none" height="32" viewBox="0 0 24 24" width="32">
+                          <path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+                        </svg>
+                      </div>
+                      <h4 className="empty-state-title">Nenhum lançamento encontrado</h4>
+                      <p className="empty-state-desc">Tente ajustar seus filtros ou período de consulta para localizar os registros desejados.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
             <tfoot>
               <tr className="entries-total-row">
@@ -1533,7 +1596,7 @@ export function EntriesPage({
               />
             </div>
             <form className="form-grid dense wide entry-form-grid" onSubmit={handleSubmit}>
-              <label>Emissão<input type="date" value={form.issue_date} onChange={(event) => setForm({ ...form, issue_date: event.target.value })} /></label>
+              <label>Emissão<input autoFocus type="date" value={form.issue_date} onChange={(event) => setForm({ ...form, issue_date: event.target.value })} /></label>
               <label>Competência<input type="date" value={form.competence_date} onChange={(event) => setForm({ ...form, competence_date: event.target.value })} /></label>
               <label>Vencimento<input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} /></label>
               <label>
@@ -1608,7 +1671,7 @@ export function EntriesPage({
               </label>
               <label className="span-three entry-form-observation">Observação<textarea rows={4} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value, description: "" })} /></label>
               <div className="action-row">
-                <button className="primary-button" disabled={submitting} type="submit">{editingId ? "Salvar alterações" : "Criar lançamento"}</button>
+                <button className={`primary-button ${submitting ? "is-loading" : ""}`} disabled={submitting} type="submit">{editingId ? "Salvar alterações" : "Criar lançamento"}</button>
                 <button
                   className="ghost-button"
                   onClick={() => {
@@ -1696,7 +1759,7 @@ export function EntriesPage({
               </label>
               <div className="action-row">
                 <button
-                  className="primary-button"
+                  className={`primary-button ${submitting ? "is-loading" : ""}`}
                   disabled={
                     submitting ||
                     !transferForm.source_account_id ||
@@ -1766,7 +1829,7 @@ export function EntriesPage({
                 </select>
               </label>
               <div className="action-row">
-                <button className="primary-button" disabled={submitting || !settlementPrompt.account_id} type="submit">
+                <button className={`primary-button ${submitting ? "is-loading" : ""}`} disabled={submitting || !settlementPrompt.account_id} type="submit">
                   Confirmar baixa
                 </button>
                 <button

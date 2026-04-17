@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { mainNavigation, overviewNavigationItem } from "../data/navigation";
+import { mainNavigation, overviewNavigationItem, type MainNavItem } from "../data/navigation";
 import type { AuthUser } from "../types";
 import "./AppShell.css";
 
@@ -36,10 +36,15 @@ export function AppShell({
         const input = document.querySelector(".top-search input") as HTMLInputElement;
         input?.focus();
       }
+      if (e.key === "Escape") {
+        setMobileMenuOpen(false);
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  const allNavigation: MainNavItem[] = [overviewNavigationItem, ...mainNavigation];
 
   return (
     <div className="modern-shell">
@@ -49,11 +54,15 @@ export function AppShell({
             <NavLink to="/overview/resumo" className="brand-link">
               <span className="brand-logo">S</span>
               <span className="brand-text">Salomão</span>
+              <div className="system-status-indicator" title="Sistema online">
+                <span className="status-dot"></span>
+                <span className="status-text">LIVE</span>
+              </div>
             </NavLink>
           </div>
 
           <nav className="header-nav">
-            {allNavigation.map((item) => (
+            {allNavigation.map((item: MainNavItem) => (
               <NavLink
                 key={item.key}
                 to={item.path}
@@ -114,7 +123,7 @@ export function AppShell({
 
       <div className={`mobile-nav-overlay ${mobileMenuOpen ? "is-open" : ""}`}>
         <nav className="mobile-nav-links">
-          {allNavigation.map((item) => (
+          {allNavigation.map((item: MainNavItem) => (
             <NavLink
               key={item.key}
               to={item.path}

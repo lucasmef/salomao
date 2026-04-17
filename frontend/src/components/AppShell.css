@@ -68,20 +68,36 @@
 .nav-link {
   text-decoration: none;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--color-text-muted);
   padding: 0.5rem 0.25rem;
-  transition: all 0.2s ease;
-  border-bottom: 2px solid transparent;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
 }
 
 .nav-link:hover {
-  color: var(--color-text-main);
+  color: var(--color-primary);
 }
 
 .nav-link.is-active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
+  color: var(--color-text-main);
+  font-weight: 700;
+}
+
+.nav-link::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--color-primary);
+  border-radius: 2px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-link.is-active::after {
+  width: 100%;
 }
 
 .header-actions {
@@ -331,4 +347,49 @@
     border-radius: 8px;
     background: #f8fafc;
   }
+}
+
+/* Live Status Indicator */
+.system-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: #f1f5f9;
+  border-radius: 12px;
+  margin-left: 0.5rem;
+  border: 1px solid var(--color-border);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  background: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  animation: pulseLive 2s infinite;
+}
+
+.status-text {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--color-text-muted);
+  letter-spacing: 0.05em;
+}
+
+@keyframes pulseLive {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Dashboard Toolbar Refinement */
+.dashboard-toolbar {
+  gap: 2rem !important;
+}
+
+.toolbar-date-inputs {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
 }

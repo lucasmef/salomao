@@ -9,25 +9,7 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-.section-header {
-  margin-bottom: 2rem;
-}
-
-.section-title {
-  font-family: var(--font-heading);
-  font-size: 2rem;
-  font-weight: 800;
-  color: var(--color-text-main);
-  letter-spacing: -0.03em;
-  margin-bottom: 0.5rem;
-}
-
-.section-description {
-  font-size: 1rem;
-  color: var(--color-text-muted);
-  max-width: 800px;
-  line-height: 1.5;
-}
+/* PageHeader is now used instead of local header */
 
 .section-content-card {
   background: white;

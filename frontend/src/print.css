@@ -1,0 +1,73 @@
+@media print {
+  /* Hide non-essential elements */
+  .main-header,
+  .top-busy-banner,
+  .top-loading-bar,
+  .entries-top-panel,
+  .entries-actions-column,
+  .checkbox-cell,
+  .table-pagination,
+  .entries-toolbar-icon-group,
+  .header-actions,
+  .header-breadcrumbs,
+  .action-row,
+  .panel-title h3::after,
+  button {
+    display: none !important;
+  }
+
+  /* Reset layout for print */
+  body, .modern-shell, .main-viewport, .viewport-container {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .panel.compact-panel-card {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+
+  /* Table styling for print */
+  .erp-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10pt !important;
+  }
+
+  .erp-table th, .erp-table td {
+    border: 1px solid #eee !important;
+    padding: 8px !important;
+    color: black !important;
+  }
+
+  .erp-table thead th {
+    background: #f9fafb !important;
+    font-weight: bold !important;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Header for the printed report */
+  .viewport-container::before {
+    content: "Relatório Financeiro - Salomão";
+    display: block;
+    font-size: 18pt;
+    font-weight: 800;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #0f172a;
+    color: #0f172a;
+  }
+
+  /* Force display of hidden areas if they are the main content */
+  .entries-table-shell {
+    display: block !important;
+  }
+  
+  .entries-list-table {
+    display: table !important;
+  }
+}

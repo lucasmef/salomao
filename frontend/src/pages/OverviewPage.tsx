@@ -49,34 +49,41 @@ export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onA
     await onApplyFilters(nextFilters);
   }
 
+  function getKpiTone(label: string, value: number) {
+    const normalized = label.toLowerCase();
+    const isExpense = normalized.includes("custo") || normalized.includes("despesa") || normalized.includes("imposto") || normalized.includes("venda");
+    
+    if (value === 0) return "is-neutral";
+    if (isExpense) {
+      return value > 0 ? "is-negative" : "is-positive";
+    }
+    return value > 0 ? "is-positive" : "is-negative";
+  }
+
   return (
     <div className="page-layout">
       <PageHeader
         eyebrow="Visão Geral"
-        title="Dashboard do DRE"
-        description="Exibe somente os indicadores do DRE marcados para aparecer no dashboard."
+        title="Dashboard Executivo"
+        description="Indicadores estratégicos do DRE acumulados no período selecionado."
         actions={
-          <form className="toolbar" onSubmit={handleSubmit}>
+          <form className="toolbar dashboard-toolbar" onSubmit={handleSubmit}>
             <div className="quick-range-group">
-              <button className="ghost-button compact" onClick={() => void applyQuickRange("month")} type="button">
-                Mes atual
-              </button>
-              <button className="ghost-button compact" onClick={() => void applyQuickRange("previous")} type="button">
-                Mes anterior
-              </button>
-              <button className="ghost-button compact" onClick={() => void applyQuickRange("year")} type="button">
-                Ano atual
-              </button>
+              <button className="ghost-button compact" onClick={() => void applyQuickRange("month")} type="button">Mês atual</button>
+              <button className="ghost-button compact" onClick={() => void applyQuickRange("previous")} type="button">Mês anterior</button>
+              <button className="ghost-button compact" onClick={() => void applyQuickRange("year")} type="button">Ano atual</button>
             </div>
-            <label>
-              Inicio
-              <input type="date" value={filters.start} onChange={(event) => onChangeFilters({ ...filters, start: event.target.value })} />
-            </label>
-            <label>
-              Fim
-              <input type="date" value={filters.end} onChange={(event) => onChangeFilters({ ...filters, end: event.target.value })} />
-            </label>
-            <button className="primary-button" disabled={loading} type="submit">
+            <div className="toolbar-date-inputs">
+              <label>
+                Início
+                <input type="date" value={filters.start} onChange={(event) => onChangeFilters({ ...filters, start: event.target.value })} />
+              </label>
+              <label>
+                Fim
+                <input type="date" value={filters.end} onChange={(event) => onChangeFilters({ ...filters, end: event.target.value })} />
+              </label>
+            </div>
+            <button className={`primary-button ${loading ? "is-loading" : ""}`} disabled={loading} type="submit">
               Atualizar
             </button>
           </form>
@@ -95,18 +102,22 @@ export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onA
       ) : dashboard?.dre_cards?.length ? (
         <section className="kpi-grid dashboard-kpis">
           {dashboard.dre_cards.map((card) => (
-            <article className="kpi-card" key={card.label}>
+            <article className={`kpi-card ${getKpiTone(card.label, card.value)}`} key={card.label}>
               <span>{card.label}</span>
               <strong>{formatMoney(card.value)}</strong>
             </article>
           ))}
         </section>
       ) : (
-        <section className="panel">
-          <div className="empty-panel">
-            <p className="empty-state">Nenhuma linha do DRE esta marcada com "mostrar no Dashboard".</p>
+        <div className="premium-empty-state dashboard-empty">
+          <div className="empty-state-icon">
+            <svg aria-hidden="true" fill="none" height="32" viewBox="0 0 24 24" width="32">
+              <path d="M9 19V5l12 7-12 7Z" fill="currentColor" />
+            </svg>
           </div>
-        </section>
+          <h4 className="empty-state-title">Dashboard Vazio</h4>
+          <p className="empty-state-desc">Vá em <strong>Configurações > Categorias</strong> e marque as linhas do DRE que você deseja acompanhar aqui.</p>
+        </div>
       )}
     </div>
   );

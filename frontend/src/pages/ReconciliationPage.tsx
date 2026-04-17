@@ -428,6 +428,20 @@ export function ReconciliationPage({
   const hasMountedFilterAutoApplyRef = useRef(false);
   const entryRequestIdRef = useRef(0);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setModal(null);
+        setShowPeriodPopover(false);
+        setShowPresetMenu(false);
+        setShowBalancePopover(false);
+        setCategoryCreationModalOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const filteredBankItems = useMemo(() => {
     const query = bankSearch.trim().toLowerCase();
     const items = worklist?.items ?? [];
@@ -1453,7 +1467,7 @@ export function ReconciliationPage({
             <div className="form-grid dense">
               <label>
                 Título
-                <input value={createDraft.title} onChange={(event) => setCreateDraft({ ...createDraft, title: event.target.value })} />
+                <input autoFocus value={createDraft.title} onChange={(event) => setCreateDraft({ ...createDraft, title: event.target.value })} />
               </label>
               <label className="span-three">
                 Categoria
@@ -1507,7 +1521,7 @@ export function ReconciliationPage({
             {!!createEntryValidationMessage && <div className="import-last-meta">{createEntryValidationMessage}</div>}
             <div className="action-row">
               <button
-                className="primary-button"
+                className={`primary-button ${submitting ? "is-loading" : ""}`}
                 type="button"
                 disabled={!canCreateConsolidatedEntry}
                 onClick={() => void handleCreateEntry()}
@@ -1529,7 +1543,7 @@ export function ReconciliationPage({
             <div className="form-grid dense">
               <label>
                 Título
-                <input value={createDraft.title} onChange={(event) => setCreateDraft({ ...createDraft, title: event.target.value })} />
+                <input autoFocus value={createDraft.title} onChange={(event) => setCreateDraft({ ...createDraft, title: event.target.value })} />
               </label>
               <label>
                 {transferSelectableAccountLabel}
@@ -1562,7 +1576,7 @@ export function ReconciliationPage({
             </div>
             <div className="action-row">
               <button
-                className="primary-button"
+                className={`primary-button ${submitting ? "is-loading" : ""}`}
                 type="button"
                 disabled={!createDraft.destination_account_id || !selectedBankIds.length}
                 onClick={() => void handleCreateTransfer()}
@@ -1611,7 +1625,7 @@ export function ReconciliationPage({
             </div>
             <div className="action-row">
               <button
-                className="primary-button"
+                className={`primary-button ${creatingCategory ? "is-loading" : ""}`}
                 type="button"
                 disabled={creatingCategory || !categoryCreationDraft.name.trim() || !categoryCreationDraft.report_group.trim()}
                 onClick={() => void confirmCategoryCreation()}

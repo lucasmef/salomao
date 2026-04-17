@@ -12,18 +12,22 @@ type Props = {
   children: ReactNode;
 };
 
+import { PageHeader } from "./PageHeader";
+
 export function SectionChrome({
   tabs,
   children,
   title,
   description,
+  sectionLabel,
 }: Props) {
   return (
     <div className="section-container">
-      <header className="section-header">
-        <h1 className="section-title">{title}</h1>
-        {description && <p className="section-description">{description}</p>}
-      </header>
+      <PageHeader
+        eyebrow={sectionLabel}
+        title={title}
+        description={description}
+      />
 
       {tabs.length > 1 ? <SectionTabs items={tabs} /> : null}
 
