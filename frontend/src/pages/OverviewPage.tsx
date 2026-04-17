@@ -116,7 +116,7 @@ export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onA
             </svg>
           </div>
           <h4 className="empty-state-title">Dashboard Vazio</h4>
-          <p className="empty-state-desc">Vá em <strong>Configurações > Categorias</strong> e marque as linhas do DRE que você deseja acompanhar aqui.</p>
+          <p className="empty-state-desc">Vá em <strong>Configurações &gt; Categorias</strong> e marque as linhas do DRE que você deseja acompanhar aqui.</p>
         </div>
       )}
     </div>
