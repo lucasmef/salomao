@@ -2411,7 +2411,26 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 2px;
+}
+
+.planning-inline-edit-compact {
+  gap: 1px;
+}
+
+.planning-inline-edit-compact .table-button {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.planning-inline-edit-compact .table-button svg {
+  width: 10px;
+  height: 10px;
 }
 
 .planning-inline-edit-table {
@@ -4774,8 +4793,9 @@ textarea {
 .planning-metric-stack {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  line-height: 1.2;
+  gap: 1px;
+  line-height: 1.1;
+  align-items: flex-end;
 }
 
 .metric-line-pedido {
@@ -4795,17 +4815,18 @@ textarea {
 
 .confirm-toggle-button.inline-button {
   padding: 0;
-  width: 16px;
-  height: 16px;
-  min-width: 16px;
-  font-size: 10px;
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  font-size: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 3px;
   border: 1px solid #e2e8f0;
   color: #94a3b8;
   background: #fff;
+  flex-shrink: 0;
 }
 
 .confirm-toggle-button.inline-button .planning-confirm-icon {
