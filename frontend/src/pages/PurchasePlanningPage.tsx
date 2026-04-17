@@ -2201,7 +2201,8 @@ export function PurchasePlanningPage({
                             </div>
                           ) : (
                             <div className="planning-brand-cell">
-                            {showPlanningSales && currentSnapshot && (
+                              <strong>{snapshot.brandName}</strong>
+                              {showPlanningSales && currentSnapshot && (
                               <div className="planning-sales-badges">
                                 <span className={`planning-sales-badge sold`}>
                                   {formatPurchaseDisplayAmount(currentSnapshot.soldAmount)}
