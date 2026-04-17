@@ -2515,17 +2515,63 @@ export function PurchasePlanningPage({
       .join(" ");
 
     return (
-      <div className="planning-inline-edit is-readonly">
-        <div className="metric-value-container">
-          <span className={valueClassName}>
-            {formatPurchaseDisplayAmount(collectionSnapshot.plannedAmount)}
-          </span>
-          {netDisplayLine ? (
-            <span className="planning-inline-return-value">
-              {netDisplayLine}
+      <div className={inlineEditClassName}>
+        {isEditing ? (
+          <div className="planning-inline-edit-container">
+            <MoneyInput
+              autoFocus
+              className="planning-inline-input"
+              value={inlinePlanEdit.value}
+              onValueChange={(value) =>
+                setInlinePlanEdit({ ...inlinePlanEdit, value })
+              }
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  void handleInlinePlanSave(snapshot, collection);
+                } else if (e.key === "Escape") {
+                  cancelInlinePlanEdit();
+                }
+              }}
+            />
+            <div className="planning-inline-actions">
+              <button
+                className="cockpit-btn is-success"
+                type="button"
+                onClick={() => void handleInlinePlanSave(snapshot, collection)}
+                title="Salvar"
+              >
+                <CheckIcon />
+              </button>
+              <button
+                className="cockpit-btn"
+                type="button"
+                onClick={cancelInlinePlanEdit}
+                title="Cancelar"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="metric-value-container">
+            <span className={valueClassName}>
+              {formatPurchaseDisplayAmount(collectionSnapshot.plannedAmount)}
             </span>
-          ) : null}
-        </div>
+            {netDisplayLine ? (
+              <span className="planning-inline-return-value">
+                {netDisplayLine}
+              </span>
+            ) : null}
+            <button
+              className="table-button icon-button cockpit-btn ml-1"
+              type="button"
+              onClick={() => startInlinePlanEdit(snapshot, collection)}
+              title="Editar valor planejado"
+            >
+              <EditIcon />
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -3809,7 +3855,7 @@ export function PurchasePlanningPage({
           </div>
 
           <div className="brand-modal-unified-content">
-            <div className="form-grid">
+            <div className="form-grid wide">
               <label>
                 Marca
                 <input
@@ -3888,26 +3934,23 @@ export function PurchasePlanningPage({
 
             {isEditingBrand && (
               <>
-                <div
-                  className="brand-summary-dashboard"
-                  style={{ marginTop: "1rem" }}
-                >
+                <div className="brand-summary-dashboard">
                   <div className="summary-metric-card">
-                    <span>Total Pedido</span>
+                    <span>Pedido</span>
                     <strong>{formatPurchaseDisplayAmount(totalPlanned)}</strong>
                   </div>
                   <div className="summary-metric-card">
-                    <span>Total Recebido</span>
+                    <span>Recebido</span>
                     <strong>
                       {formatPurchaseDisplayAmount(totalReceived)}
                     </strong>
                   </div>
                   <div className="summary-metric-card">
-                    <span>Total Vendido</span>
+                    <span>Vendido</span>
                     <strong>{formatPurchaseDisplayAmount(totalSold)}</strong>
                   </div>
                   <div className="summary-metric-card">
-                    <span>Devoluções</span>
+                    <span>Devolvido</span>
                     <strong
                       style={{
                         color: totalReturns > 0 ? "#ef4444" : "inherit",
@@ -3919,30 +3962,23 @@ export function PurchasePlanningPage({
                   <div
                     className={`summary-metric-card ${avgProfit >= 0 ? "positive" : "negative"}`}
                   >
-                    <span>Lucro Médio</span>
+                    <span>Margem</span>
                     <strong>{avgProfit}%</strong>
                   </div>
                 </div>
 
-                <div
-                  className="purchase-panel-heading brand-modal-header-actions"
-                  style={{ marginTop: 0 }}
-                >
-                  <h3>Coleções e Performance</h3>
+                <div className="brand-modal-analitico-header">
                   <label className="checkbox-line detail-toggle-label">
                     <input
                       type="checkbox"
                       checked={brandModalDetailed}
                       onChange={(e) => setBrandModalDetailed(e.target.checked)}
                     />
-                    <span>Ver Detalhamentos Analíticos</span>
+                    <span>Detalhamento Analítico</span>
                   </label>
                 </div>
 
-                <div
-                  className="table-shell brand-collection-table-shell"
-                  style={{ maxHeight: "calc(100vh - 580px)" }}
-                >
+                <div className="table-shell brand-collection-table-shell">
                   <table className="erp-table brand-collection-table compact-table">
                     <colgroup>
                       <col className="brand-collection-col-name" />
@@ -4031,55 +4067,7 @@ export function PurchasePlanningPage({
                                   {collection.season_label || collection.name}
                                 </td>
                                 <td className="numeric-cell">
-                                  <div className="planning-inline-edit is-readonly">
-                                    <div
-                                      className="metric-value-container"
-                                      style={{ justifyContent: "flex-end" }}
-                                    >
-                                      <span
-                                        className={`planning-inline-edit-value ${isConfirmed ? "is-confirmed" : "is-planned"}`}
-                                      >
-                                        {formatPurchaseDisplayAmount(
-                                          collectionSnapshot?.plannedAmount ||
-                                            0,
-                                        )}
-                                      </span>
-                                      <button
-                                        className="table-button icon-button cockpit-btn"
-                                        type="button"
-                                        onClick={() =>
-                                          currentBrandSnapshot
-                                            ? startInlinePlanEdit(
-                                                currentBrandSnapshot,
-                                                collection,
-                                              )
-                                            : undefined
-                                        }
-                                        disabled={!currentBrandSnapshot}
-                                        title="Editar valor planejado"
-                                        style={{ marginLeft: "4px" }}
-                                      >
-                                        <svg
-                                          aria-hidden="true"
-                                          className="button-icon"
-                                          fill="none"
-                                          viewBox="0 0 16 16"
-                                          style={{
-                                            width: "12px",
-                                            height: "12px",
-                                          }}
-                                        >
-                                          <path
-                                            d="M11.25 1.75l3 3M1.5 11.5l1.5 3 3-1.5 8.5-8.5-3-3-8.5 8.5z"
-                                            stroke="currentColor"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth="1.2"
-                                          />
-                                        </svg>
-                                      </button>
-                                    </div>
-                                  </div>
+                                  {renderInlinePlannedAmount(currentBrandSnapshot, collection, { compact: true })}
                                 </td>
                                 <td className="centered-cell">
                                   {isEditable ? (
