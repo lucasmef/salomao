@@ -4815,7 +4815,7 @@ textarea {
 }
 
 /* Switch Toggle Style */
-.purchase-filter-toggle-control input[type=" checkbox\] {
+.purchase-filter-toggle-control input[type="checkbox"] {
  appearance: none;
  width: 32px;
  height: 18px;
@@ -4827,12 +4827,12 @@ textarea {
  margin: 0;
 }
 
-.purchase-filter-toggle-control input[type=\checkbox\]:checked {
+.purchase-filter-toggle-control input[type="checkbox"]:checked {
  background: #2f5be7;
 }
 
-.purchase-filter-toggle-control input[type=\checkbox\]::before {
- content: \\;
+.purchase-filter-toggle-control input[type="checkbox"]::before {
+  content: "";
  position: absolute;
  width: 14px;
  height: 14px;
@@ -4843,6 +4843,6 @@ textarea {
  transition: transform 0.2s;
 }
 
-.purchase-filter-toggle-control input[type=\checkbox\]:checked::before {
+.purchase-filter-toggle-control input[type="checkbox"]:checked::before {
  transform: translateX(14px);
 }
