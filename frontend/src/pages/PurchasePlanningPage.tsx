@@ -518,9 +518,10 @@ export function PurchasePlanningPage({
   );
   const [planningCollectionId, setPlanningCollectionId] = useState("");
   const [compareCollectionIds, setCompareCollectionIds] = useState<string[]>([]);
-  const [showPlanningReturns, setShowPlanningReturns] = useState(true);
-  const [showPlanningSales, setShowPlanningSales] = useState(true);
+  const [showPlanningReturns, setShowPlanningReturns] = useState(false);
+  const [showPlanningSales, setShowPlanningSales] = useState(false);
   const [showPlanningProfit, setShowPlanningProfit] = useState(true);
+  const [showPlanningDetail, setShowPlanningDetail] = useState(false);
   const [inlinePlanEdit, setInlinePlanEdit] = useState<PlanningInlineEditState | null>(null);
   const [unassignedSupplierTargets, setUnassignedSupplierTargets] = useState<Record<string, string>>({});
   const [selectedUnassignedSupplierIds, setSelectedUnassignedSupplierIds] = useState<string[]>([]);
@@ -1791,30 +1792,15 @@ export function PurchasePlanningPage({
               <span className="purchase-filter-toggle-control">
                 <input
                   type="checkbox"
-                  checked={showPlanningReturns}
-                  onChange={(event) => setShowPlanningReturns(event.target.checked)}
+                  checked={showPlanningDetail}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setShowPlanningDetail(checked);
+                    setShowPlanningReturns(checked);
+                    setShowPlanningSales(checked);
+                  }}
                 />
-                <span>Devoluções</span>
-              </span>
-            </label>
-            <label className="purchase-filter-toggle">
-              <span className="purchase-filter-toggle-control">
-                <input
-                  type="checkbox"
-                  checked={showPlanningSales}
-                  onChange={(event) => setShowPlanningSales(event.target.checked)}
-                />
-                <span>Vendas</span>
-              </span>
-            </label>
-            <label className="purchase-filter-toggle">
-              <span className="purchase-filter-toggle-control">
-                <input
-                  type="checkbox"
-                  checked={showPlanningProfit}
-                  onChange={(event) => setShowPlanningProfit(event.target.checked)}
-                />
-                <span>Lucro</span>
+                <span>Detalhamento</span>
               </span>
             </label>
           </div>
@@ -2162,15 +2148,11 @@ export function PurchasePlanningPage({
                   {selectedComparisonCollections.map((collection) => (
                     <th
                       className={`numeric-cell${planningCollection?.id === collection.id ? " planning-current-column" : ""}`}
-                      key={collection.id}
+                      key={`header-${collection.id}`}
                     >
                       {collection.season_label || collection.name}
                     </th>
                   ))}
-                  <th className="numeric-cell">Valor recebido</th>
-                  <th className="numeric-cell">Valor a receber</th>
-                  {showConfirmationColumn ? <th className="centered-cell">Confirmado</th> : null}
-                  <th className="planning-payment-column">Parcelamento</th>
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -2253,73 +2235,67 @@ export function PurchasePlanningPage({
                         </td>
                         {selectedComparisonCollections.map((collection) => {
                           const collectionSnapshot = snapshot.collections.get(collection.id);
-                          const netDisplayLine = showPlanningReturns
-                            ? buildPurchaseNetDisplayLine(
-                                collectionSnapshot?.plannedAmount ?? "0.00",
-                                collectionSnapshot?.returnsAmount ?? "0.00",
-                              )
-                            : null;
+                          const isConfirmationVisible = !snapshot.isInactiveGroup && snapshot.brandId && !isPastCollection(collection);
+                          const hasOrderToConfirm = hasCollectionConfirmableOrder(collectionSnapshot);
+                          const confirmed = getCollectionConfirmedState(collection, collectionSnapshot);
+
                           return (
                             <td
                               className={`numeric-cell${planningCollection?.id === collection.id ? " planning-current-column" : ""}`}
-                              key={`${snapshot.key}-${collection.id}`}
+                              key={`cell-${snapshot.key}-${collection.id}`}
                             >
-                              {(() => {
-                                const purchase = Math.round(Number(collectionSnapshot?.plannedAmount || 0));
-                                const returns = Math.round(Number(collectionSnapshot?.returnsAmount || 0));
-                                const sales = Math.round(Number(collectionSnapshot?.soldAmount || 0));
-                                const netPurchase = Number(collectionSnapshot?.plannedAmount || 0) - Number(collectionSnapshot?.returnsAmount || 0);
-                                const profitRatio = netPurchase > 0 ? (Number(collectionSnapshot?.soldAmount || 0) / netPurchase) * 100 : 0;
+                              <div className="planning-metric-stack">
+                                {/* Line 1: Pedido + Button */}
+                                <div className="metric-line metric-line-pedido">
+                                  {isConfirmationVisible && (
+                                    <button
+                                      className={`confirm-toggle-button inline-button${confirmed ? " is-confirmed" : ""}`}
+                                      type="button"
+                                      onClick={() => void handleToggleCollectionConfirmation(snapshot, collection)}
+                                      disabled={!hasOrderToConfirm}
+                                      title={!hasOrderToConfirm ? "Cadastre o pedido para confirmar" : confirmed ? "Não confirmado" : "Confirmar"}
+                                    >
+                                      <ConfirmIcon confirmed={confirmed} />
+                                    </button>
+                                  )}
+                                  <span>{formatPurchaseDisplayAmount(collectionSnapshot?.plannedAmount || 0)}</span>
+                                </div>
 
-                                return (
-                                  <div className="planning-metric-stack">
-                                    <div className="metric-line metric-line-compra">{purchase || "0"}</div>
-                                    {showPlanningReturns && <div className="metric-line metric-line-devolucao">{returns || "0"}</div>}
-                                    {showPlanningSales && <div className="metric-line metric-line-venda">{sales || "0"}</div>}
-                                    {showPlanningProfit && (
-                                      <div 
-                                        className="metric-line metric-line-lucro"
-                                        style={{ color: profitRatio - 100 >= 0 ? "#10b981" : "#ef4444" }}
-                                      >
-                                        {Math.round(profitRatio - 100)}%
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })()}
+                                {showPlanningDetail && (
+                                  <>
+                                    <div className="metric-line metric-line-recebido">
+                                      {formatPurchaseDisplayAmount(collectionSnapshot?.receivedAmount || 0)}
+                                    </div>
+                                    <div className="metric-line metric-line-areceber">
+                                      {formatPurchaseDisplayAmount(collectionSnapshot?.outstandingAmount || 0)}
+                                    </div>
+                                    <div className="metric-line metric-line-devolucao">
+                                      {formatPurchaseDisplayAmount(collectionSnapshot?.returnsAmount || 0)}
+                                    </div>
+                                    <div className="metric-line metric-line-venda">
+                                      {formatPurchaseDisplayAmount(collectionSnapshot?.soldAmount || 0)}
+                                    </div>
+                                  </>
+                                )}
+
+                                {/* Line 6: Lucro (Always) */}
+                                {(() => {
+                                  const netPurchase = Number(collectionSnapshot?.plannedAmount || 0) - Number(collectionSnapshot?.returnsAmount || 0);
+                                  const profitRatio = netPurchase > 0 ? (Number(collectionSnapshot?.soldAmount || 0) / netPurchase) * 100 : 0;
+                                  const percentage = Math.round(profitRatio - 100);
+                                  return (
+                                    <div 
+                                      className="metric-line metric-line-lucro"
+                                      style={{ color: percentage >= 0 ? "#10b981" : "#ef4444" }}
+                                    >
+                                      {percentage}%
+                                    </div>
+                                  );
+                                })()}
+                              </div>
                             </td>
                           );
                         })}
-                        <td className="numeric-cell tabular-nums">{formatPurchaseDisplayAmount(currentSnapshot?.receivedAmount ?? "0.00")}</td>
-                        <td className="numeric-cell tabular-nums">{formatPurchaseDisplayAmount(currentSnapshot?.outstandingAmount ?? "0.00")}</td>
-                        {showConfirmationColumn ? (
-                          <td className="centered-cell">
-                            {snapshot.isInactiveGroup || (!snapshot.brandId && snapshot.brandName === "Sem marca") ? (
-                              <span>-</span>
-                            ) : (
-                              <button
-                                className={`table-button icon-button confirm-toggle-button${currentConfirmed ? " is-confirmed" : ""}`}
-                                type="button"
-                                onClick={() =>
-                                  canToggleCurrentConfirmation && planningCollection
-                                    ? void handleToggleCollectionConfirmation(snapshot, planningCollection)
-                                    : undefined
-                                }
-                                disabled={!canToggleCurrentConfirmation}
-                                title={
-                                  !hasCurrentOrderToConfirm
-                                    ? "Cadastre o pedido desta coleção para confirmar"
-                                    : currentConfirmed
-                                      ? "Marcar como não confirmado"
-                                      : "Marcar como confirmado"
-                                }
-                              >
-                                <ConfirmIcon confirmed={currentConfirmed} />
-                              </button>
-                            )}
-                          </td>
-                        ) : null}
-                        <td className="planning-payment-column">{currentSnapshot?.paymentTerm || "-"}</td>
                         <td>
                           <div className="action-row">
                             {snapshot.isInactiveGroup ? (

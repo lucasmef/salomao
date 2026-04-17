@@ -4770,3 +4770,79 @@ textarea {
 .metric-line-lucro.negative { color: #ef4444; }
 .planning-brand-performance.negative { color: #ef4444; }
 
+
+.planning-metric-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.metric-line-pedido {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.metric-line-recebido { color: #64748b; }
+.metric-line-areceber { color: #f97316; }
+.metric-line-devolucao { color: #ef4444; }
+.metric-line-venda { color: #2f5be7; }
+.metric-line-lucro { font-weight: 700; margin-top: 1px; border-top: 1px solid #f1f5f9; padding-top: 1px; }
+
+.confirm-toggle-button.inline-button {
+  padding: 0;
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  border: 1px solid #e2e8f0;
+  color: #94a3b8;
+  background: #fff;
+}
+
+.confirm-toggle-button.inline-button.is-confirmed {
+  background: #22c55e;
+  border-color: #16a34a;
+  color: #fff;
+}
+
+/* Switch Toggle Style */
+.purchase-filter-toggle-control input[type=" checkbox\] {
+ appearance: none;
+ width: 32px;
+ height: 18px;
+ background: #cbd5e1;
+ border-radius: 20px;
+ position: relative;
+ cursor: pointer;
+ transition: background 0.2s;
+ margin: 0;
+}
+
+.purchase-filter-toggle-control input[type=\checkbox\]:checked {
+ background: #2f5be7;
+}
+
+.purchase-filter-toggle-control input[type=\checkbox\]::before {
+ content: \\;
+ position: absolute;
+ width: 14px;
+ height: 14px;
+ background: white;
+ border-radius: 50%;
+ top: 2px;
+ left: 2px;
+ transition: transform 0.2s;
+}
+
+.purchase-filter-toggle-control input[type=\checkbox\]:checked::before {
+ transform: translateX(14px);
+}
