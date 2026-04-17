@@ -2739,87 +2739,117 @@ textarea {
   display: flex !important;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #e2e8f0;
-  margin-bottom: 0.75rem;
+  margin-top: 1rem;
 }
 
-/* Modern Pill Switch for Details Toggle */
 .detail-toggle-label {
+  font-size: 0.75rem;
+  color: #64748b;
+  cursor: pointer;
+  user-select: none;
   display: flex;
   align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #475569;
+  gap: 6px;
 }
 
-.detail-toggle-label input {
-  appearance: none;
-  width: 32px;
-  height: 18px;
-  background: #cbd5e1;
-  border-radius: 20px;
-  position: relative;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  margin: 0;
+.purchase-returns-panel-modal {
+  width: min(1440px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
 }
 
-.detail-toggle-label input:checked {
-  background: #3b82f6;
+.purchase-collections-table-shell {
+  width: 100%;
+  overflow-x: auto;
 }
 
-.detail-toggle-label input::before {
-  content: '';
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  background: white;
-  border-radius: 50%;
-  top: 2px;
-  left: 2px;
-  transition: all 0.3s ease;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+.purchase-brand-planning-table-shell {
+  max-height: none;
+  overflow: visible;
 }
 
-.detail-toggle-label input:checked::before {
-  left: 16px;
-}
-
-/* Table Column Zoning */
-.brand-collection-table thead tr.header-group-row th {
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 0.7rem;
-  letter-spacing: 0.05em;
-  padding: 4px 10px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.brand-collection-table .col-planned-header { background: #fdfdfd !important; color: #64748b !important; }
-.brand-collection-table .col-realized-header { background: #eff6ff !important; color: #1e40af !important; border-left: 1px solid #dbeafe; }
-
-.brand-collection-table td.col-realized-zone {
-  background-color: rgba(239, 246, 255, 0.4);
-}
-
-.brand-collection-table td.col-profit-zone {
-  background-color: rgba(248, 250, 252, 0.6);
-  border-left: 1px solid #f1f5f9;
-}
-
-.brand-collection-col-name { width: auto; min-width: 130px; }
-.brand-collection-col-amount { width: 90px; }
-.brand-collection-col-detail { width: 85px; color: #64748b; font-size: 0.75rem; }
-.brand-collection-col-check { width: 50px; }
-.brand-collection-col-profit { width: 70px; }
-.brand-collection-col-note { width: 40px; }
+.brand-collection-col-name { width: auto; min-width: 140px; }
+.brand-collection-col-amount { width: 95px; }
+.brand-collection-col-detail { width: 90px; color: #64748b; font-size: 0.75rem; }
+.brand-collection-col-check { width: 55px; }
+.brand-collection-col-profit { width: 75px; }
+.brand-collection-col-note { width: 45px; }
 
 .status-placeholder {
-  color: #cbd5e1;
+  color: #cad1d8;
   font-size: 0.8rem;
+}
+
+/* Brand Modal Tabs */
+.brand-modal-tabs {
+  display: flex;
+  gap: 20px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 1.25rem;
+  padding: 0 4px;
+}
+
+.brand-modal-tab {
+  padding: 8px 4px 12px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+}
+
+.brand-modal-tab:hover {
+  color: #2f5be7;
+}
+
+.brand-modal-tab.active {
+  color: #2f5be7;
+  border-bottom-color: #2f5be7;
+}
+
+/* Summary Dashboard Cards */
+.brand-summary-dashboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background-color: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.summary-metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.summary-metric-card span {
+  font-size: 0.7rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  font-weight: 600;
+}
+
+.summary-metric-card strong {
+  font-size: 1.15rem;
+  color: #1e293b;
+  font-weight: 700;
+}
+
+.summary-metric-card.positive strong {
+  color: #10b981;
+}
+
+.summary-metric-card.negative strong {
+  color: #ef4444;
 }
 
 .purchase-planning-totals-dashboard {

@@ -577,6 +577,7 @@ export function PurchasePlanningPage({
   const [purchaseReturnsPanelOpen, setPurchaseReturnsPanelOpen] = useState(false);
   const [brandModal, setBrandModal] = useState<BrandModalState>(emptyBrandModal());
   const [brandModalDetailed, setBrandModalDetailed] = useState(false);
+  const [brandModalTab, setBrandModalTab] = useState<"geral" | "performance">("geral");
   const [supplierModal, setSupplierModal] = useState<SupplierModalState>(emptySupplierModal());
   const [collectionModal, setCollectionModal] = useState<CollectionModalState>(emptyCollectionModal());
   const [collectionObservationModal, setCollectionObservationModal] = useState<CollectionObservationModalState | null>(null);
@@ -2905,6 +2906,24 @@ export function PurchasePlanningPage({
       planningBrands.find((snapshot) => snapshot.brandName === brandModal.name) ??
       null;
 
+    // Calcular Totais do Dashboard
+    let totalPlanned = 0;
+    let totalReceived = 0;
+    let totalSold = 0;
+    let totalReturns = 0;
+
+    if (currentBrandSnapshot) {
+      currentBrandSnapshot.collections.forEach((snapshot) => {
+        totalPlanned += Number(normalizePtBrMoneyInput(snapshot.plannedAmount || 0));
+        totalReceived += Number(normalizePtBrMoneyInput(snapshot.receivedAmount || 0));
+        totalSold += Number(normalizePtBrMoneyInput(snapshot.soldAmount || 0));
+        totalReturns += Number(normalizePtBrMoneyInput(snapshot.returnsAmount || 0));
+      });
+    }
+
+    const netReceived = totalReceived - totalReturns;
+    const avgProfit = netReceived > 0 ? Math.round(((totalSold / netReceived) - 1) * 100) : 0;
+
     return (
       <div className="modal-backdrop" role="presentation">
         <div className="modal-card purchase-modal-card purchase-brand-modal-card">
@@ -2912,53 +2931,101 @@ export function PurchasePlanningPage({
             <h3>{brandModal.id ? "Editar marca" : "Nova marca"}</h3>
             <ModalCloseButton onClick={closeBrandModal} />
           </div>
-          <div className="form-grid">
-            <label>
-              Marca
-              <input value={brandModal.name} onChange={(event) => setBrandModal((current) => ({ ...current, name: event.target.value }))} />
-            </label>
-            <label>
-              Fornecedores
-              <Select<SelectOption, true>
-                options={brandSupplierOptions}
-                value={selectedBrandSupplierOptions}
-                onChange={(options) => setBrandModal((current) => ({ ...current, supplier_ids: asMultiValue(options) }))}
-                isMulti
-                isClearable
-                placeholder="Selecione um ou mais fornecedores"
-                styles={purchaseSelectStyles}
-                menuPortalTarget={portalTarget}
-              />
-            </label>
-            <label>
-              Forma de pagamento
-              <Select
-                options={paymentTermOptions}
-                value={selectedBrandTermOption}
-                onChange={(option) => setBrandModal((current) => ({ ...current, default_payment_term: asSingleValue(option) || "1x" }))}
-                isClearable
-                placeholder="Selecione"
-                styles={purchaseSelectStyles}
-                menuPortalTarget={portalTarget}
-              />
-            </label>
-            <label className="full-width">
-              Observações
-              <textarea value={brandModal.notes} onChange={(event) => setBrandModal((current) => ({ ...current, notes: event.target.value }))} />
-            </label>
+
+          <div className="brand-modal-tabs">
+            <button
+              className={`brand-modal-tab${brandModalTab === "geral" ? " active" : ""}`}
+              onClick={() => setBrandModalTab("geral")}
+              type="button"
+            >
+              Informações Gerais
+            </button>
+            {isEditingBrand && (
+              <button
+                className={`brand-modal-tab${brandModalTab === "performance" ? " active" : ""}`}
+                onClick={() => setBrandModalTab("performance")}
+                type="button"
+              >
+                Performance e Pedidos
+              </button>
+            )}
           </div>
-          {isEditingBrand ? (
-            <>
-              <label className="checkbox-line full-width">
-                <input
-                  type="checkbox"
-                  checked={brandModal.is_active}
-                  onChange={(event) => setBrandModal((current) => ({ ...current, is_active: event.target.checked }))}
-                />
-                <span>Marca ativa</span>
+
+          {brandModalTab === "geral" ? (
+            <div className="form-grid">
+              <label>
+                Marca
+                <input value={brandModal.name} onChange={(event) => setBrandModal((current) => ({ ...current, name: event.target.value }))} />
               </label>
-              <div className="purchase-panel-heading brand-modal-header-actions">
-                <h3>Coleções e pedidos</h3>
+              <label>
+                Fornecedores
+                <Select<SelectOption, true>
+                  options={brandSupplierOptions}
+                  value={selectedBrandSupplierOptions}
+                  onChange={(options) => setBrandModal((current) => ({ ...current, supplier_ids: asMultiValue(options) }))}
+                  isMulti
+                  isClearable
+                  placeholder="Selecione um ou mais fornecedores"
+                  styles={purchaseSelectStyles}
+                  menuPortalTarget={portalTarget}
+                />
+              </label>
+              <label>
+                Forma de pagamento
+                <Select
+                  options={paymentTermOptions}
+                  value={selectedBrandTermOption}
+                  onChange={(option) => setBrandModal((current) => ({ ...current, default_payment_term: asSingleValue(option) || "1x" }))}
+                  isClearable
+                  placeholder="Selecione"
+                  styles={purchaseSelectStyles}
+                  menuPortalTarget={portalTarget}
+                />
+              </label>
+              <label className="full-width">
+                Observações
+                <textarea value={brandModal.notes} onChange={(event) => setBrandModal((current) => ({ ...current, notes: event.target.value }))} />
+              </label>
+              {isEditingBrand && (
+                <label className="checkbox-line full-width">
+                  <input
+                    type="checkbox"
+                    checked={brandModal.is_active}
+                    onChange={(event) => setBrandModal((current) => ({ ...current, is_active: event.target.checked }))}
+                  />
+                  <span>Marca ativa</span>
+                </label>
+              )}
+            </div>
+          ) : (
+            <div className="performance-tab-content">
+              <div className="brand-summary-dashboard">
+                <div className="summary-metric-card">
+                  <span>Total Pedido</span>
+                  <strong>{formatPurchaseDisplayAmount(totalPlanned)}</strong>
+                </div>
+                <div className="summary-metric-card">
+                  <span>Total Recebido</span>
+                  <strong>{formatPurchaseDisplayAmount(totalReceived)}</strong>
+                </div>
+                <div className="summary-metric-card">
+                  <span>Total Vendido</span>
+                  <strong>{formatPurchaseDisplayAmount(totalSold)}</strong>
+                </div>
+                <div className="summary-metric-card">
+                  <span>Devoluções</span>
+                  <strong style={{ color: totalReturns > 0 ? "#ef4444" : "inherit" }}>
+                    {formatPurchaseDisplayAmount(totalReturns)}
+                  </strong>
+                </div>
+                <div className={`summary-metric-card ${avgProfit >= 0 ? "positive" : "negative"}`}>
+                  <span>Lucro Médio</span>
+                  <strong>{avgProfit}%</strong>
+                </div>
+              </div>
+
+              <div className="purchase-panel-heading brand-modal-header-actions" style={{ marginTop: 0 }}>
+                <h3>Coleções</h3>
                 <label className="checkbox-line detail-toggle-label">
                   <input
                     type="checkbox"
@@ -2968,7 +3035,8 @@ export function PurchasePlanningPage({
                   <span>Detalhamentos</span>
                 </label>
               </div>
-              <div className="table-shell brand-collection-table-shell">
+
+              <div className="table-shell brand-collection-table-shell" style={{ maxHeight: "calc(100vh - 450px)" }}>
                 <table className="erp-table brand-collection-table compact-table">
                   <colgroup>
                     <col className="brand-collection-col-name" />
@@ -2985,18 +3053,8 @@ export function PurchasePlanningPage({
                     <col className="brand-collection-col-note" />
                   </colgroup>
                   <thead>
-                    <tr className="header-group-row">
-                      <th className="brand-collection-col-name col-planned-header">Operação</th>
-                      <th className="numeric-cell brand-collection-col-amount col-planned-header">Planejado</th>
-                      {brandModalDetailed && (
-                        <th colSpan={3} className="centered-cell col-realized-header">Fluxo Realizado (Logística e Vendas)</th>
-                      )}
-                      <th className="centered-cell col-planned-header">Status</th>
-                      {brandModalDetailed && <th className="numeric-cell col-realized-header">Performance</th>}
-                      <th className="centered-cell col-planned-header">Nota</th>
-                    </tr>
                     <tr>
-                      <th className="brand-collection-col-name text-muted">Coleção</th>
+                      <th className="brand-collection-col-name">Coleção</th>
                       <th className="numeric-cell brand-collection-col-amount">Pedido</th>
                       {brandModalDetailed && (
                         <>
@@ -3005,7 +3063,7 @@ export function PurchasePlanningPage({
                           <th className="numeric-cell brand-collection-col-detail">Vendido</th>
                         </>
                       )}
-                      <th className="centered-cell brand-collection-col-check">Conf.</th>
+                      <th className="centered-cell brand-collection-col-check">Status</th>
                       {brandModalDetailed && <th className="numeric-cell brand-collection-col-profit">% Lucro</th>}
                       <th className="centered-cell brand-collection-col-note">Obs</th>
                     </tr>
@@ -3020,10 +3078,10 @@ export function PurchasePlanningPage({
                         const observationText = getCollectionObservationText(collectionSnapshot);
                         const hasObservation = Boolean(observationText);
 
-                        const netReceived = Number(collectionSnapshot?.receivedAmount || 0) - Number(collectionSnapshot?.returnsAmount || 0);
+                        const collNetReceived = Number(collectionSnapshot?.receivedAmount || 0) - Number(collectionSnapshot?.returnsAmount || 0);
                         let profitPercentage = 0;
-                        if (netReceived > 0) {
-                          profitPercentage = Math.round(((Number(collectionSnapshot?.soldAmount || 0) / netReceived) - 1) * 100);
+                        if (collNetReceived > 0) {
+                          profitPercentage = Math.round(((Number(collectionSnapshot?.soldAmount || 0) / collNetReceived) - 1) * 100);
                         }
 
                         return (
@@ -3036,13 +3094,13 @@ export function PurchasePlanningPage({
                             </td>
                             {brandModalDetailed && (
                               <>
-                                <td className="numeric-cell color-recebido col-realized-zone">
+                                <td className="numeric-cell color-recebido">
                                   {formatPurchaseDisplayAmount(collectionSnapshot?.receivedAmount || 0)}
                                 </td>
-                                <td className="numeric-cell color-devolucao col-realized-zone">
+                                <td className="numeric-cell color-devolucao">
                                   {formatPurchaseDisplayAmount(collectionSnapshot?.returnsAmount || 0)}
                                 </td>
-                                <td className="numeric-cell color-venda col-realized-zone">
+                                <td className="numeric-cell color-venda">
                                   {formatPurchaseDisplayAmount(collectionSnapshot?.soldAmount || 0)}
                                 </td>
                               </>
@@ -3069,7 +3127,7 @@ export function PurchasePlanningPage({
                               )}
                             </td>
                             {brandModalDetailed && (
-                              <td className="numeric-cell col-profit-zone" style={{ color: profitPercentage >= 0 ? "#10b981" : "#ef4444", fontWeight: 600 }}>
+                              <td className="numeric-cell" style={{ color: profitPercentage >= 0 ? "#10b981" : "#ef4444", fontWeight: 600 }}>
                                 {profitPercentage}%
                               </td>
                             )}
@@ -3096,8 +3154,9 @@ export function PurchasePlanningPage({
                   </tbody>
                 </table>
               </div>
-            </>
-          ) : null}
+            </div>
+          )}
+
           <div className="action-row">
             <button className="primary-button" type="button" onClick={() => void handleSaveBrand()}>
               Salvar marca
