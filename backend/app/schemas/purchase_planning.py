@@ -160,6 +160,8 @@ class PurchasePlanRead(PurchasePlanBase):
     current_year_same_season_amount: Decimal = Decimal("0.00")
     current_year_other_seasons_amount: Decimal = Decimal("0.00")
     suggested_remaining_amount: Decimal = Decimal("0.00")
+    sold_total: Decimal = Decimal("0.00")
+    profit_margin: Decimal = Decimal("0.00")
 
     model_config = {"from_attributes": True}
 
@@ -265,6 +267,8 @@ class PurchasePlanningRow(BaseModel):
     outstanding_goods_total: Decimal
     delivered_not_recorded_total: Decimal
     outstanding_payable_total: Decimal
+    sold_total: Decimal = Decimal("0.00")
+    profit_margin: Decimal = Decimal("0.00")
 
 
 class PurchasePlanningSummary(BaseModel):

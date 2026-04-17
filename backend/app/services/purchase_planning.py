@@ -13,7 +13,7 @@ from xml.etree import ElementTree
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models.finance import Category, FinancialEntry
@@ -4915,6 +4915,54 @@ def _serialize_monthly_projection(
     ]
 
 
+def _query_sales_and_profit_by_brand_collection(
+    db: Session,
+    company_id: str,
+) -> dict[tuple[str, str], dict[str, Decimal]]:
+    """
+    Agrega vendas e custo total por marca e coleção do LinxMovement.
+    Retorna {(brand_name, collection_name): {"sold_total": Decimal, "cost_total": Decimal}}
+    """
+    rows = db.execute(
+        select(
+            LinxProduct.brand_name,
+            LinxProduct.collection_name,
+            func.sum(
+                case(
+                    (LinxMovement.movement_type == "sale", func.coalesce(LinxMovement.net_amount, 0)),
+                    (LinxMovement.movement_type == "sale_return", -func.coalesce(LinxMovement.net_amount, 0)),
+                    else_=0,
+                )
+            ).label("sold_total"),
+            func.sum(
+                case(
+                    (LinxMovement.movement_type == "sale", func.coalesce(LinxMovement.cost_price, 0) * func.coalesce(LinxMovement.quantity, 0)),
+                    (LinxMovement.movement_type == "sale_return", -(func.coalesce(LinxMovement.cost_price, 0) * func.coalesce(LinxMovement.quantity, 0))),
+                    else_=0,
+                )
+            ).label("cost_total"),
+        )
+        .join(LinxProduct, LinxMovement.product_code == LinxProduct.linx_code)
+        .where(
+            LinxMovement.company_id == company_id,
+            LinxMovement.movement_group == "sale",
+            LinxMovement.canceled.is_(False),
+            LinxMovement.excluded.is_(False),
+        )
+        .group_by(LinxProduct.brand_name, LinxProduct.collection_name)
+    ).all()
+
+    result = {}
+    for row in rows:
+        brand = row.brand_name or "Desconhecida"
+        collection = row.collection_name or "Sem Coleção"
+        result[(normalize_label(brand), normalize_label(collection))] = {
+            "sold_total": Decimal(row.sold_total or 0),
+            "cost_total": Decimal(row.cost_total or 0),
+        }
+    return result
+
+
 def build_purchase_planning_overview(
     db: Session,
     company: Company,
@@ -5031,6 +5079,8 @@ def build_purchase_planning_overview(
         for collection in company_collections
     }
 
+    sales_data = _query_sales_and_profit_by_brand_collection(db, company.id)
+
     aggregates: dict[tuple[str, str], dict[str, Decimal | str | list[str] | date | None]] = {}
 
     def ensure_row(
@@ -5066,7 +5116,19 @@ def build_purchase_planning_overview(
                 "launched_financial_total": Decimal("0.00"),
                 "paid_total": Decimal("0.00"),
                 "outstanding_payable_total": Decimal("0.00"),
+                "sold_total": Decimal("0.00"),
+                "profit_margin": Decimal("0.00"),
             }
+            # Inject sales data
+            norm_brand = normalize_label(key[0])
+            norm_coll = normalize_label(key[1])
+            s_data = sales_data.get((norm_brand, norm_coll))
+            if s_data:
+                sold_total = s_data["sold_total"]
+                cost_total = s_data["cost_total"]
+                aggregates[key]["sold_total"] = sold_total
+                if sold_total > 0:
+                    aggregates[key]["profit_margin"] = _money((sold_total - cost_total) / sold_total * 100)
         return aggregates[key]
 
     def attach_supplier(
@@ -5322,6 +5384,8 @@ def build_purchase_planning_overview(
                 outstanding_goods_total=outstanding_goods,
                 delivered_not_recorded_total=_money(max(delivered_total - launched_total, Decimal("0.00"))),
                 outstanding_payable_total=outstanding_payable,
+                sold_total=_money(Decimal(item.get("sold_total", 0))),
+                profit_margin=_money(Decimal(item.get("profit_margin", 0))),
             )
         )
     rows.sort(key=lambda item: (item.outstanding_payable_total, item.purchased_total), reverse=True)

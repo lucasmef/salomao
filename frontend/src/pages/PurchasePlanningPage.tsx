@@ -124,6 +124,8 @@ type PlanningCollectionSnapshot = {
         returns_total: string;
         launched_financial_total: string;
         outstanding_payable_total: string;
+        sold_total: string;
+        profit_margin: string;
       }
     | null;
   plans: PurchasePlan[];
@@ -131,6 +133,8 @@ type PlanningCollectionSnapshot = {
   returnsAmount: string;
   receivedAmount: string;
   outstandingAmount: string;
+  soldAmount: string;
+  profitMargin: string;
   paymentTerm: string | null;
   isConfirmed: boolean;
 };
@@ -515,6 +519,7 @@ export function PurchasePlanningPage({
   const [planningCollectionId, setPlanningCollectionId] = useState("");
   const [compareCollectionIds, setCompareCollectionIds] = useState<string[]>([]);
   const [showPlanningReturns, setShowPlanningReturns] = useState(true);
+  const [showPlanningSales, setShowPlanningSales] = useState(true);
   const [inlinePlanEdit, setInlinePlanEdit] = useState<PlanningInlineEditState | null>(null);
   const [unassignedSupplierTargets, setUnassignedSupplierTargets] = useState<Record<string, string>>({});
   const [selectedUnassignedSupplierIds, setSelectedUnassignedSupplierIds] = useState<string[]>([]);
@@ -945,12 +950,16 @@ export function PurchasePlanningPage({
                     returns_total: row.returns_total,
                     launched_financial_total: row.launched_financial_total,
                     outstanding_payable_total: row.outstanding_payable_total,
+                    sold_total: row.sold_total,
+                    profit_margin: row.profit_margin,
                 },
           plans,
           plannedAmount,
           returnsAmount,
           receivedAmount,
           outstandingAmount,
+          soldAmount: row?.sold_total ?? "0.00",
+          profitMargin: row?.profit_margin ?? "0.00",
           paymentTerm: brandPaymentTerm || fallbackPlanPaymentTerm,
           isConfirmed: plans.length > 0 && plans.every((plan) => plan.status === "confirmed"),
         });
@@ -994,6 +1003,7 @@ export function PurchasePlanningPage({
       const plannedAmountCents = collectionSnapshots.reduce((sum, snapshot) => sum + toCents(snapshot.plannedAmount), 0);
       const returnsAmountCents = collectionSnapshots.reduce((sum, snapshot) => sum + toCents(snapshot.returnsAmount), 0);
       const receivedAmountCents = collectionSnapshots.reduce((sum, snapshot) => sum + toCents(snapshot.receivedAmount), 0);
+      const soldAmountCents = collectionSnapshots.reduce((sum, snapshot) => sum + toCents(snapshot.soldAmount), 0);
       const outstandingAmountCents = Math.max(plannedAmountCents - receivedAmountCents, 0);
       const paymentTerms = Array.from(new Set(collectionSnapshots.map((snapshot) => snapshot.paymentTerm).filter((value): value is string => Boolean(value))));
       groupedSnapshot.collections.set(collection.id, {
@@ -1011,17 +1021,38 @@ export function PurchasePlanningPage({
           outstanding_payable_total: centsToAmount(
             collectionSnapshots.reduce((sum, snapshot) => sum + toCents(snapshot.row?.outstanding_payable_total ?? "0.00"), 0),
           ),
+          sold_total: centsToAmount(
+            collectionSnapshots.reduce((sum, snapshot) => sum + toCents(snapshot.row?.sold_total ?? "0.00"), 0),
+          ),
+          profit_margin: "0.00", // Will be calculated below
         },
         plans: collectionSnapshots.flatMap((snapshot) => snapshot.plans),
         plannedAmount: centsToAmount(plannedAmountCents),
         returnsAmount: centsToAmount(returnsAmountCents),
         receivedAmount: centsToAmount(receivedAmountCents),
         outstandingAmount: centsToAmount(outstandingAmountCents),
+        soldAmount: centsToAmount(soldAmountCents),
+        profitMargin: "0.00", // Will be calculated below
         paymentTerm: paymentTerms.length <= 1 ? (paymentTerms[0] ?? "-") : "Diversos",
         isConfirmed:
           collectionSnapshots.flatMap((snapshot) => snapshot.plans).length > 0 &&
           collectionSnapshots.flatMap((snapshot) => snapshot.plans).every((plan) => plan.status === "confirmed"),
       });
+
+      // Calculate aggregated margin
+      const snap = groupedSnapshot.collections.get(collection.id);
+      if (snap && toCents(snap.soldAmount) > 0) {
+        const totalSoldCents = toCents(snap.soldAmount);
+        const totalCostCents = collectionSnapshots.reduce((sum, s) => {
+          const sold = toCents(s.soldAmount);
+          const margin = Number(s.profitMargin);
+          const cost = sold * (1 - margin / 100);
+          return sum + cost;
+        }, 0);
+        const aggregatedMargin = ((totalSoldCents - totalCostCents) / totalSoldCents) * 100;
+        snap.profitMargin = aggregatedMargin.toFixed(2);
+        if (snap.row) snap.row.profit_margin = snap.profitMargin;
+      }
     });
 
     return [...activeSnapshots, groupedSnapshot];
@@ -1767,6 +1798,16 @@ export function PurchasePlanningPage({
               <span>{"Mostrar devolu\u00e7\u00f5es"}</span>
             </span>
           </label>
+          <label className="purchase-filter-toggle">
+            <span className="purchase-filter-toggle-control">
+              <input
+                type="checkbox"
+                checked={showPlanningSales}
+                onChange={(event) => setShowPlanningSales(event.target.checked)}
+              />
+              <span>{"Mostrar vendas"}</span>
+            </span>
+          </label>
           <div className="action-row">
             <button className="secondary-button" type="button" onClick={() => openBrandModal()}>
               Nova marca
@@ -2147,10 +2188,31 @@ export function PurchasePlanningPage({
                             <div className="planning-brand-cell">
                               <strong>{snapshot.brandName}</strong>
                               <span>{snapshot.groupedBrandIds?.length ?? 0} marcas agrupadas</span>
+                              {showPlanningSales && currentSnapshot && (
+                                <div className="planning-sales-badges">
+                                  <span className={`planning-sales-badge sold`}>
+                                    {formatPurchaseDisplayAmount(currentSnapshot.soldAmount)}
+                                  </span>
+                                  <span className={`planning-sales-badge margin ${Number(currentSnapshot.profitMargin) > 30 ? "high-performance" : ""}`}>
+                                    {currentSnapshot.profitMargin}%
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           ) : (
-                            snapshot.brandName
-                          )}
+                            <div className="planning-brand-cell">
+                            {showPlanningSales && currentSnapshot && (
+                              <div className="planning-sales-badges">
+                                <span className={`planning-sales-badge sold`}>
+                                  {formatPurchaseDisplayAmount(currentSnapshot.soldAmount)}
+                                </span>
+                                <span className={`planning-sales-badge margin ${Number(currentSnapshot.profitMargin) > 30 ? 'high-performance' : ''}`}>
+                                  {currentSnapshot.profitMargin}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         </td>
                         {selectedComparisonCollections.map((collection) => {
                           const collectionSnapshot = snapshot.collections.get(collection.id);

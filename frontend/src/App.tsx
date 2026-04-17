@@ -160,6 +160,8 @@ const emptyPurchasePlanning: PurchasePlanningOverview = {
     outstanding_goods_total: "0.00",
     delivered_not_recorded_total: "0.00",
     outstanding_payable_total: "0.00",
+    sold_total: "0.00",
+    profit_margin: "0.00",
   },
   rows: [],
   cost_totals: [],

@@ -673,6 +673,8 @@ export type PurchasePlan = {
   current_year_same_season_amount: string;
   current_year_other_seasons_amount: string;
   suggested_remaining_amount: string;
+  sold_total: string;
+  profit_margin: string;
 };
 
 export type PurchaseReturn = {
@@ -712,6 +714,8 @@ export type PurchasePlanningRow = {
   outstanding_goods_total: string;
   delivered_not_recorded_total: string;
   outstanding_payable_total: string;
+  sold_total: string;
+  profit_margin: string;
 };
 
 export type PurchasePlanningMonthlyProjection = {
@@ -748,6 +752,8 @@ export type PurchasePlanningOverview = {
     outstanding_goods_total: string;
     delivered_not_recorded_total: string;
     outstanding_payable_total: string;
+  sold_total: string;
+  profit_margin: string;
   };
   rows: PurchasePlanningRow[];
   cost_totals: PurchasePlanningCostRow[];
