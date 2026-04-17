@@ -48,6 +48,21 @@ function FilterFunnelIcon() {
   );
 }
 
+function ChevronDownIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height="14"
+      viewBox="0 0 16 16"
+      width="14"
+      style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.16s ease" }}
+    >
+      <path d="m4 6 4 4 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
 export function OverviewSectionPage({
   tabs,
   dashboard,
@@ -62,9 +77,14 @@ export function OverviewSectionPage({
   const applyFiltersRef = useRef(onApplyFilters);
   const periodPopoverRef = useRef<HTMLDivElement | null>(null);
   const presetMenuRef = useRef<HTMLDivElement | null>(null);
+  const balancePopoverRef = useRef<HTMLDivElement | null>(null);
   const accountBalances = dashboard?.account_balances ?? [];
+  const totalAccountBalance = accountBalances.reduce((total, account) => (
+    account.exclude_from_balance ? total : total + Number(account.current_balance ?? 0)
+  ), 0);
   const [showPeriodPopover, setShowPeriodPopover] = useState(false);
   const [showPresetMenu, setShowPresetMenu] = useState(false);
+  const [showBalancePopover, setShowBalancePopover] = useState(false);
 
   useEffect(() => {
     applyFiltersRef.current = onApplyFilters;
@@ -87,11 +107,14 @@ export function OverviewSectionPage({
       if (showPresetMenu && presetMenuRef.current && !presetMenuRef.current.contains(target)) {
         setShowPresetMenu(false);
       }
+      if (showBalancePopover && balancePopoverRef.current && !balancePopoverRef.current.contains(target)) {
+        setShowBalancePopover(false);
+      }
     }
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showPeriodPopover, showPresetMenu]);
+  }, [showBalancePopover, showPeriodPopover, showPresetMenu]);
 
   function setDateRange(start: string, end: string) {
     onChangeFilters({ start, end });
@@ -256,22 +279,35 @@ export function OverviewSectionPage({
               <span className="entries-toolbar-icon-label">Atualizar</span>
             </button>
           </div>
-        </div>
 
-        <div className="overview-balance-strip" aria-label="Saldos por conta">
-          {accountBalances.length ? (
-            accountBalances.map((account) => (
-              <article
-                className={`overview-balance-chip${account.exclude_from_balance ? " is-ignored-account" : ""}`}
-                key={account.account_id}
-              >
-                <span title={account.account_name}>{account.account_name}</span>
-                <strong className="tabular-nums">{formatMoney(account.current_balance)}</strong>
-              </article>
-            ))
-          ) : (
-            <div className="overview-balance-empty">Nenhum saldo por conta disponivel.</div>
-          )}
+          <div className="reconciliation-balance-wrap overview-balance-wrap" ref={balancePopoverRef}>
+            <button
+              aria-expanded={showBalancePopover}
+              className={`reconciliation-balance-trigger ${showBalancePopover ? "is-active" : ""}`}
+              onClick={() => setShowBalancePopover((current) => !current)}
+              type="button"
+            >
+              <span>Saldo total</span>
+              <strong>{formatMoney(totalAccountBalance)}</strong>
+              <ChevronDownIcon expanded={showBalancePopover} />
+            </button>
+            {showBalancePopover && (
+              <div className="reconciliation-balance-popover">
+                {accountBalances.map((account) => (
+                  <div className={`reconciliation-balance-row ${account.exclude_from_balance ? "is-ignored-account" : ""}`} key={account.account_id}>
+                    <span title={account.account_name}>
+                      {account.account_name}
+                      {account.exclude_from_balance && <span className="ignored-badge"> (Ignorado)</span>}
+                    </span>
+                    <strong>{formatMoney(account.current_balance)}</strong>
+                  </div>
+                ))}
+                {!accountBalances.length && (
+                  <div className="reconciliation-balance-empty">Nenhum saldo disponivel.</div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </section>
       

@@ -103,8 +103,6 @@ def _query_revenue_totals_by_year_month(
         .where(
             LinxMovement.company_id == company_id,
             LinxMovement.movement_group == "sale",
-            LinxMovement.canceled.is_(False),
-            LinxMovement.excluded.is_(False),
             movement_date.is_not(None),
             movement_date >= start_date,
             movement_date <= end_date,
@@ -276,7 +274,13 @@ def build_dashboard_overview(
 
     current_year = end.year
     previous_year = current_year - 1
-    revenue_by_year_month = _get_revenue_comparison_totals(db, company.id, current_year, refresh=refresh)
+    revenue_by_year_month = _get_revenue_comparison_totals(
+        db,
+        company.id,
+        current_year,
+        today=end,
+        refresh=refresh,
+    )
     revenue_comparison = DashboardRevenueComparison(
         current_year=current_year,
         previous_year=previous_year,
