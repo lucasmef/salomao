@@ -1745,18 +1745,16 @@ export function PurchasePlanningPage({
       <section className="panel">
         <div className="purchase-filter-bar">
           <label>
-            Coleção em destaque
             <Select
               options={planningCollectionOptions}
               value={planningCollectionOptions.find((option) => option.value === (planningCollection?.id ?? "")) ?? null}
               onChange={(option) => setPlanningCollectionId(asSingleValue(option) || currentCollection?.id || "")}
-              placeholder="Selecione a coleção"
+              placeholder="Foco"
               styles={purchaseSelectStyles}
               menuPortalTarget={portalTarget}
             />
           </label>
           <label>
-            Comparar coleções
             <Select<SelectOption, true>
               options={comparisonCollectionOptions}
               value={selectedComparisonCollectionOptions}
@@ -1772,19 +1770,18 @@ export function PurchasePlanningPage({
               closeMenuOnSelect={false}
               hideSelectedOptions={false}
               controlShouldRenderValue={false}
-              placeholder={comparisonCollectionsPlaceholder}
+              placeholder="Coleções"
               styles={purchaseSelectStyles}
               menuPortalTarget={portalTarget}
             />
           </label>
           <label>
-            Status do plano da coleção
             <Select
               options={planningStatusOptions}
               value={selectedPlanningStatusOption}
               onChange={(option) => onChangeFilters({ ...filters, status: asSingleValue(option) })}
               isClearable
-              placeholder="Todos"
+              placeholder="Status"
               styles={purchaseSelectStyles}
               menuPortalTarget={portalTarget}
             />
@@ -2214,7 +2211,13 @@ export function PurchasePlanningPage({
                                       }
                                     });
                                     if (totalNetPurchase <= 0) return "0%";
-                                    return `${Math.round((totalSales / totalNetPurchase) * 100)}% lucro período`;
+                                    const ratio = (totalSales / totalNetPurchase) - 1;
+                                    const percentage = Math.round(ratio * 100);
+                                    return (
+                                      <span style={{ color: percentage >= 0 ? "#10b981" : "#ef4444" }}>
+                                        {percentage}%
+                                      </span>
+                                    );
                                   })()}
                                 </span>
                               )}
@@ -2223,7 +2226,7 @@ export function PurchasePlanningPage({
                             <div className="planning-brand-cell">
                               <strong>{snapshot.brandName}</strong>
                               {showPlanningProfit && (
-                                <span className="planning-brand-performance">
+                                <span className={`planning-brand-performance`}>
                                   {(() => {
                                     let totalSales = 0;
                                     let totalNetPurchase = 0;
@@ -2235,7 +2238,13 @@ export function PurchasePlanningPage({
                                       }
                                     });
                                     if (totalNetPurchase <= 0) return "0%";
-                                    return `${Math.round((totalSales / totalNetPurchase) * 100)}% lucro período`;
+                                    const ratio = (totalSales / totalNetPurchase) - 1;
+                                    const percentage = Math.round(ratio * 100);
+                                    return (
+                                      <span style={{ color: percentage >= 0 ? "#10b981" : "#ef4444" }}>
+                                        {percentage}%
+                                      </span>
+                                    );
                                   })()}
                                 </span>
                               )}
@@ -2267,7 +2276,14 @@ export function PurchasePlanningPage({
                                     <div className="metric-line metric-line-compra">{purchase || "0"}</div>
                                     {showPlanningReturns && <div className="metric-line metric-line-devolucao">{returns || "0"}</div>}
                                     {showPlanningSales && <div className="metric-line metric-line-venda">{sales || "0"}</div>}
-                                    {showPlanningProfit && <div className="metric-line metric-line-lucro">{Math.round(profitRatio)}%</div>}
+                                    {showPlanningProfit && (
+                                      <div 
+                                        className="metric-line metric-line-lucro"
+                                        style={{ color: profitRatio - 100 >= 0 ? "#10b981" : "#ef4444" }}
+                                      >
+                                        {Math.round(profitRatio - 100)}%
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })()}
