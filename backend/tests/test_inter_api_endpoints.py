@@ -5,6 +5,7 @@ from io import BytesIO
 import zipfile
 
 from fastapi import FastAPI
+import httpx
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -20,6 +21,7 @@ from app.db.models.imports import ImportBatch
 from app.db.models.linx import ReceivableTitle
 from app.db.models.security import Company, User
 from app.services.boletos import build_boleto_dashboard
+from app.services.inter import InterAccountConfig, InterApiClient
 
 
 class FakeInterApiClient:
@@ -280,3 +282,46 @@ def test_inter_endpoints_smoke(monkeypatch) -> None:
     finally:
         client.close()
         session.close()
+
+
+def test_inter_client_retries_pdf_download_after_rate_limit(monkeypatch) -> None:
+    attempts = {"token": 0, "pdf": 0}
+    sleep_calls: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            attempts["token"] += 1
+            return httpx.Response(200, json={"access_token": "token-ok"})
+        if request.url.path == "/cobranca/v3/cobrancas/SOL-001/pdf":
+            attempts["pdf"] += 1
+            if attempts["pdf"] == 1:
+                return httpx.Response(
+                    429,
+                    json={"message": "rate limited"},
+                    headers={"Retry-After": "0"},
+                )
+            return httpx.Response(200, json={"pdf": "JVBERi0x"})
+        raise AssertionError(f"Requisicao inesperada: {request.method} {request.url}")
+
+    monkeypatch.setattr("app.services.inter.time_module.sleep", sleep_calls.append)
+
+    config = InterAccountConfig(
+        account_id="acc-1",
+        account_number="123456",
+        api_key="client-id",
+        client_secret="client-secret",
+        certificate_pem="---CERT---",
+        private_key_pem="---KEY---",
+        environment="sandbox",
+        api_base_url="https://unit.test",
+    )
+    client = InterApiClient(config, transport=httpx.MockTransport(handler))
+    try:
+        pdf_bytes = client.get_charge_pdf("SOL-001")
+    finally:
+        client.close()
+
+    assert pdf_bytes.startswith(b"%PDF-1")
+    assert attempts["token"] == 1
+    assert attempts["pdf"] == 2
+    assert sleep_calls == [0.0]

@@ -9,10 +9,12 @@ import os
 import re
 import ssl
 import tempfile
+import time as time_module
 import zipfile
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -48,6 +50,10 @@ INTER_CHARGE_FULL_SYNC_START = date(2025, 1, 1)
 INTER_CHARGE_FULL_SYNC_DUE_END = date(2027, 12, 31)
 INTER_CHARGE_DEFAULT_LOOKBACK_DAYS = 90
 INTER_CHARGE_INCREMENTAL_LOOKBACK_DAYS = 7
+INTER_SAFE_REQUEST_METHODS = {"GET", "HEAD", "OPTIONS"}
+INTER_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+INTER_MAX_RETRY_ATTEMPTS = 3
+INTER_RETRY_BASE_DELAY_SECONDS = 1.0
 INTER_STATEMENT_MATCH_STOPWORDS = {
     "A",
     "API",
@@ -581,6 +587,11 @@ def _raise_inter_request_error(error: Exception, *, stage: str) -> None:
                 "A integracao nao encontrou o endpoint do Banco Inter. Confira o ambiente "
                 "(producao/sandbox) e a URL base configurada."
             )
+        elif response.status_code == 429:
+            message = (
+                "Banco Inter limitou temporariamente a integracao por excesso de requisicoes. "
+                "Tente novamente em instantes."
+            )
         elif response.status_code >= 500:
             message = "Banco Inter retornou um erro interno ao processar a integracao."
         else:
@@ -662,6 +673,32 @@ def _resolve_inter_account(
     return account, _load_inter_account_config(account)
 
 
+def _should_retry_response(response: httpx.Response, *, attempt: int, max_attempts: int) -> bool:
+    return response.status_code in INTER_RETRYABLE_STATUS_CODES and attempt < max_attempts
+
+
+def _retry_delay_seconds(response: httpx.Response | None, *, attempt: int) -> float:
+    if response is not None:
+        retry_after = _normalize_optional_text(response.headers.get("Retry-After"))
+        if retry_after:
+            if retry_after.isdigit():
+                return max(float(retry_after), 0.0)
+            try:
+                retry_after_dt = parsedate_to_datetime(retry_after)
+                if retry_after_dt.tzinfo is None:
+                    retry_after_dt = retry_after_dt.replace(tzinfo=timezone.utc)
+                seconds = (retry_after_dt - datetime.now(timezone.utc)).total_seconds()
+                if seconds > 0:
+                    return seconds
+            except (TypeError, ValueError, IndexError):
+                pass
+    return INTER_RETRY_BASE_DELAY_SECONDS * (2 ** max(attempt - 1, 0))
+
+
+def _sleep_before_retry(response: httpx.Response | None, *, attempt: int) -> None:
+    time_module.sleep(min(_retry_delay_seconds(response, attempt=attempt), 8.0))
+
+
 class InterApiClient:
     def __init__(
         self,
@@ -717,19 +754,28 @@ class InterApiClient:
     def _ensure_token(self) -> str:
         if self._token:
             return self._token
-        try:
-            with self._create_client() as client:
-                response = client.post(
-                    "/oauth/v2/token",
-                    data={
-                        "grant_type": "client_credentials",
-                        "scope": INTER_REQUIRED_SCOPES,
-                    },
-                    auth=(self.config.api_key, self.config.client_secret),
-                )
-            response.raise_for_status()
-        except (ssl.SSLError, httpx.RequestError, httpx.HTTPStatusError) as error:
-            _raise_inter_request_error(error, stage="a autenticacao com o Banco Inter")
+        response: httpx.Response | None = None
+        for attempt in range(1, INTER_MAX_RETRY_ATTEMPTS + 1):
+            try:
+                with self._create_client() as client:
+                    response = client.post(
+                        "/oauth/v2/token",
+                        data={
+                            "grant_type": "client_credentials",
+                            "scope": INTER_REQUIRED_SCOPES,
+                        },
+                        auth=(self.config.api_key, self.config.client_secret),
+                    )
+                response.raise_for_status()
+                break
+            except (ssl.SSLError, httpx.RequestError, httpx.HTTPStatusError) as error:
+                if (
+                    isinstance(error, httpx.HTTPStatusError)
+                    and _should_retry_response(error.response, attempt=attempt, max_attempts=INTER_MAX_RETRY_ATTEMPTS)
+                ):
+                    _sleep_before_retry(error.response, attempt=attempt)
+                    continue
+                _raise_inter_request_error(error, stage="a autenticacao com o Banco Inter")
         payload = response.json()
         token = str(payload.get("access_token") or "").strip()
         if not token:
@@ -738,17 +784,36 @@ class InterApiClient:
         return token
 
     def request(self, method: str, path: str, **kwargs: Any) -> Any:
-        token = self._ensure_token()
-        headers = dict(kwargs.pop("headers", {}) or {})
-        headers.setdefault("Authorization", f"Bearer {token}")
-        headers.setdefault("x-conta-corrente", self.config.account_number)
-        headers.setdefault("x-inter-conta-corrente", self.config.account_number)
-        try:
-            with self._create_client() as client:
-                response = client.request(method, path, headers=headers, **kwargs)
-            response.raise_for_status()
-        except (ssl.SSLError, httpx.RequestError, httpx.HTTPStatusError) as error:
-            _raise_inter_request_error(error, stage="a chamada da API do Banco Inter")
+        normalized_method = method.upper()
+        max_attempts = INTER_MAX_RETRY_ATTEMPTS if normalized_method in INTER_SAFE_REQUEST_METHODS else 1
+        response: httpx.Response | None = None
+        for attempt in range(1, max_attempts + 1):
+            token = self._ensure_token()
+            headers = dict(kwargs.get("headers", {}) or {})
+            headers.setdefault("Authorization", f"Bearer {token}")
+            headers.setdefault("x-conta-corrente", self.config.account_number)
+            headers.setdefault("x-inter-conta-corrente", self.config.account_number)
+            request_kwargs = {**kwargs, "headers": headers}
+            try:
+                with self._create_client() as client:
+                    response = client.request(normalized_method, path, **request_kwargs)
+                response.raise_for_status()
+                break
+            except (ssl.SSLError, httpx.RequestError, httpx.HTTPStatusError) as error:
+                if (
+                    isinstance(error, httpx.HTTPStatusError)
+                    and error.response.status_code in {401, 403}
+                    and attempt < max_attempts
+                ):
+                    self._token = None
+                    continue
+                if (
+                    isinstance(error, httpx.HTTPStatusError)
+                    and _should_retry_response(error.response, attempt=attempt, max_attempts=max_attempts)
+                ):
+                    _sleep_before_retry(error.response, attempt=attempt)
+                    continue
+                _raise_inter_request_error(error, stage="a chamada da API do Banco Inter")
         if response.status_code == 204 or not response.content:
             return {}
         try:
