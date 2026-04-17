@@ -5351,3 +5351,50 @@ textarea {
   flex-shrink: 0;
 }
 
+
+.purchase-brand-modal-card {
+  width: 820px !important;
+}
+
+.brand-summary-dashboard {
+  padding: 6px 10px !important;
+  margin: 8px 0 !important;
+}
+
+.summary-metric-card {
+  padding: 4px 10px !important;
+  min-width: 70px !important;
+}
+
+.summary-metric-card span {
+  font-size: 0.6rem !important;
+}
+
+.summary-metric-card strong {
+  font-size: 0.9rem !important;
+}
+
+.brand-modal-inputs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 1fr;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.brand-modal-inputs-grid .full-row {
+  grid-column: 1 / -1;
+}
+
+.brand-modal-inputs-grid label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0; /* Hide label text if it's there but keep structure */
+}
+
+.brand-modal-inputs-grid .checkbox-line {
+  font-size: 0.75rem;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+

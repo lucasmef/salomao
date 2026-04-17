@@ -3861,10 +3861,10 @@ export function PurchasePlanningPage({
           </div>
 
           <div className="brand-modal-unified-content">
-            <div className="form-grid wide">
+            <div className="brand-modal-inputs-grid">
               <label>
-                Marca
                 <input
+                  placeholder="Nome da marca"
                   value={brandModal.name}
                   onChange={(event) =>
                     setBrandModal((current) => ({
@@ -3875,7 +3875,6 @@ export function PurchasePlanningPage({
                 />
               </label>
               <label>
-                Fornecedores
                 <Select<SelectOption, true>
                   options={brandSupplierOptions}
                   value={selectedBrandSupplierOptions}
@@ -3887,13 +3886,12 @@ export function PurchasePlanningPage({
                   }
                   isMulti
                   isClearable
-                  placeholder="Selecione um ou mais fornecedores"
+                  placeholder="Fornecedores"
                   styles={purchaseSelectStyles}
                   menuPortalTarget={portalTarget}
                 />
               </label>
               <label>
-                Forma de pagamento
                 <Select
                   options={paymentTermOptions}
                   value={selectedBrandTermOption}
@@ -3904,14 +3902,15 @@ export function PurchasePlanningPage({
                     }))
                   }
                   isClearable
-                  placeholder="Selecione"
+                  placeholder="Forma de pagamento"
                   styles={purchaseSelectStyles}
                   menuPortalTarget={portalTarget}
                 />
               </label>
-              <label className="full-width">
-                Observações
+              <label className="full-row">
                 <textarea
+                  placeholder="Observações complementares..."
+                  style={{ height: '50px', fontSize: '0.82rem' }}
                   value={brandModal.notes}
                   onChange={(event) =>
                     setBrandModal((current) => ({
@@ -3922,8 +3921,9 @@ export function PurchasePlanningPage({
                 />
               </label>
               {isEditingBrand && (
-                <label className="checkbox-line full-width">
+                <label className="checkbox-line full-row">
                   <input
+                    className="checkbox-input"
                     type="checkbox"
                     checked={brandModal.is_active}
                     onChange={(event) =>
@@ -3933,7 +3933,7 @@ export function PurchasePlanningPage({
                       }))
                     }
                   />
-                  <span>Marca ativa</span>
+                  <span>Marca Ativa</span>
                 </label>
               )}
             </div>
