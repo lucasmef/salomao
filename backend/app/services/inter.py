@@ -696,7 +696,10 @@ def _retry_delay_seconds(response: httpx.Response | None, *, attempt: int) -> fl
 
 
 def _sleep_before_retry(response: httpx.Response | None, *, attempt: int) -> None:
-    time_module.sleep(min(_retry_delay_seconds(response, attempt=attempt), 8.0))
+    # We increase the cap for 429 errors to respect long Retry-After headers from the bank.
+    # Otherwise, we keep a smaller cap for transient 5xx errors to keep sync interactive.
+    max_cap = 60.0 if response is not None and response.status_code == 429 else 8.0
+    time_module.sleep(min(_retry_delay_seconds(response, attempt=attempt), max_cap))
 
 
 class InterApiClient:
@@ -1186,7 +1189,13 @@ def sync_inter_charges(
             codigo_solicitacao = _extract_charge_summary_code(normalized_summary)
             if codigo_solicitacao:
                 processed_charge_codes.add(codigo_solicitacao)
-            detail = client.get_charge_detail(codigo_solicitacao) if codigo_solicitacao else normalized_summary
+            has_essential_info = (isinstance(normalized_summary.get("cobranca"), dict) and isinstance(normalized_summary.get("boleto"), dict))
+            if has_essential_info:
+                detail = normalized_summary
+            elif codigo_solicitacao:
+                detail = client.get_charge_detail(codigo_solicitacao)
+            else:
+                detail = normalized_summary
             _, created = _upsert_boleto_record(
                 db,
                 company_id=company.id,
@@ -1210,6 +1219,13 @@ def sync_inter_charges(
             codigo_solicitacao = _normalize_optional_text(str(record.inter_codigo_solicitacao or ""))
             if not codigo_solicitacao or codigo_solicitacao in processed_charge_codes:
                 continue
+            
+            # Rate limit individual refreshes: only check if not updated in the last 4 hours
+            # to avoid hitting API limits for old pending boletos on every sync cycle.
+            now_utc = datetime.now(timezone.utc)
+            if record.updated_at and (now_utc - record.updated_at).total_seconds() < 4 * 3600:
+                continue
+                
             detail = client.get_charge_detail(codigo_solicitacao)
             _, created = _upsert_boleto_record(
                 db,
