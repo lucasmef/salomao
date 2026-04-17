@@ -663,6 +663,23 @@ function ReturnsIcon() {
   );
 }
 
+function EyeIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="button-icon"
+      fill="none"
+      viewBox="0 0 16 16"
+    >
+      <circle cx="8" cy="8" fill="currentColor" r="1.5" />
+      <path
+        d="M8 3c-3 0-5.5 2-6.5 4.5 1 2.5 3.5 4.5 6.5 4.5s5.5-2 6.5-4.5C13.5 5 11 3 8 3Zm0 8.5c-2.5 0-4.5-1.5-5.5-3.5 1-2 3-3.5 5.5-3.5s4.5 1.5 5.5 3.5c-1 2-3 3.5-5.5 3.5Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export function PurchasePlanningPage({
   view,
   brands,
@@ -3891,7 +3908,7 @@ export function PurchasePlanningPage({
                   menuPortalTarget={portalTarget}
                 />
               </label>
-              <label>
+              <div className="term-active-container">
                 <Select
                   options={paymentTermOptions}
                   value={selectedBrandTermOption}
@@ -3902,15 +3919,28 @@ export function PurchasePlanningPage({
                     }))
                   }
                   isClearable
-                  placeholder="Forma de pagamento"
+                  placeholder="Parcelamento"
                   styles={purchaseSelectStyles}
                   menuPortalTarget={portalTarget}
                 />
-              </label>
-              <label className="full-row">
-                <textarea
-                  placeholder="Observações complementares..."
-                  style={{ height: '50px', fontSize: '0.82rem' }}
+                <button
+                  className={`table-button icon-button cockpit-btn detail-toggle-btn${brandModal.is_active ? " active" : ""}`}
+                  type="button"
+                  onClick={() =>
+                    setBrandModal((current) => ({
+                      ...current,
+                      is_active: !current.is_active,
+                    }))
+                  }
+                  title={brandModal.is_active ? "Marca Ativa" : "Marca Inativa"}
+                >
+                  <CheckIcon />
+                </button>
+              </div>
+              <label>
+                <input
+                  placeholder="Observações"
+                  style={{ fontSize: "0.82rem" }}
                   value={brandModal.notes}
                   onChange={(event) =>
                     setBrandModal((current) => ({
@@ -3920,22 +3950,6 @@ export function PurchasePlanningPage({
                   }
                 />
               </label>
-              {isEditingBrand && (
-                <label className="checkbox-line full-row">
-                  <input
-                    className="checkbox-input"
-                    type="checkbox"
-                    checked={brandModal.is_active}
-                    onChange={(event) =>
-                      setBrandModal((current) => ({
-                        ...current,
-                        is_active: event.target.checked,
-                      }))
-                    }
-                  />
-                  <span>Marca Ativa</span>
-                </label>
-              )}
             </div>
 
             {isEditingBrand && (
@@ -3973,15 +3987,16 @@ export function PurchasePlanningPage({
                   </div>
                 </div>
 
-                <div className="brand-modal-analitico-header">
-                  <label className="checkbox-line detail-toggle-label">
-                    <input
-                      type="checkbox"
-                      checked={brandModalDetailed}
-                      onChange={(e) => setBrandModalDetailed(e.target.checked)}
-                    />
-                    <span>Detalhamento Analítico</span>
-                  </label>
+                <div className="brand-modal-table-title-row">
+                  <span>Coleções & Performance</span>
+                  <button
+                    className={`table-button icon-button cockpit-btn detail-toggle-btn${brandModalDetailed ? " active" : ""}`}
+                    type="button"
+                    onClick={() => setBrandModalDetailed(!brandModalDetailed)}
+                    title="Alternar Detalhamento Analítico"
+                  >
+                    <EyeIcon />
+                  </button>
                 </div>
 
                 <div className="table-shell brand-collection-table-shell">

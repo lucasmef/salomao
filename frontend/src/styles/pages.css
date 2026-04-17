@@ -5398,3 +5398,59 @@ textarea {
   gap: 6px;
 }
 
+
+.brand-summary-dashboard {
+  flex-wrap: nowrap !important;
+  justify-content: space-between !important;
+  padding: 4px 8px !important;
+  gap: 4px !important;
+}
+
+.summary-metric-card {
+  flex: 1 !important;
+  min-width: 0 !important; /* Allow shrinking */
+  padding: 3px 8px !important;
+}
+
+.brand-modal-inputs-grid {
+  grid-template-columns: 1fr 1.2fr 0.8fr 1.5fr !important; /* 4 columns: Name, Suppliers, Term+Toggle, Notes */
+  gap: 8px !important;
+}
+
+.term-active-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.term-active-container > div:first-child {
+  flex: 1;
+}
+
+.detail-toggle-btn {
+  padding: 4px !important;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.detail-toggle-btn.active {
+  opacity: 1;
+  color: #2f5be7;
+  background: #eef4ff;
+}
+
+.brand-modal-table-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 8px 0 4px 0;
+}
+
+.brand-modal-table-title-row span {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
