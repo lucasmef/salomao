@@ -1948,10 +1948,18 @@ export function PurchasePlanningPage({
             {netDisplayLine ? (
               <span className="planning-inline-return-value">{netDisplayLine}</span>
             ) : null}
+            {!isPastCollection(collection) && (
+              <button 
+                className="table-button icon-button" 
+                type="button" 
+                onClick={() => startInlinePlanEdit(snapshot, collection)} 
+                title="Editar valor"
+                style={{ marginLeft: '4px' }}
+              >
+                <EditIcon />
+              </button>
+            )}
           </div>
-          <button className="table-button icon-button" type="button" onClick={() => startInlinePlanEdit(snapshot, collection)} title="Editar valor">
-            <EditIcon />
-          </button>
         </div>
       );
     }
