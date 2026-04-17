@@ -5396,22 +5396,63 @@ textarea {
 }
 
 .brand-modal-field--notes {
-  grid-column: span 8;
+  grid-column: span 6;
+}
+
+.brand-modal-field--status {
+  grid-column: span 2;
+}
+
+.brand-modal-field--duplicate {
+  display: none !important;
 }
 
 .brand-modal-inputs-grid input {
   width: 100%;
 }
 
-.term-active-container {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+.brand-modal-status-toggle {
+  width: 100%;
+  min-height: 36px;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid #d7e1ef;
+  background: #ffffff;
+  color: #516277;
+  font-size: 0.78rem;
+  font-weight: 700;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
-.term-active-container > div:first-child {
-  min-width: 0;
+.brand-modal-status-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.brand-modal-status-toggle.is-active {
+  border-color: #10b98155;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.brand-modal-status-toggle.is-inactive {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.brand-modal-status-toggle:hover {
+  border-color: #2f5be7;
+  color: #2044b4;
+  box-shadow: 0 6px 18px rgba(47, 91, 231, 0.08);
 }
 
 .detail-toggle-btn {
@@ -5483,7 +5524,8 @@ textarea {
   .brand-modal-field--name,
   .brand-modal-field--suppliers,
   .brand-modal-field--term,
-  .brand-modal-field--notes {
+  .brand-modal-field--notes,
+  .brand-modal-field--status {
     grid-column: span 12;
   }
 

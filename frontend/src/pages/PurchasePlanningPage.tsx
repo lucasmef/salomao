@@ -3908,7 +3908,20 @@ export function PurchasePlanningPage({
                   menuPortalTarget={portalTarget}
                 />
               </label>
-              <div className="term-active-container brand-modal-field brand-modal-field--term">
+              <label className="brand-modal-field brand-modal-field--notes">
+                <input
+                  placeholder="Observações"
+                  style={{ fontSize: "0.82rem" }}
+                  value={brandModal.notes}
+                  onChange={(event) =>
+                    setBrandModal((current) => ({
+                      ...current,
+                      notes: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <div className="brand-modal-field brand-modal-field--term">
                 <Select
                   options={paymentTermOptions}
                   value={selectedBrandTermOption}
@@ -3923,21 +3936,29 @@ export function PurchasePlanningPage({
                   styles={purchaseSelectStyles}
                   menuPortalTarget={portalTarget}
                 />
+              </div>
+              <div className="brand-modal-field brand-modal-field--status">
                 <button
-                  className={`table-button icon-button cockpit-btn detail-toggle-btn${brandModal.is_active ? " active" : ""}`}
+                  className={`brand-modal-status-toggle${brandModal.is_active ? " is-active" : " is-inactive"}`}
                   type="button"
+                  aria-pressed={brandModal.is_active}
                   onClick={() =>
                     setBrandModal((current) => ({
                       ...current,
                       is_active: !current.is_active,
                     }))
                   }
-                  title={brandModal.is_active ? "Marca Ativa" : "Marca Inativa"}
+                  title={
+                    brandModal.is_active
+                      ? "Clique para desativar a marca"
+                      : "Clique para ativar a marca"
+                  }
                 >
                   <CheckIcon />
+                  <span>{brandModal.is_active ? "Ativa" : "Inativa"}</span>
                 </button>
               </div>
-              <label className="brand-modal-field brand-modal-field--notes">
+              <label className="brand-modal-field brand-modal-field--notes brand-modal-field--duplicate">
                 <input
                   placeholder="Observações"
                   style={{ fontSize: "0.82rem" }}
