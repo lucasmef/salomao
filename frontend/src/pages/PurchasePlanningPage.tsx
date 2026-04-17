@@ -2476,10 +2476,13 @@ export function PurchasePlanningPage({
     );
   }
   function renderInlinePlannedAmount(
-    snapshot: PlanningBrandSnapshot,
+    snapshot: PlanningBrandSnapshot | null,
     collection: CollectionSeason,
     options?: { compact?: boolean; highlight?: boolean },
   ) {
+    if (!snapshot) {
+      return <span>{formatPurchaseDisplayAmount("0.00")}</span>;
+    }
     const collectionSnapshot = snapshot.collections.get(collection.id);
     if (!collectionSnapshot) {
       return <span>{formatPurchaseDisplayAmount("0.00")}</span>;
