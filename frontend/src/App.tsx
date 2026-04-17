@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "./components/AppShell";
+import { ConfirmModal } from "./components/ConfirmModal";
 import { GlobalProductSearchModal } from "./components/GlobalProductSearchModal";
 import { RouteLoadingFallback } from "./components/RouteLoadingFallback";
 import { SectionChrome } from "./components/SectionChrome";
@@ -693,11 +694,15 @@ function DevBanner() {
   );
 }
 
+import { ConfirmProvider } from "./components/ConfirmContext";
+
 function App() {
   return (
     <BrowserRouter>
-      <DevBanner />
-      <AppRuntime />
+      <ConfirmProvider>
+        <DevBanner />
+        <AppRuntime />
+      </ConfirmProvider>
     </BrowserRouter>
   );
 }

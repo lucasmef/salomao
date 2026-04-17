@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Select, { type MultiValue, type SingleValue } from "react-select";
-
+import { useConfirm } from "../components/ConfirmContext";
 import { MoneyInput } from "../components/MoneyInput";
 import { ModalCloseButton } from "../components/ModalCloseButton";
 import { PageHeader } from "../components/PageHeader";
@@ -967,15 +967,23 @@ export function EntriesPage({
     setSettlementPrompt(emptySettlementPrompt);
   }
 
+  const { confirm } = useConfirm();
+
   async function handleBulkCategoryUpdate() {
     if (!selectedEntryIds.length || !bulkCategoryId || !selectedEntryKind) {
       return;
     }
     const selectedCategoryOption = categories.find((item) => item.id === bulkCategoryId);
-    const confirmMessage = `Alterar a categoria de ${selectedEntryIds.length} lançamento(s) para ${selectedCategoryOption?.name ?? "a categoria selecionada"}?`;
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
+    
+    const confirmed = await confirm({
+      title: "Alterar Categoria em Lote",
+      message: `Deseja alterar a categoria de ${selectedEntryIds.length} lançamento(s) para "${selectedCategoryOption?.name}"?`,
+      confirmLabel: "Alterar em Lote",
+      tone: "info"
+    });
+
+    if (!confirmed) return;
+
     await onBulkUpdateCategory(selectedEntryIds, bulkCategoryId);
     setSelectedEntryIds([]);
     setBulkCategoryId("");
@@ -985,10 +993,16 @@ export function EntriesPage({
     if (!selectedDeletableEntries.length || selectedNonDeletableCount > 0) {
       return;
     }
-    const confirmMessage = `Excluir ${selectedDeletableEntries.length} lançamento(s) selecionado(s)? Essa ação não remove lançamentos com baixa, conciliação ou vínculo com outros processos.`;
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
+    
+    const confirmed = await confirm({
+      title: "Confirmar Exclusão em Lote",
+      message: `Deseja excluir permanentemente ${selectedDeletableEntries.length} lançamento(s) selecionado(s)? Esta ação não pode ser desfeita.`,
+      confirmLabel: "Excluir Tudo",
+      tone: "danger"
+    });
+
+    if (!confirmed) return;
+
     await onBulkDeleteEntries(selectedDeletableEntries.map((entry) => entry.id));
     setSelectedEntryIds([]);
     setBulkCategoryId("");

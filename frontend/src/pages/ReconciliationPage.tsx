@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CreatableSelect from "react-select/creatable";
+import { useConfirm } from "../components/ConfirmContext";
 
 import { ModalCloseButton } from "../components/ModalCloseButton";
 import { MoneyInput } from "../components/MoneyInput";
@@ -834,12 +835,18 @@ export function ReconciliationPage({
     await loadPeriodEntries();
   }
 
+  const { confirm } = useConfirm();
+
   async function handleUnreconcile(bankTransactionId: string, undoMode: string | null) {
     const needsDeleteConfirmation = undoMode === "delete_entry" || undoMode === "mixed";
     if (needsDeleteConfirmation) {
-      const confirmed = window.confirm(
-        "Esta desconciliação vai excluir o lançamento criado na conciliação e reabrir as faturas vinculadas. Deseja continuar?",
-      );
+      const confirmed = await confirm({
+        title: "Desconciliar Lançamento",
+        message: "Esta desconciliação vai excluir o lançamento criado na conciliação e reabrir as faturas vinculadas. Deseja continuar?",
+        confirmLabel: "Desconciliar e Excluir",
+        tone: "danger"
+      });
+      
       if (!confirmed) {
         return;
       }

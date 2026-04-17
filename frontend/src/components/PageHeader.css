@@ -54,3 +54,34 @@
     align-items: flex-start;
   }
 }
+
+/* Breadcrumbs */
+.header-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.breadcrumb-item {
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  transition: color 0.2s ease;
+}
+
+.breadcrumb-item:hover {
+  color: var(--color-primary);
+}
+
+.breadcrumb-item.active {
+  color: var(--color-text-main);
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.breadcrumb-separator {
+  color: var(--color-border);
+  font-size: 0.75rem;
+}
