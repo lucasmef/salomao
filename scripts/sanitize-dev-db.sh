@@ -138,6 +138,8 @@ echo "==> Sanitizando tabela: accounts (credenciais Inter)"
 "${PSQL_CMD[@]}" --command="
 UPDATE accounts SET
   inter_api_enabled                 = false,
+  inter_environment              = 'sandbox',
+  inter_api_base_url             = 'https://cdpj-sandbox.sandbox.inter.co',
   inter_api_key                     = NULL,
   inter_account_number              = NULL,
   inter_client_secret_encrypted     = NULL,
@@ -150,6 +152,7 @@ UPDATE accounts SET
 echo "==> Sanitizando tabela: financial_entries"
 "${PSQL_CMD[@]}" --command="
 UPDATE financial_entries SET
+  title             = 'Lancamento ' || substr(id, 1, 8),
   counterparty_name = CASE WHEN counterparty_name IS NOT NULL THEN 'Terceiro ' || substr(id, 1, 8) ELSE NULL END,
   document_number   = CASE WHEN document_number IS NOT NULL THEN lpad(floor(random() * 99999999999)::text, 11, '0') ELSE NULL END,
   description       = CASE WHEN description IS NOT NULL THEN 'Descricao anonimizada' ELSE NULL END,
@@ -159,9 +162,19 @@ UPDATE financial_entries SET
 echo "==> Sanitizando tabela: recurrence_rules"
 "${PSQL_CMD[@]}" --command="
 UPDATE recurrence_rules SET
+  name              = 'Regra Recorrente ' || substr(id, 1, 8),
+  title_template    = 'Titulo Rec ' || substr(id, 1, 8),
   counterparty_name = CASE WHEN counterparty_name IS NOT NULL THEN 'Terceiro Rec ' || substr(id, 1, 8) ELSE NULL END,
   document_number   = CASE WHEN document_number IS NOT NULL THEN lpad(floor(random() * 99999999999)::text, 11, '0') ELSE NULL END,
-  notes             = CASE WHEN notes IS NOT NULL THEN 'Nota anonimizada' ELSE NULL END;
+  notes             = CASE WHEN notes IS NOT NULL THEN 'Nota anonimizada' ELSE NULL END,
+  description       = CASE WHEN description IS NOT NULL THEN 'Descricao anonimizada' ELSE NULL END;
+"
+
+echo "==> Sanitizando tabela: transfers"
+"${PSQL_CMD[@]}" --command="
+UPDATE transfers SET
+  description = CASE WHEN description IS NOT NULL THEN 'Transferencia ' || substr(id, 1, 8) ELSE NULL END,
+  notes       = CASE WHEN notes IS NOT NULL THEN 'Nota anonimizada' ELSE NULL END;
 "
 
 echo "==> Sanitizando tabela: bank_transactions"
@@ -188,7 +201,8 @@ UPDATE boleto_customer_configs SET
   phone_secondary    = NULL,
   mobile             = NULL,
   state_registration = NULL,
-  notes              = CASE WHEN notes IS NOT NULL THEN 'Nota anonimizada' ELSE NULL END;
+  notes              = CASE WHEN notes IS NOT NULL THEN 'Nota anonimizada' ELSE NULL END,
+  email              = NULL;
 "
 
 echo "==> Sanitizando tabela: boleto_records"
@@ -201,6 +215,20 @@ UPDATE boleto_records SET
   pix_copia_e_cola = NULL;
 "
 
+echo "==> Sanitizando tabela: standalone_boleto_records"
+"${PSQL_CMD[@]}" --command="
+UPDATE standalone_boleto_records SET
+  client_name      = 'Cliente Dev ' || substr(id, 1, 8),
+  client_key       = 'cliente-dev-' || substr(id, 1, 8),
+  tax_id           = CASE WHEN tax_id IS NOT NULL THEN lpad(floor(random() * 99999999999)::text, 11, '0') ELSE NULL END,
+  email            = 'dev-' || substr(id, 1, 8) || '@dev.local',
+  description      = 'Descricao boleto anonima',
+  notes            = 'Nota anonimizada',
+  barcode          = NULL,
+  linha_digitavel  = NULL,
+  pix_copia_e_cola = NULL;
+"
+
 echo "==> Sanitizando tabela: receivable_titles"
 "${PSQL_CMD[@]}" --command="
 UPDATE receivable_titles SET
@@ -209,26 +237,98 @@ UPDATE receivable_titles SET
   document_reference = CASE WHEN document_reference IS NOT NULL THEN lpad(floor(random() * 99999999999)::text, 11, '0') ELSE NULL END;
 "
 
+echo "==> Sanitizando tabela: purchase_payable_titles"
+"${PSQL_CMD[@]}" --command="
+UPDATE purchase_payable_titles SET
+  supplier_name   = 'Fornecedor Linx ' || substr(id, 1, 8),
+  document_number = CASE WHEN document_number IS NOT NULL THEN lpad(floor(random() * 99999999999)::text, 11, '0') ELSE NULL END;
+"
+
+echo "==> Sanitizando tabela: linx_customers"
+"${PSQL_CMD[@]}" --command="
+UPDATE linx_customers SET
+  legal_name         = 'Cliente Linx ' || substr(id, 1, 8),
+  display_name       = 'Dev ' || substr(id, 1, 8),
+  document_number    = CASE WHEN document_number IS NOT NULL THEN lpad(floor(random() * 99999999999)::text, 11, '0') ELSE NULL END,
+  address_street     = CASE WHEN address_street IS NOT NULL THEN 'Rua Linx ' || substr(id, 1, 8) ELSE NULL END,
+  neighborhood       = CASE WHEN neighborhood IS NOT NULL THEN 'Bairro Linx' ELSE NULL END,
+  city               = CASE WHEN city IS NOT NULL THEN 'Cidade Linx' ELSE NULL END,
+  phone_primary      = NULL,
+  mobile             = NULL,
+  email              = 'linx-dev-' || substr(id, 1, 8) || '@dev.local',
+  notes              = 'Nota anonimizada';
+"
+
+echo "==> Sanitizando tabela: linx_products"
+"${PSQL_CMD[@]}" --command="
+UPDATE linx_products SET
+  description   = 'Produto ' || substr(id, 1, 8),
+  brand_name    = 'Marca ' || substr(id, 1, 8),
+  supplier_name = 'Fornecedor ' || substr(id, 1, 8);
+"
+
+echo "==> Sanitizando tabela: linx_open_receivables"
+"${PSQL_CMD[@]}" --command="
+UPDATE linx_open_receivables SET
+  customer_name   = 'Cliente Linx ' || substr(id, 1, 8),
+  document_number = CASE WHEN document_number IS NOT NULL THEN lpad(floor(random() * 99999999999)::text, 11, '0') ELSE NULL END,
+  observation     = 'Obs anonimizada';
+"
+
+echo "==> Sanitizando tabela: linx_movements"
+"${PSQL_CMD[@]}" --command="
+UPDATE linx_movements SET
+  document_number = CASE WHEN document_number IS NOT NULL THEN lpad(floor(random() * 99999999999)::text, 11, '0') ELSE NULL END,
+  note            = 'Nota anonimizada';
+"
+
 echo "==> Sanitizando tabela: suppliers"
 "${PSQL_CMD[@]}" --command="
 UPDATE suppliers SET
   name            = 'Fornecedor Dev ' || substr(id, 1, 8),
-  document_number = CASE WHEN document_number IS NOT NULL THEN lpad(floor(random() * 99999999999999)::text, 14, '0') ELSE NULL END;
+  document_number = CASE WHEN document_number IS NOT NULL THEN lpad(floor(random() * 99999999999999)::text, 14, '0') ELSE NULL END,
+  notes           = CASE WHEN notes IS NOT NULL THEN 'Nota anonimizada' ELSE NULL END;
+"
+
+echo "==> Sanitizando tabela: purchase_brands"
+"${PSQL_CMD[@]}" --command="
+UPDATE purchase_brands SET
+  name  = 'Marca Dev ' || substr(id, 1, 8),
+  notes = CASE WHEN notes IS NOT NULL THEN 'Nota anonimizada' ELSE NULL END;
+"
+
+echo "==> Sanitizando tabela: collection_seasons"
+"${PSQL_CMD[@]}" --command="
+UPDATE collection_seasons SET
+  name  = 'Colecao ' || season_year || ' ' || substr(id, 1, 8),
+  notes = CASE WHEN notes IS NOT NULL THEN 'Nota anonimizada' ELSE NULL END;
+"
+
+echo "==> Sanitizando tabela: purchase_plans"
+"${PSQL_CMD[@]}" --command="
+UPDATE purchase_plans SET
+  title = 'Plano Compra ' || substr(id, 1, 8),
+  notes = CASE WHEN notes IS NOT NULL THEN 'Nota anonimizada' ELSE NULL END;
 "
 
 echo "==> Sanitizando tabela: loan_contracts"
 "${PSQL_CMD[@]}" --command="
 UPDATE loan_contracts SET
   lender_name     = 'Credor Dev ' || substr(id, 1, 8),
-  contract_number = CASE WHEN contract_number IS NOT NULL THEN 'CTR-' || substr(id, 1, 8) ELSE NULL END;
+  contract_number = CASE WHEN contract_number IS NOT NULL THEN 'CTR-' || substr(id, 1, 8) ELSE NULL END,
+  title           = 'Contrato ' || substr(id, 1, 8),
+  notes           = CASE WHEN notes IS NOT NULL THEN 'Nota anonimizada' ELSE NULL END;
 "
 
 echo "==> Sanitizando tabela: purchase_invoices (raw_text, raw_xml, nfe_key)"
 "${PSQL_CMD[@]}" --command="
 UPDATE purchase_invoices SET
-  raw_text = NULL,
-  raw_xml  = NULL,
-  nfe_key  = CASE WHEN nfe_key IS NOT NULL THEN lpad(floor(random() * 999999999)::text, 44, '0') ELSE NULL END;
+  raw_text            = NULL,
+  raw_xml             = NULL,
+  invoice_number      = 'INV-' || substr(id, 1, 8),
+  payment_description = 'Descricao pagamento anonima',
+  notes               = 'Nota anonimizada',
+  nfe_key             = CASE WHEN nfe_key IS NOT NULL THEN lpad(floor(random() * 999999999)::text, 44, '0') ELSE NULL END;
 "
 
 echo "==> Sanitizando tabela: reconciliation_rules"
