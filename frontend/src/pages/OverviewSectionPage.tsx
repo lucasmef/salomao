@@ -267,7 +267,7 @@ export function OverviewSectionPage({
             </svg>
           </div>
           <span>Saldo atual</span>
-          <strong className="tabular-nums">{formatMoney(dashboard?.kpis.current_balance)}</strong>
+          <strong className="tabular-nums">{formatMoney(dashboard?.kpis?.current_balance ?? 0)}</strong>
         </article>
         <article className="kpi-card">
           <div className="kpi-card-icon">
@@ -277,7 +277,7 @@ export function OverviewSectionPage({
             </svg>
           </div>
           <span>Saldo projetado</span>
-          <strong className="tabular-nums">{formatMoney(dashboard?.kpis.projected_balance)}</strong>
+          <strong className="tabular-nums">{formatMoney(dashboard?.kpis?.projected_balance ?? 0)}</strong>
         </article>
         <article className="kpi-card">
           <div className="kpi-card-icon">
@@ -288,7 +288,7 @@ export function OverviewSectionPage({
             </svg>
           </div>
           <span>Conciliações pendentes</span>
-          <strong className="tabular-nums">{dashboard?.kpis.pending_reconciliations ?? 0}</strong>
+          <strong className="tabular-nums">{dashboard?.kpis?.pending_reconciliations ?? 0}</strong>
         </article>
       </section>
 
