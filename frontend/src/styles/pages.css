@@ -5006,13 +5006,77 @@ textarea {
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: flex-end;
-  gap: 2px;
+  justify-content: space-between;
+  width: 100%;
   font-weight: 700;
   font-size: 0.82rem;
   color: #1e293b;
   white-space: nowrap;
-  flex-wrap: nowrap;
+  padding-left: 4px;
+}
+
+.metric-value-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+}
+
+.metric-actions-container,
+.metric-actions-container-confirm {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  justify-content: flex-start;
+  min-width: 24px;
+}
+
+.metric-actions-container {
+  margin-left: 2px;
+}
+
+.metric-actions-container-confirm {
+  margin-left: 1px;
+}
+
+.cockpit-btn {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #ffffff !important;
+  border: 1px solid #dcdfe6 !important;
+  border-radius: 4px !important;
+  color: #606266 !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+}
+
+.cockpit-btn svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+.cockpit-btn:hover {
+  border-color: #2f5be7 !important;
+  color: #2f5be7 !important;
+  background: #f5f7fa !important;
+}
+
+.cockpit-btn.is-success:hover {
+  border-color: #10b981 !important;
+  color: #10b981 !important;
+  background: #ecfdf5 !important;
+}
+
+.cockpit-btn-confirm {
+  font-size: 14px !important;
+  line-height: 1 !important;
 }
 
 .metric-line-recebido { color: #64748b; }

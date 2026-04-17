@@ -1962,39 +1962,47 @@ export function PurchasePlanningPage({
         ? buildPurchaseNetDisplayLine(collectionSnapshot.plannedAmount, collectionSnapshot.returnsAmount)
         : null;
       return (
-        <div className={inlineEditClassName}>
-          <span className={options?.highlight ? "planning-inline-edit-value is-highlighted" : "planning-inline-edit-value"}>
-            {formatPurchaseDisplayAmount(collectionSnapshot.plannedAmount)}
-          </span>
-          {netDisplayLine ? (
-            <span className="planning-inline-return-value">{netDisplayLine}</span>
-          ) : null}
-          {!isPastCollection(collection) && (
-            <button 
-              className="table-button icon-button" 
-              type="button" 
-              onClick={() => startInlinePlanEdit(snapshot, collection)} 
-              title="Editar valor"
-            >
-              <EditIcon />
-            </button>
-          )}
+        <div className="planning-inline-edit is-readonly">
+          <div className="metric-value-container">
+            <span className={options?.highlight ? "planning-inline-edit-value is-highlighted" : "planning-inline-edit-value"}>
+              {formatPurchaseDisplayAmount(collectionSnapshot.plannedAmount)}
+            </span>
+            {netDisplayLine ? (
+              <span className="planning-inline-return-value">{netDisplayLine}</span>
+            ) : null}
+          </div>
+          <div className="metric-actions-container">
+            {!isPastCollection(collection) && (
+              <button 
+                className="cockpit-btn" 
+                type="button" 
+                onClick={() => startInlinePlanEdit(snapshot, collection)} 
+                title="Editar valor"
+              >
+                <EditIcon />
+              </button>
+            )}
+          </div>
         </div>
       );
     }
     return (
-      <div className={inlineEditClassName}>
-        <MoneyInput
-          className="planning-inline-edit-input-micro"
-          value={inlinePlanEdit.value}
-          onValueChange={(value) => setInlinePlanEdit((current) => (current ? { ...current, value } : current))}
-        />
-        <button className="table-button icon-button is-success" type="button" onClick={() => void handleInlinePlanSave(snapshot, collection)} title="Salvar">
-          <CheckIcon />
-        </button>
-        <button className="table-button icon-button" type="button" onClick={cancelInlinePlanEdit} title="Cancelar">
-          <CloseIcon />
-        </button>
+      <div className="planning-inline-edit is-editing">
+        <div className="metric-value-container">
+          <MoneyInput
+            className="planning-inline-edit-input-micro"
+            value={inlinePlanEdit.value}
+            onValueChange={(value) => setInlinePlanEdit((current) => (current ? { ...current, value } : current))}
+          />
+        </div>
+        <div className="metric-actions-container">
+          <button className="cockpit-btn is-success" type="button" onClick={() => void handleInlinePlanSave(snapshot, collection)} title="Salvar">
+            <CheckIcon />
+          </button>
+          <button className="cockpit-btn" type="button" onClick={cancelInlinePlanEdit} title="Cancelar">
+            <CloseIcon />
+          </button>
+        </div>
       </div>
     );
   }
@@ -2338,20 +2346,6 @@ export function PurchasePlanningPage({
                           const confirmed = getCollectionConfirmedState(collection, collectionSnapshot);
 
                           return (
-                            <td
-                              className={`numeric-cell${planningCollection?.id === collection.id ? " planning-current-column" : ""}`}
-                              key={`cell-${snapshot.key}-${collection.id}`}
-                            >
-                              <div className="planning-metric-stack">
-                                {/* Line 1: Pedido + Edit + Confirm */}
-                                <div className="metric-line metric-line-pedido" title="Pedido">
-                                  {renderInlinePlannedAmount(snapshot, collection, { compact: true })}
-                                  {isConfirmationVisible && (
-                                    <button
-                                      className={`confirm-toggle-button inline-button${confirmed ? " is-confirmed" : ""}`}
-                                      type="button"
-                                      onClick={() => void handleToggleCollectionConfirmation(snapshot, collection)}
-                                      disabled={!hasOrderToConfirm}
                                       title={!hasOrderToConfirm ? "Cadastre o pedido para confirmar" : confirmed ? "Confirmado" : "Planejado"}
                                     >
                                       <ConfirmIcon confirmed={confirmed} />
