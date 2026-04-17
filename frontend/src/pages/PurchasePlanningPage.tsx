@@ -1963,15 +1963,15 @@ export function PurchasePlanningPage({
     return (
       <div className={inlineEditClassName}>
         <MoneyInput
-          className={options?.compact ? "planning-inline-edit-input-compact" : "planning-inline-edit-input"}
+          className="planning-inline-edit-input-micro"
           value={inlinePlanEdit.value}
           onValueChange={(value) => setInlinePlanEdit((current) => (current ? { ...current, value } : current))}
         />
-        <button className="table-button planning-inline-edit-action" type="button" onClick={() => void handleInlinePlanSave(snapshot, collection)}>
-          Salvar
+        <button className="table-button icon-button is-success" type="button" onClick={() => void handleInlinePlanSave(snapshot, collection)} title="Salvar">
+          <CheckIcon />
         </button>
-        <button className="ghost-button planning-inline-edit-action" type="button" onClick={cancelInlinePlanEdit}>
-          Cancelar
+        <button className="table-button icon-button" type="button" onClick={cancelInlinePlanEdit} title="Cancelar">
+          <CloseIcon />
         </button>
       </div>
     );
