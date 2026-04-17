@@ -444,8 +444,8 @@ export function EntriesPage({
         setShowPresetMenu(false);
         setShowEntryModal(false);
         setShowTransferModal(false);
-        setShowBulkMenu(false);
-        setShowCategoryFilterPopover(false);
+        setShowBulkActions(false);
+        setShowCategoryFilter(false);
         setActiveRowMenuId(null);
         return;
       }

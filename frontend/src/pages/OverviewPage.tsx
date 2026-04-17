@@ -102,7 +102,7 @@ export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onA
       ) : dashboard?.dre_cards?.length ? (
         <section className="kpi-grid dashboard-kpis">
           {dashboard.dre_cards.map((card) => (
-            <article className={`kpi-card ${getKpiTone(card.label, card.value)}`} key={card.label}>
+            <article className={`kpi-card ${getKpiTone(card.label, Number(card.value))}`} key={card.label}>
               <span>{card.label}</span>
               <strong>{formatMoney(card.value)}</strong>
             </article>
