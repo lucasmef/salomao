@@ -5332,3 +5332,22 @@ textarea {
 
 .ml-1 { margin-left: 4px; }
 
+
+.metric-value-container {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 6px !important;
+  width: 100%;
+}
+
+.brand-collection-col-pedido {
+  min-width: 160px !important;
+}
+
+.planning-inline-actions {
+  flex-shrink: 0;
+}
+
