@@ -1961,51 +1961,26 @@ export function PurchasePlanningPage({
     ]
       .filter(Boolean)
       .join(" ");
-    if (!isEditing) {
-      const netDisplayLine = showPlanningReturns
-        ? buildPurchaseNetDisplayLine(collectionSnapshot.plannedAmount, collectionSnapshot.returnsAmount)
-        : null;
-      return (
-        <div className="planning-inline-edit is-readonly">
-          <div className="metric-value-container">
-            <span className={options?.highlight ? "planning-inline-edit-value is-highlighted" : "planning-inline-edit-value"}>
-              {formatPurchaseDisplayAmount(collectionSnapshot.plannedAmount)}
-            </span>
-            {netDisplayLine ? (
-              <span className="planning-inline-return-value">{netDisplayLine}</span>
-            ) : null}
-          </div>
-          <div className="metric-actions-container">
-            {!isPastCollection(collection) && (
-              <button 
-                className="cockpit-btn" 
-                type="button" 
-                onClick={() => startInlinePlanEdit(snapshot, collection)} 
-                title="Editar valor"
-              >
-                <EditIcon />
-              </button>
-            )}
-          </div>
-        </div>
-      );
-    }
+    const netDisplayLine = showPlanningReturns
+      ? buildPurchaseNetDisplayLine(collectionSnapshot.plannedAmount, collectionSnapshot.returnsAmount)
+      : null;
+      
+    const isConfirmed = getCollectionConfirmedState(collection, collectionSnapshot);
+    const valueClassName = [
+      "planning-inline-edit-value",
+      options?.highlight ? "is-highlighted" : "",
+      isConfirmed ? "is-confirmed" : "is-planned"
+    ].filter(Boolean).join(" ");
+
     return (
-      <div className="planning-inline-edit is-editing">
+      <div className="planning-inline-edit is-readonly">
         <div className="metric-value-container">
-          <MoneyInput
-            className="planning-inline-edit-input-micro"
-            value={inlinePlanEdit.value}
-            onValueChange={(value) => setInlinePlanEdit((current) => (current ? { ...current, value } : current))}
-          />
-        </div>
-        <div className="metric-actions-container">
-          <button className="cockpit-btn is-success" type="button" onClick={() => void handleInlinePlanSave(snapshot, collection)} title="Salvar">
-            <CheckIcon />
-          </button>
-          <button className="cockpit-btn" type="button" onClick={cancelInlinePlanEdit} title="Cancelar">
-            <CloseIcon />
-          </button>
+          <span className={valueClassName}>
+            {formatPurchaseDisplayAmount(collectionSnapshot.plannedAmount)}
+          </span>
+          {netDisplayLine ? (
+            <span className="planning-inline-return-value">{netDisplayLine}</span>
+          ) : null}
         </div>
       </div>
     );
@@ -2345,9 +2320,6 @@ export function PurchasePlanningPage({
                         </td>
                         {selectedComparisonCollections.map((collection) => {
                           const collectionSnapshot = snapshot.collections.get(collection.id);
-                          const isConfirmationVisible = !snapshot.isInactiveGroup && snapshot.brandId && !isPastCollection(collection);
-                          const hasOrderToConfirm = hasCollectionConfirmableOrder(collectionSnapshot);
-                          const confirmed = getCollectionConfirmedState(collection, collectionSnapshot);
 
                           return (
                             <td
@@ -2355,22 +2327,9 @@ export function PurchasePlanningPage({
                               key={`cell-${snapshot.key}-${collection.id}`}
                             >
                               <div className="planning-metric-stack">
-                                {/* Line 1: Pedido + Actions Zone */}
+                                {/* Line 1: Pedido (Cor identifica estado) */}
                                 <div className="metric-line metric-line-pedido" title="Pedido">
                                   {renderInlinePlannedAmount(snapshot, collection, { compact: true, highlight: true })}
-                                  <div className="metric-actions-container-confirm">
-                                    {isConfirmationVisible && (
-                                      <button 
-                                        className={`cockpit-btn cockpit-btn-confirm${confirmed ? " is-confirmed" : ""}`}
-                                        type="button"
-                                        onClick={() => void handleToggleCollectionConfirmation(snapshot, collection)}
-                                        disabled={!hasOrderToConfirm}
-                                        title={!hasOrderToConfirm ? "Cadastre o pedido para confirmar" : confirmed ? "Confirmado" : "Planejado"}
-                                      >
-                                        <ConfirmIcon confirmed={confirmed} />
-                                      </button>
-                                    )}
-                                  </div>
                                 </div>
 
                                 {showPlanningDetail && (
