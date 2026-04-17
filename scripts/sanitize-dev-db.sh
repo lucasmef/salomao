@@ -299,7 +299,7 @@ UPDATE purchase_brands SET
 echo "==> Sanitizando tabela: collection_seasons"
 "${PSQL_CMD[@]}" --command="
 UPDATE collection_seasons SET
-  name  = 'Colecao ' || season_year || ' ' || substr(id, 1, 8),
+  name  = 'Colecao ' || COALESCE(season_year::text || ' ', '') || substr(id, 1, 8),
   notes = CASE WHEN notes IS NOT NULL THEN 'Nota anonimizada' ELSE NULL END;
 "
 
