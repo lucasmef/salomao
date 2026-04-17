@@ -4937,8 +4937,15 @@ textarea {
 }
 
 .action-row--toolbar {
-  padding-left: 16px;
-  border-left: 1px solid #e2e8f0;
-  margin-left: 8px;
-  gap: 8px !important;
+  margin-left: auto;
+  gap: 12px !important;
+  border: none !important;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+}
+
+.purchase-filter-bar * {
+  border-left: none !important;
+  border-right: none !important;
 }
