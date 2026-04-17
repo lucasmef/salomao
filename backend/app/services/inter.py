@@ -53,7 +53,10 @@ INTER_CHARGE_INCREMENTAL_LOOKBACK_DAYS = 7
 INTER_SAFE_REQUEST_METHODS = {"GET", "HEAD", "OPTIONS"}
 INTER_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 INTER_MAX_RETRY_ATTEMPTS = 3
+INTER_RATE_LIMIT_MAX_ATTEMPTS = 6
 INTER_RETRY_BASE_DELAY_SECONDS = 1.0
+INTER_RATE_LIMIT_FALLBACK_DELAY = 30.0
+_INTER_LOCKOUT_UNTIL: datetime | None = None
 INTER_STATEMENT_MATCH_STOPWORDS = {
     "A",
     "API",
@@ -674,7 +677,22 @@ def _resolve_inter_account(
 
 
 def _should_retry_response(response: httpx.Response, *, attempt: int, max_attempts: int) -> bool:
+    if response.status_code == 429:
+        return attempt < INTER_RATE_LIMIT_MAX_ATTEMPTS
     return response.status_code in INTER_RETRYABLE_STATUS_CODES and attempt < max_attempts
+
+
+def _get_inter_lockout_wait_seconds() -> float:
+    global _INTER_LOCKOUT_UNTIL
+    if _INTER_LOCKOUT_UNTIL is None:
+        return 0.0
+    wait = (_INTER_LOCKOUT_UNTIL - datetime.now(timezone.utc)).total_seconds()
+    return max(wait, 0.0)
+
+
+def _set_inter_lockout(seconds: float) -> None:
+    global _INTER_LOCKOUT_UNTIL
+    _INTER_LOCKOUT_UNTIL = datetime.now(timezone.utc) + timedelta(seconds=seconds)
 
 
 def _retry_delay_seconds(response: httpx.Response | None, *, attempt: int) -> float:
@@ -692,6 +710,8 @@ def _retry_delay_seconds(response: httpx.Response | None, *, attempt: int) -> fl
                     return seconds
             except (TypeError, ValueError, IndexError):
                 pass
+    if response is not None and response.status_code == 429:
+        return INTER_RATE_LIMIT_FALLBACK_DELAY * (2 ** max(attempt - 1, 0))
     return INTER_RETRY_BASE_DELAY_SECONDS * (2 ** max(attempt - 1, 0))
 
 
@@ -699,7 +719,10 @@ def _sleep_before_retry(response: httpx.Response | None, *, attempt: int) -> Non
     # We increase the cap for 429 errors to respect long Retry-After headers from the bank.
     # Otherwise, we keep a smaller cap for transient 5xx errors to keep sync interactive.
     max_cap = 60.0 if response is not None and response.status_code == 429 else 8.0
-    time_module.sleep(min(_retry_delay_seconds(response, attempt=attempt), max_cap))
+    delay = _retry_delay_seconds(response, attempt=attempt)
+    if response is not None and response.status_code == 429:
+        _set_inter_lockout(delay)
+    time_module.sleep(min(delay, max_cap))
 
 
 class InterApiClient:
@@ -790,7 +813,11 @@ class InterApiClient:
         normalized_method = method.upper()
         max_attempts = INTER_MAX_RETRY_ATTEMPTS if normalized_method in INTER_SAFE_REQUEST_METHODS else 1
         response: httpx.Response | None = None
-        for attempt in range(1, max_attempts + 1):
+        for attempt in range(1, INTER_RATE_LIMIT_MAX_ATTEMPTS + 1):
+            # Respect global lockout across all requests
+            lockout_wait = _get_inter_lockout_wait_seconds()
+            if lockout_wait > 0:
+                time_module.sleep(min(lockout_wait, 60.0))
             token = self._ensure_token()
             headers = dict(kwargs.get("headers", {}) or {})
             headers.setdefault("Authorization", f"Bearer {token}")
