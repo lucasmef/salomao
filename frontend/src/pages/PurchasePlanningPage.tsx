@@ -2478,7 +2478,7 @@ export function PurchasePlanningPage({
   function renderInlinePlannedAmount(
     snapshot: PlanningBrandSnapshot | null,
     collection: CollectionSeason,
-    options?: { compact?: boolean; highlight?: boolean; showEditButton?: boolean },
+    options?: { compact?: boolean; highlight?: boolean; showEditButton?: boolean; extraActions?: React.ReactNode },
   ) {
     if (!snapshot) {
       return <span>{formatPurchaseDisplayAmount("0.00")}</span>;
@@ -2575,6 +2575,7 @@ export function PurchasePlanningPage({
                 <EditIcon />
               </button>
             )}
+            {options?.extraActions}
           </div>
         )}
       </div>
@@ -3987,8 +3988,7 @@ export function PurchasePlanningPage({
                   <table className="erp-table brand-collection-table compact-table">
                     <colgroup>
                       <col className="brand-collection-col-name" />
-                      <col className="brand-collection-col-amount" />
-                      <col className="brand-collection-col-check" />
+                      <col className="brand-collection-col-pedido" />
                       {brandModalDetailed && (
                         <>
                           <col className="brand-collection-col-detail" />
@@ -4002,11 +4002,8 @@ export function PurchasePlanningPage({
                     <thead>
                       <tr>
                         <th className="brand-collection-col-name">Coleção</th>
-                        <th className="numeric-cell brand-collection-col-amount">
+                        <th className="numeric-cell brand-collection-col-pedido">
                           Pedido
-                        </th>
-                        <th className="centered-cell brand-collection-col-check">
-                          Status
                         </th>
                         {brandModalDetailed && (
                           <>
@@ -4071,41 +4068,39 @@ export function PurchasePlanningPage({
                                 <td>
                                   {collection.season_label || collection.name}
                                 </td>
-                                <td className="numeric-cell">
-                                  {renderInlinePlannedAmount(currentBrandSnapshot, collection, { compact: true, showEditButton: true })}
-                                </td>
-                                <td className="centered-cell">
-                                  {isEditable ? (
-                                    <button
-                                      className={`table-button icon-button cockpit-btn cockpit-btn-confirm${isConfirmed ? " is-confirmed" : ""}`}
-                                      type="button"
-                                      onClick={() =>
-                                        currentBrandSnapshot
-                                          ? void handleToggleCollectionConfirmation(
-                                              currentBrandSnapshot,
-                                              collection,
-                                            )
-                                          : undefined
-                                      }
-                                      disabled={
-                                        !currentBrandSnapshot ||
-                                        !hasConfirmableOrder
-                                      }
-                                      title={
-                                        !hasConfirmableOrder
-                                          ? "Cadastre o pedido para confirmar"
-                                          : isConfirmed
-                                            ? "Confirmado (clique para desfazer)"
-                                            : "Planejado (clique para confirmar)"
-                                      }
-                                    >
-                                      <ConfirmIcon confirmed={isConfirmed} />
-                                    </button>
-                                  ) : (
-                                    <span className="status-placeholder">
-                                      -
-                                    </span>
-                                  )}
+                                 <td className="numeric-cell">
+                                  {renderInlinePlannedAmount(currentBrandSnapshot, collection, {
+                                    compact: true,
+                                    showEditButton: true,
+                                    extraActions: isEditable ? (
+                                      <button
+                                        className={`table-button icon-button cockpit-btn cockpit-btn-confirm${isConfirmed ? " is-confirmed" : ""}`}
+                                        type="button"
+                                        onClick={() =>
+                                          currentBrandSnapshot
+                                            ? void handleToggleCollectionConfirmation(
+                                                currentBrandSnapshot,
+                                                collection,
+                                              )
+                                            : undefined
+                                        }
+                                        disabled={
+                                          !currentBrandSnapshot ||
+                                          !hasConfirmableOrder
+                                        }
+                                        title={
+                                          !hasConfirmableOrder
+                                            ? "Cadastre o pedido para confirmar"
+                                            : isConfirmed
+                                              ? "Confirmado (clique para desfazer)"
+                                              : "Planejado (clique para confirmar)"
+                                        }
+                                        style={{ marginLeft: "2px" }}
+                                      >
+                                        <ConfirmIcon confirmed={isConfirmed} />
+                                      </button>
+                                    ) : null
+                                  })}
                                 </td>
                                 {brandModalDetailed && (
                                   <>
