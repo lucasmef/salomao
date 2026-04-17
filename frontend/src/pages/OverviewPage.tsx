@@ -102,7 +102,7 @@ export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onA
           {dashboard.dre_cards.map((card) => (
             <article className={`kpi-card ${getKpiTone(card.label, Number(card.value))}`} key={card.label}>
               <span>{card.label}</span>
-              <strong>{formatMoney(card.value)}</strong>
+              <strong className="tabular-nums">{formatMoney(card.value)}</strong>
             </article>
           ))}
         </section>

@@ -280,15 +280,15 @@ export function OverviewSectionPage({
             <div className="overview-balance-kpis">
               <article className="kpi-card">
                 <span>Saldo atual</span>
-                <strong>{formatMoney(dashboard?.kpis.current_balance)}</strong>
+                <strong className="tabular-nums">{formatMoney(dashboard?.kpis.current_balance)}</strong>
               </article>
               <article className="kpi-card">
                 <span>Saldo projetado</span>
-                <strong>{formatMoney(dashboard?.kpis.projected_balance)}</strong>
+                <strong className="tabular-nums">{formatMoney(dashboard?.kpis.projected_balance)}</strong>
               </article>
               <article className="kpi-card">
                 <span>Conciliacoes pendentes</span>
-                <strong>{dashboard?.kpis.pending_reconciliations ?? 0}</strong>
+                <strong className="tabular-nums">{dashboard?.kpis.pending_reconciliations ?? 0}</strong>
               </article>
             </div>
             <div className="table-shell">
@@ -304,7 +304,7 @@ export function OverviewSectionPage({
                     <tr className={account.exclude_from_balance ? "is-ignored-account" : ""} key={account.account_id}>
                       <td>
                         {account.account_name}
-                        {account.exclude_from_balance && <span className="ignored-badge"> (Ignorado)</span>}
+                        {account.exclude_from_balance && <span className="badge badge-neutral ml-2">Ignorado</span>}
                       </td>
                       <td className="numeric-cell">{formatMoney(account.current_balance)}</td>
                     </tr>

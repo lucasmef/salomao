@@ -265,6 +265,50 @@ function getEntrySortValue(entry: FinancialEntry, column: EntryTableColumnKey) {
   }
 }
 
+function renderFlowBadge(entry: FinancialEntry) {
+  let label = "Transferência";
+  let tone: "info" | "danger" | "neutral" = "info";
+
+  if (entry.transfer_id) {
+    if (entry.transfer_direction === "outflow") {
+      label = "Saída";
+      tone = "danger";
+    } else if (entry.transfer_direction === "inflow") {
+      label = "Entrada";
+      tone = "info";
+    }
+  } else if (entry.entry_type === "expense") {
+    label = "Pagar";
+    tone = "danger";
+  } else if (entry.entry_type === "income") {
+    label = "Receber";
+    tone = "info";
+  }
+
+  return <span className={`badge badge-${tone}`}>{label}</span>;
+}
+
+function renderStatusBadge(status: string) {
+  const label = formatEntryStatus(status);
+  let tone: "success" | "warning" | "danger" | "neutral" = "neutral";
+
+  switch (status) {
+    case "settled":
+    case "confirmed":
+      tone = "success";
+      break;
+    case "planned":
+    case "open":
+      tone = "warning";
+      break;
+    case "cancelled":
+      tone = "danger";
+      break;
+  }
+
+  return <span className={`badge badge-${tone}`}>{label}</span>;
+}
+
 export function EntriesPage({
   accounts,
   categories,
@@ -1445,14 +1489,14 @@ export function EntriesPage({
                       <span>{entry.counterparty_name ?? entry.document_number ?? entry.source_system ?? "-"}</span>
                     </div>
                   </td>
-                  <td>{formatEntryFlow(entry)}</td>
+                  <td>{renderFlowBadge(entry)}</td>
                   <td>{entry.account_name ?? "-"}</td>
                   <td className="entries-cell-category">
                     <div className="cell-stack">
                       <strong>{entry.category_name ?? "-"}</strong>
                     </div>
                   </td>
-                  <td>{formatEntryStatus(entry.status)}</td>
+                  <td>{renderStatusBadge(entry.status)}</td>
                   <td>{formatDate(entry.due_date)}</td>
                   <td className="numeric-cell">{formatMoney(entry.total_amount)}</td>
                   <td className="entries-row-actions-cell">

@@ -319,13 +319,10 @@ function ChevronDownIcon({ expanded }: { expanded: boolean }) {
   );
 }
 
-function PaidStatusIcon({ active }: { active: boolean }) {
+function PaidStatusBadge({ active }: { active: boolean }) {
   return (
-    <span className={`reconciliation-status-indicator ${active ? "is-active" : ""}`} aria-label={active ? "Pago" : "Não pago"} title={active ? "Pago" : "Não pago"}>
-      <svg aria-hidden="true" fill="none" height="12" viewBox="0 0 12 12" width="12">
-        <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2" />
-        <path d="m3.7 6.2 1.5 1.5 3.1-3.4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.2" />
-      </svg>
+    <span className={`badge ${active ? "badge-success" : "badge-warning"}`}>
+      {active ? "Pago" : "Aberto"}
     </span>
   );
 }
@@ -1265,9 +1262,11 @@ export function ReconciliationPage({
                         </div>
                       </td>
                       <td className="numeric-cell compact-amount-cell">{formatReconciliationAmount(item.amount)}</td>
-                      <td title={entryTitles || undefined}>
+                      <td>
                         <div className="reconciliation-inline-status">
-                          <span className="single-line-cell">{isMatched ? "Conciliado" : "Pendente"}</span>
+                          <span className={`badge ${isMatched ? "badge-success" : "badge-warning"}`}>
+                            {isMatched ? "Conciliado" : "Pendente"}
+                          </span>
                           {isMatched && (
                             <button className="text-action-button reconciliation-inline-link" type="button" onClick={() => void handleUnreconcile(item.bank_transaction_id, item.undo_mode)}>
                               Desconciliar
@@ -1433,7 +1432,7 @@ export function ReconciliationPage({
                     <td title={compactSingleLine(entry.title)}><span className="single-line-cell">{compactSingleLine(entry.title)}</span></td>
                     <td title={compactSingleLine(entry.category_name ?? "-")}><span className="single-line-cell">{compactSingleLine(entry.category_name ?? "-")}</span></td>
                     <td className="numeric-cell compact-amount-cell">{formatReconciliationAmount(entry.total_amount)}</td>
-                    <td><PaidStatusIcon active={entry.status === "settled"} /></td>
+                    <td><PaidStatusBadge active={entry.status === "settled"} /></td>
                   </tr>
                 ))}
                 {!entryRows.length && (

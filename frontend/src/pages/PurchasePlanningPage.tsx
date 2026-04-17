@@ -1913,7 +1913,7 @@ export function PurchasePlanningPage({
               <h3>Fluxo mensal das compras</h3>
             </div>
             <div className="table-shell purchase-collections-table-shell">
-              <table className="erp-table purchase-collections-table">
+              <table className="erp-table purchase-collections-table compact-table">
                 <thead>
                     <tr>
                       <th>Periodo</th>
@@ -1926,8 +1926,8 @@ export function PurchasePlanningPage({
                     overview.monthly_projection.map((item) => (
                       <tr key={item.reference}>
                         <td>{item.reference}</td>
-                        <td className="numeric-cell">{formatPurchaseDisplayAmount(item.planned_outflows)}</td>
-                        <td className="numeric-cell">{formatPurchaseDisplayAmount(item.open_balance)}</td>
+                        <td className="numeric-cell tabular-nums">{formatPurchaseDisplayAmount(item.planned_outflows)}</td>
+                        <td className="numeric-cell tabular-nums">{formatPurchaseDisplayAmount(item.open_balance)}</td>
                       </tr>
                     ))
                   ) : (
@@ -1975,7 +1975,7 @@ export function PurchasePlanningPage({
               <h3>Totalizações por coleção / fornecedor / custo</h3>
             </div>
             <div className="table-shell tall">
-              <table className="erp-table">
+              <table className="erp-table compact-table">
                 <thead>
                   <tr>
                     <th>Coleção</th>
@@ -1991,9 +1991,9 @@ export function PurchasePlanningPage({
                       <tr key={`${item.collection_name}-${item.supplier_name}`}>
                         <td>{item.collection_name}</td>
                         <td>{item.supplier_name}</td>
-                        <td className="numeric-cell">{formatPurchaseDisplayAmount(item.purchase_cost_total)}</td>
-                        <td className="numeric-cell">{formatPurchaseDisplayAmount(item.purchase_return_cost_total)}</td>
-                        <td className="numeric-cell">{formatPurchaseDisplayAmount(item.net_cost_total)}</td>
+                        <td className="numeric-cell tabular-nums">{formatPurchaseDisplayAmount(item.purchase_cost_total)}</td>
+                        <td className="numeric-cell tabular-nums">{formatPurchaseDisplayAmount(item.purchase_return_cost_total)}</td>
+                        <td className="numeric-cell tabular-nums">{formatPurchaseDisplayAmount(item.net_cost_total)}</td>
                       </tr>
                     ))
                   ) : (
@@ -2104,10 +2104,10 @@ export function PurchasePlanningPage({
             <h3>Planejamento por marca</h3>
           </div>
           <div className="table-shell purchase-brand-planning-table-shell">
-            <table className="erp-table">
+            <table className="erp-table compact-table">
               <thead>
                 <tr>
-                  <th>Nome</th>
+                  <th className="sticky-col">Nome</th>
                   {selectedComparisonCollections.map((collection) => (
                     <th
                       className={`numeric-cell${planningCollection?.id === collection.id ? " planning-current-column" : ""}`}
@@ -2118,7 +2118,7 @@ export function PurchasePlanningPage({
                   ))}
                   <th className="numeric-cell">Valor recebido</th>
                   <th className="numeric-cell">Valor a receber</th>
-                  {showConfirmationColumn ? <th>Confirmado</th> : null}
+                  {showConfirmationColumn ? <th className="centered-cell">Confirmado</th> : null}
                   <th className="planning-payment-column">Parcelamento</th>
                   <th>Ações</th>
                 </tr>
@@ -2142,7 +2142,7 @@ export function PurchasePlanningPage({
                     );
                     return (
                       <tr key={snapshot.key}>
-                        <td>
+                        <td className="sticky-col">
                           {snapshot.isInactiveGroup ? (
                             <div className="planning-brand-cell">
                               <strong>{snapshot.brandName}</strong>
@@ -2176,8 +2176,8 @@ export function PurchasePlanningPage({
                             </td>
                           );
                         })}
-                        <td className="numeric-cell">{formatPurchaseDisplayAmount(currentSnapshot?.receivedAmount ?? "0.00")}</td>
-                        <td className="numeric-cell">{formatPurchaseDisplayAmount(currentSnapshot?.outstandingAmount ?? "0.00")}</td>
+                        <td className="numeric-cell tabular-nums">{formatPurchaseDisplayAmount(currentSnapshot?.receivedAmount ?? "0.00")}</td>
+                        <td className="numeric-cell tabular-nums">{formatPurchaseDisplayAmount(currentSnapshot?.outstandingAmount ?? "0.00")}</td>
                         {showConfirmationColumn ? (
                           <td className="centered-cell">
                             {snapshot.isInactiveGroup || (!snapshot.brandId && snapshot.brandName === "Sem marca") ? (
@@ -2377,7 +2377,7 @@ export function PurchasePlanningPage({
             </button>
           </div>
           <div className="table-shell tall">
-            <table className="erp-table">
+            <table className="erp-table compact-table">
               <thead>
                 <tr>
                   <th>Fornecedor</th>
@@ -2467,13 +2467,13 @@ export function PurchasePlanningPage({
             <h3>Devolução de compras</h3>
           </div>
           <div className="table-shell tall">
-            <table className="erp-table">
+            <table className="erp-table compact-table">
               <thead>
                 <tr>
                   <th>Data</th>
                   <th>Fornecedor</th>
                   <th>Nota fiscal</th>
-                  <th>Status</th>
+                  <th className="centered-cell">Status</th>
                   <th className="numeric-cell">Valor</th>
                   <th>Ações</th>
                 </tr>
@@ -2488,8 +2488,8 @@ export function PurchasePlanningPage({
                       <td>{formatDate(purchaseReturn.return_date)}</td>
                       <td>{purchaseReturn.supplier_name || "-"}</td>
                       <td>{purchaseReturn.invoice_number || "-"}</td>
-                      <td>{labelizePurchaseReturnStatus(purchaseReturn.status)}</td>
-                      <td className="numeric-cell">{formatPurchaseDisplayAmount(purchaseReturn.amount)}</td>
+                      <td className="centered-cell">{labelizePurchaseReturnStatus(purchaseReturn.status)}</td>
+                      <td className="numeric-cell tabular-nums">{formatPurchaseDisplayAmount(purchaseReturn.amount)}</td>
                       <td>
                         <div className="action-row">
                           <button
@@ -2682,7 +2682,7 @@ export function PurchasePlanningPage({
                 <h3>Parcelas da nota</h3>
               </div>
               <div className="table-shell">
-                <table className="erp-table">
+                <table className="erp-table compact-table">
                   <thead>
                     <tr>
                       <th>Parcela</th>
@@ -2696,7 +2696,7 @@ export function PurchasePlanningPage({
                         <tr key={`${installment.installment_number}-${installment.installment_label ?? ""}`}>
                           <td>{installment.installment_label || installment.installment_number}</td>
                           <td>{formatDate(installment.due_date)}</td>
-                          <td className="numeric-cell">{formatPurchaseDisplayAmount(installment.amount)}</td>
+                          <td className="numeric-cell tabular-nums">{formatPurchaseDisplayAmount(installment.amount)}</td>
                         </tr>
                       ))
                     ) : (
@@ -2787,7 +2787,7 @@ export function PurchasePlanningPage({
                 <h3>Coleções e pedidos</h3>
               </div>
               <div className="table-shell brand-collection-table-shell">
-                <table className="erp-table brand-collection-table">
+                <table className="erp-table brand-collection-table compact-table">
                   <colgroup>
                     <col className="brand-collection-col-name" />
                     <col className="brand-collection-col-amount" />

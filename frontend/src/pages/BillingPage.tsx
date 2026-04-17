@@ -211,6 +211,51 @@ function boletoTypeLabel(type: BoletoTypeKey) {
   }
 }
 
+function renderBoletoStatusBadge(statusKey: BoletoStatusKey, label: string) {
+  let tone: "success" | "warning" | "danger" | "info" | "neutral" = "neutral";
+  
+  switch (statusKey) {
+    case "paid":
+      tone = "success";
+      break;
+    case "overdue":
+    case "missing":
+    case "excess":
+      tone = "danger";
+      break;
+    case "open":
+    case "paid_pending":
+      tone = "warning";
+      break;
+    case "standalone":
+      tone = "info";
+      break;
+    case "cancelled":
+      tone = "neutral";
+      break;
+  }
+
+  return <span className={`badge badge-${tone}`}>{label}</span>;
+}
+
+function renderInvoiceStatusBadge(statusKey: InvoiceStatusKey, label: string) {
+  let tone: "success" | "warning" | "danger" | "neutral" = "neutral";
+
+  switch (statusKey) {
+    case "paid":
+      tone = "success";
+      break;
+    case "overdue":
+      tone = "danger";
+      break;
+    case "open":
+      tone = "warning";
+      break;
+  }
+
+  return <span className={`badge badge-${tone}`}>{label}</span>;
+}
+
 function buildInvoiceTitle(item: BoletoDashboard["invoice_items"][number]) {
   const document = String(item.document ?? "").trim();
   const invoiceNumber = String(item.invoice_number ?? "").trim();
@@ -1256,7 +1301,7 @@ export function BillingPage({
                   <td>{formatDate(item.due_date)}</td>
                   <td className="numeric-cell">{formatMoney(item.amount)}</td>
                   <td>
-                    <span className={`billing-status-pill is-${item.status_key}`}>{item.status}</span>
+                    {renderInvoiceStatusBadge(item.status_key, item.status)}
                   </td>
                 </tr>
               ))}
@@ -1579,7 +1624,7 @@ export function BillingPage({
                   <td>{formatDate(row.due_date)}</td>
                   <td className="numeric-cell">{formatMoney(row.amount)}</td>
                   <td>
-                    <span className={`billing-status-pill is-${row.status_key}`}>{row.status}</span>
+                    {renderBoletoStatusBadge(row.status_key, row.status)}
                   </td>
                   <td>{row.status_loja}</td>
                   <td>{row.status_banco === "-" ? row.bank || "-" : `${row.bank || "-"} / ${row.status_banco}`}</td>

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MoneyInput } from "../components/MoneyInput";
 import { ModalCloseButton } from "../components/ModalCloseButton";
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
@@ -126,6 +126,34 @@ function formatStandaloneBoletoFilterLabel(filter: StandaloneBoletoFilter) {
     default:
       return "Em aberto";
   }
+}
+
+function renderStatusBadge(status: string) {
+  const label = formatEntryStatus(status);
+  let tone: "success" | "warning" | "danger" | "neutral" = "neutral";
+
+  switch (status) {
+    case "settled":
+    case "paid":
+    case "Recebido por boleto":
+      tone = "success";
+      break;
+    case "overdue":
+    case "missing":
+    case "cancelled":
+    case "Cancelado":
+      tone = "danger";
+      break;
+    case "open":
+    case "partial":
+    case "planned":
+    case "Aberto":
+    case "Em processamento":
+      tone = "warning";
+      break;
+  }
+
+  return <span className={`badge badge-${tone}`}>{label}</span>;
 }
 
 function renderReceivableDetails(item: BoletoAlertItem) {
@@ -1046,391 +1074,21 @@ export function BoletosPage({
   }
 
   async function handleIssueMissingBoletos() {
-    try {
-      await onIssueInterCharges(selectedMissingKeys);
-    } catch {
-      // A exibicao do XLSX de contingencia passa a depender da falha da emissao.
-    }
+    await onIssueInterCharges(selectedMissingKeys);
   }
 
   async function handleUploadC6() {
-    if (!c6File) {
-      return;
-    }
+    if (!c6File) return;
     await onUploadBoletoC6(c6File);
     setC6File(null);
     setC6ModalOpen(false);
   }
 
-  function renderStandaloneBoletoModal() {
-    if (!standaloneBoletoModalOpen) {
-      return null;
-    }
-
-    const interAccounts = accounts.filter((account) => account.is_active && account.inter_api_enabled);
-
-    return (
-      <div className="modal-backdrop" role="presentation">
-        <div className="modal-card billing-customer-modal">
-          <div className="panel-title compact-title-row">
-            <h3>Novo boleto avulso</h3>
-            <ModalCloseButton onClick={closeStandaloneBoletoModal} />
-          </div>
-
-          {!interAccounts.length ? (
-            <div className="billing-modal-copy billing-modal-copy--warning">
-              <p>Nenhuma conta com API Inter ativa foi encontrada. A emissão será liberada quando houver uma conta Inter ativa.</p>
-            </div>
-          ) : null}
-
-          <div className="billing-standalone-form">
-            <label className="billing-standalone-form-field">
-              <span>Conta Inter</span>
-              <select
-                value={standaloneBoletoDraft.account_id}
-                onChange={(event) =>
-                  setStandaloneBoletoDraft((current) => ({ ...current, account_id: event.target.value }))
-                }
-              >
-                <option value="">Selecione</option>
-                {interAccounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="billing-standalone-form-field billing-standalone-form-field--wide">
-              <span>Cliente</span>
-              <input
-                list="standalone-boleto-clients"
-                placeholder="Nome do cliente"
-                value={standaloneBoletoDraft.client_name}
-                onChange={(event) =>
-                  setStandaloneBoletoDraft((current) => ({ ...current, client_name: event.target.value }))
-                }
-              />
-              <datalist id="standalone-boleto-clients">
-                {standaloneClientOptions.map((item) => (
-                  <option key={item} value={item} />
-                ))}
-              </datalist>
-            </label>
-
-            <label className="billing-standalone-form-field">
-              <span>Valor</span>
-              <MoneyInput
-                placeholder="0,00"
-                value={standaloneBoletoDraft.amount}
-                onValueChange={(value) =>
-                  setStandaloneBoletoDraft((current) => ({ ...current, amount: value }))
-                }
-              />
-            </label>
-
-            <label className="billing-standalone-form-field">
-              <span>Vencimento</span>
-              <input
-                type="date"
-                value={standaloneBoletoDraft.due_date}
-                onChange={(event) =>
-                  setStandaloneBoletoDraft((current) => ({ ...current, due_date: event.target.value }))
-                }
-              />
-            </label>
-
-            <label className="billing-standalone-form-field billing-standalone-form-field--full">
-              <span>Observação</span>
-              <textarea
-                rows={4}
-                placeholder="Descreva o motivo ou referência deste boleto"
-                value={standaloneBoletoDraft.notes}
-                onChange={(event) =>
-                  setStandaloneBoletoDraft((current) => ({ ...current, notes: event.target.value }))
-                }
-              />
-            </label>
-          </div>
-
-          <div className="action-row">
-            <button
-              className="primary-button"
-              disabled={
-                submitting ||
-                !interAccounts.length ||
-                !standaloneBoletoDraft.client_name.trim() ||
-                !standaloneBoletoDraft.amount.trim() ||
-                !standaloneBoletoDraft.due_date
-              }
-              onClick={() => void handleCreateStandaloneBoleto()}
-              type="button"
-            >
-              Emitir boleto
-            </button>
-            <button className="ghost-button" onClick={closeStandaloneBoletoModal} type="button">
-              Cancelar
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  function renderCustomerDataModal() {
-    if (!customerDataModalOpen) {
-      return null;
-    }
-
-    const customerDataImport = filesBySource["boletos:etiquetas"];
-
-    return (
-      <div className="modal-backdrop" role="presentation">
-        <div className="modal-card billing-customer-modal">
-          <div className="panel-title compact-title-row">
-            <h3>Atualizar dados dos clientes</h3>
-            <ModalCloseButton onClick={closeCustomerDataModal} />
-          </div>
-
-          <div className="billing-modal-copy">
-            <p>
-              Envie o arquivo <strong>etiquetas.txt</strong> para atualizar endereco, numero, complemento, bairro,
-              cidade, estado, CEP, CPF/CNPJ, IE e telefones dos clientes.
-            </p>
-            <p>
-              Os campos <strong>usa boleto</strong>, <strong>modo</strong>, <strong>dia</strong> e <strong>cobrar multa/juros</strong> não são alterados.
-            </p>
-            <small className="compact-muted">
-              {customerDataImport
-                ? `Ultima carga: ${customerDataImport.name} em ${formatDate(customerDataImport.updated_at)}`
-                : "Nenhuma carga de etiquetas feita ainda."}
-            </small>
-          </div>
-
-          <div className="compact-import-card billing-modal-upload-card">
-            <input
-              id="boletos-customer-data-file"
-              className="hidden-file-input"
-              type="file"
-              accept=".txt,.html"
-              onChange={(event) => setCustomerDataFile(event.target.files?.[0] ?? null)}
-            />
-            <div className="billing-file-picker-row">
-              <label className="secondary-button compact-file-trigger" htmlFor="boletos-customer-data-file">
-                Selecionar etiquetas
-              </label>
-              {customerDataFile ? (
-                <span className="compact-file-name" title={customerDataFile.name}>
-                  {customerDataFile.name}
-                </span>
-              ) : null}
-            </div>
-            <small className="compact-muted">Esse arquivo será a base fixa para a próxima etapa de emissão.</small>
-          </div>
-
-          <div className="action-row">
-            <button
-              className="primary-button"
-              disabled={submitting || !customerDataFile}
-              onClick={() => customerDataFile && void onUploadClientData(customerDataFile)}
-              type="button"
-            >
-              Importar etiquetas
-            </button>
-            <button className="ghost-button" onClick={closeCustomerDataModal} type="button">
-              Cancelar
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  function renderC6UploadModal() {
-    if (!c6ModalOpen) {
-      return null;
-    }
-
-    return (
-      <div className="modal-backdrop" role="presentation">
-        <div className="modal-card billing-customer-modal">
-          <div className="panel-title compact-title-row">
-            <h3>Importar relatório C6</h3>
-            <ModalCloseButton onClick={closeC6Modal} />
-          </div>
-
-          <div className="billing-modal-copy">
-            <p>Envie o arquivo CSV do C6 para atualizar os registros usados na conferência de boletos faltando.</p>
-            {renderFileMeta("boletos:c6")}
-          </div>
-
-          <div className="compact-import-card billing-modal-upload-card">
-            <input
-              id="boletos-c6-file"
-              className="hidden-file-input"
-              type="file"
-              accept=".csv"
-              onChange={(event) => setC6File(event.target.files?.[0] ?? null)}
-            />
-            <div className="billing-file-picker-row">
-              <label className="secondary-button compact-file-trigger" htmlFor="boletos-c6-file">
-                Selecionar relatório
-              </label>
-              {c6File ? (
-                <span className="compact-file-name" title={c6File.name}>
-                  {c6File.name}
-                </span>
-              ) : null}
-            </div>
-            <small className="compact-muted">Após a importação, esta aba refletirá os dados processados do arquivo.</small>
-          </div>
-
-          <div className="action-row">
-            <button className="primary-button" disabled={submitting || !c6File} onClick={() => void handleUploadC6()} type="button">
-              Importar arquivo
-            </button>
-            <button className="ghost-button" onClick={closeC6Modal} type="button">
-              Cancelar
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  function renderClientsModal() {
-    if (!clientsModalOpen) {
-      return null;
-    }
-
-    return (
-      <div className="modal-backdrop" role="presentation">
-        <div className="modal-card billing-clients-modal">
-          <div className="panel-title compact-title-row">
-            <h3>Clientes</h3>
-            <div className="action-row">
-              <button className="secondary-button" disabled={submitting} onClick={() => setCustomerDataModalOpen(true)} type="button">
-                Atualizar dados dos clientes
-              </button>
-              <button className="primary-button" disabled={submitting} onClick={() => void handleSaveClients()} type="button">
-                Salvar configurações
-              </button>
-              <ModalCloseButton disabled={submitting} onClick={() => setClientsModalOpen(false)} />
-            </div>
-          </div>
-          <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-            <table className="erp-table entries-list-table">
-              <thead>
-                <tr>
-                  <th>Cliente</th>
-                  <th>Faturas</th>
-                  <th className="numeric-cell">Valor</th>
-                  <th>Usa boleto</th>
-                  <th>Modo</th>
-                  <th>Dia</th>
-                  <th>Cobrar multa/juros</th>
-                  <th>Baixas pendentes</th>
-                  <th>Observações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clients.map((client) => (
-                  <tr key={client.client_key}>
-                    <td>
-                      <strong className="single-line-cell" title={client.client_name}>
-                        {client.client_name}
-                      </strong>
-                    </td>
-                    <td>{client.receivable_count}</td>
-                    <td className="numeric-cell">{formatMoney(client.total_amount)}</td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={client.uses_boleto}
-                        onChange={(event) =>
-                          setClients((current) =>
-                            current.map((item) =>
-                              item.client_key === client.client_key ? { ...item, uses_boleto: event.target.checked, dirty: true } : item,
-                            ),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>
-                      <select
-                        value={client.mode}
-                        onChange={(event) =>
-                          setClients((current) =>
-                            current.map((item) =>
-                              item.client_key === client.client_key ? { ...item, mode: event.target.value, dirty: true } : item,
-                            ),
-                          )
-                        }
-                      >
-                        <option value="individual">Individual</option>
-                        <option value="mensal">Mensal</option>
-                        <option value="negociacao">Negociação</option>
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        className="mini-input"
-                        type="number"
-                        min={1}
-                        max={31}
-                        value={client.boleto_due_day ?? ""}
-                        onChange={(event) =>
-                          setClients((current) =>
-                            current.map((item) =>
-                              item.client_key === client.client_key
-                                ? { ...item, boleto_due_day: event.target.value ? Number(event.target.value) : null, dirty: true }
-                                : item,
-                            ),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={client.include_interest}
-                        onChange={(event) =>
-                          setClients((current) =>
-                            current.map((item) =>
-                              item.client_key === client.client_key
-                                ? { ...item, include_interest: event.target.checked, dirty: true }
-                                : item,
-                            ),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>{client.matched_paid_count}</td>
-                    <td>
-                      <input
-                        value={client.notes ?? ""}
-                        onChange={(event) =>
-                          setClients((current) =>
-                            current.map((item) =>
-                              item.client_key === client.client_key ? { ...item, notes: event.target.value, dirty: true } : item,
-                            ),
-                          )
-                        }
-                      />
-                    </td>
-                  </tr>
-                ))}
-                {!clients.length && (
-                  <tr>
-                    <td colSpan={9}>Nenhum cliente encontrado.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    );
+  async function handleUploadCustomerData() {
+    if (!customerDataFile) return;
+    await onUploadClientData(customerDataFile);
+    setCustomerDataFile(null);
+    setCustomerDataModalOpen(false);
   }
 
   function renderInvoicePanel() {
@@ -1439,11 +1097,11 @@ export function BoletosPage({
         <section className="panel compact-panel-card">
           <div className="panel-title compact-title-row">
             <h3>Faturas em aberto</h3>
-            <div className="action-row billing-open-boletos-actions">
+            <div className="action-row">
               <div className="entries-period-group">
                 <button
                   aria-expanded={showOpenReceivablePeriodPopover}
-                  aria-label="Selecionar periodo"
+                  aria-label="Selecionar período"
                   className={`entries-period-trigger ${showOpenReceivablePeriodPopover ? "is-active" : ""}`}
                   disabled={submitting}
                   onClick={() => {
@@ -1455,70 +1113,53 @@ export function BoletosPage({
                   <CalendarRangeIcon />
                   <span>{formatRangeLabel(openReceivableFilterDraft.start, openReceivableFilterDraft.end)}</span>
                 </button>
-                {showOpenReceivablePeriodPopover && (
+                {showOpenReceivablePeriodPopover ? (
                   <div className="entries-floating-panel entries-period-popover">
                     <div className="entries-period-fields">
-                      <input
-                        aria-label="Data inicial"
-                        disabled={submitting}
-                        type="date"
-                        value={openReceivableFilterDraft.start}
-                        onChange={(event) => setOpenReceivableDateRange(event.target.value, openReceivableFilterDraft.end)}
-                      />
-                      <input
-                        aria-label="Data final"
-                        disabled={submitting}
-                        type="date"
-                        value={openReceivableFilterDraft.end}
-                        onChange={(event) => setOpenReceivableDateRange(openReceivableFilterDraft.start, event.target.value)}
-                      />
-                    </div>
-                    <div className="entries-period-footer">
-                      <button
-                        className="secondary-button compact-button"
-                        onClick={() => {
-                          setOpenReceivableDateRange("", "");
-                          setShowOpenReceivablePeriodPopover(false);
-                        }}
-                        type="button"
-                      >
-                        Limpar
-                      </button>
-                      <button
-                        className="primary-button compact-button"
-                        onClick={() => setShowOpenReceivablePeriodPopover(false)}
-                        type="button"
-                      >
-                        Concluir
-                      </button>
+                      <label>
+                        Início
+                        <input
+                          disabled={submitting}
+                          type="date"
+                          value={openReceivableFilterDraft.start}
+                          onChange={(event) => setOpenReceivableDateRange(event.target.value, openReceivableFilterDraft.end)}
+                        />
+                      </label>
+                      <label>
+                        Fim
+                        <input
+                          disabled={submitting}
+                          type="date"
+                          value={openReceivableFilterDraft.end}
+                          onChange={(event) => setOpenReceivableDateRange(openReceivableFilterDraft.start, event.target.value)}
+                        />
+                      </label>
                     </div>
                   </div>
-                )}
+                ) : null}
               </div>
               <div className="entries-toolbar-icon-wrap">
                 <button
                   aria-expanded={showOpenReceivablePresetMenu}
-                  aria-label="Periodos pre-definidos"
+                  aria-label="Filtros pré-definidos de data"
                   className={`entries-toolbar-icon ${showOpenReceivablePresetMenu ? "is-active" : ""}`}
                   disabled={submitting}
                   onClick={() => {
                     setShowOpenReceivablePeriodPopover(false);
                     setShowOpenReceivablePresetMenu((current) => !current);
                   }}
-                  title="Periodos pre-definidos"
                   type="button"
                 >
                   <FilterFunnelIcon />
-                  <span className="entries-toolbar-icon-label">Atalhos</span>
                 </button>
-                {showOpenReceivablePresetMenu && (
+                {showOpenReceivablePresetMenu ? (
                   <div className="entries-floating-panel entries-icon-menu">
                     <button className="entries-icon-menu-item" onClick={() => { applyOpenReceivablePresetRange("today"); setShowOpenReceivablePresetMenu(false); }} type="button">Hoje</button>
-                    <button className="entries-icon-menu-item" onClick={() => { applyOpenReceivablePresetRange("current_month"); setShowOpenReceivablePresetMenu(false); }} type="button">Mes atual</button>
-                    <button className="entries-icon-menu-item" onClick={() => { applyOpenReceivablePresetRange("previous_month"); setShowOpenReceivablePresetMenu(false); }} type="button">Mes anterior</button>
+                    <button className="entries-icon-menu-item" onClick={() => { applyOpenReceivablePresetRange("current_month"); setShowOpenReceivablePresetMenu(false); }} type="button">Mês atual</button>
+                    <button className="entries-icon-menu-item" onClick={() => { applyOpenReceivablePresetRange("previous_month"); setShowOpenReceivablePresetMenu(false); }} type="button">Mês anterior</button>
                     <button className="entries-icon-menu-item" onClick={() => { applyOpenReceivablePresetRange("current_year"); setShowOpenReceivablePresetMenu(false); }} type="button">Ano atual</button>
                   </div>
-                )}
+                ) : null}
               </div>
               <button className="primary-button compact-button" disabled={submitting} onClick={applyOpenReceivableDateFilters} type="button">
                 Aplicar
@@ -1528,38 +1169,22 @@ export function BoletosPage({
           </div>
           <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
             <table className="erp-table entries-list-table billing-open-receivables-table">
-              <colgroup>
-                <col className="billing-open-receivables-col-due-date" />
-                <col className="billing-open-receivables-col-client" />
-                <col className="billing-open-receivables-col-title" />
-                <col className="billing-open-receivables-col-status" />
-                <col className="billing-open-receivables-col-amount" />
-              </colgroup>
               <thead>
                 <tr>
                   <th>{renderSortButton("Vencimento", "due_date", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("due_date"))}</th>
                   <th>{renderSortButton("Cliente", "client_name", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("client_name"))}</th>
                   <th>{renderSortButton("Título", "document", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("document"))}</th>
                   <th>{renderSortButton("Status", "status", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("status"))}</th>
-                  <th className="numeric-cell">
-                    {renderSortButton("Saldo", "amount", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("amount"), true)}
-                  </th>
+                  <th className="numeric-cell">{renderSortButton("Saldo", "amount", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("amount"), true)}</th>
                 </tr>
               </thead>
               <tbody>
                 {openReceivables.map((item) => (
-                  <tr key={`${item.client_name}-${item.invoice_number}-${item.installment}-${item.due_date ?? "-"}`}>
+                  <tr key={`${item.client_name}-${item.invoice_number}-${item.installment}`}>
                     <td>{formatDate(item.due_date)}</td>
-                    <td className="billing-open-receivables-client-cell" title={item.client_name ?? "-"}>
-                      {item.client_name ?? "-"}
-                    </td>
-                    <td
-                      className="billing-open-receivables-title-cell"
-                      title={`${item.invoice_number || "Sem numero"}/${item.installment || "-"}`}
-                    >
-                      {`${item.invoice_number || "Sem numero"}/${item.installment || "-"}`}
-                    </td>
-                    <td>{formatEntryStatus(item.status)}</td>
+                    <td className="billing-open-receivables-client-cell">{item.client_name}</td>
+                    <td>{`${item.invoice_number || "Sem numero"}/${item.installment || "-"}`}</td>
+                    <td>{renderStatusBadge(item.status)}</td>
                     <td className="numeric-cell">{formatMoney(item.corrected_amount || item.amount)}</td>
                   </tr>
                 ))}
@@ -1584,17 +1209,6 @@ export function BoletosPage({
           </div>
           <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
             <table className="erp-table entries-list-table billing-alert-table">
-              <colgroup>
-                <col className="billing-alert-col-client" />
-                <col className="billing-alert-col-mode" />
-                <col className="billing-alert-col-bank" />
-                <col className="billing-alert-col-due-date" />
-                <col className="billing-alert-col-days" />
-                <col className="billing-alert-col-amount" />
-                <col className="billing-alert-col-status" />
-                <col className="billing-alert-col-receivables" />
-                <col className="billing-alert-col-boleto" />
-              </colgroup>
               <thead>
                 <tr>
                   <th>{renderSortButton("Cliente", "client_name", overdueSort, overdueSortDirection, () => toggleOverdueSort("client_name"))}</th>
@@ -1610,14 +1224,14 @@ export function BoletosPage({
               </thead>
               <tbody>
                 {visibleOverdueBoletos.map((item, index) => (
-                  <tr key={`${item.client_name}-${item.due_date}-${index}`}>
+                  <tr key={index}>
                     <td>{item.client_name}</td>
                     <td>{item.mode || "-"}</td>
                     <td>{item.bank || "-"}</td>
                     <td>{formatDate(item.due_date)}</td>
                     <td>{item.days_overdue}</td>
                     <td className="numeric-cell">{formatMoney(item.amount)}</td>
-                    <td>{formatEntryStatus(item.status)}</td>
+                    <td>{renderStatusBadge(item.status)}</td>
                     <td>{renderReceivableDetails(item)}</td>
                     <td>{renderBoletoActions(item.boletos)}</td>
                   </tr>
@@ -1729,7 +1343,7 @@ export function BoletosPage({
                     <td>{item.competence || "-"}</td>
                     <td>{formatDate(item.due_date)}</td>
                     <td className="numeric-cell">{formatMoney(item.amount)}</td>
-                    <td>{formatEntryStatus(item.status)}</td>
+                    <td>{renderStatusBadge(item.status)}</td>
                     <td>{renderBoletoActions(item.boletos)}</td>
                     <td>{item.reason}</td>
                   </tr>
@@ -1925,7 +1539,7 @@ export function BoletosPage({
                     <td>{formatDate(item.issue_date)}</td>
                     <td>{formatDate(item.due_date)}</td>
                     <td className="numeric-cell">{formatMoney(item.amount)}</td>
-                    <td>{formatEntryStatus(item.status)}</td>
+                    <td>{renderStatusBadge(item.status)}</td>
                     <td>{item.bank || "-"}</td>
                     <td className="billing-open-boletos-actions-cell">
                       <div className="billing-boleto-row-actions billing-boleto-row-actions--compact">
@@ -2090,6 +1704,228 @@ export function BoletosPage({
     );
   }
 
+  function renderStandaloneBoletoModal() {
+    if (!standaloneBoletoModalOpen) return null;
+    const interAccounts = accounts.filter((a) => a.is_active && a.inter_api_enabled);
+    return (
+      <div className="modal-backdrop" role="presentation">
+        <div className="modal-card billing-customer-modal">
+          <div className="panel-title compact-title-row">
+            <h3>Novo boleto avulso</h3>
+            <ModalCloseButton onClick={closeStandaloneBoletoModal} />
+          </div>
+          <div className="billing-standalone-form">
+            <label className="billing-standalone-form-field">
+              <span>Conta Inter</span>
+              <select
+                value={standaloneBoletoDraft.account_id}
+                onChange={(e) => setStandaloneBoletoDraft({ ...standaloneBoletoDraft, account_id: e.target.value })}
+              >
+                <option value="">Selecione</option>
+                {interAccounts.map((acc) => (
+                  <option key={acc.id} value={acc.id}>{acc.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="billing-standalone-form-field billing-standalone-form-field--wide">
+              <span>Cliente</span>
+              <input
+                list="standalone-clients"
+                value={standaloneBoletoDraft.client_name}
+                onChange={(e) => setStandaloneBoletoDraft({ ...standaloneBoletoDraft, client_name: e.target.value })}
+              />
+              <datalist id="standalone-clients">
+                {standaloneClientOptions.map((c) => <option key={c} value={c} />)}
+              </datalist>
+            </label>
+            <label className="billing-standalone-form-field">
+              <span>Valor</span>
+              <MoneyInput
+                value={standaloneBoletoDraft.amount}
+                onValueChange={(v) => setStandaloneBoletoDraft({ ...standaloneBoletoDraft, amount: v })}
+              />
+            </label>
+            <label className="billing-standalone-form-field">
+              <span>Vencimento</span>
+              <input
+                type="date"
+                value={standaloneBoletoDraft.due_date}
+                onChange={(e) => setStandaloneBoletoDraft({ ...standaloneBoletoDraft, due_date: e.target.value })}
+              />
+            </label>
+            <label className="billing-standalone-form-field billing-standalone-form-field--full">
+              <span>Observações</span>
+              <textarea
+                value={standaloneBoletoDraft.notes}
+                onChange={(e) => setStandaloneBoletoDraft({ ...standaloneBoletoDraft, notes: e.target.value })}
+              />
+            </label>
+          </div>
+          <div className="action-row">
+            <button
+              className="primary-button"
+              disabled={submitting || !standaloneBoletoDraft.client_name || !standaloneBoletoDraft.amount}
+              onClick={() => void handleCreateStandaloneBoleto()}
+              type="button"
+            >
+              Emitir
+            </button>
+            <button className="ghost-button" onClick={closeStandaloneBoletoModal}>Cancelar</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderCustomerDataModal() {
+    if (!customerDataModalOpen) return null;
+    return (
+      <div className="modal-backdrop" role="presentation">
+        <div className="modal-card">
+          <div className="panel-title compact-title-row">
+            <h3>Importar dados de clientes</h3>
+            <ModalCloseButton onClick={closeCustomerDataModal} />
+          </div>
+          <div className="billing-modal-body">
+            <p>Selecione o arquivo Excel exportado do banco ou gerado pelo sistema.</p>
+            <label className="billing-file-input">
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={(e) => setCustomerDataFile(e.target.files?.[0] || null)}
+              />
+            </label>
+          </div>
+          <div className="action-row">
+            <button
+              className="primary-button"
+              disabled={submitting || !customerDataFile}
+              onClick={() => void handleUploadCustomerData()}
+              type="button"
+            >
+              Importar
+            </button>
+            <button className="ghost-button" onClick={closeCustomerDataModal}>Cancelar</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderC6UploadModal() {
+    if (!c6ModalOpen) return null;
+    return (
+      <div className="modal-backdrop" role="presentation">
+        <div className="modal-card">
+          <div className="panel-title compact-title-row">
+            <h3>Importar relatório C6</h3>
+            <ModalCloseButton onClick={closeC6Modal} />
+          </div>
+          <div className="billing-modal-body">
+            <p>Selecione o relatório consolidado de boletos do C6 Bank.</p>
+            <label className="billing-file-input">
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={(e) => setC6File(e.target.files?.[0] || null)}
+              />
+            </label>
+          </div>
+          <div className="action-row">
+            <button
+              className="primary-button"
+              disabled={submitting || !c6File}
+              onClick={() => void handleUploadC6()}
+              type="button"
+            >
+              Importar
+            </button>
+            <button className="ghost-button" onClick={closeC6Modal}>Cancelar</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderClientsModal() {
+    if (!clientsModalOpen) return null;
+    return (
+      <div className="modal-backdrop" role="presentation">
+        <div className="modal-card billing-large-modal">
+          <div className="panel-title compact-title-row">
+            <h3>Configurações de clientes</h3>
+            <ModalCloseButton onClick={() => setClientsModalOpen(false)} />
+          </div>
+          <div className="billing-modal-actions action-row">
+            <button className="secondary-button" onClick={() => setCustomerDataModalOpen(true)}>Importar XLSX</button>
+            <button className="primary-button" onClick={() => void handleSaveClients()}>Salvar</button>
+          </div>
+          <div className="table-shell billing-modal-table-shell">
+            <table className="erp-table">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Usa boleto</th>
+                  <th>Modo</th>
+                  <th>Dia</th>
+                  <th>Multa/Juros</th>
+                  <th>Notas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clients.map((client) => (
+                  <tr key={client.client_key}>
+                    <td>{client.client_name}</td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={client.uses_boleto}
+                        onChange={(e) => setClients(current => current.map(item => item.client_key === client.client_key ? { ...item, uses_boleto: e.target.checked, dirty: true } : item))}
+                      />
+                    </td>
+                    <td>
+                      <select
+                        value={client.mode}
+                        onChange={(e) => setClients(current => current.map(item => item.client_key === client.client_key ? { ...item, mode: e.target.value, dirty: true } : item))}
+                      >
+                        <option value="individual">Individual</option>
+                        <option value="mensal">Mensal</option>
+                        <option value="negociacao">Negociação</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="mini-input"
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={client.boleto_due_day ?? ""}
+                        onChange={(e) => setClients(current => current.map(item => item.client_key === client.client_key ? { ...item, boleto_due_day: e.target.value ? Number(e.target.value) : null, dirty: true } : item))}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={client.include_interest}
+                        onChange={(e) => setClients(current => current.map(item => item.client_key === client.client_key ? { ...item, include_interest: e.target.checked, dirty: true } : item))}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        value={client.notes ?? ""}
+                        onChange={(e) => setClients(current => current.map(item => item.client_key === client.client_key ? { ...item, notes: e.target.value, dirty: true } : item))}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page-layout">
       {view === "standalone" && (
@@ -2167,7 +2003,7 @@ export function BoletosPage({
                       <td>{formatDate(item.due_date)}</td>
                       <td className="numeric-cell">{formatMoney(item.amount)}</td>
                       <td>{item.bank}</td>
-                      <td>{item.status}</td>
+                      <td>{renderStatusBadge(item.status)}</td>
                       <td className="billing-open-boletos-actions-cell">
                         <div className="billing-boleto-row-actions billing-boleto-row-actions--compact">
                           {item.pdf_available ? (
@@ -2217,132 +2053,6 @@ export function BoletosPage({
         </>
       )}
 
-      {false && (
-        <section className="panel compact-panel-card">
-          <div className="panel-title compact-title-row">
-            <h3>Cadastro de clientes</h3>
-            <div className="action-row">
-              <button className="secondary-button" disabled={submitting} onClick={() => setCustomerDataModalOpen(true)} type="button">
-                Atualizar dados dos clientes
-              </button>
-              <button className="primary-button" disabled={submitting} onClick={() => void handleSaveClients()} type="button">
-                Salvar configurações
-              </button>
-            </div>
-          </div>
-          <div className="table-shell tall">
-            <table className="erp-table">
-              <thead>
-                <tr>
-                  <th>Cliente</th>
-                  <th>Faturas</th>
-                  <th className="numeric-cell">Valor</th>
-                  <th>Usa boleto</th>
-                  <th>Modo</th>
-                  <th>Dia</th>
-                  <th>Cobrar multa/juros</th>
-                  <th>Baixas pendentes</th>
-                  <th>Observações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clients.map((client) => (
-                  <tr key={client.client_key}>
-                    <td>
-                      <strong className="single-line-cell" title={client.client_name}>
-                        {client.client_name}
-                      </strong>
-                    </td>
-                    <td>{client.receivable_count}</td>
-                    <td className="numeric-cell">{formatMoney(client.total_amount)}</td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={client.uses_boleto}
-                        onChange={(event) =>
-                          setClients((current) =>
-                            current.map((item) =>
-                              item.client_key === client.client_key ? { ...item, uses_boleto: event.target.checked, dirty: true } : item,
-                            ),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>
-                      <select
-                        value={client.mode}
-                        onChange={(event) =>
-                          setClients((current) =>
-                            current.map((item) =>
-                              item.client_key === client.client_key ? { ...item, mode: event.target.value, dirty: true } : item,
-                            ),
-                          )
-                        }
-                      >
-                        <option value="individual">Individual</option>
-                        <option value="mensal">Mensal</option>
-                        <option value="negociacao">Negociacao</option>
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        className="mini-input"
-                        type="number"
-                        min={1}
-                        max={31}
-                        value={client.boleto_due_day ?? ""}
-                        onChange={(event) =>
-                          setClients((current) =>
-                            current.map((item) =>
-                              item.client_key === client.client_key
-                                ? { ...item, boleto_due_day: event.target.value ? Number(event.target.value) : null, dirty: true }
-                                : item,
-                            ),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={client.include_interest}
-                        onChange={(event) =>
-                          setClients((current) =>
-                            current.map((item) =>
-                              item.client_key === client.client_key
-                                ? { ...item, include_interest: event.target.checked, dirty: true }
-                                : item,
-                            ),
-                          )
-                        }
-                      />
-                    </td>
-                    <td>{client.matched_paid_count}</td>
-                    <td>
-                      <input
-                        value={client.notes ?? ""}
-                        onChange={(event) =>
-                          setClients((current) =>
-                            current.map((item) =>
-                              item.client_key === client.client_key ? { ...item, notes: event.target.value, dirty: true } : item,
-                            ),
-                          )
-                        }
-                      />
-                    </td>
-                  </tr>
-                ))}
-                {!clients.length && (
-                  <tr>
-                    <td colSpan={9}>Nenhum cliente encontrado.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
       {view !== "standalone" && (
         <>
           {renderInvoicePanel()}
@@ -2356,4 +2066,3 @@ export function BoletosPage({
     </div>
   );
 }
-
