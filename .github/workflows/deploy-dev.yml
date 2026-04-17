@@ -35,3 +35,19 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:8101/api/v1/health
           echo
           echo "Deploy dev concluido com sucesso"
+
+      - name: Archive Logs on Failure
+        if: failure()
+        run: |
+          mkdir -p debug-logs
+          SERVICE_NAME="salomao-dev.service"
+          sudo journalctl -u $SERVICE_NAME -n 500 --no-pager > debug-logs/systemd.log || true
+          sudo tail -n 100 /var/log/nginx/error.log > debug-logs/nginx.log || true
+
+      - name: Upload Debug Artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-debug-logs-dev-${{ github.run_id }}
+          path: debug-logs/
+          retention-days: 1

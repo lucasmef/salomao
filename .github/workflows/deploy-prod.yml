@@ -100,3 +100,19 @@ jobs:
             echo "A acao recomendada e fazer um merge manual de fast-forward da dev para a main."
             exit 1
           fi
+
+      - name: Archive Logs on Failure
+        if: failure()
+        run: |
+          mkdir -p debug-logs
+          SERVICE_NAME="salomao-prod.service"
+          sudo journalctl -u $SERVICE_NAME -n 500 --no-pager > debug-logs/systemd-prod.log || true
+          sudo tail -n 100 /var/log/nginx/error.log > debug-logs/nginx-prod.log || true
+
+      - name: Upload Debug Artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-debug-logs-prod-${{ github.run_id }}
+          path: debug-logs/
+          retention-days: 1

@@ -2985,8 +2985,18 @@ export function PurchasePlanningPage({
                     <col className="brand-collection-col-note" />
                   </colgroup>
                   <thead>
+                    <tr className="header-group-row">
+                      <th className="brand-collection-col-name col-planned-header">Operação</th>
+                      <th className="numeric-cell brand-collection-col-amount col-planned-header">Planejado</th>
+                      {brandModalDetailed && (
+                        <th colSpan={3} className="centered-cell col-realized-header">Fluxo Realizado (Logística e Vendas)</th>
+                      )}
+                      <th className="centered-cell col-planned-header">Status</th>
+                      {brandModalDetailed && <th className="numeric-cell col-realized-header">Performance</th>}
+                      <th className="centered-cell col-planned-header">Nota</th>
+                    </tr>
                     <tr>
-                      <th className="brand-collection-col-name">Coleção</th>
+                      <th className="brand-collection-col-name text-muted">Coleção</th>
                       <th className="numeric-cell brand-collection-col-amount">Pedido</th>
                       {brandModalDetailed && (
                         <>
@@ -2995,7 +3005,7 @@ export function PurchasePlanningPage({
                           <th className="numeric-cell brand-collection-col-detail">Vendido</th>
                         </>
                       )}
-                      <th className="centered-cell brand-collection-col-check">Status</th>
+                      <th className="centered-cell brand-collection-col-check">Conf.</th>
                       {brandModalDetailed && <th className="numeric-cell brand-collection-col-profit">% Lucro</th>}
                       <th className="centered-cell brand-collection-col-note">Obs</th>
                     </tr>
@@ -3026,13 +3036,13 @@ export function PurchasePlanningPage({
                             </td>
                             {brandModalDetailed && (
                               <>
-                                <td className="numeric-cell color-recebido">
+                                <td className="numeric-cell color-recebido col-realized-zone">
                                   {formatPurchaseDisplayAmount(collectionSnapshot?.receivedAmount || 0)}
                                 </td>
-                                <td className="numeric-cell color-devolucao">
+                                <td className="numeric-cell color-devolucao col-realized-zone">
                                   {formatPurchaseDisplayAmount(collectionSnapshot?.returnsAmount || 0)}
                                 </td>
-                                <td className="numeric-cell color-venda">
+                                <td className="numeric-cell color-venda col-realized-zone">
                                   {formatPurchaseDisplayAmount(collectionSnapshot?.soldAmount || 0)}
                                 </td>
                               </>
@@ -3059,7 +3069,7 @@ export function PurchasePlanningPage({
                               )}
                             </td>
                             {brandModalDetailed && (
-                              <td className="numeric-cell" style={{ color: profitPercentage >= 0 ? "#10b981" : "#ef4444", fontWeight: 600 }}>
+                              <td className="numeric-cell col-profit-zone" style={{ color: profitPercentage >= 0 ? "#10b981" : "#ef4444", fontWeight: 600 }}>
                                 {profitPercentage}%
                               </td>
                             )}
