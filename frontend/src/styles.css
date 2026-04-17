@@ -304,44 +304,57 @@ html, body {
 
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.compact-kpis {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 16px;
-}
-
-.compact-kpis-four {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
 }
 
 .kpi-card {
-  padding: 10px 12px;
-  border: 1px solid #d6dbe4;
-  border-radius: 12px;
-  background: #fff;
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
 }
 
+.kpi-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; width: 4px; height: 100%;
+  background: var(--color-primary);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: transparent;
+}
+
+.kpi-card:hover::after { opacity: 1; }
+
 .kpi-card span {
-  display: block;
-  color: #64748b;
-  font-size: 0.72rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .kpi-card strong {
-  display: block;
-  margin-top: 6px;
-  font-size: 1.08rem;
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--color-text-main);
+  letter-spacing: -0.02em;
 }
-
-.kpi-card.emphasis {
-  border-color: #bfd0e7;
-  background: #f5f9ff;
-}
-
-.content-grid {
   display: grid;
   gap: 12px;
 }
@@ -510,30 +523,46 @@ html, body {
 
 .erp-table {
   width: 100%;
-  border-collapse: collapse;
-  min-width: 720px;
-  background: #fff;
-}
-
-.erp-table th,
-.erp-table td {
-  padding: 7px 8px;
-  border-bottom: 1px solid #e2e8f0;
-  text-align: left;
-  vertical-align: top;
-  font-size: 0.78rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 800px;
+  background: white;
 }
 
 .erp-table thead th {
   position: sticky;
   top: 0;
   background: #f8fafc;
-  color: #475569;
-  z-index: 1;
-  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1rem 1.25rem;
+  border-bottom: 2px solid var(--color-border);
+  text-align: left;
+  z-index: 10;
 }
 
-.row-actions {
+.erp-table tbody tr {
+  transition: background 0.2s ease;
+}
+
+.erp-table tbody tr:nth-child(even) {
+  background: #fbfcfd;
+}
+
+.erp-table tbody tr:hover {
+  background: #f1f5f9 !important;
+}
+
+.erp-table td {
+  padding: 1.25rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+  font-size: 0.875rem;
+  color: var(--color-text-main);
+}
   display: flex;
   flex-wrap: wrap;
   gap: 8px;

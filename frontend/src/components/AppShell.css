@@ -40,7 +40,7 @@
 .brand-logo {
   width: 32px;
   height: 32px;
-  background: var(--color-sidebar);
+  background: #0f172a;
   color: white;
   display: flex;
   align-items: center;
@@ -54,7 +54,7 @@
   font-family: var(--font-heading);
   font-weight: 800;
   font-size: 1.25rem;
-  color: var(--color-text-main);
+  color: #0f172a;
   letter-spacing: -0.02em;
 }
 
