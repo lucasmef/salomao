@@ -1072,9 +1072,7 @@ export function EntriesPage({
     <div className="page-layout">
       {!embedded && (
         <PageHeader
-          eyebrow="Financeiro"
           title="Lançamentos"
-          description="Pagar, receber e consulta financeira do período."
         />
       )}
 

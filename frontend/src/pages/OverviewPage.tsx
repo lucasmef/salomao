@@ -63,9 +63,7 @@ export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onA
   return (
     <div className="page-layout">
       <PageHeader
-        eyebrow="Visão Geral"
         title="Dashboard Executivo"
-        description="Indicadores estratégicos do DRE acumulados no período selecionado."
         actions={
           <form className="toolbar dashboard-toolbar" onSubmit={handleSubmit}>
             <div className="quick-range-group">

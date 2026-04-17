@@ -13,11 +13,11 @@
 
 .section-content-card {
   background: white;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-sm);
-  padding: 2rem;
-  min-height: 400px;
+  padding: 1rem;
+  min-height: 320px;
 }
 
 /* Specific adjustments for shared components inside cards */
