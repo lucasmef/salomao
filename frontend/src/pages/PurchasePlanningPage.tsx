@@ -454,6 +454,50 @@ function ObservationIcon() {
   );
 }
 
+function TagIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" fill="none" viewBox="0 0 16 16">
+      <path
+        d="M2.5 8.5v3.5l1.5 1.5h3.5l6-6L10 4l-6 6L2.5 8.5Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+      <circle cx="5" cy="11" fill="currentColor" r="1" />
+    </svg>
+  );
+}
+
+function InvoiceIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" fill="none" viewBox="0 0 16 16">
+      <path
+        d="M3.75 2.25h8.5a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1h-8.5a1 1 0 0 1-1-1v-9.5a1 1 0 0 1 1-1Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+      <path d="M6 5h4M6 8h4M6 11h2.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
+function ReturnsIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" fill="none" viewBox="0 0 16 16">
+      <path
+        d="M13.25 8a5.25 5.25 0 1 1-10.5 0M2.75 8l-1.5 1.5M2.75 8l1.5 1.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+    </svg>
+  );
+}
+
 export function PurchasePlanningPage({
   view,
   brands,
@@ -1776,17 +1820,22 @@ export function PurchasePlanningPage({
               menuPortalTarget={portalTarget}
             />
           </label>
-          <label>
-            <Select
-              options={planningStatusOptions}
-              value={selectedPlanningStatusOption}
-              onChange={(option) => onChangeFilters({ ...filters, status: asSingleValue(option) })}
-              isClearable
-              placeholder="Status"
-              styles={purchaseSelectStyles}
-              menuPortalTarget={portalTarget}
-            />
-          </label>
+          <div className="status-select-switch">
+            <button
+              className={filters.status !== "confirmed" ? "active" : ""}
+              type="button"
+              onClick={() => onChangeFilters({ ...filters, status: "planned" })}
+            >
+              Planejado
+            </button>
+            <button
+              className={filters.status === "confirmed" ? "active" : ""}
+              type="button"
+              onClick={() => onChangeFilters({ ...filters, status: "confirmed" })}
+            >
+              Confirmado
+            </button>
+          </div>
           <div className="purchase-toggle-group">
             <label className="purchase-filter-toggle">
               <span className="purchase-filter-toggle-control">
@@ -1805,14 +1854,29 @@ export function PurchasePlanningPage({
             </label>
           </div>
           <div className="action-row">
-            <button className="secondary-button" type="button" onClick={() => openBrandModal()}>
-              Nova marca
+            <button 
+              className="icon-action-button" 
+              type="button" 
+              onClick={() => openBrandModal()}
+              title="Nova marca"
+            >
+              <TagIcon />
             </button>
-            <button className="secondary-button" type="button" onClick={openInvoiceModal}>
-              Nova nota
+            <button 
+              className="icon-action-button" 
+              type="button" 
+              onClick={openInvoiceModal}
+              title="Nova nota fiscal"
+            >
+              <InvoiceIcon />
             </button>
-            <button className="secondary-button" type="button" onClick={() => setPurchaseReturnsPanelOpen(true)}>
-              Devoluções
+            <button 
+              className="icon-action-button" 
+              type="button" 
+              onClick={() => setPurchaseReturnsPanelOpen(true)}
+              title="Gerenciar devoluções"
+            >
+              <ReturnsIcon />
             </button>
           </div>
         </div>

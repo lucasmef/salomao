@@ -4846,3 +4846,59 @@ textarea {
 .purchase-filter-toggle-control input[type="checkbox"]:checked::before {
  transform: translateX(14px);
 }
+
+/* Toolbar & Logic Controls */
+.status-select-switch {
+  display: flex;
+  align-items: center;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 3px;
+  border-radius: 10px;
+  gap: 2px;
+}
+
+.status-select-switch button {
+  border: none;
+  padding: 4px 10px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  background: transparent;
+  color: #64748b;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.status-select-switch button:hover {
+  color: #2f5be7;
+}
+
+.status-select-switch button.active {
+  background: #ffffff;
+  color: #2f5be7;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+.icon-action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #d7e1ef;
+  color: #607087;
+  transition: all 0.2s;
+}
+
+.icon-action-button:hover {
+  border-color: #2f5be7;
+  color: #2f5be7;
+  background: #f8faff;
+  transform: translateY(-1px);
+}
