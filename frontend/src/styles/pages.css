@@ -5356,75 +5356,62 @@ textarea {
   width: 820px !important;
 }
 
-.brand-summary-dashboard {
-  padding: 6px 10px !important;
-  margin: 8px 0 !important;
+.purchase-brand-modal-card .purchase-panel-heading {
+  margin-bottom: 8px;
 }
 
-.summary-metric-card {
-  padding: 4px 10px !important;
-  min-width: 70px !important;
-}
-
-.summary-metric-card span {
-  font-size: 0.6rem !important;
-}
-
-.summary-metric-card strong {
-  font-size: 0.9rem !important;
+.brand-modal-unified-content {
+  gap: 10px !important;
+  padding: 2px 0 0 !important;
 }
 
 .brand-modal-inputs-grid {
   display: grid;
-  grid-template-columns: 1fr 1.5fr 1fr;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
-.brand-modal-inputs-grid .full-row {
-  grid-column: 1 / -1;
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  gap: 8px 10px !important;
+  margin-bottom: 0 !important;
+  align-items: start;
 }
 
 .brand-modal-inputs-grid label {
   display: flex;
   flex-direction: column;
-  font-size: 0; /* Hide label text if it's there but keep structure */
+  font-size: 0;
 }
 
-.brand-modal-inputs-grid .checkbox-line {
-  font-size: 0.75rem;
-  flex-direction: row;
+.brand-modal-field {
+  min-width: 0;
+}
+
+.brand-modal-field--name {
+  grid-column: span 3;
+}
+
+.brand-modal-field--suppliers {
+  grid-column: span 9;
+}
+
+.brand-modal-field--term {
+  grid-column: span 4;
+}
+
+.brand-modal-field--notes {
+  grid-column: span 8;
+}
+
+.brand-modal-inputs-grid input {
+  width: 100%;
+}
+
+.term-active-container {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
 }
 
-
-.brand-summary-dashboard {
-  flex-wrap: nowrap !important;
-  justify-content: space-between !important;
-  padding: 4px 8px !important;
-  gap: 4px !important;
-}
-
-.summary-metric-card {
-  flex: 1 !important;
-  min-width: 0 !important; /* Allow shrinking */
-  padding: 3px 8px !important;
-}
-
-.brand-modal-inputs-grid {
-  grid-template-columns: 1fr 1.2fr 0.8fr 1.5fr !important; /* 4 columns: Name, Suppliers, Term+Toggle, Notes */
-  gap: 8px !important;
-}
-
-.term-active-container {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
 .term-active-container > div:first-child {
-  flex: 1;
+  min-width: 0;
 }
 
 .detail-toggle-btn {
@@ -5443,14 +5430,65 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 8px 0 4px 0;
+  margin: 0 0 2px 0;
 }
 
 .brand-modal-table-title-row span {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+}
+
+.brand-summary-dashboard {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 4px !important;
+  padding: 3px 4px !important;
+  margin: 0 !important;
+  border-radius: 8px !important;
+  background: #f8fafc;
+}
+
+.summary-metric-card {
+  min-width: 0 !important;
+  gap: 0 !important;
+  padding: 4px 6px !important;
+  border: 1px solid #edf2f7;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.summary-metric-card span {
+  font-size: 0.58rem !important;
+  letter-spacing: 0.03em;
+  line-height: 1.05;
+}
+
+.summary-metric-card strong {
+  font-size: 0.84rem !important;
+  line-height: 1.02;
+}
+
+.purchase-brand-modal-card .table-shell.brand-collection-table-shell {
+  margin-top: 0;
+}
+
+.purchase-brand-modal-card > .action-row {
+  margin-top: 10px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+  .brand-modal-field--name,
+  .brand-modal-field--suppliers,
+  .brand-modal-field--term,
+  .brand-modal-field--notes {
+    grid-column: span 12;
+  }
+
+  .brand-summary-dashboard {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }
 

@@ -3879,7 +3879,7 @@ export function PurchasePlanningPage({
 
           <div className="brand-modal-unified-content">
             <div className="brand-modal-inputs-grid">
-              <label>
+              <label className="brand-modal-field brand-modal-field--name">
                 <input
                   placeholder="Nome da marca"
                   value={brandModal.name}
@@ -3891,7 +3891,7 @@ export function PurchasePlanningPage({
                   }
                 />
               </label>
-              <label>
+              <label className="brand-modal-field brand-modal-field--suppliers">
                 <Select<SelectOption, true>
                   options={brandSupplierOptions}
                   value={selectedBrandSupplierOptions}
@@ -3908,7 +3908,7 @@ export function PurchasePlanningPage({
                   menuPortalTarget={portalTarget}
                 />
               </label>
-              <div className="term-active-container">
+              <div className="term-active-container brand-modal-field brand-modal-field--term">
                 <Select
                   options={paymentTermOptions}
                   value={selectedBrandTermOption}
@@ -3937,7 +3937,7 @@ export function PurchasePlanningPage({
                   <CheckIcon />
                 </button>
               </div>
-              <label>
+              <label className="brand-modal-field brand-modal-field--notes">
                 <input
                   placeholder="Observações"
                   style={{ fontSize: "0.82rem" }}
