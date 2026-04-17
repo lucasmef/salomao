@@ -2768,60 +2768,28 @@ textarea {
   overflow: visible;
 }
 
-.brand-collection-col-name { width: auto; min-width: 140px; }
-.brand-collection-col-amount { width: 95px; }
-.brand-collection-col-detail { width: 90px; color: #64748b; font-size: 0.75rem; }
-.brand-collection-col-check { width: 55px; }
-.brand-collection-col-profit { width: 75px; }
-.brand-collection-col-note { width: 45px; }
-
 .status-placeholder {
   color: #cad1d8;
   font-size: 0.8rem;
 }
 
-/* Brand Modal Tabs */
-.brand-modal-tabs {
+/* Modal de Marca Unificado */
+.brand-modal-unified-content {
   display: flex;
-  gap: 20px;
-  border-bottom: 1px solid #e2e8f0;
-  margin-bottom: 1.25rem;
-  padding: 0 4px;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 0.5rem 0;
 }
 
-.brand-modal-tab {
-  padding: 8px 4px 12px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #64748b;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all 0.2s;
-  background: none;
-  border-top: none;
-  border-left: none;
-  border-right: none;
-}
-
-.brand-modal-tab:hover {
-  color: #2f5be7;
-}
-
-.brand-modal-tab.active {
-  color: #2f5be7;
-  border-bottom-color: #2f5be7;
-}
-
-/* Summary Dashboard Cards */
+/* Dashboard de Resumo no Modal */
 .brand-summary-dashboard {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 16px;
-  margin-bottom: 1.5rem;
-  padding: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
   background-color: #f8fafc;
-  border-radius: 12px;
   border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
 }
 
 .summary-metric-card {
@@ -2831,15 +2799,16 @@ textarea {
 }
 
 .summary-metric-card span {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.025em;
-  font-weight: 600;
 }
 
 .summary-metric-card strong {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
+  font-weight: 700;
   color: #1e293b;
   font-weight: 700;
 }
@@ -2852,12 +2821,6 @@ textarea {
   color: #ef4444;
 }
 
-.purchase-planning-totals-dashboard {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 8px;
-  margin-top: 10px;
-}
 
 .purchase-planning-total-card {
   display: grid;
@@ -2906,6 +2869,7 @@ textarea {
   flex: 1 1 320px;
 }
 
+/* Tabela de Coleções - Estilos do Modal */
 .brand-collection-table-shell {
   display: block;
   width: 100%;
@@ -2916,27 +2880,12 @@ textarea {
 .brand-collection-table {
   width: 100%;
   min-width: 100%;
-  table-layout: fixed;
-}
-
-.brand-collection-table .brand-collection-col-name {
-  width: 38%;
-}
-
-.brand-collection-table .brand-collection-col-amount {
-  width: 28%;
-}
-
-.brand-collection-table .brand-collection-col-check {
-  width: 17%;
-}
-
-.brand-collection-table .brand-collection-col-note {
-  width: 17%;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .brand-collection-table td {
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .brand-collection-table td:first-child {
@@ -2945,9 +2894,12 @@ textarea {
   line-height: 1.35;
 }
 
-.brand-collection-table .numeric-cell,
+.brand-collection-table .numeric-cell {
+  text-align: right;
+}
+
 .brand-collection-table .centered-cell {
-  width: 100%;
+  text-align: center;
 }
 
 .brand-collection-table .planning-inline-edit {
@@ -2955,35 +2907,27 @@ textarea {
   margin-left: 0;
 }
 
-.brand-collection-table .planning-inline-edit-compact {
-  display: grid;
-  justify-content: end;
-  justify-items: end;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
+.brand-collection-table .planning-inline-edit-value {
+  font-weight: 700;
+  font-size: 0.95rem;
 }
 
-.brand-collection-table .planning-inline-edit-compact.is-readonly {
-  grid-template-columns: minmax(0, 1fr) auto;
+.brand-collection-table .planning-inline-edit-value.is-confirmed {
+  color: #000000;
 }
 
-.brand-collection-table .planning-inline-edit-compact.is-editing {
-  grid-template-columns: minmax(112px, 1fr) auto auto;
+.brand-collection-table .planning-inline-edit-value.is-planned {
+  color: #64748b;
 }
 
-.brand-collection-table .planning-inline-edit-compact > input,
-.brand-collection-table .planning-inline-edit-input-compact {
-  width: 100%;
-  min-width: 0;
-}
+.color-recebido { color: #1e293b; }
+.color-venda { color: #1e293b; }
+.color-devolucao { color: #ef4444; }
 
-.brand-collection-table .planning-inline-edit-compact strong {
-  display: block;
-  width: auto;
-  min-width: 0;
-  text-align: right;
-  white-space: nowrap;
+@media (max-width: 720px) {
+  .purchase-brand-modal-card {
+    width: min(100%, calc(100vw - 20px));
+  }
 }
 
 .planning-inline-edit-readonly-values,
@@ -3012,10 +2956,6 @@ textarea {
 }
 
 @media (max-width: 720px) {
-  .purchase-brand-modal-card {
-    width: min(100%, calc(100vw - 20px));
-  }
-
   .brand-collection-table-shell {
     display: block;
   }
