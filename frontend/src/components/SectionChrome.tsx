@@ -10,6 +10,7 @@ type Props = {
   description: string;
   tabs: MainNavChild[];
   children: ReactNode;
+  tabsDensity?: "default" | "compact";
 };
 
 import { PageHeader } from "./PageHeader";
@@ -20,6 +21,7 @@ export function SectionChrome({
   title,
   description,
   sectionLabel,
+  tabsDensity = "default",
 }: Props) {
   return (
     <div className="section-container">
@@ -29,7 +31,7 @@ export function SectionChrome({
         description={description}
       />
 
-      {tabs.length > 1 ? <SectionTabs items={tabs} /> : null}
+      {tabs.length > 1 ? <SectionTabs density={tabsDensity} items={tabs} /> : null}
 
       <div className="section-content-card">
         {children}

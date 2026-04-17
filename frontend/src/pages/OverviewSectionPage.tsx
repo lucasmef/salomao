@@ -62,6 +62,7 @@ export function OverviewSectionPage({
   const applyFiltersRef = useRef(onApplyFilters);
   const periodPopoverRef = useRef<HTMLDivElement | null>(null);
   const presetMenuRef = useRef<HTMLDivElement | null>(null);
+  const accountBalances = dashboard?.account_balances ?? [];
   const [showPeriodPopover, setShowPeriodPopover] = useState(false);
   const [showPresetMenu, setShowPresetMenu] = useState(false);
 
@@ -128,8 +129,8 @@ export function OverviewSectionPage({
       description={currentTab.description}
       tabs={tabs}
     >
-      <section className="section-toolbar-panel entries-top-panel">
-        <div className="entries-toolbar-bar">
+      <section className="section-toolbar-panel entries-top-panel overview-top-panel">
+        <div className="entries-toolbar-bar overview-toolbar-bar">
           <div className="entries-period-group" ref={periodPopoverRef}>
             <button
               aria-expanded={showPeriodPopover}
@@ -256,10 +257,26 @@ export function OverviewSectionPage({
             </button>
           </div>
         </div>
+
+        <div className="overview-balance-strip" aria-label="Saldos por conta">
+          {accountBalances.length ? (
+            accountBalances.map((account) => (
+              <article
+                className={`overview-balance-chip${account.exclude_from_balance ? " is-ignored-account" : ""}`}
+                key={account.account_id}
+              >
+                <span title={account.account_name}>{account.account_name}</span>
+                <strong className="tabular-nums">{formatMoney(account.current_balance)}</strong>
+              </article>
+            ))
+          ) : (
+            <div className="overview-balance-empty">Nenhum saldo por conta disponivel.</div>
+          )}
+        </div>
       </section>
       
-      <section className="kpi-grid overview-top-kpis">
-        <article className="kpi-card">
+      <section className="kpi-grid compact-kpis overview-top-kpis">
+        <article className="kpi-card overview-kpi-card">
           <div className="kpi-card-icon">
             <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="24">
               <path d="M22 12A10 10 0 0 0 12 2v10z" />
@@ -269,7 +286,7 @@ export function OverviewSectionPage({
           <span>Saldo atual</span>
           <strong className="tabular-nums">{formatMoney(dashboard?.kpis?.current_balance ?? 0)}</strong>
         </article>
-        <article className="kpi-card">
+        <article className="kpi-card overview-kpi-card">
           <div className="kpi-card-icon">
             <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="24">
               <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
@@ -279,7 +296,7 @@ export function OverviewSectionPage({
           <span>Saldo projetado</span>
           <strong className="tabular-nums">{formatMoney(dashboard?.kpis?.projected_balance ?? 0)}</strong>
         </article>
-        <article className="kpi-card">
+        <article className="kpi-card overview-kpi-card">
           <div className="kpi-card-icon">
             <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="24">
               <circle cx="12" cy="12" r="10" />
@@ -307,39 +324,6 @@ export function OverviewSectionPage({
               }
             }
           />
-          <article className="panel overview-balance-panel">
-            <div className="panel-title">
-              <h3>Saldos por conta</h3>
-            </div>
-            <div className="table-shell">
-              <table className="erp-table overview-balance-table">
-                <thead>
-                  <tr>
-                    <th>Conta</th>
-                    <th>Saldo atual</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(dashboard?.account_balances ?? []).map((account) => (
-                    <tr className={account.exclude_from_balance ? "is-ignored-account" : ""} key={account.account_id}>
-                      <td>
-                        {account.account_name}
-                        {account.exclude_from_balance && <span className="badge badge-neutral ml-2">Ignorado</span>}
-                      </td>
-                      <td className="numeric-cell">{formatMoney(account.current_balance)}</td>
-                    </tr>
-                  ))}
-                  {!dashboard?.account_balances.length && (
-                    <tr>
-                      <td className="empty-cell" colSpan={2}>
-                        Nenhum saldo por conta disponivel.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </article>
         </div>
       </section>
     </SectionChrome>

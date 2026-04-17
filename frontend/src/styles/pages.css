@@ -506,6 +506,7 @@ textarea {
 .overview-side-column {
   display: grid;
   gap: 12px;
+  align-content: start;
 }
 
 .overview-dre-column {
@@ -515,6 +516,95 @@ textarea {
 .overview-balance-panel {
   display: grid;
   gap: 12px;
+}
+
+.overview-top-panel {
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.overview-toolbar-bar {
+  grid-template-columns: minmax(220px, 0.9fr) auto auto;
+  justify-content: flex-start;
+}
+
+.overview-balance-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.overview-balance-chip {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid #d7e1ef;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  min-width: 0;
+}
+
+.overview-balance-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #607797;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.overview-balance-chip strong {
+  font-size: 0.92rem;
+  color: #17324d;
+}
+
+.overview-balance-chip.is-ignored-account {
+  opacity: 0.72;
+}
+
+.overview-balance-empty {
+  padding: 8px 2px 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.overview-top-kpis {
+  gap: 8px;
+}
+
+.overview-kpi-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+  min-height: 60px;
+  padding: 8px 10px;
+}
+
+.overview-kpi-card .kpi-card-icon {
+  grid-row: 1 / span 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: #eef5ff;
+  color: #2b5fd9;
+}
+
+.overview-kpi-card .kpi-card-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.overview-kpi-card span,
+.overview-kpi-card strong {
+  line-height: 1.1;
 }
 
 .overview-balance-kpis {

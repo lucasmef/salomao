@@ -4,6 +4,7 @@ import "./SectionTabs.css";
 
 type Props = {
   items: MainNavChild[];
+  density?: "default" | "compact";
 };
 
 function isPathMatch(pathname: string, path: string) {
@@ -17,17 +18,20 @@ function isTabActive(item: MainNavChild, pathname: string): boolean {
   return item.children?.some((child) => isTabActive(child, pathname)) ?? false;
 }
 
-export function SectionTabs({ items }: Props) {
+export function SectionTabs({ items, density = "default" }: Props) {
   const { pathname } = useLocation();
   const activeItem = items.find((item) => isTabActive(item, pathname)) ?? items[0] ?? null;
+  const isCompact = density === "compact";
 
   return (
-    <div className="section-navigation">
-      <nav className="tabs-container" aria-label="Abas da seção">
+    <div className={`section-navigation${isCompact ? " section-navigation--compact" : ""}`}>
+      <nav className={`tabs-container${isCompact ? " tabs-container--compact" : ""}`} aria-label="Abas da seção">
         {items.map((item) => (
           <NavLink
             key={item.key}
-            className={({ isActive }) => `tab-link ${isTabActive(item, pathname) || isActive ? "is-active" : ""}`}
+            className={({ isActive }) =>
+              `tab-link${isCompact ? " tab-link--compact" : ""} ${isTabActive(item, pathname) || isActive ? "is-active" : ""}`
+            }
             to={item.path}
           >
             {item.label}
@@ -36,11 +40,16 @@ export function SectionTabs({ items }: Props) {
       </nav>
 
       {activeItem?.children?.length ? (
-        <nav className="subtabs-container" aria-label={`Subabas de ${activeItem.label}`}>
+        <nav
+          className={`subtabs-container${isCompact ? " subtabs-container--compact" : ""}`}
+          aria-label={`Subabas de ${activeItem.label}`}
+        >
           {activeItem.children.map((item) => (
             <NavLink
               key={item.key}
-              className={({ isActive }) => `subtab-link ${isTabActive(item, pathname) || isActive ? "is-active" : ""}`}
+              className={({ isActive }) =>
+                `subtab-link${isCompact ? " subtab-link--compact" : ""} ${isTabActive(item, pathname) || isActive ? "is-active" : ""}`
+              }
               to={item.path}
             >
               {item.label}

@@ -55,6 +55,7 @@ export function RevenueComparisonChart({ title, comparison, formatValue = format
   const currentPath = buildLinePath(chartPoints.map((point) => ({ x: point.x, y: point.currentY })));
   const previousPath = buildLinePath(chartPoints.map((point) => ({ x: point.x, y: point.previousY })));
   const activePoint = activePointIndex === null ? null : chartPoints[activePointIndex];
+  const hasPoints = chartPoints.length > 0;
 
   const getHoverZone = (index: number) => {
     const point = chartPoints[index];
@@ -91,7 +92,14 @@ export function RevenueComparisonChart({ title, comparison, formatValue = format
       </div>
 
       <div className="revenue-comparison-canvas">
-        {activePoint ? (
+        {!hasPoints ? (
+          <div className="empty-state compact-empty-state">
+            <strong>Sem dados suficientes para o comparativo.</strong>
+            <p>O gráfico será exibido assim que houver histórico disponível para o período selecionado.</p>
+          </div>
+        ) : null}
+
+        {hasPoints && activePoint ? (
           <div
             className={tooltipClassName}
             style={{ left: `${(activePoint.x / width) * 100}%` }}
@@ -108,7 +116,8 @@ export function RevenueComparisonChart({ title, comparison, formatValue = format
           </div>
         ) : null}
 
-        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title} preserveAspectRatio="none">
+        {hasPoints ? (
+          <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title} preserveAspectRatio="none">
           <defs>
             <linearGradient id="revenue-gradient" x1="0" x2="0" y1="0" y2="1">
               <stop offset="0%" stopColor="#2563eb" stopOpacity="0.2" />
@@ -195,7 +204,8 @@ export function RevenueComparisonChart({ title, comparison, formatValue = format
               />
             );
           })}
-        </svg>
+          </svg>
+        ) : null}
       </div>
     </article>
   );

@@ -1063,13 +1063,11 @@ function AppRuntime() {
           if (isInitialSectionLoad) {
             setOverviewFilters(effectiveOverviewFilters);
           }
-          const [dashboardData, reportsData] = await Promise.all([
-            fetchOverviewSnapshot(activeSession, effectiveOverviewFilters),
-            fetchReportsSnapshot(activeSession, effectiveOverviewFilters),
-          ]);
+          const dashboardData = await fetchOverviewSnapshot(activeSession, effectiveOverviewFilters);
           setDashboard(dashboardData);
-          setReports(reportsData);
           setReportFilters(effectiveOverviewFilters);
+          setReports(emptyReports);
+          setLoadedSections((current) => ({ ...current, relatorios: false }));
           break;
         }
         case "lancamentos": {
@@ -1497,16 +1495,14 @@ function AppRuntime() {
     setSubmitting(true);
     try {
       const effectiveFilters = nextFilters ?? overviewFilters;
-      const [dashboardData, reportsData] = await Promise.all([
-        fetchOverviewSnapshot(session, effectiveFilters),
-        fetchReportsSnapshot(session, effectiveFilters),
-      ]);
+      const dashboardData = await fetchOverviewSnapshot(session, effectiveFilters);
       if (nextFilters) {
         setOverviewFilters(effectiveFilters);
       }
       setReportFilters(effectiveFilters);
       setDashboard(dashboardData);
-      setReports(reportsData);
+      setReports(emptyReports);
+      setLoadedSections((current) => ({ ...current, relatorios: false }));
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });
     } finally {
@@ -2831,6 +2827,7 @@ function AppRuntime() {
                 sectionLabel="Cobrança"
                 tabLabel={billingTab.label}
                 tabs={billingNavigation.children}
+                tabsDensity="compact"
                 title={billingTab.title}
               >
                 <BillingPage
