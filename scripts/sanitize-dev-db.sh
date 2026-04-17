@@ -201,8 +201,7 @@ UPDATE boleto_customer_configs SET
   phone_secondary    = NULL,
   mobile             = NULL,
   state_registration = NULL,
-  notes              = CASE WHEN notes IS NOT NULL THEN 'Nota anonimizada' ELSE NULL END,
-  email              = NULL;
+  notes              = CASE WHEN notes IS NOT NULL THEN 'Nota anonimizada' ELSE NULL END;
 "
 
 echo "==> Sanitizando tabela: boleto_records"
