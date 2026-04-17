@@ -2478,7 +2478,7 @@ export function PurchasePlanningPage({
   function renderInlinePlannedAmount(
     snapshot: PlanningBrandSnapshot | null,
     collection: CollectionSeason,
-    options?: { compact?: boolean; highlight?: boolean },
+    options?: { compact?: boolean; highlight?: boolean; showEditButton?: boolean },
   ) {
     if (!snapshot) {
       return <span>{formatPurchaseDisplayAmount("0.00")}</span>;
@@ -2565,14 +2565,16 @@ export function PurchasePlanningPage({
                 {netDisplayLine}
               </span>
             ) : null}
-            <button
-              className="table-button icon-button cockpit-btn ml-1"
-              type="button"
-              onClick={() => startInlinePlanEdit(snapshot, collection)}
-              title="Editar valor planejado"
-            >
-              <EditIcon />
-            </button>
+            {options?.showEditButton && (
+              <button
+                className="table-button icon-button cockpit-btn ml-1"
+                type="button"
+                onClick={() => startInlinePlanEdit(snapshot, collection)}
+                title="Editar valor planejado"
+              >
+                <EditIcon />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -3026,11 +3028,11 @@ export function PurchasePlanningPage({
                                   className="metric-line metric-line-pedido"
                                   title="Pedido"
                                 >
-                                  {renderInlinePlannedAmount(
-                                    snapshot,
-                                    collection,
-                                    { compact: true, highlight: true },
-                                  )}
+                                  {renderInlinePlannedAmount(snapshot, collection, {
+                                    compact: true,
+                                    highlight: true,
+                                    showEditButton: false,
+                                  })}
                                 </div>
 
                                 {showPlanningDetail && (
@@ -4070,7 +4072,7 @@ export function PurchasePlanningPage({
                                   {collection.season_label || collection.name}
                                 </td>
                                 <td className="numeric-cell">
-                                  {renderInlinePlannedAmount(currentBrandSnapshot, collection, { compact: true })}
+                                  {renderInlinePlannedAmount(currentBrandSnapshot, collection, { compact: true, showEditButton: true })}
                                 </td>
                                 <td className="centered-cell">
                                   {isEditable ? (
