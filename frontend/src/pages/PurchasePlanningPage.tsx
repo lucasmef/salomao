@@ -2316,47 +2316,47 @@ export function PurchasePlanningPage({
                               key={`cell-${snapshot.key}-${collection.id}`}
                             >
                               <div className="planning-metric-stack">
-                                {/* Line 1: Pedido + Button */}
-                                <div className="metric-line metric-line-pedido">
+                                {/* Line 1: Pedido + Edit + Confirm */}
+                                <div className="metric-line metric-line-pedido" title="Pedido">
+                                  {renderInlinePlannedAmount(snapshot, collection, { compact: true })}
                                   {isConfirmationVisible && (
                                     <button
                                       className={`confirm-toggle-button inline-button${confirmed ? " is-confirmed" : ""}`}
                                       type="button"
                                       onClick={() => void handleToggleCollectionConfirmation(snapshot, collection)}
                                       disabled={!hasOrderToConfirm}
-                                      title={!hasOrderToConfirm ? "Cadastre o pedido para confirmar" : confirmed ? "Não confirmado" : "Confirmar"}
+                                      title={!hasOrderToConfirm ? "Cadastre o pedido para confirmar" : confirmed ? "Confirmado" : "Planejado"}
                                     >
                                       <ConfirmIcon confirmed={confirmed} />
                                     </button>
                                   )}
-                                  <span>{formatPurchaseDisplayAmount(collectionSnapshot?.plannedAmount || 0)}</span>
                                 </div>
 
                                 {showPlanningDetail && (
                                   <>
-                                    <div className="metric-line metric-line-recebido">
+                                    <div className="metric-line metric-line-recebido" title="Recebido">
                                       {formatPurchaseDisplayAmount(collectionSnapshot?.receivedAmount || 0)}
                                     </div>
-                                    <div className="metric-line metric-line-areceber">
-                                      {formatPurchaseDisplayAmount(collectionSnapshot?.outstandingAmount || 0)}
-                                    </div>
-                                    <div className="metric-line metric-line-devolucao">
+                                    <div className="metric-line metric-line-devolucao" title="Devolvido">
                                       {formatPurchaseDisplayAmount(collectionSnapshot?.returnsAmount || 0)}
                                     </div>
-                                    <div className="metric-line metric-line-venda">
+                                    <div className="metric-line metric-line-venda" title="Vendido">
                                       {formatPurchaseDisplayAmount(collectionSnapshot?.soldAmount || 0)}
                                     </div>
                                   </>
                                 )}
 
-                                {/* Line 6: Lucro (Always) */}
+                                {/* Line 5: Lucro (Always) */}
                                 {(() => {
-                                  const netPurchase = Number(collectionSnapshot?.plannedAmount || 0) - Number(collectionSnapshot?.returnsAmount || 0);
-                                  const profitRatio = netPurchase > 0 ? (Number(collectionSnapshot?.soldAmount || 0) / netPurchase) * 100 : 0;
-                                  const percentage = Math.round(profitRatio - 100);
+                                  const netReceived = Number(collectionSnapshot?.receivedAmount || 0) - Number(collectionSnapshot?.returnsAmount || 0);
+                                  let percentage = 0;
+                                  if (netReceived > 0) {
+                                    percentage = Math.round(((Number(collectionSnapshot?.soldAmount || 0) / netReceived) - 1) * 100);
+                                  }
                                   return (
-                                    <div 
+                                    <div
                                       className="metric-line metric-line-lucro"
+                                      title="Lucro %"
                                       style={{ color: percentage >= 0 ? "#10b981" : "#ef4444" }}
                                     >
                                       {percentage}%
