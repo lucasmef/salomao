@@ -90,23 +90,45 @@
   gap: 1.5rem;
 }
 
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
 .top-search input {
   padding: 0.5rem 1rem;
+  padding-right: 3rem;
   border: 1px solid var(--color-border);
   border-radius: 20px;
   font-family: var(--font-main);
   font-size: 0.875rem;
-  width: 200px;
-  transition: all 0.2s ease;
+  width: 240px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   background: #f1f5f9;
 }
 
 .top-search input:focus {
   outline: none;
-  width: 300px;
+  width: 400px;
   background: white;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.search-shortcut {
+  position: absolute;
+  right: 12px;
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--color-text-muted);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+  opacity: 0.8;
 }
 
 .user-dropdown {

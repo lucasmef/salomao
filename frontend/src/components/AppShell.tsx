@@ -27,12 +27,19 @@ export function AppShell({
 }: Props) {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [location.pathname]);
-
-  const allNavigation = [overviewNavigationItem, ...mainNavigation];
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        const input = document.querySelector(".top-search input") as HTMLInputElement;
+        input?.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
     <div className="modern-shell">
@@ -65,12 +72,17 @@ export function AppShell({
                 onSubmitGlobalProductSearch();
               }}
             >
-              <input
-                onChange={(e) => onGlobalProductSearchChange(e.target.value)}
-                placeholder="Buscar produto..."
-                type="text"
-                value={globalProductSearch}
-              />
+              <div className="search-input-wrapper">
+                <input
+                  onBlur={() => setIsFocused(false)}
+                  onChange={(e) => onGlobalProductSearchChange(e.target.value)}
+                  onFocus={() => setIsFocused(true)}
+                  placeholder="Buscar produto..."
+                  type="text"
+                  value={globalProductSearch}
+                />
+                {!isFocused && <kbd className="search-shortcut">⌘K</kbd>}
+              </div>
             </form>
 
             <div className="user-dropdown">

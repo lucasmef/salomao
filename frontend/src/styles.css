@@ -1259,3 +1259,103 @@ html, body {
   letter-spacing: -0.02em;
 }
 
+
+/* Skeleton Loading */
+.skeleton {
+  background: #f1f5f9;
+  background: linear-gradient(
+    90deg, 
+    #f1f5f9 25%, 
+    #e2e8f0 50%, 
+    #f1f5f9 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite linear;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Global Transitions */
+button, a, input {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.viewport-container {
+  animation: page-entrance 0.4s ease-out;
+}
+
+@keyframes page-entrance {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Utility Classes */
+.mb-2 { margin-bottom: 0.5rem; }
+
+/* Modern Toast Notifications */
+.modern-toast {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  min-width: 320px;
+  max-width: 480px;
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  z-index: 9999;
+  animation: toast-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes toast-slide-in {
+  from { transform: translateX(100%) scale(0.9); opacity: 0; }
+  to { transform: translateX(0) scale(1); opacity: 1; }
+}
+
+.toast-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.modern-toast.success .toast-icon { background: #dcfce7; color: #166534; }
+.modern-toast.error .toast-icon { background: #fef2f2; color: #991b1b; }
+.modern-toast.info .toast-icon { background: #eff6ff; color: #1e40af; }
+
+.toast-content { flex: 1; min-width: 0; }
+.toast-message {
+  font-size: 0.875rem;
+  color: var(--color-text-main);
+  font-weight: 500;
+  line-height: 1.4;
+  display: block;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.toast-close:hover { background: #f1f5f9; color: var(--color-text-main); }

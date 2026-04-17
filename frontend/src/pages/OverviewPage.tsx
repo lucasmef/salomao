@@ -16,6 +16,8 @@ function toInput(value: Date) {
   return value.toISOString().slice(0, 10);
 }
 
+import { Skeleton } from "../components/Skeleton";
+
 export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onApplyFilters }: Props) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -81,7 +83,16 @@ export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onA
         }
       />
 
-      {dashboard?.dre_cards?.length ? (
+      {loading ? (
+        <section className="kpi-grid dashboard-kpis">
+          {[...Array(8)].map((_, i) => (
+            <div className="kpi-card" key={i}>
+              <Skeleton width="60%" height="1rem" className="mb-2" />
+              <Skeleton width="90%" height="2rem" />
+            </div>
+          ))}
+        </section>
+      ) : dashboard?.dre_cards?.length ? (
         <section className="kpi-grid dashboard-kpis">
           {dashboard.dre_cards.map((card) => (
             <article className="kpi-card" key={card.label}>

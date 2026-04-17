@@ -3176,13 +3176,15 @@ function AppRuntime() {
       </Routes>
       </Suspense>
       {toast && (
-        <div className={`toast-notification ${toast.tone}`}>
-          <div className="toast-notification-copy">
-            <strong>{loading ? "Sincronizando" : toast.tone === "error" ? "Erro" : toast.tone === "success" ? "Sucesso" : "Aviso"}</strong>
-            <span>{toast.message}</span>
+        <div className={`modern-toast ${toast.tone}`}>
+          <div className="toast-icon">
+            {toast.tone === "error" ? "✕" : toast.tone === "success" ? "✓" : "ℹ"}
           </div>
-          <button className="toast-close-button" onClick={() => setToast(null)} type="button">
-            x
+          <div className="toast-content">
+            <span className="toast-message">{toast.message}</span>
+          </div>
+          <button className="toast-close" onClick={() => setToast(null)} type="button">
+            ✕
           </button>
         </div>
       )}
