@@ -1941,25 +1941,22 @@ export function PurchasePlanningPage({
         : null;
       return (
         <div className={inlineEditClassName}>
-          <div className="planning-inline-edit-readonly-values">
-            <span className={options?.highlight ? "planning-inline-edit-value is-highlighted" : "planning-inline-edit-value"}>
-              {formatPurchaseDisplayAmount(collectionSnapshot.plannedAmount)}
-            </span>
-            {netDisplayLine ? (
-              <span className="planning-inline-return-value">{netDisplayLine}</span>
-            ) : null}
-            {!isPastCollection(collection) && (
-              <button 
-                className="table-button icon-button" 
-                type="button" 
-                onClick={() => startInlinePlanEdit(snapshot, collection)} 
-                title="Editar valor"
-                style={{ marginLeft: '4px' }}
-              >
-                <EditIcon />
-              </button>
-            )}
-          </div>
+          <span className={options?.highlight ? "planning-inline-edit-value is-highlighted" : "planning-inline-edit-value"}>
+            {formatPurchaseDisplayAmount(collectionSnapshot.plannedAmount)}
+          </span>
+          {netDisplayLine ? (
+            <span className="planning-inline-return-value">{netDisplayLine}</span>
+          ) : null}
+          {!isPastCollection(collection) && (
+            <button 
+              className="table-button icon-button" 
+              type="button" 
+              onClick={() => startInlinePlanEdit(snapshot, collection)} 
+              title="Editar valor"
+            >
+              <EditIcon />
+            </button>
+          )}
         </div>
       );
     }
