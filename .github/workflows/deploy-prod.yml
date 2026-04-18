@@ -20,6 +20,7 @@ run-name: "Deploy Prod: ${{ inputs.promotion_mode }}${{ github.event.inputs.ref 
 
 permissions:
   contents: write
+  deployments: write
 
 concurrency:
   group: salomao-deploy-prod
@@ -28,6 +29,7 @@ concurrency:
 jobs:
   deploy-prod:
     runs-on: self-hosted
+    environment: prod
 
     steps:
       - name: Checkout repository
@@ -103,11 +105,15 @@ jobs:
 
       - name: Archive Logs on Failure
         if: failure()
+        shell: bash
         run: |
-          mkdir -p debug-logs
-          SERVICE_NAME="salomao-prod.service"
-          sudo journalctl -u $SERVICE_NAME -n 500 --no-pager > debug-logs/systemd-prod.log || true
-          sudo tail -n 100 /var/log/nginx/error.log > debug-logs/nginx-prod.log || true
+          (
+            set +x
+            mkdir -p debug-logs
+            SERVICE_NAME="salomao-prod.service"
+            sudo journalctl -u $SERVICE_NAME -n 500 --no-pager > debug-logs/systemd-prod.log 2>&1 || true
+            sudo tail -n 100 /var/log/nginx/error.log > debug-logs/nginx-prod.log 2>&1 || true
+          ) > /dev/null 2>&1
 
       - name: Upload Debug Artifact
         if: failure()

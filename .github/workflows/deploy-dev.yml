@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  deployments: write
 
 concurrency:
   group: salomao-deploy-dev
@@ -16,6 +17,7 @@ concurrency:
 jobs:
   deploy-dev:
     runs-on: self-hosted
+    environment: dev
 
     steps:
       - name: Checkout repository
@@ -38,11 +40,15 @@ jobs:
 
       - name: Archive Logs on Failure
         if: failure()
+        shell: bash
         run: |
-          mkdir -p debug-logs
-          SERVICE_NAME="salomao-dev.service"
-          sudo journalctl -u $SERVICE_NAME -n 500 --no-pager > debug-logs/systemd.log || true
-          sudo tail -n 100 /var/log/nginx/error.log > debug-logs/nginx.log || true
+          (
+            set +x
+            mkdir -p debug-logs
+            SERVICE_NAME="salomao-dev.service"
+            sudo journalctl -u $SERVICE_NAME -n 500 --no-pager > debug-logs/systemd.log 2>&1 || true
+            sudo tail -n 100 /var/log/nginx/error.log > debug-logs/nginx.log 2>&1 || true
+          ) > /dev/null 2>&1
 
       - name: Upload Debug Artifact
         if: failure()
