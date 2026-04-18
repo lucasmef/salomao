@@ -15,16 +15,8 @@ on:
         description: "SHA, tag ou branch (usado apenas se promotion_mode = specific_ref)"
         required: false
         type: string
-  workflow_run:
-    workflows: ["Deploy Dev"]
-    types: [completed]
-    branches: [dev]
 
-run-name: >-
-  ${{ github.event_name == 'workflow_run'
-      && format('Deploy Prod: Auto (via Deploy Dev #{0})', github.event.workflow_run.run_number)
-      || format('Deploy Prod: {0} por {1}', inputs.promotion_mode, github.actor)
-  }}
+run-name: "Deploy Prod: ${{ inputs.promotion_mode }}${{ github.event.inputs.ref && format(' ({0})', github.event.inputs.ref) || '' }} por ${{ github.actor }}"
 
 permissions:
   contents: write
@@ -36,7 +28,6 @@ concurrency:
 
 jobs:
   deploy-prod:
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     runs-on: self-hosted
     environment: prod
 
@@ -49,15 +40,13 @@ jobs:
       - name: Resolver e Validar SHA
         id: resolve
         run: |
-          MODE="${{ inputs.promotion_mode }}"
-          if [[ -z "$MODE" ]]; then MODE="latest_dev"; fi
-          echo "==> Modo: $MODE"
+          echo "==> Modo: ${{ inputs.promotion_mode }}"
           
           git fetch origin dev --tags --quiet
           
-          if [[ "$MODE" == "latest_dev" ]]; then
+          if [[ "${{ inputs.promotion_mode }}" == "latest_dev" ]]; then
             TARGET_SHA=$(git rev-parse origin/dev)
-            echo "==> Promovendo o HEAD da branch dev ($TARGET_SHA)"
+            echo "==> Promovendo o HEAD da branch dev"
           else
             REF="${{ inputs.ref }}"
             if [[ -z "$REF" ]]; then
@@ -65,7 +54,7 @@ jobs:
               exit 1
             fi
             TARGET_SHA=$(git rev-parse "$REF^{commit}")
-            echo "==> Promovendo ref especifica: $REF ($TARGET_SHA)"
+            echo "==> Promovendo ref especifica: $REF"
           fi
           
           echo "==> SHA resolvido: $TARGET_SHA"
