@@ -399,6 +399,22 @@ def _supplier_lookup_keys(value: str | None) -> set[str]:
     return {candidate for candidate in candidates if candidate}
 
 
+def _build_supplier_brand_name_lookup(db: Session, company_id: str) -> dict[str, str]:
+    lookup: dict[str, str] = {}
+    rows = db.execute(
+        select(Supplier.name, PurchaseBrand.name)
+        .select_from(PurchaseBrandSupplier)
+        .join(Supplier, Supplier.id == PurchaseBrandSupplier.supplier_id)
+        .join(PurchaseBrand, PurchaseBrand.id == PurchaseBrandSupplier.brand_id)
+        .where(PurchaseBrandSupplier.company_id == company_id)
+        .order_by(PurchaseBrand.created_at.asc(), PurchaseBrandSupplier.created_at.asc())
+    ).all()
+    for supplier_name, brand_name in rows:
+        for lookup_key in _supplier_lookup_keys(supplier_name):
+            lookup.setdefault(lookup_key, str(brand_name))
+    return lookup
+
+
 def _normalize_linx_purchase_status(value: str | None) -> str:
     normalized = normalize_label(value or "")
     if not normalized:
@@ -4950,13 +4966,14 @@ def _query_sales_and_profit_by_brand_collection(
         if collection_match_cases
         else literal("Sem colecao")
     ).label("collection_name")
+    supplier_brand_lookup = _build_supplier_brand_name_lookup(db, company_id)
     join_condition = and_(
         LinxProduct.company_id == LinxMovement.company_id,
         LinxProduct.linx_code == LinxMovement.product_code,
     )
     rows = db.execute(
         select(
-            LinxProduct.brand_name,
+            LinxProduct.supplier_name,
             collection_name_expr,
             func.sum(
                 case(
@@ -4980,11 +4997,21 @@ def _query_sales_and_profit_by_brand_collection(
             LinxMovement.canceled.is_(False),
             LinxMovement.excluded.is_(False),
         )
-        .group_by(LinxProduct.brand_name, collection_name_expr)
+        .group_by(LinxProduct.supplier_name, collection_name_expr)
     ).all()
     result = {}
     for row in rows:
-        brand = (row.brand_name or "Desconhecida").strip()
+        resolved_brand = next(
+            (
+                supplier_brand_lookup[lookup_key]
+                for lookup_key in _supplier_lookup_keys(row.supplier_name)
+                if lookup_key in supplier_brand_lookup
+            ),
+            None,
+        )
+        if not resolved_brand:
+            continue
+        brand = resolved_brand.strip()
         collection = (row.collection_name or "Sem colecao").strip()
         
         # Normalization to handle Viviane/Tricot/Veste variants

@@ -2553,7 +2553,12 @@ export function PurchasePlanningPage({
     ]
       .filter(Boolean)
       .join(" ");
-    const netDisplayLine = null;
+    const netDisplayLine = showPlanningReturns
+      ? buildPurchaseNetDisplayLine(
+          collectionSnapshot.plannedAmount,
+          collectionSnapshot.returnsAmount,
+        )
+      : null;
 
     const isConfirmed = getCollectionConfirmedState(
       collection,

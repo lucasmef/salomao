@@ -3018,8 +3018,173 @@ def test_overview_assigns_sales_to_collection_by_movement_date_instead_of_linx_c
 
     row_by_collection = {row.collection_name: row for row in overview.rows if row.brand_name == "Marca Venda"}
     assert row_by_collection["Inverno 2026"].sold_total == Decimal("500.00")
-    assert row_by_collection["Inverno 2026"].profit_margin == Decimal("60.00")
+    assert row_by_collection["Inverno 2026"].profit_margin == Decimal("56.25")
     assert "Verao 2026" not in row_by_collection
+
+
+def test_overview_assigns_sales_to_brand_by_supplier_link_when_linx_brand_differs(db_session: Session) -> None:
+    company, user = create_company_context(db_session)
+    supplier = create_supplier(db_session, company.id, "Fornecedor Sao Paulo")
+    create_collection(
+        db_session,
+        company,
+        "Inverno 2026",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 6, 30),
+    )
+    brand = purchasing_models.PurchaseBrand(
+        company_id=company.id,
+        name="São Paulo",
+        default_payment_term="1x",
+        is_active=True,
+    )
+    db_session.add(brand)
+    db_session.flush()
+    db_session.add(
+        purchasing_models.PurchaseBrandSupplier(
+            company_id=company.id,
+            brand_id=brand.id,
+            supplier_id=supplier.id,
+        )
+    )
+    create_purchase_invoice(
+        db_session,
+        company,
+        PurchaseInvoiceCreate(
+            supplier_id=supplier.id,
+            supplier_name=supplier.name,
+            collection_id=None,
+            create_plan=False,
+            invoice_number="7501",
+            series="1",
+            issue_date=date(2026, 3, 10),
+            entry_date=date(2026, 3, 10),
+            total_amount=Decimal("300.00"),
+            payment_term="1x",
+            installments=[
+                PurchaseInstallmentDraft(
+                    installment_number=1,
+                    installment_label="1/1",
+                    due_date=date(2026, 4, 10),
+                    amount=Decimal("300.00"),
+                ),
+            ],
+        ),
+        user,
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=7501001,
+        supplier_name="123 FORNECEDOR SAO PAULO",
+        collection_name="Outra Colecao",
+        brand_name="Marca Errada",
+    )
+    create_linx_sale_movement(
+        db_session,
+        company,
+        linx_transaction=7501001,
+        product_code=7501001,
+        document_number="7501",
+        launch_date=date(2026, 3, 20),
+        net_amount=Decimal("510.00"),
+        quantity=Decimal("1.00"),
+        cost_price=Decimal("200.00"),
+    )
+    db_session.commit()
+
+    overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters(), mode="planning")
+
+    row_by_collection = {row.collection_name: row for row in overview.rows if row.brand_name == "São Paulo"}
+    assert row_by_collection["Inverno 2026"].sold_total == Decimal("510.00")
+    assert row_by_collection["Inverno 2026"].profit_margin == Decimal("70.00")
+
+
+def test_overview_ignores_linx_brand_name_when_supplier_is_not_linked_to_brand(db_session: Session) -> None:
+    company, user = create_company_context(db_session)
+    linked_supplier = create_supplier(db_session, company.id, "Fornecedor Marca")
+    unrelated_supplier = create_supplier(db_session, company.id, "Fornecedor Solto")
+    create_collection(
+        db_session,
+        company,
+        "Inverno 2026",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 6, 30),
+    )
+    brand = purchasing_models.PurchaseBrand(
+        company_id=company.id,
+        name="Marca Fornecedor",
+        default_payment_term="1x",
+        is_active=True,
+    )
+    db_session.add(brand)
+    db_session.flush()
+    db_session.add(
+        purchasing_models.PurchaseBrandSupplier(
+            company_id=company.id,
+            brand_id=brand.id,
+            supplier_id=linked_supplier.id,
+        )
+    )
+    create_purchase_invoice(
+        db_session,
+        company,
+        PurchaseInvoiceCreate(
+            supplier_id=linked_supplier.id,
+            supplier_name=linked_supplier.name,
+            collection_id=None,
+            create_plan=False,
+            invoice_number="7601",
+            series="1",
+            issue_date=date(2026, 3, 10),
+            entry_date=date(2026, 3, 10),
+            total_amount=Decimal("300.00"),
+            payment_term="1x",
+            installments=[
+                PurchaseInstallmentDraft(
+                    installment_number=1,
+                    installment_label="1/1",
+                    due_date=date(2026, 4, 10),
+                    amount=Decimal("300.00"),
+                ),
+            ],
+        ),
+        user,
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=7601001,
+        supplier_name=unrelated_supplier.name,
+        collection_name="Outra Colecao",
+        brand_name="Marca Fornecedor",
+    )
+    create_linx_sale_movement(
+        db_session,
+        company,
+        linx_transaction=7601001,
+        product_code=7601001,
+        document_number="7601",
+        launch_date=date(2026, 3, 20),
+        net_amount=Decimal("450.00"),
+        quantity=Decimal("1.00"),
+        cost_price=Decimal("150.00"),
+    )
+    db_session.commit()
+
+    overview = build_purchase_planning_overview(
+        db_session,
+        company,
+        PurchasePlanningFilters(),
+        mode="planning",
+    )
+
+    row_by_collection = {
+        row.collection_name: row
+        for row in overview.rows
+        if row.brand_name == "Marca Fornecedor"
+    }
+    assert row_by_collection["Inverno 2026"].sold_total == Decimal("0.00")
 
 
 def test_overview_assigns_purchase_returns_to_current_collection_without_changing_received_total(
