@@ -22,8 +22,8 @@ on:
 
 run-name: >-
   ${{ github.event_name == 'workflow_run'
-      ? format('Deploy Prod: Auto (via Deploy Dev #{0})', github.event.workflow_run.run_number)
-      : format('Deploy Prod: {0}{1} por {2}', inputs.promotion_mode, inputs.ref && format(' ({0})', inputs.ref) || '', github.actor)
+      && format('Deploy Prod: Auto (via Deploy Dev #{0})', github.event.workflow_run.run_number)
+      || format('Deploy Prod: {0} por {1}', inputs.promotion_mode, github.actor)
   }}
 
 permissions:
