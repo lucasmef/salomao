@@ -91,6 +91,7 @@ cd "$BACKEND_DIR"
 
 
 echo "==> Reiniciando servico $SERVICE_NAME"
+sudo systemctl daemon-reload
 sudo systemctl restart "$SERVICE_NAME"
 
 echo "==> Validando healthcheck"
