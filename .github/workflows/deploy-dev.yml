@@ -23,6 +23,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      - name: "[RESEARCH] Inspect Prod Evidence"
+        run: |
+          LATEST_EVIDENCE=$(ls -td /srv/salomao/prod/deploy-evidence/app/checkout-dirty-*/ 2>/dev/null | head -n 1 || true)
+          if [[ -n "$LATEST_EVIDENCE" ]]; then
+            echo "==> Inspecionando: $LATEST_EVIDENCE"
+            ls -R "$LATEST_EVIDENCE"
+            if [[ -f "$LATEST_EVIDENCE/tracked.diff" ]]; then
+              echo "==> Diffs detectados:"
+              cat "$LATEST_EVIDENCE/tracked.diff"
+            fi
+            if [[ -f "$LATEST_EVIDENCE/status.txt" ]]; then
+              echo "==> Status do Git:"
+              cat "$LATEST_EVIDENCE/status.txt"
+            fi
+          else
+            echo "Nenhuma evidencia encontrada em /srv/salomao/prod/deploy-evidence/app/"
+          fi
+
       - name: Sincronizar checkout dev
         run: |
           SYNC_CHECKOUT_DIRTY_POLICY=reset bash scripts/sync-checkout-to-ref.sh /srv/salomao/dev/app dev
@@ -46,8 +64,8 @@ jobs:
             set +x
             mkdir -p debug-logs
             SERVICE_NAME="salomao-dev.service"
-            sudo journalctl -u $SERVICE_NAME -n 500 --no-pager > debug-logs/systemd.log 2>&1 || true
-            sudo tail -n 100 /var/log/nginx/error.log > debug-logs/nginx.log 2>&1 || true
+            sudo -n journalctl -u $SERVICE_NAME -n 500 --no-pager > debug-logs/systemd.log 2>&1 || true
+            sudo -n tail -n 100 /var/log/nginx/error.log > debug-logs/nginx.log 2>&1 || true
           ) > /dev/null 2>&1
 
       - name: Upload Debug Artifact
