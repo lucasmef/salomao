@@ -62,8 +62,13 @@ jobs:
             set +x
             mkdir -p debug-logs
             SERVICE_NAME="salomao-prod.service"
-            sudo journalctl -u $SERVICE_NAME -n 500 --no-pager > debug-logs/systemd-prod.log 2>&1 || true
-            sudo tail -n 100 /var/log/nginx/error.log > debug-logs/nginx-prod.log 2>&1 || true
+            APP_DIR="/srv/salomao/prod/app"
+            systemctl status $SERVICE_NAME --no-pager > debug-logs/systemd-status.log 2>&1 || true
+            ss -ltnp '( sport = :8100 )' > debug-logs/port-8100.log 2>&1 || true
+            tail -n 200 "$APP_DIR/.runtime/backend.error.log" > debug-logs/backend-error.log 2>&1 || true
+            tail -n 200 "$APP_DIR/.runtime/manual-prod-uvicorn.log" > debug-logs/manual-uvicorn.log 2>&1 || true
+            sudo -n journalctl -u $SERVICE_NAME -n 500 --no-pager > debug-logs/systemd-prod.log 2>&1 || true
+            sudo -n tail -n 100 /var/log/nginx/error.log > debug-logs/nginx-prod.log 2>&1 || true
           ) > /dev/null 2>&1
 
       - name: Upload Debug Artifact
