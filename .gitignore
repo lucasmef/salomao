@@ -18,6 +18,7 @@ frontend/dist/
 .uv-cache/
 *.log
 *.pid
+deploy-evidence/
 
 .env
 .env.*

@@ -28,7 +28,7 @@ jobs:
 
       - name: Sincronizar checkout dev
         run: |
-          bash scripts/sync-checkout-to-ref.sh /srv/salomao/dev/app dev
+          SYNC_CHECKOUT_DIRTY_POLICY=reset bash scripts/sync-checkout-to-ref.sh /srv/salomao/dev/app dev
 
       - name: Aplicar modo ${{ inputs.mode }}
         run: |
