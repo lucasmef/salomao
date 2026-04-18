@@ -2544,12 +2544,7 @@ export function PurchasePlanningPage({
     ]
       .filter(Boolean)
       .join(" ");
-    const netDisplayLine = showPlanningReturns
-      ? buildPurchaseNetDisplayLine(
-          collectionSnapshot.plannedAmount,
-          collectionSnapshot.returnsAmount,
-        )
-      : null;
+    const netDisplayLine = null;
 
     const isConfirmed = getCollectionConfirmedState(
       collection,
@@ -2982,7 +2977,7 @@ export function PurchasePlanningPage({
                                             collSnap.soldAmount,
                                           );
                                           totalNetPurchase +=
-                                            Number(collSnap.plannedAmount) -
+                                            Number(collSnap.receivedAmount) -
                                             Number(collSnap.returnsAmount);
                                         }
                                       },
@@ -3024,7 +3019,7 @@ export function PurchasePlanningPage({
                                             collSnap.soldAmount,
                                           );
                                           totalNetPurchase +=
-                                            Number(collSnap.plannedAmount) -
+                                            Number(collSnap.receivedAmount) -
                                             Number(collSnap.returnsAmount);
                                         }
                                       },
