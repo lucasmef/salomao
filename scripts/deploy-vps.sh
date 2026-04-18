@@ -75,15 +75,36 @@ if ! grep -Eq '^DATABASE_URL=postgresql\+psycopg://' "$ENV_FILE"; then
 fi
 
 current_systemd_main_pid() {
-  sudo systemctl show "$SERVICE_NAME" -p MainPID --value 2>/dev/null || true
+  systemctl show "$SERVICE_NAME" -p MainPID --value 2>/dev/null \
+    || sudo systemctl show "$SERVICE_NAME" -p MainPID --value 2>/dev/null \
+    || true
 }
 
 list_listener_pids() {
   local port="$1"
-  sudo ss -ltnp "( sport = :$port )" 2>/dev/null \
+  local listener_output
+  listener_output="$(ss -ltnp "( sport = :$port )" 2>/dev/null || true)"
+  if [[ -z "$listener_output" ]]; then
+    listener_output="$(sudo ss -ltnp "( sport = :$port )" 2>/dev/null || true)"
+  fi
+
+  printf '%s\n' "$listener_output" \
     | grep -o 'pid=[0-9]\+' \
     | cut -d= -f2 \
     | sort -u
+}
+
+terminate_pid() {
+  local signal_name="$1"
+  local pid="$2"
+  kill "-$signal_name" "$pid" 2>/dev/null \
+    || sudo kill "-$signal_name" "$pid" 2>/dev/null \
+    || true
+}
+
+service_is_active() {
+  systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null \
+    || sudo systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null
 }
 
 cleanup_orphan_listener() {
@@ -110,7 +131,7 @@ cleanup_orphan_listener() {
 
     echo "==> Encerrando listener orfao na porta $port: PID $listener_pid"
     echo "    comando: $command_line"
-    sudo kill "$listener_pid" || true
+    terminate_pid TERM "$listener_pid"
   done
 
   sleep 2
@@ -120,7 +141,7 @@ cleanup_orphan_listener() {
       continue
     fi
     echo "==> Forcando encerramento do listener restante na porta $port: PID $lingering_pid"
-    sudo kill -9 "$lingering_pid" || true
+    terminate_pid KILL "$lingering_pid"
   done
 }
 
@@ -133,7 +154,7 @@ verify_systemd_listener() {
     exit 1
   fi
 
-  if ! sudo systemctl is-active --quiet "$SERVICE_NAME"; then
+  if ! service_is_active; then
     echo "Servico $SERVICE_NAME nao permaneceu ativo apos o healthcheck."
     exit 1
   fi
