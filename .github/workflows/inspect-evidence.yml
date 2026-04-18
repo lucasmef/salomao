@@ -1,0 +1,29 @@
+name: Inspect Deployment Evidence
+
+on:
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: self-hosted
+    steps:
+      - name: Locate and inspect latest evidence
+        run: |
+          LATEST_EVIDENCE=$(ls -td /srv/salomao/prod/deploy-evidence/app/checkout-dirty-*/ | head -n 1)
+          if [[ -z "$LATEST_EVIDENCE" ]]; then
+            echo "Nenhuma evidencia encontrada em /srv/salomao/prod/deploy-evidence/app/"
+            exit 1
+          fi
+          
+          echo "==> Inspecionando: $LATEST_EVIDENCE"
+          ls -R "$LATEST_EVIDENCE"
+          
+          if [[ -f "$LATEST_EVIDENCE/tracked.diff" ]]; then
+            echo "==> Diffs detectados:"
+            cat "$LATEST_EVIDENCE/tracked.diff"
+          fi
+          
+          if [[ -f "$LATEST_EVIDENCE/status.txt" ]]; then
+             echo "==> Status do Git no momento da falha:"
+             cat "$LATEST_EVIDENCE/status.txt"
+          fi
