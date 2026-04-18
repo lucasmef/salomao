@@ -330,6 +330,19 @@ def _collection_name(collection: CollectionSeason | None) -> str | None:
     return _season_label(collection.season_type, collection.season_year) or collection.name
 
 
+def _normalize_purchase_brand(name: str | None) -> str:
+    if not name:
+        return "desconhecida"
+    norm = normalize_label(name)
+    if "viviane" in norm:
+        return "viviane"
+    if "tricot" in norm:
+        return "tricot"
+    if "veste" in norm:
+        return "veste"
+    return norm
+
+
 def _normalize_collection_lookup_key(value: str | None) -> str:
     normalized = normalize_label(value or "")
     if normalized.startswith("1"):
@@ -4951,14 +4964,14 @@ def _query_sales_and_profit_by_brand_collection(
             func.sum(
                 case(
                     (LinxMovement.movement_type == "sale", func.coalesce(LinxMovement.net_amount, 0)),
-                    (LinxMovement.movement_type == "sale_return", -func.coalesce(LinxMovement.net_amount, 0)),
+                    (LinxMovement.movement_type == "sale_return", func.coalesce(LinxMovement.net_amount, 0)),
                     else_=0,
                 )
             ).label("sold_total"),
             func.sum(
                 case(
                     (LinxMovement.movement_type == "sale", func.coalesce(LinxMovement.cost_price, 0) * func.coalesce(LinxMovement.quantity, 0)),
-                    (LinxMovement.movement_type == "sale_return", -(func.coalesce(LinxMovement.cost_price, 0) * func.coalesce(LinxMovement.quantity, 0))),
+                    (LinxMovement.movement_type == "sale_return", func.coalesce(LinxMovement.cost_price, 0) * func.coalesce(LinxMovement.quantity, 0)),
                     else_=0,
                 )
             ).label("cost_total"),
@@ -4974,19 +4987,13 @@ def _query_sales_and_profit_by_brand_collection(
     ).all()
     result = {}
     for row in rows:
-        brand = (row.brand_name or "Desconhecida").strip()
-        collection = (row.collection_name or "Sem colecao").strip()
+        brand = row.brand_name or "Desconhecida"
+        collection = row.collection_name or "Sem colecao"
         
-        # Normalization to handle Viviane/Tricot/Veste variants
-        norm_brand = normalize_label(brand)
-        if "viviane" in norm_brand:
-            norm_brand = "viviane"
-        elif "tricot" in norm_brand:
-            norm_brand = "tricot"
-        elif "veste" in norm_brand:
-            norm_brand = "veste"
+        norm_brand = _normalize_purchase_brand(brand)
+        norm_coll = normalize_label(collection)
             
-        key = (norm_brand, normalize_label(collection))
+        key = (norm_brand, norm_coll)
         if key not in result:
             result[key] = {
                 "sold_total": Decimal("0.00"),
@@ -5153,7 +5160,7 @@ def build_purchase_planning_overview(
                 "profit_margin": Decimal("0.00"),
             }
             # Inject sales data
-            norm_brand = normalize_label(key[0])
+            norm_brand = _normalize_purchase_brand(key[0])
             norm_coll = normalize_label(key[1])
             s_data = sales_data.get((norm_brand, norm_coll))
             if s_data:
