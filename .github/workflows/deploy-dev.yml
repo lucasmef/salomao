@@ -23,22 +23,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: "[RESEARCH] Inspect Prod Evidence"
+      - name: "[RESEARCH] Inspect Prod Evidence and Secrets"
         run: |
           LATEST_EVIDENCE=$(ls -td /srv/salomao/prod/deploy-evidence/app/checkout-dirty-*/ 2>/dev/null | head -n 1 || true)
           if [[ -n "$LATEST_EVIDENCE" ]]; then
-            echo "==> Inspecionando: $LATEST_EVIDENCE"
-            ls -R "$LATEST_EVIDENCE"
+            echo "==> Inspecionando Evidencia: $LATEST_EVIDENCE"
             if [[ -f "$LATEST_EVIDENCE/tracked.diff" ]]; then
               echo "==> Diffs detectados:"
               cat "$LATEST_EVIDENCE/tracked.diff"
             fi
-            if [[ -f "$LATEST_EVIDENCE/status.txt" ]]; then
-              echo "==> Status do Git:"
-              cat "$LATEST_EVIDENCE/status.txt"
-            fi
-          else
-            echo "Nenhuma evidencia encontrada em /srv/salomao/prod/deploy-evidence/app/"
+          fi
+          
+          ENV_FILE="/srv/salomao/prod/app/.env"
+          if [[ -f "$ENV_FILE" ]]; then
+            echo "==> Inspecionando Comprimento de Secrets em Prod:"
+            grep -E "^(SESSION_SECRET|FIELD_ENCRYPTION_KEY|APP_MODE)=" "$ENV_FILE" | while read -r line; do
+              key=$(echo "$line" | cut -d'=' -f1)
+              val=$(echo "$line" | cut -d'=' -f2-)
+              echo "$key: ${#val} caracteres"
+            done
           fi
 
       - name: Sincronizar checkout dev
