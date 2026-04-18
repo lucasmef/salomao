@@ -5109,7 +5109,390 @@ def build_purchase_planning_overview(
     }
 
     sales_data = _query_sales_and_profit_by_brand_collection(db, company.id, company_collections)
+    aggregates: dict[tuple[str, str], dict[str, Decimal | str | list[str] | date | None]] = {}
+
+    def ensure_row(
+        brand_id: str | None,
+        brand_name: str | None,
+        collection_id: str | None,
+        collection_name: str | None,
+        season_year: int | None = None,
+        season_type: str | None = None,
+    ) -> dict[str, Decimal | str | list[str] | date | None]:
+        key = _group_key(brand_name, collection_name)
+        if key not in aggregates:
+            aggregates[key] = {
+                "plan_id": None,
+                "brand_id": brand_id,
+                "brand_name": key[0],
+                "supplier_ids": [],
+                "collection_id": collection_id,
+                "collection_name": key[1],
+                "season_year": season_year,
+                "season_type": _normalize_season_type(season_type),
+                "season_label": collection_name,
+                "billing_deadline": None,
+                "payment_term": None,
+                "status": None,
+                "order_date": None,
+                "expected_delivery_date": None,
+                "supplier_names": [],
+                "purchased_total": Decimal("0.00"),
+                "returns_total": Decimal("0.00"),
+                "received_total": Decimal("0.00"),
+                "delivered_total": Decimal("0.00"),
+                "launched_financial_total": Decimal("0.00"),
+                "paid_total": Decimal("0.00"),
+                "outstanding_payable_total": Decimal("0.00"),
+                "sold_total": Decimal("0.00"),
+                "profit_margin": Decimal("0.00"),
+            }
+            # Inject sales data
+            norm_brand = normalize_label(key[0])
+            norm_coll = normalize_label(key[1])
+            s_data = sales_data.get((norm_brand, norm_coll))
+            if s_data:
+                aggregates[key]["sold_total"] = s_data["sold_total"]
+        return aggregates[key]
+
+    def attach_supplier(
+        row: dict[str, Decimal | str | list[str] | date | None],
+        supplier_name: str | None,
+        supplier_id: str | None = None,
+    ) -> None:
+        if supplier_id:
+            supplier_ids = row["supplier_ids"]
+            assert isinstance(supplier_ids, list)
+            if supplier_id not in supplier_ids:
+                supplier_ids.append(supplier_id)
+        if not supplier_name:
+            return
+        supplier_names = row["supplier_names"]
+        assert isinstance(supplier_names, list)
+        if supplier_name not in supplier_names:
+            supplier_names.append(supplier_name)
+
+    def attach_plan_metadata(
+        row: dict[str, Decimal | str | list[str] | date | None],
+        *,
+        plan_id: str | None = None,
+        billing_deadline: date | None = None,
+        payment_term: str | None = None,
+        status: str | None = None,
+        order_date: date | None = None,
+        expected_delivery_date: date | None = None,
+    ) -> None:
+        if plan_id and not row["plan_id"]:
+            row["plan_id"] = plan_id
+        if billing_deadline and not row["billing_deadline"]:
+            row["billing_deadline"] = billing_deadline
+        if payment_term and not row["payment_term"]:
+            row["payment_term"] = payment_term
+        if status and not row["status"]:
+            row["status"] = status
+        if order_date and not row["order_date"]:
+            row["order_date"] = order_date
+        if expected_delivery_date and not row["expected_delivery_date"]:
+            row["expected_delivery_date"] = expected_delivery_date
+
+    def resolve_brand_id_from_supplier(supplier_id: str | None, fallback_id: str | None = None) -> str | None:
+        if supplier_id and supplier_id in supplier_brand_lookup:
+            return supplier_brand_lookup[supplier_id][0]
+        return fallback_id
+
+    def resolve_brand_name_from_supplier(supplier_id: str | None, fallback_name: str | None = None) -> str | None:
+        if supplier_id and supplier_id in supplier_brand_lookup:
+            return supplier_brand_lookup[supplier_id][1]
+        return fallback_name
+
+    def resolve_reporting_collection(
+        explicit_collection: CollectionSeason | None,
+        reference_date: date | None,
+    ) -> CollectionSeason | None:
+        if reference_date is not None:
+            for collection in company_collections:
+                if collection.start_date <= reference_date <= collection.end_date:
+                    return collection
+        return explicit_collection
+
+    for plan in plans:
+        linked_suppliers = _plan_suppliers(plan)
+        primary_supplier = linked_suppliers[0] if linked_suppliers else None
+        row = ensure_row(
+            plan.brand_id if plan.brand else resolve_brand_id_from_supplier(primary_supplier.id if primary_supplier else plan.supplier_id),
+            plan.brand.name if plan.brand else resolve_brand_name_from_supplier(primary_supplier.id if primary_supplier else plan.supplier_id),
+            plan.collection_id,
+            _collection_name(plan.collection),
+            plan.collection.season_year if plan.collection else None,
+            plan.collection.season_type if plan.collection else None,
+        )
+        for supplier in linked_suppliers:
+            attach_supplier(row, supplier.name, supplier.id)
+        attach_plan_metadata(
+            row,
+            plan_id=plan.id,
+            billing_deadline=plan.collection.end_date if plan.collection else None,
+            payment_term=(plan.brand.default_payment_term if plan.brand and plan.brand.default_payment_term else None) or plan.payment_term,
+            status=plan.status,
+            order_date=plan.order_date,
+            expected_delivery_date=plan.expected_delivery_date,
+        )
+        row["purchased_total"] = Decimal(row["purchased_total"]) + _money(plan.purchased_amount)
+        row["outstanding_payable_total"] = Decimal(row["outstanding_payable_total"]) + _money(
+            plan_financial_totals.get(plan.id, {}).get("amount_to_receive")
+        )
+
+    for delivery in deliveries:
+        reporting_collection = resolve_reporting_collection(delivery.collection, delivery.delivery_date)
+        row = ensure_row(
+            delivery.brand_id if delivery.brand else resolve_brand_id_from_supplier(delivery.supplier_id),
+            delivery.brand.name if delivery.brand else resolve_brand_name_from_supplier(delivery.supplier_id),
+            reporting_collection.id if reporting_collection else delivery.collection_id,
+            _collection_name(reporting_collection) or _collection_name(delivery.collection),
+            reporting_collection.season_year if reporting_collection else (delivery.collection.season_year if delivery.collection else None),
+            reporting_collection.season_type if reporting_collection else (delivery.collection.season_type if delivery.collection else None),
+        )
+        attach_supplier(row, delivery.supplier.name if delivery.supplier else None, delivery.supplier_id)
+        attach_plan_metadata(
+            row,
+            billing_deadline=reporting_collection.end_date if reporting_collection else (delivery.collection.end_date if delivery.collection else None),
+        )
+        row["delivered_total"] = Decimal(row["delivered_total"]) + _money(delivery.amount)
+
+    for entry in entries:
+        if not _is_purchase_entry(entry):
+            continue
+        entry_supplier_id = entry.supplier_id or (entry.purchase_invoice.supplier_id if entry.purchase_invoice else None)
+        entry_supplier_name = entry.supplier.name if entry.supplier else None
+        reporting_collection = resolve_reporting_collection(entry.collection, entry.issue_date or entry.competence_date or entry.due_date)
+        row = ensure_row(
+            resolve_brand_id_from_supplier(entry_supplier_id),
+            resolve_brand_name_from_supplier(entry_supplier_id),
+            reporting_collection.id if reporting_collection else entry.collection_id,
+            _collection_name(reporting_collection) or _collection_name(entry.collection),
+            reporting_collection.season_year if reporting_collection else (entry.collection.season_year if entry.collection else None),
+            reporting_collection.season_type if reporting_collection else (entry.collection.season_type if entry.collection else None),
+        )
+        attach_supplier(row, entry_supplier_name, entry_supplier_id)
+        row["launched_financial_total"] = Decimal(row["launched_financial_total"]) + _money(entry.total_amount)
+        row["paid_total"] = Decimal(row["paid_total"]) + _money(entry.paid_amount)
+        if entry.issue_date is not None:
+            received_collection = resolve_reporting_collection(entry.collection, entry.issue_date)
+            received_row = ensure_row(
+                resolve_brand_id_from_supplier(entry_supplier_id),
+                resolve_brand_name_from_supplier(entry_supplier_id),
+                received_collection.id if received_collection else entry.collection_id,
+                _collection_name(received_collection) or _collection_name(entry.collection),
+                received_collection.season_year if received_collection else (received_collection.season_year if received_collection else None),
+                received_collection.season_type if received_collection else (received_collection.season_type if received_collection else None),
+            )
+            attach_supplier(received_row, entry_supplier_name, entry_supplier_id)
+            attach_plan_metadata(
+                received_row,
+                billing_deadline=received_collection.end_date if received_collection else (entry.collection.end_date if entry.collection else None),
+            )
+            received_row["received_total"] = Decimal(received_row["received_total"]) + _money(entry.total_amount)
+
+    monthly_projection: dict[str, dict[str, Decimal]] = defaultdict(
+        lambda: {"planned_outflows": Decimal("0.00"), "linked_payments": Decimal("0.00")}
+    )
+    for simulated_installment in simulated_installments:
+        _add_monthly_projection_amount(
+            monthly_projection,
+            due_date=simulated_installment.due_date,
+            planned_amount=_money(simulated_installment.amount),
+        )
+
+    open_installments: list[PurchaseInstallmentRead] = []
+    for invoice in invoices:
+        reporting_collection = resolve_reporting_collection(invoice.collection, invoice.issue_date or invoice.entry_date)
+        row = ensure_row(
+            invoice.brand_id if invoice.brand else resolve_brand_id_from_supplier(invoice.supplier_id),
+            invoice.brand.name if invoice.brand else resolve_brand_name_from_supplier(invoice.supplier_id),
+            reporting_collection.id if reporting_collection else invoice.collection_id,
+            _collection_name(reporting_collection) or _collection_name(invoice.collection),
+            reporting_collection.season_year if reporting_collection else (invoice.collection.season_year if invoice.collection else None),
+            reporting_collection.season_type if reporting_collection else (invoice.collection.season_type if invoice.collection else None),
+        )
+        attach_supplier(row, invoice.supplier.name if invoice.supplier else None, invoice.supplier_id)
+        attach_plan_metadata(
+            row,
+            billing_deadline=reporting_collection.end_date if reporting_collection else (invoice.collection.end_date if invoice.collection else None),
+        )
+        if planning_mode:
+            continue
+        for installment in invoice.installments:
+            installment.status = _sync_installment_status(installment)
+            remaining_amount = _installment_remaining_amount(installment)
+            if remaining_amount > 0:
+                open_installments.append(_serialize_installment(db, installment))
+
+    for cost_total in cost_totals:
+        collection_key = _normalize_collection_lookup_key(cost_total.collection_name)
+        collection = collection_lookup_by_key.get(collection_key)
+        if filters.collection_id and (collection is None or collection.id != filters.collection_id):
+            continue
+
+        supplier = next(
+            (
+                supplier_lookup_by_key[lookup_key]
+                for lookup_key in _supplier_lookup_keys(cost_total.supplier_name)
+                if lookup_key in supplier_lookup_by_key
+            ),
+            None,
+        )
+        supplier_brand_id = resolve_brand_id_from_supplier(supplier.id if supplier else None)
+        supplier_brand_name = resolve_brand_name_from_supplier(supplier.id if supplier else None)
+        if filters.brand_id and supplier_brand_id != filters.brand_id:
+            continue
+
+        matched_row = False
+        for row in aggregates.values():
+            row_collection_key = _normalize_collection_lookup_key(str(row["collection_name"]))
+            if row_collection_key != collection_key:
+                continue
+            supplier_names = row["supplier_names"] if isinstance(row["supplier_names"], list) else []
+            if supplier_names and not any(_supplier_lookup_keys(name) & _supplier_lookup_keys(cost_total.supplier_name) for name in supplier_names):
+                continue
+            row["returns_total"] = Decimal(row["returns_total"]) + _money(cost_total.purchase_return_cost_total)
+            matched_row = True
+
+        if matched_row or collection is None:
+            continue
+
+        row = ensure_row(
+            supplier_brand_id,
+            supplier_brand_name,
+            collection.id,
+            _collection_name(collection),
+            collection.season_year,
+            collection.season_type,
+        )
+        attach_supplier(row, supplier.name if supplier else cost_total.supplier_name, supplier.id if supplier else None)
+        attach_plan_metadata(row, billing_deadline=collection.end_date)
+        row["returns_total"] = Decimal(row["returns_total"]) + _money(cost_total.purchase_return_cost_total)
+
+    rows: list[PurchasePlanningRow] = []
+    for item in aggregates.values():
+        purchased_total = _money(Decimal(item["purchased_total"]))
+        returns_total = _money(Decimal(item["returns_total"]))
+        received_total = _money(Decimal(item["received_total"]))
+        delivered_total = _money(Decimal(item["delivered_total"]))
+        launched_total = _money(Decimal(item["launched_financial_total"]))
+        paid_total = _money(Decimal(item["paid_total"]))
+        outstanding_goods = _money(max(purchased_total - delivered_total, Decimal("0.00")))
+        outstanding_payable = _money(Decimal(item["outstanding_payable_total"]))
+        
+        # Calculate new profit margin formula: ((sum sales / (received - returns)) - 1) * 100
+        sold_total = Decimal(item.get("sold_total", 0))
+        net_receipts = received_total - returns_total
+        
+        if net_receipts > 0:
+            profit_margin = ((sold_total / net_receipts) - 1) * 100
+        else:
+            profit_margin = Decimal("0.00")
+            
+        rows.append(
+            PurchasePlanningRow(
+                plan_id=str(item["plan_id"]) if item["plan_id"] else None,
+                brand_id=str(item["brand_id"]) if item["brand_id"] else None,
+                brand_name=str(item["brand_name"]),
+                supplier_ids=sorted(item["supplier_ids"]) if isinstance(item["supplier_ids"], list) else [],
+                supplier_names=sorted(item["supplier_names"]) if isinstance(item["supplier_names"], list) else [],
+                collection_id=str(item["collection_id"]) if item["collection_id"] else None,
+                collection_name=str(item["collection_name"]),
+                season_year=int(item["season_year"]) if item["season_year"] is not None else None,
+                season_type=str(item["season_type"]) if item["season_type"] else None,
+                season_label=str(item["season_label"]) if item["season_label"] else None,
+                billing_deadline=item["billing_deadline"] if isinstance(item["billing_deadline"], date) else None,
+                payment_term=str(item["payment_term"]) if item["payment_term"] else None,
+                status=str(item["status"]) if item["status"] else None,
+                order_date=item["order_date"] if isinstance(item["order_date"], date) else None,
+                expected_delivery_date=item["expected_delivery_date"] if isinstance(item["expected_delivery_date"], date) else None,
+                purchased_total=purchased_total,
+                returns_total=returns_total,
+                received_total=received_total,
+                delivered_total=delivered_total,
+                launched_financial_total=launched_total,
+                paid_total=paid_total,
+                outstanding_goods_total=outstanding_goods,
+                delivered_not_recorded_total=_money(max(delivered_total - launched_total, Decimal("0.00"))),
+                outstanding_payable_total=outstanding_payable,
+                sold_total=_money(sold_total),
+                profit_margin=_money(profit_margin),
+            )
+        )
+    rows.sort(key=lambda item: (item.outstanding_payable_total, item.purchased_total), reverse=True)
+
+    summary = PurchasePlanningSummary(
+        purchased_total=_money(sum((row.purchased_total for row in rows), Decimal("0.00"))),
+        delivered_total=_money(sum((row.delivered_total for row in rows), Decimal("0.00"))),
+        launched_financial_total=_money(sum((row.launched_financial_total for row in rows), Decimal("0.00"))),
+        paid_total=_money(sum((row.paid_total for row in rows), Decimal("0.00"))),
+        outstanding_goods_total=_money(sum((row.outstanding_goods_total for row in rows), Decimal("0.00"))),
+        delivered_not_recorded_total=_money(sum((row.delivered_not_recorded_total for row in rows), Decimal("0.00"))),
+        outstanding_payable_total=_money(sum((row.outstanding_payable_total for row in rows), Decimal("0.00"))),
+    )
+    monthly_points = _serialize_monthly_projection(monthly_projection)
+
+    return PurchasePlanningOverview(
+        summary=summary,
+        rows=rows,
+        cost_totals=cost_totals,
+        monthly_projection=monthly_points,
+        invoices=[_serialize_invoice(db, item) for item in invoices] if not planning_mode else [],
+        open_installments=sorted(
+            open_installments,
+            key=lambda item: ((item.due_date or date.max), item.installment_number),
+        ) if not planning_mode else [],
+        plans=[
+            _serialize_plan(
+                item,
+                received_amount=plan_financial_totals.get(item.id, {}).get("received_amount"),
+                amount_to_receive=plan_financial_totals.get(item.id, {}).get("amount_to_receive"),
+                season_metrics=_season_metrics_for_plan(item, season_totals),
+            )
+            for item in plans
+        ],
+        ungrouped_suppliers=ungrouped_suppliers if not planning_mode else [],
+    )
+
+
+def get_cached_purchase_planning_overview(
+    db: Session,
+    company: Company,
+    filters: PurchasePlanningFilters,
+    *,
+    mode: str = "summary",
+) -> PurchasePlanningOverview:
+    filters = _resolve_effective_purchase_planning_filters(db, company.id, filters)
+    cache_key = _purchase_planning_cache_key(company.id, filters, mode)
+    current_time = monotonic()
+
+    with _purchase_planning_overview_cache_lock:
+        cached_entry = _purchase_planning_overview_cache.get(cache_key)
+        if cached_entry and cached_entry.expires_at > current_time:
+            return cached_entry.payload.model_copy(deep=True)
+
+    overview = build_purchase_planning_overview(db, company, filters, mode=mode)
+    ttl_seconds = _purchase_planning_cache_ttl_seconds(filters)
+
+    with _purchase_planning_overview_cache_lock:
+        _prune_purchase_planning_overview_cache(current_time)
+        _purchase_planning_overview_cache[cache_key] = PurchasePlanningOverviewCacheEntry(
+            expires_at=current_time + ttl_seconds,
+            payload=overview.model_copy(deep=True),
+        )
+
+    return overview
+
+
+def build_purchase_planning_cashflow_events(
+    db: Session,
+    company: Company,
+    filters: PurchasePlanningFilters,
 ) -> list[PurchaseInstallmentDraft]:
+
     filters = _resolve_effective_purchase_planning_filters(db, company.id, filters)
     today = _today()
     company_collections = list(
