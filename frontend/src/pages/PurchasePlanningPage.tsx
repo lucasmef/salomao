@@ -373,6 +373,19 @@ function centsToAmount(value: number) {
   return (value / 100).toFixed(2);
 }
 
+function calculatePurchaseProfitMargin(
+  soldAmount: string | number | null | undefined,
+  receivedAmount: string | number | null | undefined,
+  returnsAmount: string | number | null | undefined,
+) {
+  const soldCents = toCents(soldAmount);
+  const netReceivedCents = toCents(receivedAmount) - toCents(returnsAmount);
+  if (soldCents <= 0 || netReceivedCents <= 0) {
+    return 0;
+  }
+  return (soldCents / netReceivedCents - 1) * 100;
+}
+
 function formatPurchaseDisplayAmount(
   value: string | number | null | undefined,
 ) {
@@ -1557,18 +1570,14 @@ export function PurchasePlanningPage({
             .every((plan) => plan.status === "confirmed"),
       });
 
-      // Calculate aggregated margin
+      // Reapply the same profit formula used per collection to the grouped total.
       const snap = groupedSnapshot.collections.get(collection.id);
-      if (snap && toCents(snap.soldAmount) > 0) {
-        const totalSoldCents = toCents(snap.soldAmount);
-        const totalCostCents = collectionSnapshots.reduce((sum, s) => {
-          const sold = toCents(s.soldAmount);
-          const margin = Number(s.profitMargin);
-          const cost = sold * (1 - margin / 100);
-          return sum + cost;
-        }, 0);
-        const aggregatedMargin =
-          ((totalSoldCents - totalCostCents) / totalSoldCents) * 100;
+      if (snap) {
+        const aggregatedMargin = calculatePurchaseProfitMargin(
+          snap.soldAmount,
+          snap.receivedAmount,
+          snap.returnsAmount,
+        );
         snap.profitMargin = aggregatedMargin.toFixed(2);
         if (snap.row) snap.row.profit_margin = snap.profitMargin;
       }
@@ -2967,7 +2976,8 @@ export function PurchasePlanningPage({
                                 <span className="planning-brand-performance">
                                   {(() => {
                                     let totalSales = 0;
-                                    let totalNetPurchase = 0;
+                                    let totalReceived = 0;
+                                    let totalReturns = 0;
                                     selectedComparisonCollections.forEach(
                                       (coll) => {
                                         const collSnap =
@@ -2976,16 +2986,22 @@ export function PurchasePlanningPage({
                                           totalSales += Number(
                                             collSnap.soldAmount,
                                           );
-                                          totalNetPurchase +=
-                                            Number(collSnap.receivedAmount) -
-                                            Number(collSnap.returnsAmount);
+                                          totalReceived += Number(
+                                            collSnap.receivedAmount,
+                                          );
+                                          totalReturns += Number(
+                                            collSnap.returnsAmount,
+                                          );
                                         }
                                       },
                                     );
-                                    if (totalNetPurchase <= 0) return "0%";
-                                    const ratio =
-                                      totalSales / totalNetPurchase - 1;
-                                    const percentage = Math.round(ratio * 100);
+                                    const percentage = Math.round(
+                                      calculatePurchaseProfitMargin(
+                                        totalSales,
+                                        totalReceived,
+                                        totalReturns,
+                                      ),
+                                    );
                                     return (
                                       <span
                                         style={{
@@ -3009,7 +3025,8 @@ export function PurchasePlanningPage({
                                 <span className={`planning-brand-performance`}>
                                   {(() => {
                                     let totalSales = 0;
-                                    let totalNetPurchase = 0;
+                                    let totalReceived = 0;
+                                    let totalReturns = 0;
                                     selectedComparisonCollections.forEach(
                                       (coll) => {
                                         const collSnap =
@@ -3018,16 +3035,22 @@ export function PurchasePlanningPage({
                                           totalSales += Number(
                                             collSnap.soldAmount,
                                           );
-                                          totalNetPurchase +=
-                                            Number(collSnap.receivedAmount) -
-                                            Number(collSnap.returnsAmount);
+                                          totalReceived += Number(
+                                            collSnap.receivedAmount,
+                                          );
+                                          totalReturns += Number(
+                                            collSnap.returnsAmount,
+                                          );
                                         }
                                       },
                                     );
-                                    if (totalNetPurchase <= 0) return "0%";
-                                    const ratio =
-                                      totalSales / totalNetPurchase - 1;
-                                    const percentage = Math.round(ratio * 100);
+                                    const percentage = Math.round(
+                                      calculatePurchaseProfitMargin(
+                                        totalSales,
+                                        totalReceived,
+                                        totalReturns,
+                                      ),
+                                    );
                                     return (
                                       <span
                                         style={{
@@ -3114,24 +3137,13 @@ export function PurchasePlanningPage({
 
                                 {/* Line 5: Lucro */}
                                 {(() => {
-                                  const netReceived =
-                                    Number(
+                                  const percentage = Math.round(
+                                    calculatePurchaseProfitMargin(
+                                      collectionSnapshot?.soldAmount || 0,
                                       collectionSnapshot?.receivedAmount || 0,
-                                    ) -
-                                    Number(
                                       collectionSnapshot?.returnsAmount || 0,
-                                    );
-                                  let percentage = 0;
-                                  if (netReceived > 0) {
-                                    percentage = Math.round(
-                                      (Number(
-                                        collectionSnapshot?.soldAmount || 0,
-                                      ) /
-                                        netReceived -
-                                        1) *
-                                        100,
-                                    );
-                                  }
+                                    ),
+                                  );
                                   return (
                                     <div
                                       className="metric-line"
@@ -3880,10 +3892,9 @@ export function PurchasePlanningPage({
         );
       });
     }
-
-    const netReceived = totalReceived - totalReturns;
-    const avgProfit =
-      netReceived > 0 ? Math.round((totalSold / netReceived - 1) * 100) : 0;
+    const avgProfit = Math.round(
+      calculatePurchaseProfitMargin(totalSold, totalReceived, totalReturns),
+    );
 
     return (
       <div className="modal-backdrop" role="presentation">
@@ -4110,18 +4121,13 @@ export function PurchasePlanningPage({
                               getCollectionObservationText(collectionSnapshot);
                             const hasObservation = Boolean(observationText);
 
-                            const collNetReceived =
-                              Number(collectionSnapshot?.receivedAmount || 0) -
-                              Number(collectionSnapshot?.returnsAmount || 0);
-                            let profitPercentage = 0;
-                            if (collNetReceived > 0) {
-                              profitPercentage = Math.round(
-                                (Number(collectionSnapshot?.soldAmount || 0) /
-                                  collNetReceived -
-                                  1) *
-                                  100,
-                              );
-                            }
+                            const profitPercentage = Math.round(
+                              calculatePurchaseProfitMargin(
+                                collectionSnapshot?.soldAmount || 0,
+                                collectionSnapshot?.receivedAmount || 0,
+                                collectionSnapshot?.returnsAmount || 0,
+                              ),
+                            );
 
                             return (
                               <tr
