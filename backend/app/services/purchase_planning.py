@@ -247,6 +247,16 @@ def _resolve_effective_purchase_planning_filters(
         status=filters.status,
     )
 
+def _normalize_reporting_brand_name(name: str | None) -> str:
+    norm = normalize_label(name or "Desconhecida")
+    if "viviane" in norm:
+        return "viviane"
+    if "tricot" in norm:
+        return "tricot"
+    if "veste" in norm:
+        return "veste"
+    return norm
+
 
 def _normalize_purchase_return_status(value: str | None) -> str:
     normalized_value = normalize_label(value or "")
@@ -328,19 +338,6 @@ def _collection_name(collection: CollectionSeason | None) -> str | None:
     if collection is None:
         return None
     return _season_label(collection.season_type, collection.season_year) or collection.name
-
-
-def _normalize_purchase_brand(name: str | None) -> str:
-    if not name:
-        return "desconhecida"
-    norm = normalize_label(name)
-    if "viviane" in norm:
-        return "viviane"
-    if "tricot" in norm:
-        return "tricot"
-    if "veste" in norm:
-        return "veste"
-    return norm
 
 
 def _normalize_collection_lookup_key(value: str | None) -> str:
@@ -4964,14 +4961,14 @@ def _query_sales_and_profit_by_brand_collection(
             func.sum(
                 case(
                     (LinxMovement.movement_type == "sale", func.coalesce(LinxMovement.net_amount, 0)),
-                    (LinxMovement.movement_type == "sale_return", func.coalesce(LinxMovement.net_amount, 0)),
+                    (LinxMovement.movement_type == "sale_return", -func.coalesce(LinxMovement.net_amount, 0)),
                     else_=0,
                 )
             ).label("sold_total"),
             func.sum(
                 case(
                     (LinxMovement.movement_type == "sale", func.coalesce(LinxMovement.cost_price, 0) * func.coalesce(LinxMovement.quantity, 0)),
-                    (LinxMovement.movement_type == "sale_return", func.coalesce(LinxMovement.cost_price, 0) * func.coalesce(LinxMovement.quantity, 0)),
+                    (LinxMovement.movement_type == "sale_return", -(func.coalesce(LinxMovement.cost_price, 0) * func.coalesce(LinxMovement.quantity, 0))),
                     else_=0,
                 )
             ).label("cost_total"),
@@ -4987,13 +4984,13 @@ def _query_sales_and_profit_by_brand_collection(
     ).all()
     result = {}
     for row in rows:
-        brand = row.brand_name or "Desconhecida"
-        collection = row.collection_name or "Sem colecao"
+        brand = (row.brand_name or "Desconhecida").strip()
+        collection = (row.collection_name or "Sem colecao").strip()
         
-        norm_brand = _normalize_purchase_brand(brand)
-        norm_coll = normalize_label(collection)
+        # Normalization to handle Viviane/Tricot/Veste variants
+        norm_brand = _normalize_reporting_brand_name(brand)
             
-        key = (norm_brand, norm_coll)
+        key = (norm_brand, normalize_label(collection))
         if key not in result:
             result[key] = {
                 "sold_total": Decimal("0.00"),
@@ -5160,7 +5157,7 @@ def build_purchase_planning_overview(
                 "profit_margin": Decimal("0.00"),
             }
             # Inject sales data
-            norm_brand = _normalize_purchase_brand(key[0])
+            norm_brand = _normalize_reporting_brand_name(key[0])
             norm_coll = normalize_label(key[1])
             s_data = sales_data.get((norm_brand, norm_coll))
             if s_data:
