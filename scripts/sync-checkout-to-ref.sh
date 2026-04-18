@@ -90,9 +90,11 @@ STATUS_OUTPUT="$(git -C "$APP_DIR" status --porcelain=v1 --untracked-files=all)"
 if [[ -n "$STATUS_OUTPUT" ]]; then
   mkdir -p "$EVIDENCE_DIR"
   EVIDENCE_PATH="$(capture_checkout_evidence "$EVIDENCE_DIR")"
-  echo "Checkout com alteracoes locais detectadas em $APP_DIR."
-  echo "$STATUS_OUTPUT"
-  echo "Evidencia preservada em: $EVIDENCE_PATH"
+  echo "==> [ERROR] Checkout com alteracoes locais detectadas em $APP_DIR."
+  echo "--- INICIO STATUS PORCELAIN ---"
+  printf '%s\n' "$STATUS_OUTPUT"
+  echo "--- FIM STATUS PORCELAIN ---"
+  echo "==> Evidencia preservada em: $EVIDENCE_PATH"
   if [[ "$DIRTY_POLICY" == "reset" ]]; then
     echo "Aplicando reset/clean por politica explicita de ambiente nao produtivo."
     git -C "$APP_DIR" reset --hard HEAD --quiet
