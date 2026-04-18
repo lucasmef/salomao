@@ -1,0 +1,17 @@
+name: Diagnose Prod Startup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Run diagnostic script
+        run: |
+          cd /srv/salomao/prod/app
+          # Usa o ambiente virtual de producao
+          /srv/salomao/prod/app/venv/bin/python diagnose_startup.py
