@@ -13,7 +13,7 @@ from xml.etree import ElementTree
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, func, literal, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db.models.finance import Category, FinancialEntry
@@ -4918,15 +4918,36 @@ def _serialize_monthly_projection(
 def _query_sales_and_profit_by_brand_collection(
     db: Session,
     company_id: str,
+    company_collections: list[CollectionSeason],
 ) -> dict[tuple[str, str], dict[str, Decimal]]:
     """
     Agrega vendas e custo total por marca e coleção do LinxMovement.
     Retorna {(brand_name, collection_name): {"sold_total": Decimal, "cost_total": Decimal}}
     """
+    reference_date = func.coalesce(LinxMovement.launch_date, LinxMovement.issue_date)
+    collection_match_cases = [
+        (
+            and_(
+                reference_date >= datetime.combine(collection.start_date, datetime.min.time()),
+                reference_date <= datetime.combine(collection.end_date, datetime.max.time()),
+            ),
+            _collection_name(collection) or collection.name,
+        )
+        for collection in company_collections
+    ]
+    collection_name_expr = (
+        case(*collection_match_cases, else_=literal("Sem colecao"))
+        if collection_match_cases
+        else literal("Sem colecao")
+    ).label("collection_name")
+    join_condition = and_(
+        LinxProduct.company_id == LinxMovement.company_id,
+        LinxProduct.linx_code == LinxMovement.product_code,
+    )
     rows = db.execute(
         select(
             LinxProduct.brand_name,
-            LinxProduct.collection_name,
+            collection_name_expr,
             func.sum(
                 case(
                     (LinxMovement.movement_type == "sale", func.coalesce(LinxMovement.net_amount, 0)),
@@ -4942,20 +4963,20 @@ def _query_sales_and_profit_by_brand_collection(
                 )
             ).label("cost_total"),
         )
-        .join(LinxProduct, LinxMovement.product_code == LinxProduct.linx_code)
+        .join(LinxProduct, join_condition)
         .where(
             LinxMovement.company_id == company_id,
             LinxMovement.movement_group == "sale",
             LinxMovement.canceled.is_(False),
             LinxMovement.excluded.is_(False),
         )
-        .group_by(LinxProduct.brand_name, LinxProduct.collection_name)
+        .group_by(LinxProduct.brand_name, collection_name_expr)
     ).all()
 
     result = {}
     for row in rows:
         brand = row.brand_name or "Desconhecida"
-        collection = row.collection_name or "Sem Coleção"
+        collection = row.collection_name or "Sem colecao"
         result[(normalize_label(brand), normalize_label(collection))] = {
             "sold_total": Decimal(row.sold_total or 0),
             "cost_total": Decimal(row.cost_total or 0),
@@ -5079,7 +5100,7 @@ def build_purchase_planning_overview(
         for collection in company_collections
     }
 
-    sales_data = _query_sales_and_profit_by_brand_collection(db, company.id)
+    sales_data = _query_sales_and_profit_by_brand_collection(db, company.id, company_collections)
 
     aggregates: dict[tuple[str, str], dict[str, Decimal | str | list[str] | date | None]] = {}
 

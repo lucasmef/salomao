@@ -135,6 +135,7 @@ def create_linx_product(
     linx_code: int,
     supplier_name: str,
     collection_name: str,
+    brand_name: str | None = None,
 ) -> linx_models.LinxProduct:
     product = linx_models.LinxProduct(
         company_id=company.id,
@@ -142,6 +143,7 @@ def create_linx_product(
         description=f"Produto {linx_code}",
         supplier_name=supplier_name,
         collection_name=collection_name,
+        brand_name=brand_name,
         is_active=True,
     )
     db.add(product)
@@ -172,6 +174,41 @@ def create_linx_purchase_movement(
         net_amount=total_amount,
         quantity=Decimal("1.00"),
         cost_price=total_amount,
+        canceled=False,
+        excluded=False,
+    )
+    db.add(movement)
+    db.flush()
+    return movement
+
+
+def create_linx_sale_movement(
+    db: Session,
+    company: Company,
+    *,
+    linx_transaction: int,
+    product_code: int,
+    document_number: str,
+    movement_type: str = "sale",
+    net_amount: Decimal,
+    launch_date: date | None = None,
+    issue_date: date | None = None,
+    quantity: Decimal = Decimal("1.00"),
+    cost_price: Decimal = Decimal("0.00"),
+) -> linx_models.LinxMovement:
+    movement = linx_models.LinxMovement(
+        company_id=company.id,
+        linx_transaction=linx_transaction,
+        movement_group="sale",
+        movement_type=movement_type,
+        product_code=product_code,
+        document_number=document_number,
+        launch_date=datetime.combine(launch_date, datetime.min.time()) if launch_date else None,
+        issue_date=datetime.combine(issue_date, datetime.min.time()) if issue_date else None,
+        total_amount=net_amount,
+        net_amount=net_amount,
+        quantity=quantity,
+        cost_price=cost_price,
         canceled=False,
         excluded=False,
     )
@@ -2896,6 +2933,92 @@ def test_overview_received_total_uses_supplier_entries_issue_date_within_collect
 
     row_by_collection = {row.collection_name: row for row in overview.rows if row.brand_name == "Marca Fatura"}
     assert row_by_collection["Inverno 2026"].received_total == Decimal("320.00")
+    assert "Verao 2026" not in row_by_collection
+
+
+def test_overview_assigns_sales_to_collection_by_movement_date_instead_of_linx_collection(db_session: Session) -> None:
+    company, user = create_company_context(db_session)
+    supplier = create_supplier(db_session, company.id, "Fornecedor Venda")
+    create_collection(
+        db_session,
+        company,
+        "Inverno 2026",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 6, 30),
+    )
+    create_collection(
+        db_session,
+        company,
+        "Verao 2026",
+        start_date=date(2026, 7, 1),
+        end_date=date(2026, 12, 31),
+    )
+    brand = purchasing_models.PurchaseBrand(
+        company_id=company.id,
+        name="Marca Venda",
+        default_payment_term="1x",
+        is_active=True,
+    )
+    db_session.add(brand)
+    db_session.flush()
+    db_session.add(
+        purchasing_models.PurchaseBrandSupplier(
+            company_id=company.id,
+            brand_id=brand.id,
+            supplier_id=supplier.id,
+        )
+    )
+    create_purchase_invoice(
+        db_session,
+        company,
+        PurchaseInvoiceCreate(
+            supplier_id=supplier.id,
+            supplier_name=supplier.name,
+            collection_id=None,
+            create_plan=False,
+            invoice_number="7401",
+            series="1",
+            issue_date=date(2026, 3, 10),
+            entry_date=date(2026, 3, 10),
+            total_amount=Decimal("320.00"),
+            payment_term="1x",
+            installments=[
+                PurchaseInstallmentDraft(
+                    installment_number=1,
+                    installment_label="1/1",
+                    due_date=date(2026, 4, 10),
+                    amount=Decimal("320.00"),
+                ),
+            ],
+        ),
+        user,
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=7401001,
+        supplier_name=supplier.name,
+        collection_name="Verao 2026",
+        brand_name="Marca Venda",
+    )
+    create_linx_sale_movement(
+        db_session,
+        company,
+        linx_transaction=7401001,
+        product_code=7401001,
+        document_number="7401",
+        launch_date=date(2026, 3, 20),
+        net_amount=Decimal("500.00"),
+        quantity=Decimal("1.00"),
+        cost_price=Decimal("200.00"),
+    )
+    db_session.commit()
+
+    overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters(), mode="planning")
+
+    row_by_collection = {row.collection_name: row for row in overview.rows if row.brand_name == "Marca Venda"}
+    assert row_by_collection["Inverno 2026"].sold_total == Decimal("500.00")
+    assert row_by_collection["Inverno 2026"].profit_margin == Decimal("60.00")
     assert "Verao 2026" not in row_by_collection
 
 
