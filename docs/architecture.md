@@ -43,7 +43,9 @@
 
 ## Configuracao
 
-Cada checkout do VPS precisa de seu proprio `backend/.env`.
+Cada checkout do VPS precisa de seu proprio arquivo de runtime fora do repositório, por padrão em `../salomao-config/backend.env`.
+
+O backend aceita override por `SALOMAO_ENV_FILE` ou `BACKEND_ENV_FILE` e mantém `backend/.env` apenas como fallback legado.
 
 Arquivos de referencia versionados:
 

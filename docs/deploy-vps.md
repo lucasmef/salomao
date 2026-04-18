@@ -66,14 +66,16 @@ Para fechar a janela: rodar com modo `safe`.
 Se um processo precisar fazer deploy, ele deve:
 
 1. acessar o checkout correto no VPS
-2. garantir `backend/.env` do ambiente
+2. garantir o arquivo de ambiente do checkout (`../salomao-config/backend.env` por padrão)
 3. rodar o script padronizado do ambiente
 4. validar o healthcheck
 5. em producao, rodar tambem a auditoria rapida
 
 ## Arquivos de ambiente
 
-O arquivo real de runtime e sempre `backend/.env` dentro do checkout do VPS.
+O arquivo real de runtime deve ficar fora do repositório, por padrão em `../salomao-config/backend.env`.
+
+Os scripts também aceitam override via `SALOMAO_ENV_FILE` ou `BACKEND_ENV_FILE` e mantêm `backend/.env` apenas como fallback legado.
 
 Arquivos versionados de referencia:
 
@@ -103,7 +105,7 @@ O workflow executa:
 
 O script `deploy-dev.sh` delega para `deploy-vps.sh dev`, que:
 
-1. valida `backend/.env`
+1. valida o arquivo de ambiente resolvido
 2. valida `APP_MODE=server`
 3. valida `DATABASE_URL` PostgreSQL
 4. roda `npm ci`
@@ -139,7 +141,7 @@ No checkout `/srv/salomao/prod/app`:
 
 Esse script verifica:
 
-- configuracao do `backend/.env`
+- configuracao do arquivo de ambiente resolvido
 - servico da aplicacao
 - `nginx`
 - `postgresql`

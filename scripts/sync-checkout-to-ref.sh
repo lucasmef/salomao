@@ -8,6 +8,7 @@ fi
 
 APP_DIR="$1"
 GIT_REF="$2"
+EVIDENCE_DIR="$APP_DIR/deploy-evidence"
 
 require_command() {
   local command_name="$1"
@@ -18,6 +19,21 @@ require_command() {
 }
 
 require_command git
+
+capture_checkout_evidence() {
+  local target_dir="$1"
+  local timestamp evidence_path
+  timestamp="$(date +"%Y%m%d-%H%M%S")"
+  evidence_path="$target_dir/checkout-dirty-$timestamp"
+  mkdir -p "$evidence_path"
+
+  git -C "$APP_DIR" status --short --branch --untracked-files=all > "$evidence_path/status.txt"
+  git -C "$APP_DIR" diff --binary > "$evidence_path/tracked.diff" || true
+  git -C "$APP_DIR" diff --cached --binary > "$evidence_path/staged.diff" || true
+  git -C "$APP_DIR" ls-files --others --exclude-standard > "$evidence_path/untracked.txt"
+
+  echo "$evidence_path"
+}
 
 if [[ ! -d "$APP_DIR/.git" ]]; then
   echo "==> Checkout Git nao encontrado em: $APP_DIR. Inicializando..."
@@ -39,9 +55,15 @@ TARGET_SHA=$(git -C "$APP_DIR" rev-parse --verify "$GIT_REF^{commit}")
 echo "==> Ref alvo: $GIT_REF"
 echo "==> SHA alvo: $TARGET_SHA"
 
-# Limpeza e sincronizacao
-git -C "$APP_DIR" reset --hard HEAD --quiet
-git -C "$APP_DIR" clean -fd --quiet
+STATUS_OUTPUT="$(git -C "$APP_DIR" status --porcelain=v1 --untracked-files=all)"
+if [[ -n "$STATUS_OUTPUT" ]]; then
+  mkdir -p "$EVIDENCE_DIR"
+  EVIDENCE_PATH="$(capture_checkout_evidence "$EVIDENCE_DIR")"
+  echo "Checkout com alteracoes locais detectadas em $APP_DIR."
+  echo "Evidencia preservada em: $EVIDENCE_PATH"
+  echo "Abortando sincronizacao para nao apagar possiveis hotfixes ou vestigios operacionais."
+  exit 1
+fi
 
 # Tenta checkout inteligente:
 # 1. Se for uma branch remota (origin/ref), cria/reseta branch local
@@ -49,14 +71,10 @@ git -C "$APP_DIR" clean -fd --quiet
 if git -C "$APP_DIR" show-ref --verify --quiet "refs/remotes/origin/$GIT_REF"; then
   echo "==> Detectado branch remota. Sincronizando branch local..."
   git -C "$APP_DIR" checkout -B "$GIT_REF" "origin/$GIT_REF" --quiet
-  git -C "$APP_DIR" reset --hard "origin/$GIT_REF" --quiet
 else
   echo "==> Fazendo checkout imutavel (detached HEAD)..."
-  git -C "$APP_DIR" checkout "$TARGET_SHA" --quiet
+  git -C "$APP_DIR" checkout --detach "$TARGET_SHA" --quiet
 fi
-
-# Limpeza final
-git -C "$APP_DIR" clean -fd --quiet
 
 FINAL_SHA=$(git -C "$APP_DIR" rev-parse HEAD)
 echo "==> Checkout sincronizado com sucesso: @ $FINAL_SHA"

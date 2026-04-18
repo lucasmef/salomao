@@ -15,6 +15,8 @@ from sqlalchemy import create_engine, text
 
 DATE_FROM = "2000-01-01"
 DATE_TO = "2025-12-31"
+DEFAULT_ENV_FILE = Path(__file__).resolve().parents[2].parent / "salomao-config" / "backend.env"
+LEGACY_ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 
 
 @dataclass(frozen=True)
@@ -37,7 +39,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--date-from", default=DATE_FROM, help="Data inicial de vencimento.")
     parser.add_argument("--date-to", default=DATE_TO, help="Data final de vencimento.")
     parser.add_argument("--apply", action="store_true", help="Aplica o update no banco. Sem esta flag, roda apenas em dry-run.")
-    parser.add_argument("--env-file", default=".env", help="Arquivo .env que contem DATABASE_URL.")
+    parser.add_argument(
+        "--env-file",
+        default=str(DEFAULT_ENV_FILE if DEFAULT_ENV_FILE.exists() else LEGACY_ENV_FILE),
+        help="Arquivo .env que contem DATABASE_URL.",
+    )
     return parser.parse_args()
 
 

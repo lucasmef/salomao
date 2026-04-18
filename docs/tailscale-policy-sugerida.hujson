@@ -19,12 +19,12 @@
   },
 
   "tagOwners": {
-    "tag:server": ["lucasmef@gmail.com"],
+    "tag:server": ["admin@example.invalid"],
   },
 
   "grants": [
     {
-      "src": ["lucasmef@gmail.com"],
+      "src": ["admin@example.invalid"],
       "dst": ["tag:server"],
       "ip":  ["tcp:22", "tcp:80", "tcp:443"],
     },
@@ -33,7 +33,7 @@
   "ssh": [
     {
       "action":      "check",
-      "src":         ["lucasmef@gmail.com"],
+      "src":         ["admin@example.invalid"],
       "dst":         ["tag:server"],
       "users":       ["salomao"],
       "checkPeriod": "12h",
@@ -42,7 +42,7 @@
 
   "tests": [
     {
-      "src":    "lucasmef@gmail.com",
+      "src":    "admin@example.invalid",
       "proto":  "tcp",
       "accept": ["tag:server:22", "tag:server:80", "tag:server:443"],
       "deny":   ["pclucas:22"],
@@ -51,7 +51,7 @@
 
   "sshTests": [
     {
-      "src":   "lucasmef@gmail.com",
+      "src":   "admin@example.invalid",
       "dst":   ["tag:server"],
       "check": ["salomao"],
       "deny":  ["root"],

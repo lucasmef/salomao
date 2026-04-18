@@ -12,7 +12,11 @@ set -euo pipefail
 # ficticios anonimos.
 # ----------------------------------------------------------------------
 
-DEV_ENV_FILE="${DEV_ENV_FILE:-/srv/salomao/dev/app/backend/.env}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/resolve-env.sh"
+
+DEV_APP_DIR="${DEV_APP_DIR:-/srv/salomao/dev/app}"
+DEV_ENV_FILE="${DEV_ENV_FILE:-$(resolve_backend_env_file "$DEV_APP_DIR")}"
 BACKUP_DIR="${BACKUP_DIR:-/srv/salomao/backups}"
 DATE_STAMP="$(date +%Y%m%d_%H%M%S)"
 SANITIZE_BACKUP_FILE="$BACKUP_DIR/dev_pre_sanitize_${DATE_STAMP}.dump"

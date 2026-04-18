@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchJson, downloadFile, getStoredToken } from '../lib/api';
+import { fetchJson, downloadFile } from '../lib/api';
 import { BoletoExportJob } from '../types';
 import './BoletoExportProgressModal.css';
 
@@ -17,15 +17,12 @@ export const BoletoExportProgressModal: React.FC<Props> = ({ jobId, onClose }) =
 
     const poll = async () => {
       try {
-        const data = await fetchJson<BoletoExportJob>(`/boletos/inter/export/${jobId}`, {
-          token: getStoredToken()
-        });
+        const data = await fetchJson<BoletoExportJob>(`/boletos/inter/export/${jobId}`);
         setJob(data);
 
         if (data.status === 'completed') {
           // Trigger download and close
           await downloadFile(`/boletos/inter/export/${jobId}/file`, {
-            token: getStoredToken(),
             filename: data.filename || 'export.pdf'
           });
           onClose();

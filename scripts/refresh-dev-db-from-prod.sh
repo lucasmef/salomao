@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROD_ENV_FILE="${PROD_ENV_FILE:-/srv/salomao/prod/app/backend/.env}"
-DEV_ENV_FILE="${DEV_ENV_FILE:-/srv/salomao/dev/app/backend/.env}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/resolve-env.sh"
+
+PROD_APP_DIR="${PROD_APP_DIR:-/srv/salomao/prod/app}"
+DEV_APP_DIR="${DEV_APP_DIR:-/srv/salomao/dev/app}"
+PROD_ENV_FILE="${PROD_ENV_FILE:-$(resolve_backend_env_file "$PROD_APP_DIR")}"
+DEV_ENV_FILE="${DEV_ENV_FILE:-$(resolve_backend_env_file "$DEV_APP_DIR")}"
 BACKUP_DIR="${BACKUP_DIR:-/srv/salomao/backups}"
 DATE_STAMP="$(date +%Y%m%d_%H%M%S)"
 DUMP_FILE="$BACKUP_DIR/prod_to_dev_${DATE_STAMP}.dump"
 DEV_BACKUP_FILE="$BACKUP_DIR/dev_pre_refresh_${DATE_STAMP}.dump"
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 require_command() {
   local command_name="$1"

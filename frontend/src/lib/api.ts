@@ -1,5 +1,4 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000/api/v1";
-const TOKEN_STORAGE_KEY = "gestor-financeiro-auth-token";
 let resolvedApiBase: string | null = null;
 let resolvingApiBase: Promise<string> | null = null;
 let networkActivityCount = 0;
@@ -9,18 +8,6 @@ const inflightJsonRequests = new Map<string, Promise<unknown>>();
 type RequestOptions = RequestInit & {
   token?: string | null;
 };
-
-export function getStoredToken() {
-  return window.localStorage.getItem(TOKEN_STORAGE_KEY);
-}
-
-export function storeToken(token: string) {
-  window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
-}
-
-export function clearStoredToken() {
-  window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-}
 
 function notifyNetworkActivityListeners() {
   networkActivityListeners.forEach((listener) => listener());

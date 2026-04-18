@@ -218,7 +218,7 @@ Scripts padronizados:
 
 Fluxo principal executado pelos scripts:
 
-1. Validação de `backend/.env`.
+1. Validação do arquivo de ambiente resolvido (`../salomao-config/backend.env` por padrão, com fallback legado `backend/.env`).
 2. Confirmação de `APP_MODE=server`.
 3. Confirmação de `DATABASE_URL` em PostgreSQL.
 4. `npm ci`.
@@ -229,7 +229,7 @@ Fluxo principal executado pelos scripts:
 
 Auditoria rápida de produção cobre:
 
-- `backend/.env`
+- `../salomao-config/backend.env` por padrão, com fallback legado `backend/.env`
 - `salomao-prod.service`
 - `nginx`, `postgresql` e `fail2ban`
 - healthcheck local e público

@@ -1,7 +1,14 @@
+import os
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+LEGACY_BACKEND_ENV_FILE = PROJECT_ROOT / "backend" / ".env"
+DEFAULT_EXTERNAL_ENV_FILE = PROJECT_ROOT.parent / "salomao-config" / "backend.env"
 
 
 _PLACEHOLDER_SECRET_PREFIXES = (
@@ -35,6 +42,24 @@ def _validate_runtime_secret(value: str, env_name: str) -> None:
         raise ValueError(f"{env_name} deve ter pelo menos 32 caracteres em APP_MODE=server")
     if _looks_like_placeholder_secret(value):
         raise ValueError(f"{env_name} nao pode usar placeholders em APP_MODE=server")
+
+
+def _env_file_candidates() -> tuple[str, ...]:
+    explicit_env_file = os.environ.get("SALOMAO_ENV_FILE") or os.environ.get("BACKEND_ENV_FILE")
+    candidates: list[Path] = []
+    if explicit_env_file:
+        candidates.append(Path(explicit_env_file).expanduser())
+    candidates.extend([DEFAULT_EXTERNAL_ENV_FILE, LEGACY_BACKEND_ENV_FILE])
+
+    unique_candidates: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        normalized = str(candidate)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        unique_candidates.append(normalized)
+    return tuple(unique_candidates)
 
 
 class Settings(BaseSettings):
@@ -95,7 +120,7 @@ class Settings(BaseSettings):
     server_backup_encrypted: bool = True
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_env_file_candidates(),
         env_file_encoding="utf-8",
         case_sensitive=False,
     )

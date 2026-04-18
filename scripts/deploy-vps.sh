@@ -28,7 +28,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FRONTEND_DIR="$REPO_ROOT/frontend"
 BACKEND_DIR="$REPO_ROOT/backend"
 SYSTEMD_DIR="$REPO_ROOT/deploy/systemd"
-ENV_FILE="$BACKEND_DIR/.env"
+source "$SCRIPT_DIR/resolve-env.sh"
+ENV_FILE="$(resolve_backend_env_file "$REPO_ROOT")"
 PYTHON_BIN="$BACKEND_DIR/.venv/bin/python"
 
 require_file() {
@@ -48,7 +49,7 @@ require_command() {
   fi
 }
 
-require_file "$ENV_FILE" "backend/.env"
+require_file "$ENV_FILE" "arquivo de ambiente do backend"
 require_file "$PYTHON_BIN" "backend/.venv/bin/python"
 require_file "$FRONTEND_DIR/package.json" "frontend/package.json"
 
