@@ -20,6 +20,7 @@ frontend/dist/
 *.pid
 deploy-evidence/
 debug-logs/
+**/*.bak-*
 
 .env
 .env.*

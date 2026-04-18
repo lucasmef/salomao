@@ -38,7 +38,7 @@ jobs:
 
       - name: Sincronizar checkout prod
         run: |
-          bash scripts/sync-checkout-to-ref.sh /srv/salomao/prod/app ${{ steps.resolve.outputs.TARGET_SHA }}
+          SYNC_CHECKOUT_DIRTY_POLICY=reset bash scripts/sync-checkout-to-ref.sh /srv/salomao/prod/app ${{ steps.resolve.outputs.TARGET_SHA }}
 
       - name: Deploy prod
         run: |
