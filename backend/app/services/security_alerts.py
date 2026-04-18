@@ -141,6 +141,17 @@ def send_email(
         raise last_error
 
 
+def ensure_email_transport_configured() -> None:
+    settings = get_settings()
+    if not settings.security_alert_email_enabled:
+        raise RuntimeError("Envio de email desabilitado em SECURITY_ALERT_EMAIL_ENABLED.")
+    if not settings.smtp_host:
+        raise RuntimeError("SMTP_HOST nao configurado para envio de email.")
+    sender = settings.security_alert_email_from or settings.smtp_username
+    if not sender:
+        raise RuntimeError("SECURITY_ALERT_EMAIL_FROM ou SMTP_USERNAME deve ser configurado para envio de email.")
+
+
 def _deliver_email(message: EmailMessage) -> None:
     settings = get_settings()
     smtp_cls = smtplib.SMTP_SSL if settings.smtp_use_ssl else smtplib.SMTP

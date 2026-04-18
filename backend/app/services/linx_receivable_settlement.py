@@ -17,7 +17,7 @@ from app.schemas.boletos import BoletoMatchItem, BoletoReceivableRead
 from app.services.audit import write_audit_log
 from app.services.boletos import build_boleto_dashboard
 from app.services.linx import _load_linx_settings, _login_and_get_report_root, _require_playwright
-from app.services.security_alerts import send_email
+from app.services.security_alerts import ensure_email_transport_configured, send_email
 
 LINX_RECEIVABLE_SETTLEMENT_PATH = "financeiro/baixa_faturas.asp?tipolanc=receber"
 LINX_RECEIVABLE_SETTLEMENT_MENU_SELECTOR = "a[data-endereco='financeiro/baixa_faturas.asp?tipolanc=receber']"
@@ -214,6 +214,7 @@ def settle_paid_pending_inter_receivables(
     if results and not validate_only:
         subject, body, html_body = _build_success_email(company, results)
         try:
+            ensure_email_transport_configured()
             send_email(
                 subject,
                 body,

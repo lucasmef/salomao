@@ -3,10 +3,12 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import get_settings
 from app.db.base import Base
 from app.db.models.boleto import BoletoRecord
 from app.db.models.linx import LinxOpenReceivable
@@ -43,6 +45,17 @@ def _build_session() -> tuple[Session, Company]:
     session.commit()
     session.refresh(company)
     return session, company
+
+
+@pytest.fixture(autouse=True)
+def _configure_email_transport(monkeypatch):
+    monkeypatch.setenv("SECURITY_ALERT_EMAIL_ENABLED", "true")
+    monkeypatch.setenv("SECURITY_ALERT_EMAIL_FROM", "alerts@example.com")
+    monkeypatch.setenv("SMTP_HOST", "mail.example.com")
+    monkeypatch.setenv("SMTP_USERNAME", "alerts@example.com")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def test_settle_paid_pending_inter_receivables_removes_open_receivable_and_sends_email(monkeypatch) -> None:
@@ -115,6 +128,72 @@ def test_settle_paid_pending_inter_receivables_removes_open_receivable_and_sends
         assert "<table" in (email_calls[0][3] or "")
         assert session.scalar(select(LinxOpenReceivable.id).where(LinxOpenReceivable.company_id == company.id)) is None
     finally:
+        session.close()
+
+
+def test_settle_paid_pending_inter_receivables_reports_disabled_email_transport(monkeypatch) -> None:
+    session, company = _build_session()
+
+    session.add(
+        LinxOpenReceivable(
+            company_id=company.id,
+            linx_code=56418,
+            customer_code=10,
+            customer_name="MARIA APARECIDA",
+            issue_date=datetime(2026, 4, 1, 0, 0, 0),
+            due_date=datetime(2026, 4, 10, 0, 0, 0),
+            amount=Decimal("170.50"),
+            paid_amount=Decimal("0"),
+        )
+    )
+    session.add(
+        BoletoRecord(
+            company_id=company.id,
+            bank="INTER",
+            client_key=normalize_text("MARIA APARECIDA"),
+            client_name="MARIA APARECIDA",
+            document_id="56418",
+            issue_date=date(2026, 4, 1),
+            due_date=date(2026, 4, 10),
+            payment_date=date(2026, 4, 11),
+            amount=Decimal("170.50"),
+            paid_amount=Decimal("170.50"),
+            status="Recebido por boleto",
+            inter_codigo_solicitacao="SOL-56418",
+        )
+    )
+    session.commit()
+
+    monkeypatch.setenv("SECURITY_ALERT_EMAIL_ENABLED", "false")
+    monkeypatch.delenv("SMTP_HOST", raising=False)
+    monkeypatch.delenv("SECURITY_ALERT_EMAIL_FROM", raising=False)
+    monkeypatch.delenv("SMTP_USERNAME", raising=False)
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        "app.services.linx_receivable_settlement._settle_candidates_in_portal",
+        lambda current_company, candidates, validate_only=False: [
+            LinxSettlementInvoiceResult(
+                client_name=candidates[0].client_name,
+                boleto_amount=candidates[0].boleto_amount,
+                boleto_due_dates=candidates[0].boleto_due_dates,
+                payment_dates=candidates[0].payment_dates,
+                invoice_number=candidates[0].receivables[0].invoice_number,
+                due_date=candidates[0].receivables[0].due_date,
+                amount=Decimal(candidates[0].receivables[0].amount),
+                success=True,
+                message="A fatura 56418 foi baixada com sucesso.",
+            )
+        ],
+    )
+
+    try:
+        summary = settle_paid_pending_inter_receivables(session, company)
+
+        assert summary.attempted_invoice_count == 1
+        assert summary.settled_invoice_count == 1
+        assert summary.email_error == "Envio de email desabilitado em SECURITY_ALERT_EMAIL_ENABLED."
+    finally:
+        get_settings.cache_clear()
         session.close()
 
 

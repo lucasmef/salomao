@@ -39,8 +39,8 @@ def _looks_like_placeholder_secret(secret: str) -> bool:
 
 
 def _validate_runtime_secret(value: str, env_name: str) -> None:
-    if len(value.strip()) < 16:
-        raise ValueError(f"{env_name} deve ter pelo menos 16 caracteres em APP_MODE=server")
+    if len(value.strip()) < 32:
+        raise ValueError(f"{env_name} deve ter pelo menos 32 caracteres em APP_MODE=server")
     if _looks_like_placeholder_secret(value):
         raise ValueError(f"{env_name} nao pode usar placeholders em APP_MODE=server")
 

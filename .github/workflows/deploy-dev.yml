@@ -46,8 +46,8 @@ jobs:
             set +x
             mkdir -p debug-logs
             SERVICE_NAME="salomao-dev.service"
-            sudo -n journalctl -u $SERVICE_NAME -n 500 --no-pager > debug-logs/systemd.log 2>&1 || true
-            sudo -n tail -n 100 /var/log/nginx/error.log > debug-logs/nginx.log 2>&1 || true
+            sudo journalctl -u $SERVICE_NAME -n 500 --no-pager > debug-logs/systemd.log 2>&1 || true
+            sudo tail -n 100 /var/log/nginx/error.log > debug-logs/nginx.log 2>&1 || true
           ) > /dev/null 2>&1
 
       - name: Upload Debug Artifact

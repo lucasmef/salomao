@@ -8,6 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import get_settings
 from app.jobs import linx_auto_sync as linx_auto_sync_job
 from app.db.base import Base
 from app.db.models.imports import ImportBatch
@@ -46,6 +47,17 @@ def _build_session() -> tuple[Session, Company]:
 
 def _result(message: str, batch_id: str = "batch-1") -> SimpleNamespace:
     return SimpleNamespace(batch=SimpleNamespace(id=batch_id), message=message)
+
+
+@pytest.fixture(autouse=True)
+def _configure_email_transport(monkeypatch):
+    monkeypatch.setenv("SECURITY_ALERT_EMAIL_ENABLED", "true")
+    monkeypatch.setenv("SECURITY_ALERT_EMAIL_FROM", "alerts@example.com")
+    monkeypatch.setenv("SMTP_HOST", "mail.example.com")
+    monkeypatch.setenv("SMTP_USERNAME", "alerts@example.com")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture(autouse=True)
@@ -217,6 +229,62 @@ def test_linx_auto_sync_sends_email_only_when_error_occurs(monkeypatch) -> None:
         assert company.linx_auto_sync_last_status == "partial_failure"
         assert company.linx_auto_sync_last_error == "Faturas a receber: chave API expirada"
     finally:
+        session.close()
+
+
+def test_linx_auto_sync_reports_disabled_email_transport_when_error_email_cannot_be_sent(monkeypatch) -> None:
+    session, company = _build_session()
+
+    monkeypatch.setenv("SECURITY_ALERT_EMAIL_ENABLED", "false")
+    monkeypatch.delenv("SMTP_HOST", raising=False)
+    monkeypatch.delenv("SECURITY_ALERT_EMAIL_FROM", raising=False)
+    monkeypatch.delenv("SMTP_USERNAME", raising=False)
+    get_settings.cache_clear()
+    monkeypatch.setattr("app.services.linx_auto_sync.ensure_pre_import_backup", lambda source: None)
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_customers",
+        lambda db, current_company: _result(
+            "Clientes/fornecedores Linx sincronizados com sucesso. 1 novo(s), 0 atualizado(s) e 0 sem alteracao."
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_movements",
+        lambda db, current_company: _result(
+            "Movimentos Linx sincronizados com sucesso. 0 novo(s), 0 atualizado(s) e 0 removido(s).",
+            batch_id="mov-batch",
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync._should_run_products_now",
+        lambda *args, **kwargs: False,
+    )
+
+    def _fail_receivables(db, current_company):
+        raise ValueError("chave API expirada")
+
+    monkeypatch.setattr("app.services.linx_auto_sync.sync_linx_open_receivables", _fail_receivables)
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_purchase_payables",
+        lambda db, current_company, actor_user=None: _result("purchase payables ok"),
+    )
+
+    try:
+        result = run_linx_auto_sync_for_company(
+            session,
+            company,
+            now=datetime(2026, 4, 4, 10, 10, tzinfo=AUTO_SYNC_TIMEZONE),
+        )
+
+        assert result.attempted is True
+        assert result.status == "partial_failure"
+        assert result.error_message == (
+            "Faturas a receber: chave API expirada\n"
+            "Resumo por email nao enviado: Envio de email desabilitado em SECURITY_ALERT_EMAIL_ENABLED."
+        )
+        session.refresh(company)
+        assert company.linx_auto_sync_last_error == result.error_message
+    finally:
+        get_settings.cache_clear()
         session.close()
 
 

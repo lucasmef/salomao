@@ -21,7 +21,7 @@ from app.services.linx_open_receivables import sync_linx_open_receivables
 from app.services.linx_products import LINX_PRODUCTS_SOURCE, sync_linx_products
 from app.services.linx_sales_snapshot import _affected_dates_from_batch, rebuild_sales_snapshots_from_movements
 from app.services.purchase_planning import LINX_PURCHASE_PAYABLES_API_SOURCE, sync_linx_purchase_payables
-from app.services.security_alerts import send_email
+from app.services.security_alerts import ensure_email_transport_configured, send_email
 from app.services.cache_invalidation import clear_dashboard_revenue_comparison_cache
 
 AUTO_SYNC_TIMEZONE = ZoneInfo("America/Sao_Paulo")
@@ -505,6 +505,7 @@ def run_linx_auto_sync_for_company(
                 purchase_payables_message=purchase_payables_message,
                 error_message=error_message,
             )
+            ensure_email_transport_configured()
             send_email(
                 subject,
                 body,
