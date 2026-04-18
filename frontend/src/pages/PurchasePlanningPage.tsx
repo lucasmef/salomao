@@ -2923,6 +2923,51 @@ export function PurchasePlanningPage({
       }
       return true;
     });
+    const visibleCollectionTotals = new Map(
+      selectedComparisonCollections.map((collection) => {
+        const totals = visibleBrands.reduce(
+          (accumulator, snapshot) => {
+            const collectionSnapshot = snapshot.collections.get(collection.id);
+            accumulator.plannedCents += toCents(
+              collectionSnapshot?.plannedAmount ?? "0.00",
+            );
+            accumulator.receivedCents += toCents(
+              collectionSnapshot?.receivedAmount ?? "0.00",
+            );
+            accumulator.returnsCents += toCents(
+              collectionSnapshot?.returnsAmount ?? "0.00",
+            );
+            accumulator.soldCents += toCents(
+              collectionSnapshot?.soldAmount ?? "0.00",
+            );
+            return accumulator;
+          },
+          {
+            plannedCents: 0,
+            receivedCents: 0,
+            returnsCents: 0,
+            soldCents: 0,
+          },
+        );
+        return [collection.id, totals] as const;
+      }),
+    );
+    const totalRowProfitPercentage = Math.round(
+      calculatePurchaseProfitMargin(
+        Array.from(visibleCollectionTotals.values()).reduce(
+          (sum, totals) => sum + totals.soldCents,
+          0,
+        ) / 100,
+        Array.from(visibleCollectionTotals.values()).reduce(
+          (sum, totals) => sum + totals.receivedCents,
+          0,
+        ) / 100,
+        Array.from(visibleCollectionTotals.values()).reduce(
+          (sum, totals) => sum + totals.returnsCents,
+          0,
+        ) / 100,
+      ),
+    );
 
     return (
       <div className="content-grid">
@@ -3248,6 +3293,112 @@ export function PurchasePlanningPage({
                     </td>
                   </tr>
                 )}
+                {visibleBrands.length ? (
+                  <tr>
+                    <td className="sticky-col">
+                      <div className="planning-brand-cell">
+                        <strong>Total</strong>
+                        {showPlanningProfit && (
+                          <span className="planning-brand-performance">
+                            <span
+                              style={{
+                                color:
+                                  totalRowProfitPercentage >= 0
+                                    ? "#10b981"
+                                    : "#ef4444",
+                              }}
+                            >
+                              {totalRowProfitPercentage}%
+                            </span>
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    {selectedComparisonCollections.map((collection) => {
+                      const totals = visibleCollectionTotals.get(collection.id) ?? {
+                        plannedCents: 0,
+                        receivedCents: 0,
+                        returnsCents: 0,
+                        soldCents: 0,
+                      };
+                      const percentage = Math.round(
+                        calculatePurchaseProfitMargin(
+                          totals.soldCents / 100,
+                          totals.receivedCents / 100,
+                          totals.returnsCents / 100,
+                        ),
+                      );
+                      return (
+                        <td
+                          className={`numeric-cell${planningCollection?.id === collection.id ? " planning-current-column" : ""}`}
+                          key={`totals-${collection.id}`}
+                        >
+                          <div className="planning-metric-stack">
+                            <div
+                              className="metric-line metric-line-pedido"
+                              title="Pedido"
+                            >
+                              <div className="metric-value-container">
+                                <span className="planning-inline-edit-value is-highlighted">
+                                  {formatPurchaseDisplayAmount(
+                                    centsToAmount(totals.plannedCents),
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                            {showPlanningDetail && (
+                              <>
+                                <div className="metric-line" title="Recebido">
+                                  <div className="metric-value-container color-recebido">
+                                    {formatPurchaseDisplayAmount(
+                                      centsToAmount(totals.receivedCents),
+                                    )}
+                                  </div>
+                                  <div className="metric-actions-container" />
+                                  <div className="metric-actions-container-confirm" />
+                                </div>
+                                <div className="metric-line" title="Devolvido">
+                                  <div className="metric-value-container color-devolucao">
+                                    {formatPurchaseDisplayAmount(
+                                      centsToAmount(totals.returnsCents),
+                                    )}
+                                  </div>
+                                  <div className="metric-actions-container" />
+                                  <div className="metric-actions-container-confirm" />
+                                </div>
+                                <div className="metric-line" title="Vendido">
+                                  <div className="metric-value-container color-venda">
+                                    {formatPurchaseDisplayAmount(
+                                      centsToAmount(totals.soldCents),
+                                    )}
+                                  </div>
+                                  <div className="metric-actions-container" />
+                                  <div className="metric-actions-container-confirm" />
+                                </div>
+                              </>
+                            )}
+                            <div className="metric-line" title="Lucro %">
+                              <div
+                                className="metric-value-container"
+                                style={{
+                                  color:
+                                    percentage >= 0 ? "#10b981" : "#ef4444",
+                                }}
+                              >
+                                {percentage}%
+                              </div>
+                              <div className="metric-actions-container" />
+                              <div className="metric-actions-container-confirm" />
+                            </div>
+                          </div>
+                        </td>
+                      );
+                    })}
+                    <td>
+                      <span>-</span>
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
