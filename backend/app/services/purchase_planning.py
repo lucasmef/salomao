@@ -4985,10 +4985,15 @@ def _query_sales_and_profit_by_brand_collection(
             norm_brand = "tricot"
         elif "veste" in norm_brand:
             norm_brand = "veste"
-        result[(norm_brand, normalize_label(collection))] = {
-            "sold_total": Decimal(row.sold_total or 0),
-            "cost_total": Decimal(row.cost_total or 0),
-        }
+            
+        key = (norm_brand, normalize_label(collection))
+        if key not in result:
+            result[key] = {
+                "sold_total": Decimal("0.00"),
+                "cost_total": Decimal("0.00"),
+            }
+        result[key]["sold_total"] += Decimal(row.sold_total or 0)
+        result[key]["cost_total"] += Decimal(row.cost_total or 0)
     return result
 
 
