@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-# Configurações
-DOMAIN_OLD="dev.raquel-talita.vps-kinghost.net"
+# Legado do ambiente dev publico. Deve existir apenas para limpeza defensiva.
+LEGACY_PUBLIC_DEV_HOST="dev.raquel-talita.vps-kinghost.net"
 NGINX_AVAILABLE="/etc/nginx/sites-available"
 NGINX_ENABLED="/etc/nginx/sites-enabled"
 DEFAULT_CONF="$NGINX_AVAILABLE/default-404"
@@ -13,16 +13,16 @@ DEFAULT_LINK="$NGINX_ENABLED/default-404"
 SSL_CERT="/etc/nginx/ssl/salomao-vps.tail2033b8.ts.net.crt"
 SSL_KEY="/etc/nginx/ssl/salomao-vps.tail2033b8.ts.net.key"
 
-echo "==> Removendo resquícios de $DOMAIN_OLD"
+echo "==> Removendo resquicios de $LEGACY_PUBLIC_DEV_HOST"
 # Remove o symlink
-if [ -L "$NGINX_ENABLED/$DOMAIN_OLD" ]; then
-    rm "$NGINX_ENABLED/$DOMAIN_OLD"
+if [ -L "$NGINX_ENABLED/$LEGACY_PUBLIC_DEV_HOST" ]; then
+    rm "$NGINX_ENABLED/$LEGACY_PUBLIC_DEV_HOST"
     echo "  Symlink removido."
 fi
 
 # Remove o arquivo de configuração se existir
-if [ -f "$NGINX_AVAILABLE/$DOMAIN_OLD" ]; then
-    rm "$NGINX_AVAILABLE/$DOMAIN_OLD"
+if [ -f "$NGINX_AVAILABLE/$LEGACY_PUBLIC_DEV_HOST" ]; then
+    rm "$NGINX_AVAILABLE/$LEGACY_PUBLIC_DEV_HOST"
     echo "  Arquivo de configuração em sites-available removido."
 fi
 
@@ -65,7 +65,7 @@ fi
 echo "==> Testando e reiniciando Nginx"
 if nginx -t; then
     systemctl restart nginx
-    echo "SUCESSO: Nginx reconfigurado. O domínio $DOMAIN_OLD agora deve retornar 404."
+    echo "SUCESSO: Nginx reconfigurado. O host legado $LEGACY_PUBLIC_DEV_HOST agora deve retornar 404."
 else
     echo "ERRO: Falha no teste de configuração do Nginx. Revertendo (se necessário)..."
     exit 1

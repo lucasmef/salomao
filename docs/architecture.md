@@ -6,7 +6,7 @@
 - `dois ambientes`: `dev` para homologacao e `prod` para producao
 - `backend serving frontend`: o backend entrega a API e o frontend compilado
 - `postgresql como banco oficial`: producao e homologacao usam PostgreSQL
-- `seguranca de borda`: acesso publico via `Nginx`, `HTTPS`, `systemd`, `UFW` e `fail2ban`
+- `seguranca de borda`: producao publica via `Nginx`, `HTTPS`, `systemd`, `UFW` e `fail2ban`; homologacao privada via `Tailscale`
 
 ## Topologia
 
@@ -16,6 +16,7 @@
 - backend: `salomao-dev.service`
 - healthcheck: `http://127.0.0.1:8101/api/v1/health`
 - banco: `gestor_financeiro_dev`
+- origem: acesso privado por `Tailscale`, sem subdominio publico
 - uso: homologacao e validacao antes da publicacao
 
 ### Ambiente prod

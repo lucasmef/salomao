@@ -5,7 +5,8 @@ DOMAIN="salomao-vps.tail2033b8.ts.net"
 NGINX_SSL_DIR="/etc/nginx/ssl"
 CONF_FILE="/etc/nginx/sites-available/salomao-dev-tailscale"
 LINK_FILE="/etc/nginx/sites-enabled/salomao-dev-tailscale"
-OLD_LINK="/etc/nginx/sites-enabled/dev.raquel-talita.vps-kinghost.net"
+LEGACY_PUBLIC_DEV_HOST="dev.raquel-talita.vps-kinghost.net"
+LEGACY_PUBLIC_LINK="/etc/nginx/sites-enabled/$LEGACY_PUBLIC_DEV_HOST"
 
 echo "Criando diretório para certificados SSL..."
 mkdir -p "$NGINX_SSL_DIR"
@@ -56,11 +57,10 @@ NGINX
 
 ln -sf "$CONF_FILE" "$LINK_FILE"
 
-# Hardening: Garantir que domínios não reconhecidos retornem 404
-# Isso resolve o problema de dev.raquel-talita.vps-kinghost.net ainda responder
+# Hardening: garantir que hosts nao reconhecidos retornem 404.
+# Isso impede que o hostname publico legado do dev continue roteando para a app.
 DEFAULT_CONF="/etc/nginx/sites-available/default-404"
 DEFAULT_LINK="/etc/nginx/sites-enabled/default-404"
-DOMAIN_OLD="dev.raquel-talita.vps-kinghost.net"
 
 echo "Configurando hardening (default 404)..."
 cat > "$DEFAULT_CONF" << EOF
@@ -86,9 +86,9 @@ ln -sf "$DEFAULT_CONF" "$DEFAULT_LINK"
 # Remove link padrão antigo do Debian se existir
 [ -L "/etc/nginx/sites-enabled/default" ] && rm "/etc/nginx/sites-enabled/default"
 
-# Remove especificamente o link do domínio antigo se ainda estiver lá
-if [ -L "$OLD_LINK" ]; then
-    rm "$OLD_LINK"
+# Remove especificamente o link do hostname publico legado se ainda estiver la
+if [ -L "$LEGACY_PUBLIC_LINK" ]; then
+    rm "$LEGACY_PUBLIC_LINK"
 fi
 
 echo "Testando e reiniciando Nginx..."

@@ -185,7 +185,7 @@ Um dos diferenciais mais fortes do projeto está na camada de segurança, especi
 - `UFW` para controle de portas.
 - `fail2ban` para reforço contra abuso.
 - `systemd` para supervisão do processo.
-- `Healthchecks locais e públicos` após deploy.
+- `Healthchecks locais` em todos os deploys e `healthcheck público` apenas na produção.
 - `Auditoria operacional` com validação de serviço, portas, SSH, TLS e componentes críticos.
 - `Validação de segredos e modo de execução` quando `APP_MODE=server`.
 - `PostgreSQL como banco oficial` do ambiente de servidor.
@@ -199,6 +199,11 @@ Branches oficiais:
 - `dev` -> ambiente de homologacao
 - `main` -> ambiente de producao
 
+Regra de acesso:
+
+- `dev` nao possui host publico; o acesso operacional e de validacao ocorre somente via `Tailscale`.
+- `prod` e o unico ambiente exposto publicamente via `Nginx` e `HTTPS`.
+
 CI/CD via `GitHub Actions` com `self-hosted runner` no proprio VPS:
 
 | Workflow | Trigger | Funcao |
@@ -209,12 +214,22 @@ CI/CD via `GitHub Actions` com `self-hosted runner` no proprio VPS:
 | Sanitize Dev DB | manual | anonimizacao de dados sensiveis no banco dev |
 | Set Dev Safety Mode | manual | liga ou desliga modo seguro no dev |
 
+Politica operacional:
+
+- toda mudanca de deploy comeca com commit e `push` para `dev`
+- a IA nao faz deploy direto no servidor; o deploy normal acontece pelo `GitHub Actions`
+- apos cada `push`, e obrigatorio acompanhar o workflow `Deploy Dev` pelo `gh cli` ate o status final
+- se o run falhar, a IA deve abrir os logs, corrigir o problema e fazer novo `push` em `dev`
+- o deploy de producao e a promocao para `main` sao sempre manuais e nunca devem ser executados pela IA
+
 Scripts padronizados:
 
 - `scripts/deploy-dev.sh` / `scripts/deploy-prod.sh` / `scripts/deploy-vps.sh`
 - `scripts/check-prod.sh` / `scripts/sync-checkout-to-ref.sh`
 - `scripts/refresh-dev-db-from-prod.sh` / `scripts/post-refresh-dev.sh`
 - `scripts/sanitize-dev-db.sh` / `scripts/set-dev-safety-mode.sh`
+
+Esses scripts existem para o `self-hosted runner` e para manutencao operacional. Eles nao definem o fluxo normal da IA.
 
 Fluxo principal executado pelos scripts:
 
@@ -232,7 +247,7 @@ Auditoria rápida de produção cobre:
 - `../salomao-config/backend.env` por padrão, com fallback legado `backend/.env`
 - `salomao-prod.service`
 - `nginx`, `postgresql` e `fail2ban`
-- healthcheck local e público
+- healthcheck local e, na producao, healthcheck público
 - portas expostas
 - `UFW`
 - política efetiva de SSH

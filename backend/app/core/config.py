@@ -1,6 +1,7 @@
 import os
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -194,6 +195,23 @@ class Settings(BaseSettings):
     def allowed_country_codes(self) -> set[str]:
         raw = self.security_alert_allowed_countries or ""
         return {item.strip().upper() for item in raw.split(",") if item.strip()}
+
+    @property
+    def allowed_hosts(self) -> list[str]:
+        allowed_hosts = {
+            "localhost",
+            "127.0.0.1",
+            "testserver",
+        }
+        candidate_origins = [*self.cors_origins]
+        if self.public_origin:
+            candidate_origins.append(self.public_origin)
+
+        for origin in candidate_origins:
+            hostname = urlsplit(origin).hostname
+            if hostname:
+                allowed_hosts.add(hostname)
+        return sorted(allowed_hosts)
 
 
 @lru_cache

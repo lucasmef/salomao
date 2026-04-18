@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.router import api_router
 from app.core.config import get_settings
@@ -64,6 +65,11 @@ def create_app() -> FastAPI:
         docs_url="/docs" if docs_enabled else None,
         redoc_url="/redoc" if docs_enabled else None,
         openapi_url="/openapi.json" if docs_enabled else None,
+    )
+
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=settings.allowed_hosts,
     )
 
     app.add_middleware(

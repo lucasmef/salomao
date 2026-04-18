@@ -2,7 +2,7 @@
 
 Este projeto publica somente no VPS da KingHost.
 
-Nao existe mais deploy local, empacotamento desktop ou fluxo operacional via executavel/atalhos.
+Nao existe mais deploy local, empacotamento desktop ou fluxo operacional via executavel ou atalhos.
 
 ## Ambientes oficiais
 
@@ -11,13 +11,13 @@ Nao existe mais deploy local, empacotamento desktop ou fluxo operacional via exe
 
 ## Branches oficiais
 
-- branch `dev`: publica no ambiente `dev` (homologacao) e serve de base para promocoes.
-- branch `main`: espelho (mirror) do que esta em producao no ambiente `prod`.
+- branch `dev`: publica no ambiente `dev` por `push` e serve de base para promocoes manuais
+- branch `main`: representa a linha de producao e so pode ser promovida manualmente por operador humano
 
 Checkouts esperados no servidor:
 
-- `/srv/salomao/dev/app` → segue `origin/dev`
-- `/srv/salomao/prod/app` → segue o SHA imutavel implantado (detached HEAD)
+- `/srv/salomao/dev/app` segue `origin/dev`
+- `/srv/salomao/prod/app` segue o SHA imutavel implantado em producao
 
 Servicos esperados:
 
@@ -36,18 +36,19 @@ O SSH fica sempre restrito ao Tailscale.
 | --- | --- | --- |
 | `Deploy Dev` | push em `dev` + manual | deploy automatico do ambiente dev |
 | `Deploy Prod` | manual | deploy manual da producao |
-| `Refresh Dev DB` | manual | copia banco prod → dev com modo seguro |
+| `Refresh Dev DB` | manual | copia banco prod para dev com modo seguro |
 | `Sanitize Dev DB` | manual | anonimizacao de dados sensiveis no banco dev |
-| `Set Dev Safety Mode` | manual (safe/validate) | liga ou desliga modo seguro no dev |
+| `Set Dev Safety Mode` | manual (`safe` ou `validate`) | liga ou desliga modo seguro no dev |
 
 ### Fluxo tipico
 
-1. Desenvolver na branch `dev` e fazer push → deploy automatico no ambiente dev
-2. Quando precisar validar com dados reais: rodar `Refresh Dev DB`
-3. Testar no ambiente dev com dados reais (janela de validacao)
-4. Quando a validacao terminar: rodar `Sanitize Dev DB`
-5. Quando pronto para producao: rodar o workflow `Deploy Prod` (Promocao de Commit).
-6. O workflow resolve o SHA da `dev`, publica em producao e entao atualiza a `main`.
+1. Desenvolver na branch `dev` e fazer `push` para `origin/dev`.
+2. Acompanhar o workflow `Deploy Dev` pelo `gh` ate a conclusao.
+3. Se houver falha, abrir os logs do run, corrigir o problema e fazer novo `push` em `dev`.
+4. Validar o ambiente `dev` via `Tailscale`.
+5. Quando precisar validar com dados reais: rodar `Refresh Dev DB`.
+6. Quando a validacao terminar: rodar `Sanitize Dev DB`.
+7. Quando pronto para producao, um operador humano executa manualmente o `Deploy Prod` e a promocao para `main`.
 
 ### Modo seguro
 
@@ -61,21 +62,40 @@ O ambiente dev nasce em modo seguro apos cada refresh de banco:
 Para abrir uma janela de validacao: rodar `Set Dev Safety Mode` com modo `validate`.
 Para fechar a janela: rodar com modo `safe`.
 
-## Regra para qualquer processo
+O ambiente `dev` nao possui host publico. O acesso acontece diretamente pela rede `Tailscale`.
 
-Se um processo precisar fazer deploy, ele deve:
+## Politica obrigatoria de deploy
 
-1. acessar o checkout correto no VPS
-2. garantir o arquivo de ambiente do checkout (`../salomao-config/backend.env` por padrão)
-3. rodar o script padronizado do ambiente
-4. validar o healthcheck
-5. em producao, rodar tambem a auditoria rapida
+- A IA nunca faz deploy direto no servidor por SSH.
+- O deploy normal de homologacao sempre comeca com `git push origin dev`.
+- Depois do `push`, a IA deve localizar o run mais recente de `Deploy Dev` no `gh cli` e aguardar o termino.
+- Se o run falhar, a IA deve consultar os logs, corrigir o problema no repositorio e repetir o ciclo com novo `push`.
+- O deploy de producao e a promocao para `main` sao sempre manuais e nunca devem ser executados pela IA.
+
+## Protocolo com `gh`
+
+Sequencia obrigatoria depois de cada `push` em `dev`:
+
+1. Identificar o run mais recente do workflow `Deploy Dev`.
+2. Aguardar a execucao ate o status final.
+3. Se falhar, abrir os logs do run e localizar o job ou etapa quebrada.
+4. Corrigir localmente, commitar e fazer novo `push` em `dev`.
+
+Comandos de referencia:
+
+```bash
+gh run list --workflow "Deploy Dev" --branch dev --limit 1
+gh run watch <run-id> --exit-status
+gh run view <run-id> --log-failed
+```
+
+Nao considere um deploy concluido sem acompanhar o run pelo `gh`.
 
 ## Arquivos de ambiente
 
-O arquivo real de runtime deve ficar fora do repositório, por padrão em `../salomao-config/backend.env`.
+O arquivo real de runtime deve ficar fora do repositorio, por padrao em `../salomao-config/backend.env`.
 
-Os scripts também aceitam override via `SALOMAO_ENV_FILE` ou `BACKEND_ENV_FILE` e mantêm `backend/.env` apenas como fallback legado.
+Os scripts tambem aceitam override via `SALOMAO_ENV_FILE` ou `BACKEND_ENV_FILE` e mantem `backend/.env` apenas como fallback legado.
 
 Arquivos versionados de referencia:
 
@@ -95,7 +115,9 @@ PUBLIC_ORIGIN=https://salomao.example.invalid
 
 ## Deploy de homologacao
 
-Deploy automatico via push na branch `dev`, ou manual via GitHub Actions.
+Deploy normal exclusivamente via `push` na branch `dev`.
+
+O disparo manual do workflow existe apenas como contingencia operacional humana. A IA nao deve usar `workflow_dispatch` para deploy em `dev`.
 
 O workflow executa:
 
@@ -114,22 +136,23 @@ O script `deploy-dev.sh` delega para `deploy-vps.sh dev`, que:
 7. reinicia `salomao-dev.service`
 8. testa `http://127.0.0.1:8101/api/v1/health`
 
+Esses passos acontecem dentro do `self-hosted runner` no VPS. Eles nao devem ser executados manualmente pela IA no host.
+
 ## Deploy de producao
 
-Deploy sempre manual via GitHub Actions (`Deploy Prod`) usando o modelo de **Promocao de Commit**.
+Deploy sempre manual via GitHub Actions (`Deploy Prod`) promovendo o estado atual da branch `dev`.
 
-Diferente do ambiente dev, a producao nao segue uma branch mutavel. O workflow resolve um SHA unico e imutavel (por padrao o `HEAD` da `dev`) e garante que apenas esse commit seja implantado.
+A IA nao executa esse workflow e nao promove `main`.
+
+Diferente do ambiente dev, a producao nao segue uma branch mutavel. O workflow resolve um SHA unico e imutavel a partir do `HEAD` de `dev` e garante que apenas esse commit seja implantado.
 
 O workflow executa:
 
-1. **Resolucao e Validacao**: Identifica o SHA alvo e garante que ele pertence a linhagem da branch `dev`.
-2. **Sincronizacao**: `sync-checkout-to-ref.sh /srv/salomao/prod/app <TARGET_SHA>`
-3. **Deploy**: `deploy-prod.sh`
-4. **Auditoria**: `check-prod.sh`
-5. **Healthcheck**: em `http://127.0.0.1:8100/api/v1/health`
-6. **Espelhamento (Mirroring)**: Atualiza a branch `main` remota para apontar para o SHA implantado.
-
-Para promover um commit especifico (ex: tag ou SHA antigo), use o modo `specific_ref` nos inputs do workflow.
+1. Resolucao e validacao do SHA alvo no `HEAD` de `dev`
+2. `sync-checkout-to-ref.sh /srv/salomao/prod/app <TARGET_SHA>`
+3. `deploy-prod.sh`
+4. `check-prod.sh`
+5. healthcheck em `http://127.0.0.1:8100/api/v1/health`
 
 ## Auditoria de producao
 
@@ -146,7 +169,7 @@ Esse script verifica:
 - `nginx`
 - `postgresql`
 - `fail2ban`
-- healthcheck local e publico
+- healthcheck local e, na producao, healthcheck publico
 - portas de rede
 - `UFW`
 - configuracao efetiva do `sshd`
@@ -159,6 +182,7 @@ O acesso SSH fica sempre restrito ao Tailscale.
 - Nao existe workflow para abrir ou fechar SSH.
 - O SSH publico esta removido do firewall.
 - A porta 22 esta liberada somente na interface `tailscale0`.
+- SSH no VPS serve para observabilidade, auditoria e manutencao controlada, nao para deploy normal da IA.
 
 Para detalhes de acesso: `docs/ssh-acesso-vps.md`.
 
@@ -166,12 +190,12 @@ Para detalhes de acesso: `docs/ssh-acesso-vps.md`.
 
 | Script | Funcao |
 | --- | --- |
-| `scripts/deploy-dev.sh` | deploy do ambiente dev |
-| `scripts/deploy-prod.sh` | deploy do ambiente prod |
-| `scripts/deploy-vps.sh` | script centralizado de deploy |
+| `scripts/deploy-dev.sh` | deploy do ambiente dev dentro do runner |
+| `scripts/deploy-prod.sh` | deploy do ambiente prod dentro do runner |
+| `scripts/deploy-vps.sh` | script centralizado de deploy usado pelos workflows |
 | `scripts/check-prod.sh` | auditoria rapida de producao |
 | `scripts/sync-checkout-to-ref.sh` | sincroniza checkout com ref remota |
-| `scripts/refresh-dev-db-from-prod.sh` | copia banco prod → dev com pos-refresh |
+| `scripts/refresh-dev-db-from-prod.sh` | copia banco prod para dev com pos-refresh |
 | `scripts/post-refresh-dev.sh` | modo seguro apos refresh |
 | `scripts/sanitize-dev-db.sh` | anonimizacao do banco dev |
 | `scripts/set-dev-safety-mode.sh` | toggle de modo seguro |

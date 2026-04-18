@@ -48,6 +48,31 @@ def test_server_mode_disables_api_docs_by_default(monkeypatch) -> None:
     get_settings.cache_clear()
 
 
+def test_server_mode_rejects_untrusted_host_header(monkeypatch) -> None:
+    _set_server_env(monkeypatch)
+    monkeypatch.setenv("PUBLIC_ORIGIN", "https://salomao-vps.tail2033b8.ts.net")
+    get_settings.cache_clear()
+
+    import app.main as app_main
+
+    app_main = importlib.reload(app_main)
+    app = app_main.create_app()
+
+    trusted_client = TestClient(app, base_url="https://salomao-vps.tail2033b8.ts.net")
+    untrusted_client = TestClient(app, base_url="https://dev.raquel-talita.vps-kinghost.net")
+
+    try:
+        trusted_response = trusted_client.get("/api/v1/health")
+        assert trusted_response.status_code == 200
+
+        untrusted_response = untrusted_client.get("/api/v1/health")
+        assert untrusted_response.status_code == 400
+    finally:
+        trusted_client.close()
+        untrusted_client.close()
+        get_settings.cache_clear()
+
+
 def test_frontend_catch_all_blocks_reserved_api_doc_paths() -> None:
     import app.main as app_main
 
