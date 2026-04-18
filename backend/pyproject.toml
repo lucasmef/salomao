@@ -14,7 +14,8 @@ dependencies = [
   "sqlalchemy>=2.0.40,<3.0.0",
   "pydantic-settings>=2.13.0,<3.0.0",
   "python-multipart>=0.0.26,<1.0.0",
-  "redis>=7.4.0,<8.0.0"
+  "redis>=7.4.0,<8.0.0",
+  "pypdf>=6.10.2",
 ]
 
 [project.optional-dependencies]

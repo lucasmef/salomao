@@ -1,15 +1,18 @@
 from io import BytesIO
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.api.deps import DbSession
 from app.db.models.imports import ImportBatch
+from app.db.models.export_jobs import BoletoExportJob
+from app.db.session import SessionLocal
 from app.schemas.boletos import (
     BoletoClientConfigBulkUpdate,
     BoletoInterCancelRequest,
     BoletoInterReceiveRequest,
     BoletoDashboardRead,
+    BoletoExportJobRead,
     BoletoMissingExportRequest,
     BoletoPdfBatchRequest,
     StandaloneBoletoCreateRequest,
@@ -36,6 +39,11 @@ from app.services.inter import (
     receive_inter_charge,
     sync_standalone_inter_charges,
     sync_inter_charges,
+)
+from app.services.inter_export import (
+    cleanup_old_exports,
+    create_export_job,
+    run_export_job,
 )
 from app.services.linx_receivable_settlement import settle_paid_pending_inter_receivables
 
@@ -234,6 +242,56 @@ def download_inter_boleto_pdf_batch(
         BytesIO(content),
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/inter/export", response_model=BoletoExportJobRead, status_code=status.HTTP_201_CREATED)
+def trigger_inter_pdf_export(
+    payload: BoletoPdfBatchRequest,
+    background_tasks: BackgroundTasks,
+    db: DbSession,
+) -> BoletoExportJobRead:
+    company = get_current_company(db)
+    cleanup_old_exports()
+    job = create_export_job(db, company, boleto_ids=payload.boleto_ids)
+    background_tasks.add_task(
+        run_export_job,
+        SessionLocal,
+        job.id,
+        company.id,
+        payload.boleto_ids,
+    )
+    return BoletoExportJobRead.model_validate(job)
+
+
+@router.get("/inter/export/{job_id}", response_model=BoletoExportJobRead)
+def get_inter_pdf_export_status(
+    job_id: str,
+    db: DbSession,
+) -> BoletoExportJobRead:
+    company = get_current_company(db)
+    job = db.get(BoletoExportJob, job_id)
+    if not job or job.company_id != company.id:
+        raise HTTPException(status_code=404, detail="Trabalho de exportacao nao encontrado.")
+    return BoletoExportJobRead.model_validate(job)
+
+
+@router.get("/inter/export/{job_id}/file")
+def download_inter_pdf_export_file(
+    job_id: str,
+    db: DbSession,
+) -> FileResponse:
+    company = get_current_company(db)
+    job = db.get(BoletoExportJob, job_id)
+    if not job or job.company_id != company.id:
+        raise HTTPException(status_code=404, detail="Trabalho de exportacao nao encontrado.")
+    if job.status != "completed" or not job.file_path or not os.path.exists(job.file_path):
+        raise HTTPException(status_code=400, detail="Arquivo de exportacao nao disponível.")
+    
+    return FileResponse(
+        job.file_path,
+        filename=job.filename or "export.pdf",
+        media_type="application/pdf" if job.filename and job.filename.endswith(".pdf") else "application/zip",
     )
 
 

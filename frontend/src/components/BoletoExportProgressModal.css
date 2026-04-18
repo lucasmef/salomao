@@ -1,0 +1,78 @@
+.export-progress-overlay {
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10000;
+}
+
+.export-progress-modal {
+  background: white;
+  width: 100%;
+  max-width: 440px;
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  padding: 1.75rem;
+  animation: confirm-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.export-progress-title {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--color-text-main);
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+
+.export-progress-container {
+  margin: 1.5rem 0;
+}
+
+.export-progress-bar-bg {
+  background: #f1f5f9;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+  border: 1px solid var(--color-border);
+}
+
+.export-progress-bar-fill {
+  background: var(--color-primary);
+  height: 100%;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 15px rgba(37, 99, 235, 0.2);
+}
+
+.export-status-text {
+  font-size: 0.9375rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  font-weight: 500;
+  min-height: 1.5em;
+}
+
+.export-error-box {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 0.875rem;
+  border-radius: var(--radius-md);
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.export-footer {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+}

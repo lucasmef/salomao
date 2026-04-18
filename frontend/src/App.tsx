@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "./components/AppShell";
+import { BoletoExportProgressModal } from "./components/BoletoExportProgressModal";
 import { ConfirmModal } from "./components/ConfirmModal";
 import { GlobalProductSearchModal } from "./components/GlobalProductSearchModal";
 import { RouteLoadingFallback } from "./components/RouteLoadingFallback";
@@ -798,6 +799,8 @@ function AppRuntime() {
     page: 1,
     page_size: 50,
   });
+  const [activeExportJobId, setActiveExportJobId] = useState<string | null>(null);
+
   const [reportFilters, setReportFilters] = useState(() => getCurrentMonthRange());
   const [reconciliationFilters, setReconciliationFilters] = useState({
     account_id: "",
@@ -2001,13 +2004,12 @@ function AppRuntime() {
     if (!session) return;
     setSubmitting(true);
     try {
-      await downloadFile("/boletos/inter/pdf-batch", {
+      const response = await fetchJson<{ id: string }>("/boletos/inter/export", {
         method: "POST",
         token: session.token,
-        filename: "boletos-inter.zip",
         body: JSON.stringify({ boleto_ids: boletoIds }),
       });
-      setFeedback({ tone: "success", message: "PDFs dos boletos baixados." });
+      setActiveExportJobId(response.id);
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });
     } finally {
@@ -3201,10 +3203,14 @@ function AppRuntime() {
         result={globalProductSearchResult}
         searchInput={globalProductSearchInput}
       />
+      {activeExportJobId && (
+        <BoletoExportProgressModal 
+          jobId={activeExportJobId} 
+          onClose={() => setActiveExportJobId(null)} 
+        />
+      )}
     </AppShell>
   );
 }
 
 export default App;
-
-

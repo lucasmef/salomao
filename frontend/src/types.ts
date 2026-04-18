@@ -1206,3 +1206,12 @@ export type FeedbackState = {
   tone: "info" | "success" | "error";
   message: string;
 };
+
+export type BoletoExportJob = {
+  id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  total_count: number;
+  processed_count: number;
+  error_message: string | null;
+  filename: string | null;
+};

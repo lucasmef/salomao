@@ -191,3 +191,15 @@ class BoletoDashboardRead(BaseModel):
     missing_boletos: list[BoletoMatchItem]
     excess_boletos: list[BoletoMatchItem]
     standalone_boletos: list[StandaloneBoletoRead] = []
+
+
+class BoletoExportJobRead(BaseModel):
+    id: str
+    status: str
+    total_count: int
+    processed_count: int
+    error_message: str | None = None
+    filename: str | None = None
+
+    class Config:
+        from_attributes = True
