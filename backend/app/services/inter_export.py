@@ -19,7 +19,7 @@ from app.db.models.security import Company
 from app.services.inter import InterApiClient, _resolve_pdf_download_account
 
 SETTINGS = get_settings()
-EXPORT_DIR = Path(SETTINGS.root_dir or ".") / ".runtime" / "exports"
+EXPORT_DIR = Path(".") / ".runtime" / "exports"
 
 
 def ensure_export_dir():
