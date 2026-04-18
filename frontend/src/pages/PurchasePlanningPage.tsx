@@ -2606,11 +2606,6 @@ export function PurchasePlanningPage({
             <span className={valueClassName}>
               {formatPurchaseDisplayAmount(collectionSnapshot.plannedAmount)}
             </span>
-            {netDisplayLine ? (
-              <span className="planning-inline-return-value">
-                {netDisplayLine}
-              </span>
-            ) : null}
             {options?.showEditButton && (
               <button
                 className="table-button icon-button cockpit-btn ml-1"
