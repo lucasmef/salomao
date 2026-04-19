@@ -292,6 +292,10 @@ function formatMobileShortDate(value: string | null | undefined) {
   return formatted;
 }
 
+function formatEntryTableAmount(value: string | number | null | undefined) {
+  return formatMoney(value).replace(/^R\$\s?/, "");
+}
+
 function StatusCheckIcon() {
   return (
     <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
@@ -1548,7 +1552,7 @@ export function EntriesPage({
                     <span className="entries-date-desktop">{formatDate(entry.due_date)}</span>
                     <span className="entries-date-mobile">{formatMobileShortDate(entry.due_date)}</span>
                   </td>
-                  <td className="numeric-cell">{formatMoney(entry.total_amount)}</td>
+                  <td className="numeric-cell">{formatEntryTableAmount(entry.total_amount)}</td>
                   <td className="entries-row-actions-cell">
                     {!isTransferEntry(entry) ? (
                       <div className="entries-row-menu-wrap" ref={activeRowMenuId === entry.id ? rowMenuRef : undefined}>
