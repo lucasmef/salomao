@@ -161,6 +161,15 @@ function formatReconciliationAmount(value: string | number | null | undefined) {
   return numeric < 0 ? `- ${formatted}` : formatted;
 }
 
+function formatReconciliationShortDate(value: string | null | undefined) {
+  const formatted = formatDate(value);
+  const parts = formatted.split("/");
+  if (parts.length >= 2) {
+    return `${parts[0]}/${parts[1]}`;
+  }
+  return formatted;
+}
+
 function formatRangeLabel(start: string, end: string) {
   if (!start && !end) {
     return "Selecionar período";
@@ -335,6 +344,22 @@ function PaidStatusBadge({ active }: { active: boolean }) {
       title={active ? "Pago" : "Em aberto"}
     >
       <StatusCheckIcon />
+    </span>
+  );
+}
+
+function MatchStatusBadge({ matched }: { matched: boolean }) {
+  const label = matched ? "Conciliado" : "Pendente";
+  return (
+    <span
+      aria-label={label}
+      className={`reconciliation-status-badge ${matched ? "is-active" : "is-pending"}`}
+      title={label}
+    >
+      <span className="reconciliation-status-badge-icon" aria-hidden="true">
+        <StatusCheckIcon />
+      </span>
+      <span className="reconciliation-status-badge-label">{label}</span>
     </span>
   );
 }
@@ -1233,7 +1258,7 @@ export function ReconciliationPage({
             </div>
           </div>
           <div className="table-shell reconciliation-table-shell">
-            <table className="erp-table compact-table reconciliation-bank-table">
+            <table className="erp-table compact-table reconciliation-bank-table reconciliation-bank-table--mobile-friendly">
               <thead>
                 <tr>
                   <th className="checkbox-cell">
@@ -1266,7 +1291,10 @@ export function ReconciliationPage({
                           onChange={() => toggleBankSelection(item.bank_transaction_id)}
                         />
                       </td>
-                      <td>{formatDate(item.posted_at)}</td>
+                      <td>
+                        <span className="reconciliation-date-desktop">{formatDate(item.posted_at)}</span>
+                        <span className="reconciliation-date-mobile">{formatReconciliationShortDate(item.posted_at)}</span>
+                      </td>
                       <td title={statementCell.tooltip}>
                         <div className="reconciliation-cell-stack">
                           <span className="single-line-cell">{statementCell.description}</span>
@@ -1276,9 +1304,7 @@ export function ReconciliationPage({
                       <td className="numeric-cell compact-amount-cell">{formatReconciliationAmount(item.amount)}</td>
                       <td>
                         <div className="reconciliation-inline-status">
-                          <span className={`badge ${isMatched ? "badge-success" : "badge-warning"}`}>
-                            {isMatched ? "Conciliado" : "Pendente"}
-                          </span>
+                          <MatchStatusBadge matched={isMatched} />
                           {isMatched && (
                             <button className="text-action-button reconciliation-inline-link" type="button" onClick={() => void handleUnreconcile(item.bank_transaction_id, item.undo_mode)}>
                               Desconciliar
@@ -1410,7 +1436,7 @@ export function ReconciliationPage({
           )}
 
           <div className="table-shell reconciliation-table-shell">
-            <table className="erp-table compact-table reconciliation-entry-table">
+            <table className="erp-table compact-table reconciliation-entry-table reconciliation-entry-table--mobile-friendly">
               <thead>
                 <tr>
                   <th className="checkbox-cell">
@@ -1440,7 +1466,10 @@ export function ReconciliationPage({
                         onChange={() => toggleEntrySelection(entry.id)}
                       />
                     </td>
-                    <td>{formatDate(entry.due_date)}</td>
+                    <td>
+                      <span className="reconciliation-date-desktop">{formatDate(entry.due_date)}</span>
+                      <span className="reconciliation-date-mobile">{formatReconciliationShortDate(entry.due_date)}</span>
+                    </td>
                     <td title={compactSingleLine(entry.title)}><span className="single-line-cell">{compactSingleLine(entry.title)}</span></td>
                     <td title={compactSingleLine(entry.category_name ?? "-")}><span className="single-line-cell">{compactSingleLine(entry.category_name ?? "-")}</span></td>
                     <td className="numeric-cell compact-amount-cell">{formatReconciliationAmount(entry.total_amount)}</td>

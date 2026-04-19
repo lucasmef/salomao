@@ -397,6 +397,61 @@ function formatPurchaseDisplayAmount(
   }).format(integerValue);
 }
 
+function formatPurchaseShortDate(value: string | null | undefined) {
+  const formatted = formatDate(value);
+  const parts = formatted.split("/");
+  if (parts.length >= 2) {
+    return `${parts[0]}/${parts[1]}`;
+  }
+  return formatted;
+}
+
+function renderResponsivePurchaseDate(value: string | null | undefined) {
+  return (
+    <>
+      <span className="purchase-date-desktop">{formatDate(value)}</span>
+      <span className="purchase-date-mobile">{formatPurchaseShortDate(value)}</span>
+    </>
+  );
+}
+
+function renderPurchaseStatusBadge(value: string | null | undefined, label?: string) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  const statusLabel = label ?? labelizeStatus(value);
+  let tone: "success" | "warning" | "danger" | "neutral" = "warning";
+
+  if (
+    normalized.includes("confirm") ||
+    normalized.includes("settled") ||
+    normalized.includes("paid") ||
+    normalized.includes("approved") ||
+    normalized.includes("refunded") ||
+    normalized === "active" ||
+    normalized === "ativa" ||
+    normalized === "ativo"
+  ) {
+    tone = "success";
+  } else if (
+    normalized.includes("cancel") ||
+    normalized.includes("inactive") ||
+    normalized === "inativa" ||
+    normalized === "inativo"
+  ) {
+    tone = "neutral";
+  } else if (normalized.includes("overdue") || normalized.includes("atras")) {
+    tone = "danger";
+  }
+
+  return (
+    <span className={`purchase-status-badge purchase-status-badge--${tone}`} title={statusLabel}>
+      <span className="purchase-status-badge-icon" aria-hidden="true">
+        {tone === "success" ? <CheckIcon /> : tone === "danger" || tone === "neutral" ? <CloseIcon /> : <InvoiceIcon />}
+      </span>
+      <span className="purchase-status-badge-label">{statusLabel}</span>
+    </span>
+  );
+}
+
 function buildPurchaseNetDisplayLine(
   plannedAmount: string | number | null | undefined,
   returnsAmount: string | number | null | undefined,
@@ -2644,17 +2699,17 @@ export function PurchasePlanningPage({
 
     return (
       <tr key={installment.id}>
-        <td>{installment.supplier_name || "-"}</td>
-        <td>{installment.invoice_number || "-"}</td>
-        <td>
+        <td className="purchase-installments-col-supplier">{installment.supplier_name || "-"}</td>
+        <td className="purchase-installments-col-invoice">{installment.invoice_number || "-"}</td>
+        <td className="purchase-installments-col-label">
           {installment.installment_label || installment.installment_number}
         </td>
-        <td>{formatDate(installment.due_date)}</td>
-        <td className="numeric-cell">
+        <td className="purchase-installments-col-date">{renderResponsivePurchaseDate(installment.due_date)}</td>
+        <td className="numeric-cell purchase-installments-col-amount">
           {formatPurchaseDisplayAmount(installment.amount)}
         </td>
-        <td>{labelizeStatus(installment.status)}</td>
-        <td style={{ minWidth: 220 }}>
+        <td className="purchase-installments-col-status">{renderPurchaseStatusBadge(installment.status)}</td>
+        <td className="purchase-installments-link-cell">
           <Select
             options={candidateOptions}
             value={selectedCandidate}
@@ -2830,7 +2885,7 @@ export function PurchasePlanningPage({
               <h3>Compras registradas</h3>
             </div>
             <div className="table-shell tall">
-              <table className="erp-table">
+              <table className="erp-table purchase-summary-invoices-table">
                 <thead>
                   <tr>
                     <th>Fornecedor</th>
@@ -2845,14 +2900,14 @@ export function PurchasePlanningPage({
                   {overview.invoices.length ? (
                     overview.invoices.map((invoice) => (
                       <tr key={invoice.id}>
-                        <td>{invoice.supplier_name || "-"}</td>
-                        <td>{invoice.collection_name || "-"}</td>
-                        <td>{invoice.invoice_number || "-"}</td>
-                        <td>{formatDate(invoice.issue_date)}</td>
-                        <td className="numeric-cell">
+                        <td className="purchase-summary-invoices-col-supplier">{invoice.supplier_name || "-"}</td>
+                        <td className="purchase-summary-invoices-col-collection">{invoice.collection_name || "-"}</td>
+                        <td className="purchase-summary-invoices-col-invoice">{invoice.invoice_number || "-"}</td>
+                        <td className="purchase-summary-invoices-col-date">{renderResponsivePurchaseDate(invoice.issue_date)}</td>
+                        <td className="numeric-cell purchase-summary-invoices-col-amount">
                           {formatPurchaseDisplayAmount(invoice.total_amount)}
                         </td>
-                        <td>{labelizeStatus(invoice.status)}</td>
+                        <td className="purchase-summary-invoices-col-status">{renderPurchaseStatusBadge(invoice.status)}</td>
                       </tr>
                     ))
                   ) : (
@@ -2870,7 +2925,7 @@ export function PurchasePlanningPage({
               <h3>Parcelas previstas</h3>
             </div>
             <div className="table-shell tall">
-              <table className="erp-table">
+              <table className="erp-table purchase-summary-installments-table">
                 <thead>
                   <tr>
                     <th>Fornecedor</th>
@@ -3435,7 +3490,7 @@ export function PurchasePlanningPage({
               </button>
             </div>
             <div className="table-shell purchase-collections-table-shell">
-              <table className="erp-table purchase-collections-table">
+              <table className="erp-table purchase-collections-table purchase-collections-mobile-table">
                 <thead>
                   <tr>
                     <th>Coleção</th>
@@ -3451,16 +3506,16 @@ export function PurchasePlanningPage({
                   {collections.length ? (
                     collections.map((collection) => (
                       <tr key={collection.id}>
-                        <td>{collection.season_label || collection.name}</td>
-                        <td>{collection.season_year}</td>
-                        <td>{formatDate(collection.start_date)}</td>
-                        <td>{formatDate(collection.end_date)}</td>
-                        <td className="numeric-cell">
+                        <td className="purchase-collections-col-name">{collection.season_label || collection.name}</td>
+                        <td className="purchase-collections-col-year">{collection.season_year}</td>
+                        <td className="purchase-collections-col-start">{renderResponsivePurchaseDate(collection.start_date)}</td>
+                        <td className="purchase-collections-col-end">{renderResponsivePurchaseDate(collection.end_date)}</td>
+                        <td className="numeric-cell purchase-collections-col-total">
                           {formatPurchaseDisplayAmount(
                             collectionTotals.get(collection.id) ?? "0.00",
                           )}
                         </td>
-                        <td>{collection.is_active ? "Ativa" : "Inativa"}</td>
+                        <td className="purchase-collections-col-status">{renderPurchaseStatusBadge(collection.is_active ? "active" : "inactive", collection.is_active ? "Ativa" : "Inativa")}</td>
                         <td>
                           <div className="action-row">
                             <button
@@ -3548,7 +3603,7 @@ export function PurchasePlanningPage({
             </button>
           </div>
           <div className="table-shell tall">
-            <table className="erp-table compact-table">
+              <table className="erp-table compact-table purchase-suppliers-table">
               <thead>
                 <tr>
                   <th>Fornecedor</th>
@@ -3561,9 +3616,9 @@ export function PurchasePlanningPage({
                 {suppliers.length ? (
                   suppliers.map((supplier) => (
                     <tr key={supplier.id}>
-                      <td>{supplier.name}</td>
-                      <td>{supplier.default_payment_term || "-"}</td>
-                      <td>{supplier.is_active ? "Ativo" : "Inativo"}</td>
+                      <td className="purchase-suppliers-col-name">{supplier.name}</td>
+                      <td className="purchase-suppliers-col-term">{supplier.default_payment_term || "-"}</td>
+                      <td className="purchase-suppliers-col-status">{renderPurchaseStatusBadge(supplier.is_active ? "active" : "inactive", supplier.is_active ? "Ativo" : "Inativo")}</td>
                       <td>
                         <div className="action-row">
                           <button
@@ -3672,7 +3727,7 @@ export function PurchasePlanningPage({
             <h3>Devolução de compras</h3>
           </div>
           <div className="table-shell tall">
-            <table className="erp-table compact-table">
+            <table className="erp-table compact-table purchase-returns-table">
               <thead>
                 <tr>
                   <th>Data</th>
@@ -3694,13 +3749,13 @@ export function PurchasePlanningPage({
                           : undefined
                       }
                     >
-                      <td>{formatDate(purchaseReturn.return_date)}</td>
-                      <td>{purchaseReturn.supplier_name || "-"}</td>
-                      <td>{purchaseReturn.invoice_number || "-"}</td>
-                      <td className="centered-cell">
-                        {labelizePurchaseReturnStatus(purchaseReturn.status)}
+                      <td className="purchase-returns-col-date">{renderResponsivePurchaseDate(purchaseReturn.return_date)}</td>
+                      <td className="purchase-returns-col-supplier">{purchaseReturn.supplier_name || "-"}</td>
+                      <td className="purchase-returns-col-invoice">{purchaseReturn.invoice_number || "-"}</td>
+                      <td className="centered-cell purchase-returns-col-status">
+                        {renderPurchaseStatusBadge(purchaseReturn.status, labelizePurchaseReturnStatus(purchaseReturn.status))}
                       </td>
-                      <td className="numeric-cell tabular-nums">
+                      <td className="numeric-cell tabular-nums purchase-returns-col-amount">
                         {formatPurchaseDisplayAmount(purchaseReturn.amount)}
                       </td>
                       <td>

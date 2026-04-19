@@ -10,6 +10,28 @@ type Props = {
   dashboard: DashboardOverview | null;
 };
 
+function formatResultsCompactAmount(value: string | number | null | undefined) {
+  return formatMoneyNumber(value).replace(/^R\$\s?/, "");
+}
+
+function formatResultsMobileLabel(label: string) {
+  return label.slice(0, 3);
+}
+
+function TrendIcon({ positive }: { positive: boolean }) {
+  return positive ? (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16" fill="none">
+      <path d="M3.5 10.5 6.9 7.1l2.2 2.2 3.4-3.8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9.9 5.5h2.6v2.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ) : (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16" fill="none">
+      <path d="m3.5 5.5 3.4 3.4 2.2-2.2 3.4 3.8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9.9 10.5h2.6V7.9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function ResultsComparativesPage({ tabs, dashboard }: Props) {
   const currentTab = tabs.find((item) => item.key === "comparativos") ?? tabs[0];
 
@@ -81,14 +103,22 @@ export function ResultsComparativesPage({ tabs, dashboard }: Props) {
         <article className="panel">
           <div className="panel-title"><h3>Comparativo mensal</h3></div>
           <div className="table-shell">
-            <table className="erp-table">
+            <table className="erp-table results-comparison-table">
               <thead><tr><th>Mes</th><th>Atual</th><th>Ano anterior</th></tr></thead>
               <tbody>
                 {(dashboard?.revenue_comparison.points ?? []).slice(0, 6).map((item) => (
                   <tr key={item.label}>
-                    <td>{item.label}</td>
-                    <td>{formatMoneyNumber(item.current_year_value)}</td>
-                    <td>{formatMoneyNumber(item.previous_year_value)}</td>
+                    <td className="results-comparison-col-month">
+                      <span className="results-month-desktop">{item.label}</span>
+                      <span className="results-month-mobile">{formatResultsMobileLabel(item.label)}</span>
+                    </td>
+                    <td className={`results-comparison-col-current ${item.current_year_value >= item.previous_year_value ? "is-positive" : "is-negative"}`}>
+                      <span className="results-trend-icon" aria-hidden="true">
+                        <TrendIcon positive={item.current_year_value >= item.previous_year_value} />
+                      </span>
+                      <span>{formatResultsCompactAmount(item.current_year_value)}</span>
+                    </td>
+                    <td className="results-comparison-col-previous">{formatResultsCompactAmount(item.previous_year_value)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -1230,6 +1230,41 @@ textarea {
   color: #2f8f4e;
 }
 
+.reconciliation-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.reconciliation-status-badge.is-active {
+  background: #ebfbf2;
+  color: #2f8f4e;
+}
+
+.reconciliation-status-badge.is-pending {
+  background: #fff7e8;
+  color: #b7791f;
+}
+
+.reconciliation-status-badge-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.reconciliation-date-mobile {
+  display: none;
+}
+
+.reconciliation-date-desktop {
+  display: inline;
+}
+
 .reconciliation-table-shell {
   max-height: none;
   min-height: 0;
@@ -2978,6 +3013,97 @@ textarea {
   table-layout: auto;
 }
 
+.purchase-date-mobile {
+  display: none;
+}
+
+.purchase-date-desktop {
+  display: inline;
+}
+
+.purchase-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.purchase-status-badge--success {
+  background: #ebfbf2;
+  color: #1f7a45;
+}
+
+.purchase-status-badge--warning {
+  background: #fff7e8;
+  color: #9a6700;
+}
+
+.purchase-status-badge--danger {
+  background: #fff1ef;
+  color: #b5473f;
+}
+
+.purchase-status-badge--neutral {
+  background: #f2f4f7;
+  color: #667085;
+}
+
+.purchase-status-badge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.purchase-status-badge-icon .button-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.purchase-installments-link-cell {
+  min-width: 220px;
+}
+
+.purchase-installments-link-cell > div {
+  min-width: 0;
+}
+
+.results-comparison-col-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.results-comparison-col-current.is-positive {
+  color: #1f7a45;
+}
+
+.results-comparison-col-current.is-negative {
+  color: #b5473f;
+}
+
+.results-trend-icon {
+  display: inline-flex;
+}
+
+.results-trend-icon .button-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.results-month-mobile {
+  display: none;
+}
+
+.results-month-desktop {
+  display: inline;
+}
+
 .purchase-inactive-brands-modal-card {
   width: min(860px, calc(100vw - 32px));
 }
@@ -3997,6 +4123,7 @@ textarea {
 .billing-status-pill {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   min-height: 24px;
   padding: 3px 9px;
   border-radius: 999px;
@@ -4004,6 +4131,25 @@ textarea {
   font-weight: 700;
   letter-spacing: 0.01em;
   white-space: nowrap;
+}
+
+.billing-status-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.billing-status-pill-icon .button-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.billing-date-mobile {
+  display: none;
+}
+
+.billing-date-desktop {
+  display: inline;
 }
 
 .billing-status-pill.is-open {
@@ -4308,6 +4454,105 @@ textarea {
 
   .entries-date-mobile {
     display: inline;
+  }
+
+  .reconciliation-bank-table,
+  .reconciliation-entry-table,
+  .billing-open-boletos-table,
+  .billing-open-receivables-table,
+  .purchase-summary-invoices-table,
+  .purchase-summary-installments-table,
+  .purchase-collections-mobile-table,
+  .purchase-suppliers-table,
+  .purchase-returns-table,
+  .results-comparison-table {
+    min-width: 420px;
+  }
+
+  .reconciliation-date-desktop,
+  .billing-date-desktop,
+  .purchase-date-desktop,
+  .results-month-desktop {
+    display: none;
+  }
+
+  .reconciliation-date-mobile,
+  .billing-date-mobile,
+  .purchase-date-mobile,
+  .results-month-mobile {
+    display: inline;
+  }
+
+  .reconciliation-status-badge {
+    min-height: 22px;
+    padding: 0 6px;
+  }
+
+  .reconciliation-status-badge-label {
+    display: none;
+  }
+
+  .reconciliation-bank-table td:nth-child(3) .reconciliation-statement-detail,
+  .reconciliation-entry-table th:nth-child(4),
+  .reconciliation-entry-table td:nth-child(4) {
+    display: none;
+  }
+
+  .billing-status-pill {
+    min-height: 22px;
+    padding: 0 6px;
+  }
+
+  .billing-status-pill-label,
+  .billing-open-receivables-table th:nth-child(3),
+  .billing-open-receivables-table td:nth-child(3),
+  .billing-open-boletos-table th:nth-child(4),
+  .billing-open-boletos-table td:nth-child(4),
+  .billing-open-boletos-table th:nth-child(5),
+  .billing-open-boletos-table td:nth-child(5),
+  .billing-open-boletos-table th:nth-child(8),
+  .billing-open-boletos-table td:nth-child(8),
+  .billing-open-boletos-table th:nth-child(9),
+  .billing-open-boletos-table td:nth-child(9),
+  .billing-open-boletos-table th:nth-child(10),
+  .billing-open-boletos-table td:nth-child(10) {
+    display: none;
+  }
+
+  .purchase-status-badge {
+    min-height: 22px;
+    padding: 0 6px;
+  }
+
+  .purchase-status-badge-label {
+    display: none;
+  }
+
+  .purchase-summary-invoices-table th:nth-child(2),
+  .purchase-summary-invoices-table td:nth-child(2),
+  .purchase-collections-mobile-table th:nth-child(2),
+  .purchase-collections-mobile-table td:nth-child(2),
+  .purchase-collections-mobile-table th:nth-child(4),
+  .purchase-collections-mobile-table td:nth-child(4),
+  .purchase-suppliers-table th:nth-child(2),
+  .purchase-suppliers-table td:nth-child(2),
+  .purchase-returns-table th:nth-child(2),
+  .purchase-returns-table td:nth-child(2) {
+    display: none;
+  }
+
+  .purchase-installments-link-cell {
+    min-width: 136px;
+  }
+
+  .purchase-installments-link-cell .css-b62m3t-container,
+  .purchase-installments-link-cell .css-13cymwt-control,
+  .purchase-installments-link-cell .css-t3ipsp-control {
+    min-height: 32px;
+  }
+
+  .results-comparison-col-current {
+    gap: 4px;
   }
 
   .entries-cell-title .cell-stack span {
@@ -5176,6 +5421,26 @@ textarea {
   }
 
   .entries-status-badge {
+    min-height: 20px;
+    padding: 0 5px;
+  }
+
+  .reconciliation-bank-table,
+  .reconciliation-entry-table,
+  .billing-open-boletos-table,
+  .billing-open-receivables-table,
+  .purchase-summary-invoices-table,
+  .purchase-summary-installments-table,
+  .purchase-collections-mobile-table,
+  .purchase-suppliers-table,
+  .purchase-returns-table,
+  .results-comparison-table {
+    min-width: 380px;
+  }
+
+  .reconciliation-status-badge,
+  .billing-status-pill,
+  .purchase-status-badge {
     min-height: 20px;
     padding: 0 5px;
   }

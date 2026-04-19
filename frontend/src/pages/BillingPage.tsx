@@ -211,6 +211,57 @@ function boletoTypeLabel(type: BoletoTypeKey) {
   }
 }
 
+function formatBillingShortDate(value: string | null | undefined) {
+  const formatted = formatDate(value);
+  const parts = formatted.split("/");
+  if (parts.length >= 2) {
+    return `${parts[0]}/${parts[1]}`;
+  }
+  return formatted;
+}
+
+function formatBillingCompactAmount(value: string | number | null | undefined) {
+  return formatMoney(value).replace(/^R\$\s?/, "");
+}
+
+function ClockIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="10" r="6.25" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M10 6.75v3.65l2.35 1.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function AlertIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
+      <path d="M10 4.5 15.5 15H4.5L10 4.5Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M10 8v3.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <circle cx="10" cy="13.2" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
+function renderBillingStatusIcon(statusKey: InvoiceStatusKey | BoletoStatusKey) {
+  switch (statusKey) {
+    case "paid":
+      return <CheckIcon />;
+    case "overdue":
+    case "missing":
+    case "excess":
+      return <AlertIcon />;
+    case "cancelled":
+      return <CancelIcon />;
+    case "standalone":
+      return <FileIcon />;
+    case "paid_pending":
+    case "open":
+    default:
+      return <ClockIcon />;
+  }
+}
+
 function renderBoletoStatusBadge(statusKey: BoletoStatusKey, label: string) {
   let tone: "success" | "warning" | "danger" | "info" | "neutral" = "neutral";
   
@@ -235,7 +286,14 @@ function renderBoletoStatusBadge(statusKey: BoletoStatusKey, label: string) {
       break;
   }
 
-  return <span className={`badge badge-${tone}`}>{label}</span>;
+  return (
+    <span className={`billing-status-pill is-${statusKey} billing-status-pill--${tone}`}>
+      <span className="billing-status-pill-icon" aria-hidden="true">
+        {renderBillingStatusIcon(statusKey)}
+      </span>
+      <span className="billing-status-pill-label">{label}</span>
+    </span>
+  );
 }
 
 function renderInvoiceStatusBadge(statusKey: InvoiceStatusKey, label: string) {
@@ -253,7 +311,14 @@ function renderInvoiceStatusBadge(statusKey: InvoiceStatusKey, label: string) {
       break;
   }
 
-  return <span className={`badge badge-${tone}`}>{label}</span>;
+  return (
+    <span className={`billing-status-pill is-${statusKey} billing-status-pill--${tone}`}>
+      <span className="billing-status-pill-icon" aria-hidden="true">
+        {renderBillingStatusIcon(statusKey)}
+      </span>
+      <span className="billing-status-pill-label">{label}</span>
+    </span>
+  );
 }
 
 function buildInvoiceTitle(item: BoletoDashboard["invoice_items"][number]) {
@@ -1221,7 +1286,7 @@ export function BillingPage({
         </div>
 
         <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-          <table className="erp-table entries-list-table billing-alert-table billing-open-receivables-table">
+          <table className="erp-table entries-list-table billing-alert-table billing-open-receivables-table billing-invoices-table">
             <colgroup>
               <col className="billing-alert-col-client" />
               <col className="billing-alert-col-document" />
@@ -1293,14 +1358,20 @@ export function BillingPage({
             <tbody>
               {paginatedInvoices.map((item) => (
                 <tr key={item.id}>
-                  <td title={item.client_name}>{item.client_name}</td>
-                  <td title={item.title}>
+                  <td className="billing-invoice-col-client" title={item.client_name}>{item.client_name}</td>
+                  <td className="billing-invoice-col-title" title={item.title}>
                     <strong>{item.title}</strong>
                   </td>
-                  <td>{formatDate(item.issue_date)}</td>
-                  <td>{formatDate(item.due_date)}</td>
-                  <td className="numeric-cell">{formatMoney(item.amount)}</td>
-                  <td>
+                  <td className="billing-invoice-col-issue-date">
+                    <span className="billing-date-desktop">{formatDate(item.issue_date)}</span>
+                    <span className="billing-date-mobile">{formatBillingShortDate(item.issue_date)}</span>
+                  </td>
+                  <td className="billing-invoice-col-due-date">
+                    <span className="billing-date-desktop">{formatDate(item.due_date)}</span>
+                    <span className="billing-date-mobile">{formatBillingShortDate(item.due_date)}</span>
+                  </td>
+                  <td className="numeric-cell billing-invoice-col-amount">{formatBillingCompactAmount(item.amount)}</td>
+                  <td className="billing-invoice-col-status">
                     {renderInvoiceStatusBadge(item.status_key, item.status)}
                   </td>
                 </tr>
@@ -1478,7 +1549,7 @@ export function BillingPage({
         </div>
 
         <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-          <table className="erp-table entries-list-table billing-alert-table billing-open-boletos-table">
+          <table className="erp-table entries-list-table billing-alert-table billing-open-boletos-table billing-boletos-table">
             <colgroup>
               <col className="billing-alert-col-select" />
               <col className="billing-alert-col-client" />
@@ -1589,7 +1660,7 @@ export function BillingPage({
             <tbody>
               {paginatedBoletos.map((row) => (
                 <tr key={row.id}>
-                  <td className="billing-open-boletos-select-cell">
+                  <td className="billing-open-boletos-select-cell billing-boleto-col-select">
                     <div className="billing-selection-stack">
                       {row.selection_key ? (
                         <input
@@ -1615,20 +1686,26 @@ export function BillingPage({
                       )}
                     </div>
                   </td>
-                  <td title={row.client_name}>{row.client_name}</td>
-                  <td title={row.document_id}>
+                  <td className="billing-boleto-col-client" title={row.client_name}>{row.client_name}</td>
+                  <td className="billing-boleto-col-document" title={row.document_id}>
                     <strong>{row.document_id || "-"}</strong>
                   </td>
-                  <td title={row.description}>{row.description || "-"}</td>
-                  <td>{formatDate(row.issue_date)}</td>
-                  <td>{formatDate(row.due_date)}</td>
-                  <td className="numeric-cell">{formatMoney(row.amount)}</td>
-                  <td>
+                  <td className="billing-boleto-col-description" title={row.description}>{row.description || "-"}</td>
+                  <td className="billing-boleto-col-issue-date">
+                    <span className="billing-date-desktop">{formatDate(row.issue_date)}</span>
+                    <span className="billing-date-mobile">{formatBillingShortDate(row.issue_date)}</span>
+                  </td>
+                  <td className="billing-boleto-col-due-date">
+                    <span className="billing-date-desktop">{formatDate(row.due_date)}</span>
+                    <span className="billing-date-mobile">{formatBillingShortDate(row.due_date)}</span>
+                  </td>
+                  <td className="numeric-cell billing-boleto-col-amount">{formatBillingCompactAmount(row.amount)}</td>
+                  <td className="billing-boleto-col-status">
                     {renderBoletoStatusBadge(row.status_key, row.status)}
                   </td>
-                  <td>{row.status_loja}</td>
-                  <td>{row.status_banco === "-" ? row.bank || "-" : `${row.bank || "-"} / ${row.status_banco}`}</td>
-                  <td className="billing-open-boletos-actions-cell">{renderBoletoActions(row)}</td>
+                  <td className="billing-boleto-col-store-status">{row.status_loja}</td>
+                  <td className="billing-boleto-col-bank">{row.status_banco === "-" ? row.bank || "-" : `${row.bank || "-"} / ${row.status_banco}`}</td>
+                  <td className="billing-open-boletos-actions-cell billing-boleto-col-actions">{renderBoletoActions(row)}</td>
                 </tr>
               ))}
               {!paginatedBoletos.length ? (
