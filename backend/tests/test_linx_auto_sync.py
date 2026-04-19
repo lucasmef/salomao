@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.config import get_settings
 from app.jobs import linx_auto_sync as linx_auto_sync_job
 from app.db.base import Base
+from app.db.models.boleto import StandaloneBoletoRecord
 from app.db.models.imports import ImportBatch
 from app.db.models.security import Company
 from app.services.linx_auto_sync import (
@@ -711,6 +712,91 @@ def test_linx_auto_sync_runs_inter_before_settlement_and_disables_charge_inline_
         assert calls.index("inter_statement") < calls.index("settlement")
         assert calls.index("inter_charges") < calls.index("settlement")
         assert calls.index("receivables") < calls.index("settlement")
+    finally:
+        session.close()
+
+
+def test_linx_auto_sync_syncs_standalone_inter_charges_when_records_exist(monkeypatch) -> None:
+    session, company = _build_session()
+    calls: list[str] = []
+    session.add(
+        StandaloneBoletoRecord(
+            company_id=company.id,
+            bank="INTER",
+            client_key="cliente-avulso",
+            client_name="Cliente Avulso",
+            document_id="AVL-001",
+            amount=10,
+            paid_amount=0,
+            status="A receber",
+            local_status="open",
+            inter_codigo_solicitacao="SOL-AVL-001",
+        )
+    )
+    session.commit()
+
+    monkeypatch.setattr("app.services.linx_auto_sync.ensure_pre_import_backup", lambda source: None)
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_customers",
+        lambda db, current_company: _result("customers ok"),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_movements",
+        lambda db, current_company: _result("movements ok", batch_id="mov-batch"),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync._count_touched_purchase_movements",
+        lambda db, *, company_id, batch_id: 0,
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync._should_run_products_now",
+        lambda *args, **kwargs: False,
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_open_receivables",
+        lambda db, current_company: _result(
+            "Faturas a receber Linx sincronizadas com sucesso. 0 nova(s), 0 atualizada(s) e 0 removida(s) da base aberta."
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_linx_purchase_payables",
+        lambda db, current_company, actor_user=None: _result("purchase payables ok"),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_inter_charges",
+        lambda db, current_company, account_id=None, start_date=None, end_date=None, run_settlement=True: calls.append("inter_charges")
+        or _result("Cobrancas do Inter sincronizadas com sucesso."),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.sync_standalone_inter_charges",
+        lambda db, current_company: calls.append("standalone_inter")
+        or SimpleNamespace(
+            batch=SimpleNamespace(id="standalone-batch", records_total=1),
+            message="Boletos avulsos sincronizados com sucesso. 1 pagamento(s) identificado(s).",
+        ),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_auto_sync.settle_paid_pending_inter_receivables",
+        lambda db, current_company: calls.append("settlement")
+        or LinxSettlementSummary(
+            attempted_invoice_count=0,
+            settled_invoice_count=0,
+            failed_invoice_count=0,
+            client_count=0,
+        ),
+    )
+    monkeypatch.setattr("app.services.linx_auto_sync.send_email", lambda *args, **kwargs: None)
+
+    try:
+        result = run_linx_auto_sync_for_company(
+            session,
+            company,
+            now=datetime(2026, 4, 4, 10, 30, tzinfo=AUTO_SYNC_TIMEZONE),
+        )
+
+        assert result.status == "success"
+        assert calls.index("inter_charges") < calls.index("standalone_inter")
+        assert "1 pagamento(s) identificado(s)." in (result.inter_charges_message or "")
     finally:
         session.close()
 

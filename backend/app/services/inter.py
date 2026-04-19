@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from email.utils import parsedate_to_datetime
+from html import escape
 from typing import Any
 
 import httpx
@@ -39,6 +40,7 @@ from app.services.boletos import (
     normalize_text,
 )
 from app.services.linx_receivable_settlement import settle_paid_pending_inter_receivables
+from app.services.security_alerts import ensure_email_transport_configured, send_email
 
 INTER_PRODUCTION_BASE_URL = "https://cdpj.partners.bancointer.com.br"
 INTER_SANDBOX_BASE_URL = "https://cdpj-sandbox.partners.uatinter.co"
@@ -84,6 +86,18 @@ INTER_STATEMENT_MATCH_STOPWORDS = {
     "TRANSACAO",
     "TRANSFERENCIA",
 }
+
+
+@dataclass(frozen=True)
+class StandaloneBoletoReceiptNotification:
+    client_name: str
+    document_id: str
+    description: str | None
+    due_date: date | None
+    payment_date: date | None
+    amount: Decimal
+    paid_amount: Decimal
+    inter_codigo_solicitacao: str | None
 INTER_BATCH_SOURCE_TYPES = {
     "statement": "inter_statement",
     "charge_sync": "inter_charge_sync",
@@ -189,6 +203,77 @@ def _resolve_charge_payment_date(cobranca: dict[str, Any]) -> date | None:
     if status != "Recebido por boleto" and total_received <= 0:
         return None
     return _parse_date(str(cobranca.get("dataSituacao") or ""))
+
+
+def _split_recipients(raw_value: str | None) -> list[str]:
+    return [item.strip() for item in (raw_value or "").split(",") if item.strip()]
+
+
+def _is_paid_charge(status: str | None, paid_amount: Decimal | None) -> bool:
+    normalized_status = normalize_text(status or "").lower()
+    if any(keyword in normalized_status for keyword in ("recebido", "pago", "quitado", "baixado")):
+        return True
+    return Decimal(paid_amount or 0) > 0
+
+
+def _format_brl(value: Decimal | None) -> str:
+    amount = Decimal(value or 0).quantize(Decimal("0.01"))
+    normalized = f"{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"R$ {normalized}"
+
+
+def _build_standalone_paid_email(
+    company: Company,
+    notifications: list[StandaloneBoletoReceiptNotification],
+) -> tuple[str, str, str]:
+    company_name = company.trade_name or company.legal_name or company.id
+    subject = f"[Inter] Boleto avulso pago - {company_name}"
+    lines = [
+        f"Empresa: {company_name}",
+        "",
+        f"Total de boletos avulsos pagos: {len(notifications)}",
+        "",
+    ]
+    html_lines = [
+        f"<p><strong>Empresa:</strong> {escape(company_name)}</p>",
+        f"<p><strong>Total de boletos avulsos pagos:</strong> {len(notifications)}</p>",
+        (
+            "<table border='1' cellpadding='6' cellspacing='0'>"
+            "<thead><tr>"
+            "<th>Cliente</th><th>Documento</th><th>Descricao</th><th>Vencimento</th>"
+            "<th>Pagamento</th><th>Valor</th><th>Recebido</th>"
+            "</tr></thead><tbody>"
+        ),
+    ]
+    for item in notifications:
+        due_label = item.due_date.strftime("%d/%m/%Y") if item.due_date else "-"
+        payment_label = item.payment_date.strftime("%d/%m/%Y") if item.payment_date else "-"
+        description_label = item.description or "Boleto avulso"
+        lines.extend(
+            [
+                f"Cliente: {item.client_name}",
+                f"Documento: {item.document_id}",
+                f"Descricao: {description_label}",
+                f"Vencimento: {due_label}",
+                f"Pagamento: {payment_label}",
+                f"Valor: {_format_brl(item.amount)}",
+                f"Recebido: {_format_brl(item.paid_amount)}",
+                "",
+            ]
+        )
+        html_lines.append(
+            "<tr>"
+            f"<td>{escape(item.client_name)}</td>"
+            f"<td>{escape(item.document_id)}</td>"
+            f"<td>{escape(description_label)}</td>"
+            f"<td>{escape(due_label)}</td>"
+            f"<td>{escape(payment_label)}</td>"
+            f"<td>{escape(_format_brl(item.amount))}</td>"
+            f"<td>{escape(_format_brl(item.paid_amount))}</td>"
+            "</tr>"
+        )
+    html_lines.append("</tbody></table>")
+    return subject, "\n".join(lines).strip(), "".join(html_lines)
 
 
 def _map_statement_to_transaction_payload(
@@ -1250,8 +1335,14 @@ def sync_inter_charges(
             # Rate limit individual refreshes: only check if not updated in the last 4 hours
             # to avoid hitting API limits for old pending boletos on every sync cycle.
             now_utc = datetime.now(timezone.utc)
-            if record.updated_at and (now_utc - record.updated_at).total_seconds() < 4 * 3600:
-                continue
+            if record.source_batch_id and record.updated_at:
+                updated_at = (
+                    record.updated_at.replace(tzinfo=timezone.utc)
+                    if record.updated_at.tzinfo is None
+                    else record.updated_at.astimezone(timezone.utc)
+                )
+                if (now_utc - updated_at).total_seconds() < 4 * 3600:
+                    continue
                 
             detail = client.get_charge_detail(codigo_solicitacao)
             _, created = _upsert_boleto_record(
@@ -1656,12 +1747,15 @@ def sync_standalone_inter_charges(
         filename=f"inter-boleto-avulso-sync-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
     )
     updated_count = 0
+    newly_paid_notifications: list[StandaloneBoletoReceiptNotification] = []
+    email_error: str | None = None
     for record in standalone_records:
+        was_paid = _is_paid_charge(record.status, Decimal(record.paid_amount or 0))
         account, config = _resolve_pdf_download_account(db, company, record)
         client = InterApiClient(config, transport=transport)
         try:
             detail = client.get_charge_detail(str(record.inter_codigo_solicitacao))
-            _upsert_standalone_boleto_record(
+            updated_record, _created = _upsert_standalone_boleto_record(
                 db,
                 company_id=company.id,
                 batch_id=batch.id,
@@ -1675,6 +1769,21 @@ def sync_standalone_inter_charges(
                 local_status=record.local_status,
                 issue_date_override=record.issue_date,
             )
+            cobranca = detail.get("cobranca") or {}
+            is_paid_now = _is_paid_charge(updated_record.status, Decimal(updated_record.paid_amount or 0))
+            if is_paid_now and not was_paid:
+                newly_paid_notifications.append(
+                    StandaloneBoletoReceiptNotification(
+                        client_name=updated_record.client_name,
+                        document_id=updated_record.document_id,
+                        description=updated_record.description,
+                        due_date=updated_record.due_date,
+                        payment_date=_resolve_charge_payment_date(cobranca),
+                        amount=Decimal(updated_record.amount or 0),
+                        paid_amount=Decimal(updated_record.paid_amount or 0),
+                        inter_codigo_solicitacao=updated_record.inter_codigo_solicitacao,
+                    )
+                )
             updated_count += 1
         finally:
             client.close()
@@ -1683,8 +1792,32 @@ def sync_standalone_inter_charges(
     batch.records_valid = updated_count
     batch.records_invalid = 0
     batch.status = "processed"
+    if newly_paid_notifications:
+        try:
+            subject, body, html_body = _build_standalone_paid_email(company, newly_paid_notifications)
+            ensure_email_transport_configured()
+            send_email(
+                subject,
+                body,
+                recipients=_split_recipients(company.linx_auto_sync_alert_email),
+                html_body=html_body,
+            )
+        except Exception as error:  # pragma: no cover
+            email_error = str(error)
+    details: list[str] = []
+    if newly_paid_notifications:
+        details.append(f"{len(newly_paid_notifications)} boleto(s) avulso(s) recebido(s) no Inter.")
+    if email_error:
+        details.append(f"Aviso por email do boleto avulso nao enviado: {email_error}")
+    if details:
+        batch.error_summary = " ".join(details)
     db.commit()
     db.refresh(batch)
+    if newly_paid_notifications:
+        return ImportResult(
+            batch=batch,
+            message=f"Boletos avulsos sincronizados com sucesso. {len(newly_paid_notifications)} pagamento(s) identificado(s).",
+        )
     return ImportResult(batch=batch, message="Boletos avulsos sincronizados com sucesso.")
 
 

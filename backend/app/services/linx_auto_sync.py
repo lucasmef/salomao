@@ -10,10 +10,11 @@ from sqlalchemy.orm import Session
 
 from app.db.models.imports import ImportBatch
 from app.db.models.linx import LinxMovement
+from app.db.models.boleto import StandaloneBoletoRecord
 from app.db.models.security import Company
 from app.services.audit import write_audit_log
 from app.services.backup import ensure_pre_import_backup
-from app.services.inter import sync_inter_charges, sync_inter_statement
+from app.services.inter import sync_inter_charges, sync_inter_statement, sync_standalone_inter_charges
 from app.services.linx_receivable_settlement import settle_paid_pending_inter_receivables
 from app.services.linx_customers import sync_linx_customers
 from app.services.linx_movements import sync_linx_movements
@@ -192,6 +193,20 @@ def _should_run_purchase_payables_now(
     )
 
 
+def _has_syncable_standalone_inter_charges(db: Session, *, company_id: str) -> bool:
+    return bool(
+        db.scalar(
+            select(StandaloneBoletoRecord.id)
+            .where(
+                StandaloneBoletoRecord.company_id == company_id,
+                StandaloneBoletoRecord.bank == "INTER",
+                StandaloneBoletoRecord.inter_codigo_solicitacao.is_not(None),
+            )
+            .limit(1)
+        )
+    )
+
+
 def _extract_count(message: str | None, pattern: str) -> int:
     if not message:
         return 0
@@ -349,6 +364,19 @@ def run_linx_auto_sync_for_company(
         except Exception as error:  # pragma: no cover
             db.rollback()
             errors.append(f"Boletos Inter: {error}")
+        else:
+            if _has_syncable_standalone_inter_charges(db, company_id=company.id):
+                try:
+                    standalone_result = sync_standalone_inter_charges(db, company)
+                    if getattr(standalone_result.batch, "records_total", 0):
+                        inter_charges_message = (
+                            f"{inter_charges_message} {standalone_result.message}"
+                            if inter_charges_message
+                            else standalone_result.message
+                        )
+                except Exception as error:  # pragma: no cover
+                    db.rollback()
+                    errors.append(f"Boletos avulsos Inter: {error}")
 
         try:
             customers_result = sync_linx_customers(db, company)

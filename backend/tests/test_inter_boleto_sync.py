@@ -1062,8 +1062,9 @@ def test_sync_standalone_inter_charges_reopens_cancelled_record_when_inter_still
         session.close()
 
 
-def test_sync_standalone_inter_charges_updates_downloaded_record_bank_status() -> None:
+def test_sync_standalone_inter_charges_updates_downloaded_record_bank_status(monkeypatch) -> None:
     session = _build_session()
+    email_calls: list[tuple[str, str, list[str] | None, str | None]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/oauth/v2/token":
@@ -1094,6 +1095,9 @@ def test_sync_standalone_inter_charges_updates_downloaded_record_bank_status() -
 
     try:
         company, account = _build_company_and_account(session)
+        company.linx_auto_sync_alert_email = "financeiro@example.com"
+        session.add(company)
+        session.flush()
         session.add(
             StandaloneBoletoRecord(
                 company_id=company.id,
@@ -1113,6 +1117,11 @@ def test_sync_standalone_inter_charges_updates_downloaded_record_bank_status() -
             )
         )
         session.commit()
+        monkeypatch.setattr("app.services.inter.ensure_email_transport_configured", lambda: None)
+        monkeypatch.setattr(
+            "app.services.inter.send_email",
+            lambda subject, body, *, recipients=None, html_body=None: email_calls.append((subject, body, recipients, html_body)),
+        )
 
         result = sync_standalone_inter_charges(
             session,
@@ -1121,9 +1130,13 @@ def test_sync_standalone_inter_charges_updates_downloaded_record_bank_status() -
         )
 
         boleto = session.query(StandaloneBoletoRecord).one()
-        assert result.message == "Boletos avulsos sincronizados com sucesso."
+        assert result.message == "Boletos avulsos sincronizados com sucesso. 1 pagamento(s) identificado(s)."
         assert boleto.status == "Recebido por boleto"
         assert boleto.local_status == "downloaded"
         assert boleto.paid_amount == Decimal("79.90")
+        assert len(email_calls) == 1
+        assert email_calls[0][2] == ["financeiro@example.com"]
+        assert "Cliente Avulso" in email_calls[0][1]
+        assert "79,90" in email_calls[0][1]
     finally:
         session.close()
