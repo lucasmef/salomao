@@ -21,6 +21,7 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: 0 1rem;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -104,6 +105,8 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 
 .desktop-only {
@@ -479,55 +482,20 @@
   }
 
   .header-inner {
-    padding: 0 0.75rem 0 1rem;
+    padding: 0 0.5rem 0 0.75rem;
   }
 
   .header-brand {
     margin-right: 0.5rem;
   }
 
-  .brand-text,
-  .system-status-indicator {
+  .brand-text {
     display: none;
   }
 
   .viewport-container {
     padding: 0.75rem;
   }
-}
-
-/* Live Status Indicator */
-.system-status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  background: #f1f5f9;
-  border-radius: 12px;
-  margin-left: 0.5rem;
-  border: 1px solid var(--color-border);
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  background: #10b981;
-  border-radius: 50%;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
-  animation: pulseLive 2s infinite;
-}
-
-.status-text {
-  font-size: 0.65rem;
-  font-weight: 800;
-  color: var(--color-text-muted);
-  letter-spacing: 0.05em;
-}
-
-@keyframes pulseLive {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.4); opacity: 0.5; }
-  100% { transform: scale(1); opacity: 1; }
 }
 
 /* Dashboard Toolbar Refinement */

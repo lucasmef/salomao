@@ -71,10 +71,6 @@ export function AppShell({
             <NavLink className="brand-link" to="/overview/resumo">
               <span className="brand-logo">S</span>
               <span className="brand-text">Salomão</span>
-              <div className="system-status-indicator" title="Sistema online">
-                <span className="status-dot" />
-                <span className="status-text">LIVE</span>
-              </div>
             </NavLink>
           </div>
 
