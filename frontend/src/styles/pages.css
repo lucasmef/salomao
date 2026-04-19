@@ -4165,6 +4165,8 @@ textarea {
   .purchase-collections-table-shell,
   .purchase-brand-planning-table-shell,
   .brand-collection-table-shell {
+    width: 100%;
+    max-width: 100%;
     max-height: none !important;
     min-height: 0;
     overflow-x: auto;
@@ -4174,14 +4176,34 @@ textarea {
   }
 
   .erp-table {
-    min-width: 560px;
+    min-width: 480px;
   }
 
   .entries-list-table,
   .billing-open-boletos-table,
   .billing-open-receivables-table,
   .finance-open-items-table {
-    min-width: 720px;
+    min-width: 560px;
+  }
+
+  .erp-table th {
+    font-size: 0.64rem;
+    padding: 5px 6px;
+    letter-spacing: 0.02em;
+  }
+
+  .erp-table td {
+    font-size: 0.72rem;
+    padding: 5px 6px;
+  }
+
+  .single-line-cell {
+    font-size: 0.68rem;
+  }
+
+  .compact-detail-line,
+  .compact-muted {
+    font-size: 0.62rem;
   }
 
   .billing-import-header,
@@ -5009,8 +5031,35 @@ textarea {
     font-size: 0.74rem;
   }
 
+  .erp-table {
+    min-width: 420px;
+  }
+
+  .entries-list-table,
+  .billing-open-boletos-table,
+  .billing-open-receivables-table,
+  .finance-open-items-table,
   .cashflow-projection-table {
-    min-width: 560px;
+    min-width: 480px;
+  }
+
+  .erp-table th {
+    font-size: 0.6rem;
+    padding: 4px 5px;
+  }
+
+  .erp-table td {
+    font-size: 0.69rem;
+    padding: 4px 5px;
+  }
+
+  .single-line-cell {
+    font-size: 0.64rem;
+  }
+
+  .compact-detail-line,
+  .compact-muted {
+    font-size: 0.58rem;
   }
 
   .inline-entry-row {

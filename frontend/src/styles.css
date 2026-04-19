@@ -32,10 +32,12 @@ html, body {
   color: var(--color-text-main);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 #root {
   min-height: 100vh;
+  overflow-x: hidden;
 }
 .report-tab {
   padding: 8px 14px;
@@ -1103,6 +1105,25 @@ html, body {
     border-radius: 14px;
   }
 
+  .page-layout,
+  .content-grid,
+  .interactive-grid,
+  .panel,
+  .panel-card,
+  .hero-panel,
+  .timeline-panel,
+  .module-card,
+  .chart-card,
+  .work-item,
+  .report-block,
+  .report-card,
+  .recon-card,
+  .table-shell,
+  .viewport-container {
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .toolbar label,
   .quick-actions-grid label,
   .action-form label,
@@ -1188,7 +1209,32 @@ html, body {
   }
 
   .erp-table {
-    min-width: 640px;
+    min-width: 480px;
+  }
+
+  .erp-table th {
+    padding: 0.5rem 0.55rem;
+    font-size: 0.67rem;
+    letter-spacing: 0.03em;
+  }
+
+  .erp-table td {
+    padding: 0.5rem 0.55rem;
+    font-size: 0.76rem;
+  }
+
+  .report-table {
+    min-width: 520px;
+  }
+
+  .report-row td,
+  .report-label-stack,
+  .report-value-cell {
+    font-size: 0.74rem;
+  }
+
+  .report-value-cell {
+    width: 128px;
   }
 
   .table-footer-meta {
