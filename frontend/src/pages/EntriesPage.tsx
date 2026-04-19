@@ -5,7 +5,7 @@ import { MoneyInput } from "../components/MoneyInput";
 import { ModalCloseButton } from "../components/ModalCloseButton";
 import { PageHeader } from "../components/PageHeader";
 import { TablePagination } from "../components/TablePagination";
-import { formatDate, formatEntryStatus, formatMoney, formatShortDate } from "../lib/format";
+import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
 import { formatPtBrMoneyInput, normalizePtBrMoneyInput } from "../lib/money";
 import type { Account, Category, FinancialEntry, FinancialEntryListResponse, Supplier } from "../types";
 
@@ -175,22 +175,6 @@ function TransferIcon() {
   );
 }
 
-function ArrowUpIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" height="16" viewBox="0 0 24 24" width="16">
-      <path d="M12 19V5m0 0l-7 7m7-7l7 7" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" />
-    </svg>
-  );
-}
-
-function ArrowDownIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" height="16" viewBox="0 0 24 24" width="16">
-      <path d="M12 5v14m0 0l-7-7m7 7l7-7" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" />
-    </svg>
-  );
-}
-
 function PlusSquareIcon() {
   return (
     <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
@@ -283,42 +267,25 @@ function getEntrySortValue(entry: FinancialEntry, column: EntryTableColumnKey) {
 
 function renderFlowBadge(entry: FinancialEntry) {
   let label = "Transferência";
-  let tone: "info" | "danger" | "neutral" | "success" = "info";
-  let icon = <TransferIcon />;
+  let tone: "info" | "danger" | "neutral" = "info";
 
   if (entry.transfer_id) {
     if (entry.transfer_direction === "outflow") {
       label = "Saída";
       tone = "danger";
-      icon = <ArrowUpIcon />; // Following user request for green arrows, but keeping tone-danger class for other styles? No, user wants green.
     } else if (entry.transfer_direction === "inflow") {
       label = "Entrada";
       tone = "info";
-      icon = <ArrowDownIcon />;
     }
   } else if (entry.entry_type === "expense") {
     label = "Pagar";
-    tone = "success"; // User said Green arrow UP
-    icon = <ArrowUpIcon />;
+    tone = "danger";
   } else if (entry.entry_type === "income") {
     label = "Receber";
-    tone = "success"; // User said Green arrow DOWN
-    icon = <ArrowDownIcon />;
+    tone = "info";
   }
 
-  // Override tone to success if it's Pagar/Receber as per user request for green
-  if (label === "Pagar" || label === "Receber") {
-    tone = "success";
-  } else if (label === "Transferência") {
-    tone = "neutral"; // Gray icon
-  }
-
-  return (
-    <span className={`badge badge-${tone} flow-badge-container`} title={label}>
-      <span className="flow-badge-label">{label}</span>
-      <span className="flow-badge-icon" aria-hidden="true">{icon}</span>
-    </span>
-  );
+  return <span className={`badge badge-${tone}`}>{label}</span>;
 }
 
 function renderStatusBadge(status: string) {
@@ -1498,7 +1465,7 @@ export function EntriesPage({
                 </th>
                 <th>{renderTableHeader(entryTableColumnLabels.title, "title")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.flow, "flow")}</th>
-                <th className="hide-on-mobile">{renderTableHeader(entryTableColumnLabels.account, "account")}</th>
+                <th>{renderTableHeader(entryTableColumnLabels.account, "account")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.category, "category")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.status, "status")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.due_date, "due_date")}</th>
@@ -1523,17 +1490,14 @@ export function EntriesPage({
                     </div>
                   </td>
                   <td>{renderFlowBadge(entry)}</td>
-                  <td className="hide-on-mobile">{entry.account_name ?? "-"}</td>
+                  <td>{entry.account_name ?? "-"}</td>
                   <td className="entries-cell-category">
                     <div className="cell-stack">
                       <strong>{entry.category_name ?? "-"}</strong>
                     </div>
                   </td>
                   <td>{renderStatusBadge(entry.status)}</td>
-                  <td>
-                    <span className="date-full">{formatDate(entry.due_date)}</span>
-                    <span className="date-short">{formatShortDate(entry.due_date)}</span>
-                  </td>
+                  <td>{formatDate(entry.due_date)}</td>
                   <td className="numeric-cell">{formatMoney(entry.total_amount)}</td>
                   <td className="entries-row-actions-cell">
                     {!isTransferEntry(entry) ? (

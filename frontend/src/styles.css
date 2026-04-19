@@ -1245,6 +1245,29 @@ html, body {
     place-items: end center;
     padding:
       calc(8px + env(safe-area-inset-top))
+      calc(8px + env(safe-area-inset-right))
+      calc(8px + env(safe-area-inset-bottom))
+      calc(8px + env(safe-area-inset-left));
+  }
+
+  .modal-card,
+  .purchase-modal-card,
+  .billing-customer-modal,
+  .compact-entry-modal {
+    width: 100%;
+    max-height: min(92dvh, calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+    padding: 14px 12px;
+    border-radius: 16px 16px 12px 12px;
+  }
+
+  .report-value-cell {
+    width: 136px;
+  }
+}
+
+@media (max-width: 520px) {
+  .kpi-grid,
+  .compact-kpis,
   .compact-kpis-four,
   .dashboard-kpis,
   .billing-summary-kpis {
@@ -1608,4 +1631,3 @@ thead th.sticky-col {
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
-@media (max-width: 768px) { .hide-on-mobile { display: none !important; } .show-on-mobile { display: block !important; } .flow-badge-container { display: flex; align-items: center; justify-content: center; } .flow-badge-label { display: none; } .flow-badge-icon { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; } .date-short { display: inline; } .date-full { display: none; } } @media (min-width: 769px) { .show-on-mobile { display: none !important; } .flow-badge-label { display: inline; } .flow-badge-icon { display: none; } .date-short { display: none; } .date-full { display: inline; } }
