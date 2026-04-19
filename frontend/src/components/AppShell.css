@@ -272,18 +272,22 @@
 
 .mobile-toggle {
   display: none;
-  width: 42px;
-  height: 42px;
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  min-height: 52px;
   align-items: center;
   justify-content: center;
   border: 1px solid #d9e2ec;
-  border-radius: 12px;
+  border-radius: 14px;
   background: white;
   color: #0f172a;
-  font-size: 1.3rem;
+  font-size: 1.45rem;
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  padding: 0;
+  touch-action: manipulation;
 }
 
 .mobile-nav-overlay {
@@ -479,10 +483,11 @@
 
   .mobile-toggle {
     display: inline-flex;
+    margin-right: 2px;
   }
 
   .header-inner {
-    padding: 0 0.5rem 0 0.75rem;
+    padding: 0 0.75rem 0 0.75rem;
   }
 
   .header-brand {
