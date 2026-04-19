@@ -70,21 +70,6 @@ export function LoginPage({ loading, challenge, onLogin, onVerifyMfa, onConfirmM
             O Salomão transforma a complexidade financeira em uma operação visual, direta e automatizada. 
             Fluxo de caixa vivo, cobrança inteligente e governança em um só lugar.
           </p>
-          
-          <div className="hero-stats">
-            <div className="stat-item">
-              <span className="stat-value">R$ 4.2B</span>
-              <span className="stat-label">Gerenciados</span>
-            </div>
-            <div className="stat-item">
-              <span className="stat-value">99.9%</span>
-              <span className="stat-label">Uptime</span>
-            </div>
-            <div className="stat-item">
-              <span className="stat-value">5k+</span>
-              <span className="stat-label">Empresas</span>
-            </div>
-          </div>
         </section>
 
         <section className="landing-auth-panel">

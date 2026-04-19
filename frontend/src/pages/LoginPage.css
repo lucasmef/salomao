@@ -152,34 +152,6 @@
   line-height: 1.6;
 }
 
-.hero-stats {
-  display: flex;
-  gap: 3rem;
-  margin-top: 1rem;
-}
-
-@media (max-width: 1024px) {
-  .hero-stats {
-    justify-content: center;
-  }
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-}
-
-.stat-value {
-  font-family: 'Outfit', sans-serif;
-  font-size: 1.5rem;
-  font-weight: 700;
-}
-
-.stat-label {
-  font-size: 0.875rem;
-  color: var(--lp-text-muted);
-}
-
 /* Auth Panel */
 .landing-auth-panel {
   width: 100%;
