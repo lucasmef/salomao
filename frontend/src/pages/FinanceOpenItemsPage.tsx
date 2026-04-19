@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SectionChrome } from "../components/SectionChrome";
 import type { MainNavChild } from "../data/navigation";
-import { formatDate, formatMoney } from "../lib/format";
+import { formatDate, formatMoney, formatShortDate } from "../lib/format";
 import type { Account, FinancialEntry, FinancialEntryListResponse } from "../types";
 
 type OpenTab = "payables" | "receivables" | "overdue" | "today" | "next7" | "next30";
@@ -422,7 +422,10 @@ export function FinanceOpenItemsPage({
                     <td className="finance-open-items-cell-counterparty">
                       <span title={entry.counterparty_name ?? "-"}>{entry.counterparty_name ?? "-"}</span>
                     </td>
-                    <td>{formatDate(entry.due_date)}</td>
+                    <td>
+                      <span className="date-full">{formatDate(entry.due_date)}</span>
+                      <span className="date-short">{formatShortDate(entry.due_date)}</span>
+                    </td>
                     <td className="numeric-cell">{formatMoney(String(openBalance(entry)))}</td>
                   </tr>
                 ))}

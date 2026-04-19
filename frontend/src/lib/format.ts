@@ -8,27 +8,6 @@ export function formatMoney(value: string | number | null | undefined) {
 
 export function formatMoneyNumber(value: string | number | null | undefined) {
   const numeric = Number(value ?? 0);
-  return new Intl.NumberFormat("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number.isFinite(numeric) ? numeric : 0);
-}
-
-export function formatDate(value: string | null | undefined) {
-  if (!value) {
-    return "Sem data";
-  }
-  const [year, month, day] = value.slice(0, 10).split("-");
-  if (!year || !month || !day) {
-    return value;
-  }
-  return `${day}/${month}/${year}`;
-}
-
-export function formatDateTime(value: string | null | undefined) {
-  if (!value) {
-    return "Sem data";
-  }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {

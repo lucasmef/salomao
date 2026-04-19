@@ -4,7 +4,7 @@ import { useConfirm } from "../components/ConfirmContext";
 
 import { ModalCloseButton } from "../components/ModalCloseButton";
 import { MoneyInput } from "../components/MoneyInput";
-import { formatDate, formatMoney, normalizeDisplayText } from "../lib/format";
+import { formatDate, formatMoney, formatShortDate, normalizeDisplayText } from "../lib/format";
 import { formatPtBrMoneyInput, normalizePtBrMoneyInput } from "../lib/money";
 import type {
   Account,
@@ -1266,7 +1266,10 @@ export function ReconciliationPage({
                           onChange={() => toggleBankSelection(item.bank_transaction_id)}
                         />
                       </td>
-                      <td>{formatDate(item.posted_at)}</td>
+                      <td>
+                        <span className="date-full">{formatDate(item.posted_at)}</span>
+                        <span className="date-short">{formatShortDate(item.posted_at)}</span>
+                      </td>
                       <td title={statementCell.tooltip}>
                         <div className="reconciliation-cell-stack">
                           <span className="single-line-cell">{statementCell.description}</span>
@@ -1411,41 +1414,6 @@ export function ReconciliationPage({
 
           <div className="table-shell reconciliation-table-shell">
             <table className="erp-table compact-table reconciliation-entry-table">
-              <thead>
-                <tr>
-                  <th className="checkbox-cell">
-                    <input
-                      aria-label={allVisibleEntriesSelected ? "Desselecionar lançamentos visíveis" : "Selecionar lançamentos visíveis"}
-                      checked={allVisibleEntriesSelected}
-                      disabled={!selectableEntryIds.length}
-                      onChange={toggleAllVisibleEntries}
-                      type="checkbox"
-                    />
-                  </th>
-                  <th>Vencimento</th>
-                  <th>Lançamentos</th>
-                  <th>Categoria</th>
-                  <th className="numeric-cell">Valor</th>
-                  <th>Pago</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entryRows.map((entry) => (
-                  <tr key={entry.id}>
-                    <td className="checkbox-cell">
-                      <input
-                        type="checkbox"
-                        checked={selectedEntryIds.includes(entry.id)}
-                        disabled={!canSelectEntry(entry)}
-                        onChange={() => toggleEntrySelection(entry.id)}
-                      />
-                    </td>
-                    <td>{formatDate(entry.due_date)}</td>
-                    <td title={compactSingleLine(entry.title)}><span className="single-line-cell">{compactSingleLine(entry.title)}</span></td>
-                    <td title={compactSingleLine(entry.category_name ?? "-")}><span className="single-line-cell">{compactSingleLine(entry.category_name ?? "-")}</span></td>
-                    <td className="numeric-cell compact-amount-cell">{formatReconciliationAmount(entry.total_amount)}</td>
-                    <td><PaidStatusBadge active={entry.status === "settled"} /></td>
-                  </tr>
                 ))}
                 {!entryRows.length && (
                   <tr>
