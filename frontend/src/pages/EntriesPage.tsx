@@ -292,6 +292,14 @@ function formatMobileShortDate(value: string | null | undefined) {
   return formatted;
 }
 
+function StatusCheckIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
+      <path d="m3.75 8.15 2.15 2.15 6.35-6.6" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
 function renderFlowBadge(entry: FinancialEntry) {
   let label = "Transferência";
   let kind: "expense" | "income" | "transfer" = "transfer";
@@ -338,7 +346,14 @@ function renderStatusBadge(status: string) {
       break;
   }
 
-  return <span className={`badge badge-${tone}`}>{label}</span>;
+  return (
+    <span className={`entries-status-badge badge badge-${tone}`}>
+      <span className="entries-status-badge-icon" aria-hidden="true">
+        <StatusCheckIcon />
+      </span>
+      <span className="entries-status-badge-label">{label}</span>
+    </span>
+  );
 }
 
 export function EntriesPage({

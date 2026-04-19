@@ -1718,6 +1718,26 @@ textarea {
   display: inline;
 }
 
+.entries-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.entries-status-badge-icon {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: inherit;
+}
+
+.entries-status-badge-icon .button-icon {
+  width: 14px;
+  height: 14px;
+}
+
 .entries-col-select {
   width: 44px;
 }
@@ -4269,12 +4289,29 @@ textarea {
     display: none;
   }
 
+  .entries-status-badge {
+    min-height: 22px;
+    padding: 0 6px;
+  }
+
+  .entries-status-badge-icon {
+    display: inline-flex;
+  }
+
+  .entries-status-badge-label {
+    display: none;
+  }
+
   .entries-date-desktop {
     display: none;
   }
 
   .entries-date-mobile {
     display: inline;
+  }
+
+  .entries-cell-title .cell-stack span {
+    display: none;
   }
 
   .billing-import-header,
@@ -5134,6 +5171,11 @@ textarea {
   }
 
   .entries-flow-badge {
+    min-height: 20px;
+    padding: 0 5px;
+  }
+
+  .entries-status-badge {
     min-height: 20px;
     padding: 0 5px;
   }
