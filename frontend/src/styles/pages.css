@@ -1670,6 +1670,54 @@ textarea {
   white-space: nowrap;
 }
 
+.entries-flow-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.entries-flow-badge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: inherit;
+}
+
+.entries-flow-badge-icon .button-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.entries-flow-badge--expense,
+.entries-flow-badge--income {
+  background: #edf9f0;
+  border-color: #cfead8;
+  color: #1f8a46;
+}
+
+.entries-flow-badge--transfer {
+  background: #f3f6fa;
+  border-color: #d9e1ec;
+  color: #6b7a90;
+}
+
+.entries-date-mobile {
+  display: none;
+}
+
+.entries-date-desktop {
+  display: inline;
+}
+
 .entries-col-select {
   width: 44px;
 }
@@ -4206,6 +4254,29 @@ textarea {
     font-size: 0.62rem;
   }
 
+  .entries-list-table .entries-col-account,
+  .entries-list-table .entries-th-account,
+  .entries-list-table .entries-td-account {
+    display: none;
+  }
+
+  .entries-flow-badge {
+    min-height: 22px;
+    padding: 0 6px;
+  }
+
+  .entries-flow-badge-label {
+    display: none;
+  }
+
+  .entries-date-desktop {
+    display: none;
+  }
+
+  .entries-date-mobile {
+    display: inline;
+  }
+
   .billing-import-header,
   .billing-file-picker-row,
   .inline-adjustment-header,
@@ -5060,6 +5131,11 @@ textarea {
   .compact-detail-line,
   .compact-muted {
     font-size: 0.58rem;
+  }
+
+  .entries-flow-badge {
+    min-height: 20px;
+    padding: 0 5px;
   }
 
   .inline-entry-row {

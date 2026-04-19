@@ -175,6 +175,24 @@ function TransferIcon() {
   );
 }
 
+function FlowArrowIcon({ direction }: { direction: "up" | "down" }) {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
+      {direction === "up" ? (
+        <>
+          <path d="M8 13V3.75" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+          <path d="m4.75 7 3.25-3.25L11.25 7" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+        </>
+      ) : (
+        <>
+          <path d="M8 3v9.25" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+          <path d="m4.75 9 3.25 3.25L11.25 9" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 function PlusSquareIcon() {
   return (
     <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
@@ -265,27 +283,41 @@ function getEntrySortValue(entry: FinancialEntry, column: EntryTableColumnKey) {
   }
 }
 
+function formatMobileShortDate(value: string | null | undefined) {
+  const formatted = formatDate(value);
+  const parts = formatted.split("/");
+  if (parts.length >= 2) {
+    return `${parts[0]}/${parts[1]}`;
+  }
+  return formatted;
+}
+
 function renderFlowBadge(entry: FinancialEntry) {
   let label = "Transferência";
-  let tone: "info" | "danger" | "neutral" = "info";
+  let kind: "expense" | "income" | "transfer" = "transfer";
 
   if (entry.transfer_id) {
     if (entry.transfer_direction === "outflow") {
       label = "Saída";
-      tone = "danger";
     } else if (entry.transfer_direction === "inflow") {
       label = "Entrada";
-      tone = "info";
     }
   } else if (entry.entry_type === "expense") {
     label = "Pagar";
-    tone = "danger";
+    kind = "expense";
   } else if (entry.entry_type === "income") {
     label = "Receber";
-    tone = "info";
+    kind = "income";
   }
 
-  return <span className={`badge badge-${tone}`}>{label}</span>;
+  return (
+    <span className={`entries-flow-badge entries-flow-badge--${kind}`}>
+      <span className="entries-flow-badge-icon" aria-hidden="true">
+        {kind === "expense" ? <FlowArrowIcon direction="up" /> : kind === "income" ? <FlowArrowIcon direction="down" /> : <TransferIcon />}
+      </span>
+      <span className="entries-flow-badge-label">{label}</span>
+    </span>
+  );
 }
 
 function renderStatusBadge(status: string) {
@@ -1465,7 +1497,7 @@ export function EntriesPage({
                 </th>
                 <th>{renderTableHeader(entryTableColumnLabels.title, "title")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.flow, "flow")}</th>
-                <th>{renderTableHeader(entryTableColumnLabels.account, "account")}</th>
+                <th className="entries-th-account">{renderTableHeader(entryTableColumnLabels.account, "account")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.category, "category")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.status, "status")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.due_date, "due_date")}</th>
@@ -1490,14 +1522,17 @@ export function EntriesPage({
                     </div>
                   </td>
                   <td>{renderFlowBadge(entry)}</td>
-                  <td>{entry.account_name ?? "-"}</td>
+                  <td className="entries-td-account">{entry.account_name ?? "-"}</td>
                   <td className="entries-cell-category">
                     <div className="cell-stack">
                       <strong>{entry.category_name ?? "-"}</strong>
                     </div>
                   </td>
                   <td>{renderStatusBadge(entry.status)}</td>
-                  <td>{formatDate(entry.due_date)}</td>
+                  <td>
+                    <span className="entries-date-desktop">{formatDate(entry.due_date)}</span>
+                    <span className="entries-date-mobile">{formatMobileShortDate(entry.due_date)}</span>
+                  </td>
                   <td className="numeric-cell">{formatMoney(entry.total_amount)}</td>
                   <td className="entries-row-actions-cell">
                     {!isTransferEntry(entry) ? (
