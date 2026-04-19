@@ -774,9 +774,11 @@ textarea {
 
 .reconciliation-top-toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 0.9fr) minmax(220px, 1fr) auto minmax(320px, 1.2fr);
+  grid-template-columns: minmax(260px, 1.2fr) minmax(220px, 0.95fr) auto minmax(240px, auto);
   align-items: center;
   gap: 10px;
+  position: relative;
+  overflow: visible;
 }
 
 .cashflow-filter-panel {
@@ -872,10 +874,11 @@ textarea {
 .reconciliation-top-select {
   width: 100%;
   min-height: 36px;
-  padding: 6px 10px;
+  padding: 6px 34px 6px 10px;
   border: 1px solid #cfd8e6;
   border-radius: 10px;
   background: #fff;
+  font-size: 0.78rem;
 }
 
 .reconciliation-period-group {
@@ -977,11 +980,19 @@ textarea {
   background: linear-gradient(180deg, #fbfdff 0%, #f4f8fe 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
   white-space: nowrap;
+  position: relative;
+  overflow: visible;
+  z-index: 2;
 }
 
 .reconciliation-balance-wrap {
   position: relative;
   flex: 0 0 auto;
+  z-index: 3;
+}
+
+.reconciliation-balance-wrap.is-open {
+  z-index: 80;
 }
 
 .reconciliation-balance-trigger {
@@ -1012,7 +1023,7 @@ textarea {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  z-index: 20;
+  z-index: 90;
   min-width: 240px;
   padding: 8px;
   display: grid;
@@ -1210,18 +1221,21 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: 1px solid #d4ddea;
-  border-radius: 999px;
+  width: 20px;
+  height: 20px;
   color: #9aa8bd;
-  background: #f8fbff;
 }
 
 .reconciliation-status-indicator.is-active {
-  border-color: #b9dcc1;
   color: #2f8f4e;
-  background: #edf9f0;
+}
+
+.reconciliation-table-shell {
+  max-height: none;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-gutter: stable both-edges;
 }
 
 .reconciliation-bank-table,

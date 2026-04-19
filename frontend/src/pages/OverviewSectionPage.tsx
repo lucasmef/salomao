@@ -79,9 +79,10 @@ export function OverviewSectionPage({
   const presetMenuRef = useRef<HTMLDivElement | null>(null);
   const balancePopoverRef = useRef<HTMLDivElement | null>(null);
   const accountBalances = dashboard?.account_balances ?? [];
-  const totalAccountBalance = accountBalances.reduce((total, account) => (
-    account.exclude_from_balance ? total : total + Number(account.current_balance ?? 0)
-  ), 0);
+  const totalAccountBalance = accountBalances.reduce(
+    (total, account) => (account.exclude_from_balance ? total : total + Number(account.current_balance ?? 0)),
+    0,
+  );
   const [showPeriodPopover, setShowPeriodPopover] = useState(false);
   const [showPresetMenu, setShowPresetMenu] = useState(false);
   const [showBalancePopover, setShowBalancePopover] = useState(false);
@@ -309,40 +310,6 @@ export function OverviewSectionPage({
             )}
           </div>
         </div>
-      </section>
-      
-      <section className="kpi-grid compact-kpis overview-top-kpis">
-        <article className="kpi-card overview-kpi-card">
-          <div className="kpi-card-icon">
-            <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="24">
-              <path d="M22 12A10 10 0 0 0 12 2v10z" />
-              <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
-            </svg>
-          </div>
-          <span>Saldo atual</span>
-          <strong className="tabular-nums">{formatMoney(dashboard?.kpis?.current_balance ?? 0)}</strong>
-        </article>
-        <article className="kpi-card overview-kpi-card">
-          <div className="kpi-card-icon">
-            <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="24">
-              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-              <line x1="4" x2="4" y1="22" y2="15" />
-            </svg>
-          </div>
-          <span>Saldo projetado</span>
-          <strong className="tabular-nums">{formatMoney(dashboard?.kpis?.projected_balance ?? 0)}</strong>
-        </article>
-        <article className="kpi-card overview-kpi-card">
-          <div className="kpi-card-icon">
-            <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="24">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" x2="12" y1="8" y2="12" />
-              <line x1="12" x2="12.01" y1="16" y2="16" />
-            </svg>
-          </div>
-          <span>Conciliações pendentes</span>
-          <strong className="tabular-nums">{dashboard?.kpis?.pending_reconciliations ?? 0}</strong>
-        </article>
       </section>
 
       <section className="content-grid two-columns overview-grid">

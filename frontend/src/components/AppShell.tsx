@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
+
 import { mainNavigation, type MainNavItem } from "../data/navigation";
 import type { AuthUser } from "../types";
 import "./AppShell.css";
@@ -26,22 +27,39 @@ export function AppShell({
   busyLabel = "",
 }: Props) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
+  const [isDesktopSearchFocused, setIsDesktopSearchFocused] = useState(false);
+
+  function closeMobileMenu() {
+    setMobileMenuOpen(false);
+  }
+
+  function handleLogoutClick() {
+    setMobileMenuOpen(false);
+    onLogout();
+  }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        const input = document.querySelector(".top-search input") as HTMLInputElement;
+        const input = document.querySelector(".top-search input") as HTMLInputElement | null;
         input?.focus();
       }
       if (e.key === "Escape") {
         setMobileMenuOpen(false);
       }
     };
+
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    document.body.style.overflow = mobileMenuOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileMenuOpen]);
 
   const allNavigation: MainNavItem[] = mainNavigation;
 
@@ -50,11 +68,11 @@ export function AppShell({
       <header className="main-header">
         <div className="header-inner">
           <div className="header-brand">
-            <NavLink to="/overview/resumo" className="brand-link">
+            <NavLink className="brand-link" to="/overview/resumo">
               <span className="brand-logo">S</span>
               <span className="brand-text">Salomão</span>
               <div className="system-status-indicator" title="Sistema online">
-                <span className="status-dot"></span>
+                <span className="status-dot" />
                 <span className="status-text">LIVE</span>
               </div>
             </NavLink>
@@ -74,7 +92,7 @@ export function AppShell({
 
           <div className="header-actions">
             <form
-              className="top-search"
+              className="top-search desktop-only"
               onSubmit={(e) => {
                 e.preventDefault();
                 onSubmitGlobalProductSearch();
@@ -82,59 +100,86 @@ export function AppShell({
             >
               <div className="search-input-wrapper">
                 <input
-                  onBlur={() => setIsFocused(false)}
+                  onBlur={() => setIsDesktopSearchFocused(false)}
                   onChange={(e) => onGlobalProductSearchChange(e.target.value)}
-                  onFocus={() => setIsFocused(true)}
+                  onFocus={() => setIsDesktopSearchFocused(true)}
                   placeholder="Buscar produto..."
                   type="text"
                   value={globalProductSearch}
                 />
-                {!isFocused && <kbd className="search-shortcut">⌘K</kbd>}
+                {!isDesktopSearchFocused && <kbd className="search-shortcut">Ctrl+K</kbd>}
               </div>
             </form>
 
-            <div className="user-dropdown">
-              <button className="user-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                <div className="avatar small">{user.full_name.charAt(0)}</div>
-                <span className="user-name-compact">{user.full_name.split(" ")[0]}</span>
-              </button>
-              
-              {mobileMenuOpen && (
-                <div className="user-menu-popover">
-                  <div className="popover-header">
-                    <strong>{user.full_name}</strong>
-                    <span>{user.email}</span>
-                  </div>
-                  <div className="popover-divider" />
-                  <button className="logout-item" onClick={onLogout}>
-                    Sair do Sistema
-                  </button>
-                </div>
-              )}
-            </div>
-            
-            <button className="mobile-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+            <button className="header-logout-button desktop-only" onClick={handleLogoutClick} type="button">
+              Sair
+            </button>
+
+            <button
+              aria-expanded={mobileMenuOpen}
+              aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"}
+              className="mobile-toggle"
+              onClick={() => setMobileMenuOpen((current) => !current)}
+              type="button"
+            >
               {mobileMenuOpen ? "✕" : "☰"}
             </button>
           </div>
         </div>
       </header>
 
-      <div className={`mobile-nav-overlay ${mobileMenuOpen ? "is-open" : ""}`}>
-        <nav className="mobile-nav-links">
-          {allNavigation.map((item: MainNavItem) => (
-            <NavLink
-              key={item.key}
-              to={item.path}
-              className="mobile-nav-item"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              {item.label}
-            </NavLink>
-          ))}
+      <div
+        aria-hidden={!mobileMenuOpen}
+        className={`mobile-nav-overlay ${mobileMenuOpen ? "is-open" : ""}`}
+        onClick={closeMobileMenu}
+      >
+        <nav className="mobile-nav-drawer" onClick={(e) => e.stopPropagation()}>
+          <div className="mobile-nav-header">
+            <div className="mobile-nav-user">
+              <div className="avatar small">{user.full_name.charAt(0)}</div>
+              <div className="mobile-nav-user-copy">
+                <strong>{user.full_name}</strong>
+                <span>{user.email}</span>
+              </div>
+            </div>
+            <button aria-label="Fechar menu" className="mobile-nav-close" onClick={closeMobileMenu} type="button">
+              ✕
+            </button>
+          </div>
+
+          <form
+            className="top-search mobile-nav-search"
+            onSubmit={(e) => {
+              e.preventDefault();
+              onSubmitGlobalProductSearch();
+              closeMobileMenu();
+            }}
+          >
+            <div className="search-input-wrapper">
+              <input
+                onChange={(e) => onGlobalProductSearchChange(e.target.value)}
+                placeholder="Buscar produto..."
+                type="text"
+                value={globalProductSearch}
+              />
+            </div>
+            <button className="mobile-search-submit" type="submit">
+              Buscar
+            </button>
+          </form>
+
+          <div className="mobile-nav-links">
+            {allNavigation.map((item: MainNavItem) => (
+              <NavLink key={item.key} to={item.path} className="mobile-nav-item" onClick={closeMobileMenu}>
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
+
           <div className="popover-divider" />
-          <button className="logout-item" onClick={onLogout}>
-            Sair do Sistema
+
+          <button className="logout-item mobile-logout-item" onClick={handleLogoutClick} type="button">
+            Sair
           </button>
         </nav>
       </div>
@@ -146,9 +191,7 @@ export function AppShell({
             <span>{busyLabel}</span>
           </div>
         )}
-        <div className="viewport-container">
-          {children}
-        </div>
+        <div className="viewport-container">{children}</div>
       </main>
 
       <div className={`top-loading-bar ${busy ? "is-active" : ""}`} />

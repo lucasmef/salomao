@@ -293,6 +293,14 @@ function CheckActionIcon() {
   );
 }
 
+function StatusCheckIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
+      <path d="m3.75 8.15 2.15 2.15 6.35-6.6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
 function ListIcon() {
   return (
     <svg aria-hidden="true" fill="none" height="14" viewBox="0 0 16 16" width="14">
@@ -321,8 +329,12 @@ function ChevronDownIcon({ expanded }: { expanded: boolean }) {
 
 function PaidStatusBadge({ active }: { active: boolean }) {
   return (
-    <span className={`badge ${active ? "badge-success" : "badge-warning"}`}>
-      {active ? "Pago" : "Aberto"}
+    <span
+      aria-label={active ? "Pago" : "Em aberto"}
+      className={`reconciliation-status-indicator ${active ? "is-active" : ""}`}
+      title={active ? "Pago" : "Em aberto"}
+    >
+      <StatusCheckIcon />
     </span>
   );
 }
@@ -1130,9 +1142,9 @@ export function ReconciliationPage({
       </div>
       <div className="reconciliation-inline-meta">
         <span className="reconciliation-import-meta">
-          Pendentes: <strong>{overallPendingCount}</strong> Último lançamento importado: {importSummary.latest_ofx_transaction_date ? formatDate(importSummary.latest_ofx_transaction_date) : "nenhum"}
+          Pendentes: <strong>{overallPendingCount}</strong>
         </span>
-        <div className="reconciliation-balance-wrap" ref={balancePopoverRef}>
+        <div className={`reconciliation-balance-wrap ${showBalancePopover ? "is-open" : ""}`} ref={balancePopoverRef}>
           <button
             aria-expanded={showBalancePopover}
             className={`reconciliation-balance-trigger ${showBalancePopover ? "is-active" : ""}`}
@@ -1220,7 +1232,7 @@ export function ReconciliationPage({
               </button>
             </div>
           </div>
-          <div className="table-shell tall compact-table-shell">
+          <div className="table-shell reconciliation-table-shell">
             <table className="erp-table compact-table reconciliation-bank-table">
               <thead>
                 <tr>
@@ -1397,7 +1409,7 @@ export function ReconciliationPage({
             </div>
           )}
 
-          <div className="table-shell tall compact-table-shell">
+          <div className="table-shell reconciliation-table-shell">
             <table className="erp-table compact-table reconciliation-entry-table">
               <thead>
                 <tr>
