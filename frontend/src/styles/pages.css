@@ -6066,7 +6066,20 @@ textarea {
   gap: 6px;
 }
 
+.planning-actions-header {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 .brand-collection-note-header .detail-toggle-btn {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+}
+
+.planning-actions-header .detail-toggle-btn {
   width: 22px !important;
   height: 22px !important;
   min-width: 22px !important;

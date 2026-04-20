@@ -2514,23 +2514,6 @@ export function PurchasePlanningPage({
               Confirmado
             </button>
           </div>
-          <div className="purchase-toggle-group">
-            <label className="purchase-filter-toggle">
-              <span className="purchase-filter-toggle-control">
-                <input
-                  type="checkbox"
-                  checked={showPlanningDetail}
-                  onChange={(event) => {
-                    const checked = event.target.checked;
-                    setShowPlanningDetail(checked);
-                    setShowPlanningReturns(checked);
-                    setShowPlanningSales(checked);
-                  }}
-                />
-                <span>Detalhamento</span>
-              </span>
-            </label>
-          </div>
           <div className="action-row action-row--toolbar">
             <button
               className="icon-action-button"
@@ -2539,14 +2522,6 @@ export function PurchasePlanningPage({
               title="Nova marca"
             >
               <TagIcon />
-            </button>
-            <button
-              className="icon-action-button"
-              type="button"
-              onClick={openInvoiceModal}
-              title="Nova nota fiscal"
-            >
-              <InvoiceIcon />
             </button>
             <button
               className="icon-action-button"
@@ -3057,7 +3032,24 @@ export function PurchasePlanningPage({
                       {collection.season_label || collection.name}
                     </th>
                   ))}
-                  <th>Ações</th>
+                  <th>
+                    <span className="planning-actions-header">
+                      <span>Ações</span>
+                      <button
+                        className={`table-button icon-button cockpit-btn detail-toggle-btn${showPlanningDetail ? " active" : ""}`}
+                        type="button"
+                        onClick={() => {
+                          const checked = !showPlanningDetail;
+                          setShowPlanningDetail(checked);
+                          setShowPlanningReturns(checked);
+                          setShowPlanningSales(checked);
+                        }}
+                        title="Alternar detalhamento analítico"
+                      >
+                        <EyeIcon />
+                      </button>
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
