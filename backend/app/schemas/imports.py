@@ -22,6 +22,10 @@ class ImportResult(BaseModel):
     message: str
 
 
+class OperationResult(BaseModel):
+    message: str
+
+
 class ImportSummary(BaseModel):
     import_batches: list[ImportBatchRead]
     sales_snapshot_count: int

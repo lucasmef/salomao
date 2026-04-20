@@ -1,11 +1,13 @@
 from io import BytesIO
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.api.deps import DbSession
-from app.db.models.imports import ImportBatch
 from app.db.models.export_jobs import BoletoExportJob
+from app.db.models.imports import ImportBatch
+from app.db.models.security import Company
 from app.db.session import SessionLocal
 from app.schemas.boletos import (
     BoletoClientConfigBulkUpdate,
@@ -18,7 +20,7 @@ from app.schemas.boletos import (
     StandaloneBoletoCreateRequest,
 )
 from app.schemas.inter import InterChargeIssueRequest, InterChargeSyncRequest
-from app.schemas.imports import ImportBatchRead, ImportResult
+from app.schemas.imports import ImportBatchRead, ImportResult, OperationResult
 from app.services.boletos import (
     build_boleto_dashboard,
     build_missing_boletos_export,
@@ -48,6 +50,52 @@ from app.services.inter_export import (
 from app.services.linx_receivable_settlement import settle_paid_pending_inter_receivables
 
 router = APIRouter()
+
+
+def _collect_settlement_notes(summary, *, include_empty_message: bool) -> list[str]:
+    notes: list[str] = []
+    if summary.attempted_invoice_count or include_empty_message:
+        notes.append(summary.message)
+    if summary.failed_invoice_count:
+        notes.append("; ".join(summary.failure_messages))
+    elif summary.email_error:
+        notes.append(f"Resumo de baixa automatica nao enviado: {summary.email_error}")
+    return notes
+
+
+def _join_notes(notes: list[str]) -> str:
+    return " ".join(note for note in notes if note).strip()
+
+
+def _append_batch_notes(batch: ImportBatch, notes: str) -> None:
+    current_summary = (batch.error_summary or "").strip()
+    batch.error_summary = " ".join(part for part in [current_summary, notes] if part).strip() or None
+
+
+def _run_c6_settlement_after_import(company_id: str, batch_id: str) -> str:
+    with SessionLocal() as db:
+        company = db.get(Company, company_id)
+        batch = db.get(ImportBatch, batch_id)
+        if company is None or batch is None:
+            return ""
+
+        settlement_notes: list[str] = []
+        try:
+            settlement_summary = settle_paid_pending_inter_receivables(
+                db,
+                company,
+                filter_banks={"C6"},
+            )
+            settlement_notes.extend(_collect_settlement_notes(settlement_summary, include_empty_message=False))
+        except Exception as error:
+            db.rollback()
+            settlement_notes.append(f"Baixa automatica no Linx nao executada: {error}")
+
+        joined_notes = _join_notes(settlement_notes)
+        if joined_notes:
+            _append_batch_notes(batch, joined_notes)
+            db.commit()
+        return joined_notes
 
 
 @router.get("/dashboard", response_model=BoletoDashboardRead)
@@ -121,29 +169,10 @@ async def upload_c6_boletos(
             filename=file.filename or "relatorio-c6.csv",
             content=content,
         )
-        settlement_notes: list[str] = []
-        try:
-            settlement_summary = settle_paid_pending_inter_receivables(
-                db,
-                company,
-                filter_banks={"C6"},
-            )
-            if settlement_summary.attempted_invoice_count:
-                settlement_notes.append(settlement_summary.message)
-            if settlement_summary.failed_invoice_count:
-                settlement_notes.append("; ".join(settlement_summary.failure_messages))
-            elif settlement_summary.email_error:
-                settlement_notes.append(f"Resumo de baixa automatica nao enviado: {settlement_summary.email_error}")
-        except Exception as error:
-            settlement_notes.append(f"Baixa automatica no Linx nao executada: {error}")
-
-        if settlement_notes:
+        joined_notes = await run_in_threadpool(_run_c6_settlement_after_import, company.id, result.batch.id)
+        if joined_notes:
             batch = db.get(ImportBatch, result.batch.id)
-            joined_notes = " ".join(note for note in settlement_notes if note).strip()
             if batch:
-                current_summary = (batch.error_summary or "").strip()
-                batch.error_summary = " ".join(part for part in [current_summary, joined_notes] if part).strip() or None
-                db.commit()
                 db.refresh(batch)
                 result.batch = ImportBatchRead.model_validate(batch)
             result.message = " ".join([result.message, joined_notes]).strip()
@@ -151,6 +180,24 @@ async def upload_c6_boletos(
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/linx/c6-settlement", response_model=OperationResult, status_code=status.HTTP_201_CREATED)
+def trigger_c6_linx_settlement(
+    db: DbSession,
+) -> OperationResult:
+    company = get_current_company(db)
+    try:
+        summary = settle_paid_pending_inter_receivables(
+            db,
+            company,
+            filter_banks={"C6"},
+        )
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return OperationResult(message=_join_notes(_collect_settlement_notes(summary, include_empty_message=True)))
 
 
 @router.post("/import/customer-data", response_model=ImportResult, status_code=status.HTTP_201_CREATED)

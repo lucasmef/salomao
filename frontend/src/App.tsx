@@ -1926,6 +1926,18 @@ function AppRuntime() {
     await uploadManagedFile("/boletos/import/c6", file, ["boletos", "importacoes"]);
   }
 
+  async function runC6LinxSettlement() {
+    if (!session) return;
+    await runMutation(async () => {
+      const result = await fetchJson<{ message: string }>("/boletos/linx/c6-settlement", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Baixa automatica do C6 executada.", { sections: ["boletos", "importacoes"] });
+  }
+
   async function uploadBoletoCustomerDataImport(file: File) {
     await uploadManagedFile("/boletos/import/customer-data", file, ["boletos", "importacoes"]);
   }
@@ -3164,6 +3176,7 @@ function AppRuntime() {
             <SystemImportsGeneralPage
               accounts={accounts}
               importSummary={importSummary}
+              onRunC6Settlement={runC6LinxSettlement}
               onSyncCustomers={syncLinxCustomersImport}
               onSyncInterCharges={syncInterChargesImport}
               onSyncInterStatement={syncInterStatementImport}

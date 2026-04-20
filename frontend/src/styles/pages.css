@@ -294,6 +294,12 @@ textarea {
   gap: 8px;
 }
 
+.billing-import-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .hidden-file-input {
   position: absolute;
   width: 1px;
@@ -4586,6 +4592,7 @@ textarea {
   }
 
   .billing-import-header,
+  .billing-import-actions,
   .billing-file-picker-row,
   .inline-adjustment-header,
   .inline-adjustment-summary,

@@ -14,6 +14,7 @@ type Props = {
   onUploadHistorical: (file: File) => Promise<void>;
   onUploadBoletoInter: (file: File) => Promise<void>;
   onUploadBoletoC6: (file: File) => Promise<void>;
+  onRunC6Settlement: () => Promise<void>;
   onSyncCustomers: () => Promise<void>;
   onSyncInterCharges: () => Promise<void>;
   onSyncInterStatement: () => Promise<void>;
@@ -48,6 +49,7 @@ export function SystemImportsGeneralPage({
   onUploadHistorical,
   onUploadBoletoInter,
   onUploadBoletoC6,
+  onRunC6Settlement,
   onSyncCustomers,
   onSyncInterCharges,
   onSyncInterStatement,
@@ -145,15 +147,26 @@ export function SystemImportsGeneralPage({
             <div className="compact-import-card billing-import-card">
               <div className="billing-import-header">
                 <strong>Relatorio C6</strong>
-                <button
-                  className="primary-button compact-action-button"
-                  disabled={submitting || !c6File}
-                  onClick={() => void handleUploadC6Report()}
-                  title="Importar relatorio C6"
-                  type="button"
-                >
-                  Importar
-                </button>
+                <div className="billing-import-actions">
+                  <button
+                    className="secondary-button compact-action-button"
+                    disabled={submitting}
+                    onClick={() => void onRunC6Settlement()}
+                    title="Forcar baixa automatica dos boletos C6 no Linx"
+                    type="button"
+                  >
+                    Forcar baixa
+                  </button>
+                  <button
+                    className="primary-button compact-action-button"
+                    disabled={submitting || !c6File}
+                    onClick={() => void handleUploadC6Report()}
+                    title="Importar relatorio C6"
+                    type="button"
+                  >
+                    Importar
+                  </button>
+                </div>
               </div>
               <input
                 id="system-boletos-c6-file"
@@ -174,7 +187,7 @@ export function SystemImportsGeneralPage({
               </div>
               <div className="billing-import-meta">
                 {renderBatchMeta(latestC6BoletoImport)}
-                <small className="compact-muted">CSV usado para conferir boletos faltando e retornos do C6.</small>
+                <small className="compact-muted">CSV usado para conferir boletos faltando, retornos do C6 e disparar a baixa no Linx.</small>
                 {c6File ? (
                   <small className="compact-muted" title={c6File.name}>
                     Novo arquivo: {c6File.name}
