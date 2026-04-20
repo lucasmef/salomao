@@ -4389,15 +4389,41 @@ textarea {
     -webkit-overflow-scrolling: touch;
   }
 
-  .erp-table {
-    min-width: 480px;
+  .erp-table,
+  .report-table,
+  .compact-table,
+  .overview-balance-table,
+  .cashflow-projection-table,
+  .cashflow-account-table {
+    width: max-content;
+    min-width: max(100%, 640px);
   }
 
   .entries-list-table,
+  .billing-alert-table,
   .billing-open-boletos-table,
   .billing-open-receivables-table,
-  .finance-open-items-table {
-    min-width: 560px;
+  .finance-open-items-table,
+  .reconciliation-bank-table,
+  .reconciliation-entry-table,
+  .purchase-summary-invoices-table,
+  .purchase-summary-installments-table,
+  .purchase-collections-mobile-table,
+  .purchase-suppliers-table,
+  .purchase-returns-table,
+  .results-comparison-table {
+    width: max-content;
+    min-width: max(100%, 720px);
+  }
+
+  .entries-list-table,
+  .billing-alert-table,
+  .billing-open-receivables-table,
+  .finance-open-items-table,
+  .reconciliation-bank-table,
+  .reconciliation-entry-table,
+  .cashflow-account-table {
+    table-layout: auto;
   }
 
   .erp-table th {
@@ -4466,7 +4492,7 @@ textarea {
   .purchase-suppliers-table,
   .purchase-returns-table,
   .results-comparison-table {
-    min-width: 420px;
+    min-width: max(100%, 720px);
   }
 
   .reconciliation-date-desktop,
