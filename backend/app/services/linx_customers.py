@@ -88,6 +88,7 @@ def normalize_linx_customer_row(row: dict[str, str]) -> dict[str, object]:
         "legal_name": legal_name,
         "display_name": display_name,
         "document_number": _digits_only(row.get("doc_cliente")),
+        "birth_date": _parse_birth_date(row),
         "person_type": _normalize_single_char(row.get("tipo_cliente")),
         "registration_type": _normalize_single_char(row.get("tipo_cadastro")),
         "is_active": _parse_bool(row.get("ativo"), default=True),
@@ -302,6 +303,7 @@ def list_linx_customer_directory(
                 legal_name=customer.legal_name,
                 display_name=customer.display_name,
                 document_number=customer.document_number,
+                birth_date=customer.birth_date,
                 registration_type=registration_type,
                 registration_type_label=_registration_type_label(registration_type),
                 person_type=customer.person_type,
@@ -554,6 +556,18 @@ def _normalize_state(value: str | None) -> str | None:
     return cleaned.upper()
 
 
+def _row_value(row: dict[str, str], *candidate_keys: str) -> str | None:
+    lowered = {
+        str(key).strip().lower(): value
+        for key, value in row.items()
+    }
+    for key in candidate_keys:
+        value = lowered.get(key.lower())
+        if value is not None:
+            return value
+    return None
+
+
 def _parse_bool(value: str | None, *, default: bool) -> bool:
     cleaned = (_clean_text(value) or "").strip().lower()
     if not cleaned:
@@ -586,6 +600,45 @@ def _parse_decimal(value: str | None) -> Decimal | None:
         return Decimal(normalized)
     except InvalidOperation:
         return None
+
+
+def _parse_date(value: str | None) -> date | None:
+    cleaned = _clean_text(value)
+    if not cleaned:
+        return None
+
+    candidates = [cleaned, cleaned.replace("Z", "+00:00")]
+    for candidate in candidates:
+        try:
+            return date.fromisoformat(candidate)
+        except ValueError:
+            pass
+        try:
+            return datetime.fromisoformat(candidate).date()
+        except ValueError:
+            pass
+
+    for fmt in ("%d/%m/%Y", "%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(cleaned, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _parse_birth_date(row: dict[str, str]) -> date | None:
+    return _parse_date(
+        _row_value(
+            row,
+            "data_nascimento",
+            "dt_nascimento",
+            "data_nascimento_cliente",
+            "dt_nascimento_cliente",
+            "data_nasc",
+            "dt_nasc",
+            "nascimento",
+        )
+    )
 
 
 def _parse_datetime(value: str | None) -> datetime | None:

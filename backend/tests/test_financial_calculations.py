@@ -622,6 +622,78 @@ class FinancialCalculationsTestCase(unittest.TestCase):
         self.assertEqual(discount_entry.entry_type, "income")
         self.assertEqual(overview.current_balance, Decimal("1.56"))
 
+    def test_reconciliation_generates_purchase_return_credit_entry(self) -> None:
+        account = self._add_account("Inter", "0.00")
+        purchase_category = self._add_category(
+            name="Compras",
+            code="3.3.1",
+            report_group="Compras",
+            report_subgroup="Compras",
+        )
+        supplier = Supplier(
+            company_id=self.company.id,
+            name="Fornecedor X",
+            default_payment_term="1x",
+            payment_basis="delivery",
+            has_purchase_invoices=False,
+            is_active=True,
+        )
+        self.db.add(supplier)
+        self.db.commit()
+
+        transaction = self._add_bank_transaction(
+            account=account,
+            posted_at=date(2026, 4, 20),
+            amount="-1000.00",
+            fit_id="ofx-devolucao-001",
+        )
+        entry = self._add_entry(
+            account=account,
+            category=purchase_category,
+            entry_type="expense",
+            status="planned",
+            total_amount="1500.00",
+            due_date=date(2026, 4, 20),
+            title="NF fornecedor",
+        )
+        entry.supplier_id = supplier.id
+        entry.counterparty_name = supplier.name
+        entry.document_number = "NF-500"
+        self.db.commit()
+
+        create_reconciliation(
+            self.db,
+            self.company,
+            ReconciliationCreate(
+                bank_transaction_ids=[transaction.id],
+                financial_entry_ids=[entry.id],
+                principal_amount=Decimal("1500.00"),
+                penalty_amount=Decimal("500.00"),
+            ),
+            self.user,
+        )
+        self.db.commit()
+        self.db.refresh(entry)
+
+        purchase_return_category = ensure_category_catalog(self.db, self.company.id)["Devolucoes de Compra"]
+        credit_entry = self.db.query(FinancialEntry).filter(
+            FinancialEntry.source_system == "settlement_adjustment",
+            FinancialEntry.source_reference == f"settlement-adjustment:{entry.id}:return_credit",
+            FinancialEntry.is_deleted.is_(False),
+        ).one()
+
+        self.assertEqual(entry.status, "settled")
+        self.assertEqual(entry.paid_amount, Decimal("1500.00"))
+        self.assertEqual(entry.total_amount, Decimal("1500.00"))
+        self.assertEqual(credit_entry.entry_type, "income")
+        self.assertEqual(credit_entry.status, "planned")
+        self.assertEqual(credit_entry.category_id, purchase_return_category.id)
+        self.assertEqual(credit_entry.supplier_id, supplier.id)
+        self.assertEqual(credit_entry.document_number, "NF-500")
+        self.assertEqual(credit_entry.total_amount, Decimal("500.00"))
+        self.assertEqual(credit_entry.paid_amount, Decimal("0.00"))
+        self.assertIsNone(credit_entry.account_id)
+
     def test_settle_entry_requires_due_date(self) -> None:
         account = self._add_account("Caixa Loja", "0.00")
         category = self._add_category()

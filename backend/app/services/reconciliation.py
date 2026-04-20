@@ -45,6 +45,10 @@ def _is_settlement_adjustment_entry(entry: FinancialEntry) -> bool:
     )
 
 
+def _is_return_credit_adjustment_entry(entry: FinancialEntry) -> bool:
+    return _is_settlement_adjustment_entry(entry) and (entry.source_reference or "").endswith(":return_credit")
+
+
 def _has_manual_amount_adjustments(payload: ReconciliationCreate) -> bool:
     return any(
         value is not None
@@ -514,15 +518,20 @@ def create_reconciliation(
             discount_amount=payload.discount_amount,
             penalty_amount=payload.penalty_amount,
             settled_at=settlement_datetime,
+            penalty_mode="return_credit",
         )
         amount_difference = abs(total_transactions - cash_total)
         if amount_difference > TWO_PLACES:
-            raise ValueError("Os valores nao conferem. Ajuste principal, juros, multa ou desconto antes de conciliar.")
+            raise ValueError(
+                "Os valores nao conferem. Ajuste principal, juros, credito devolucao ou desconto antes de conciliar."
+            )
         total_remaining = cash_total
         single_entry_adjustment_lines = [(entry, Decimal(entry.total_amount))] + generated_adjustments
     else:
         if _has_manual_amount_adjustments(payload):
-            raise ValueError("Ajustes de principal, juros, multa ou desconto exigem 1 movimento e 1 lancamento")
+            raise ValueError(
+                "Ajustes de principal, juros, credito devolucao ou desconto exigem 1 movimento e 1 lancamento"
+            )
         if total_remaining <= 0:
             raise ValueError("Os lancamentos selecionados nao possuem saldo aberto")
         comparison_total = total_transactions
@@ -568,7 +577,7 @@ def create_reconciliation(
                     amount_applied=applied_amount,
                 )
             )
-            if not line_entry.account_id and transaction.account_id:
+            if not line_entry.account_id and transaction.account_id and not _is_return_credit_adjustment_entry(line_entry):
                 line_entry.account_id = transaction.account_id
             if _is_settlement_adjustment_entry(line_entry):
                 continue

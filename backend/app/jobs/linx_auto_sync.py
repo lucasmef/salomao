@@ -38,6 +38,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  boletos inter: {run.inter_charges_message}")
         if run.customers_message:
             print(f"  clientes: {run.customers_message}")
+        if run.birthday_alert_message:
+            print(f"  aniversariantes: {run.birthday_alert_message}")
         if run.receivables_message:
             print(f"  faturas: {run.receivables_message}")
         if run.movements_message:

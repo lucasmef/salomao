@@ -29,6 +29,10 @@ class Company(Base, IdMixin, TimestampMixin):
         DateTime(timezone=True),
         nullable=True,
     )
+    linx_birthday_alert_last_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     linx_auto_sync_last_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     linx_auto_sync_last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 

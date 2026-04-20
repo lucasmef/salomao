@@ -66,7 +66,7 @@ type ReconcileAdjustmentDraft = {
   principal_amount: string;
   interest_amount: string;
   discount_amount: string;
-  penalty_amount: string;
+  return_credit_amount: string;
 };
 
 const emptyDraft: CreateDraft = {
@@ -81,7 +81,7 @@ const emptyAdjustmentDraft: ReconcileAdjustmentDraft = {
   principal_amount: "",
   interest_amount: "",
   discount_amount: "",
-  penalty_amount: "",
+  return_credit_amount: "",
 };
 
 const emptyCategoryCreationDraft: CategoryCreationDraft = {
@@ -544,8 +544,8 @@ export function ReconciliationPage({
   const adjustmentPreviewTotal =
     parseDecimalInput(reconcileAdjustmentDraft.principal_amount)
     + parseDecimalInput(reconcileAdjustmentDraft.interest_amount)
-    + parseDecimalInput(reconcileAdjustmentDraft.penalty_amount)
-    - parseDecimalInput(reconcileAdjustmentDraft.discount_amount);
+    - parseDecimalInput(reconcileAdjustmentDraft.discount_amount)
+    - parseDecimalInput(reconcileAdjustmentDraft.return_credit_amount);
   const currentReconciliationDifference =
     selectedReconciliationTransaction && selectedReconciliationEntry
       ? Math.abs(Number(selectedReconciliationTransaction.amount)) - Number(selectedReconciliationEntry.total_amount)
@@ -816,7 +816,7 @@ export function ReconciliationPage({
       principal_amount: formatDecimalInput(selectedReconciliationEntry.principal_amount),
       interest_amount: formatDecimalInput(selectedReconciliationEntry.interest_amount),
       discount_amount: formatDecimalInput(selectedReconciliationEntry.discount_amount),
-      penalty_amount: formatDecimalInput(selectedReconciliationEntry.penalty_amount),
+      return_credit_amount: "0,00",
     });
   }, [selectedReconciliationEntry, selectedReconciliationTransaction]);
 
@@ -873,7 +873,7 @@ export function ReconciliationPage({
             principal_amount: toApiDecimal(reconcileAdjustmentDraft.principal_amount),
             interest_amount: toApiDecimal(reconcileAdjustmentDraft.interest_amount),
             discount_amount: toApiDecimal(reconcileAdjustmentDraft.discount_amount),
-            penalty_amount: toApiDecimal(reconcileAdjustmentDraft.penalty_amount),
+            penalty_amount: toApiDecimal(reconcileAdjustmentDraft.return_credit_amount),
           }
         : undefined;
     await onReconcile(selectedBankIds, selectedEntryIds, adjustments);
@@ -932,7 +932,7 @@ export function ReconciliationPage({
       principal_amount: formatDecimalInput(Math.abs(Number(selectedReconciliationTransaction.amount))),
       interest_amount: "0,00",
       discount_amount: "0,00",
-      penalty_amount: "0,00",
+      return_credit_amount: "0,00",
     });
   }
 
@@ -1045,7 +1045,8 @@ export function ReconciliationPage({
   }
 
   function canSelectEntry(entry: FinancialEntry) {
-    return entry.status === "planned" || entry.status === "partial";
+    const normalizedStatus = normalizeDisplayText(entry.status).trim().toLowerCase();
+    return normalizedStatus === "open" || normalizedStatus === "planned" || normalizedStatus === "partial";
   }
 
   function toggleAllFilteredBankItems() {
@@ -1425,10 +1426,10 @@ export function ReconciliationPage({
                   />
                 </label>
                 <label>
-                  Multa
+                  {"Cr\u00E9dito Devolu\u00E7\u00E3o"}
                   <MoneyInput
-                    value={reconcileAdjustmentDraft.penalty_amount}
-                    onValueChange={(value) => setReconcileAdjustmentDraft((current) => ({ ...current, penalty_amount: value }))}
+                    value={reconcileAdjustmentDraft.return_credit_amount}
+                    onValueChange={(value) => setReconcileAdjustmentDraft((current) => ({ ...current, return_credit_amount: value }))}
                   />
                 </label>
               </div>

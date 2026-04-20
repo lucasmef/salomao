@@ -35,6 +35,7 @@ from app.schemas.recurrence import (
 from app.schemas.transfer import TransferCreate
 from app.services.audit import write_audit_log
 from app.services.bootstrap import ensure_default_financial_category
+from app.services.category_catalog import ensure_category_catalog
 from app.services.import_parsers import normalize_label
 
 
@@ -226,6 +227,10 @@ def _expected_category_entry_kind(entry_type: str) -> str:
     return "expense"
 
 
+def _purchase_return_adjustment_category_id(db: Session, company_id: str) -> str:
+    return ensure_category_catalog(db, company_id)["Devolucoes de Compra"].id
+
+
 def apply_settlement_breakdown(
     db: Session,
     company: Company,
@@ -236,6 +241,7 @@ def apply_settlement_breakdown(
     discount_amount: Decimal | None = None,
     penalty_amount: Decimal | None = None,
     settled_at: datetime | None = None,
+    penalty_mode: str = "penalty",
 ) -> tuple[Decimal, list[tuple[FinancialEntry, Decimal]]]:
     principal = _money(
         principal_amount
@@ -247,7 +253,10 @@ def apply_settlement_breakdown(
     interest = _money(interest_amount if interest_amount is not None else entry.interest_amount)
     discount = _money(discount_amount if discount_amount is not None else entry.discount_amount)
     penalty = _money(penalty_amount if penalty_amount is not None else entry.penalty_amount)
-    cash_total = _money(principal + interest + penalty - discount)
+    if penalty_mode == "return_credit":
+        cash_total = _money(principal + interest - discount - penalty)
+    else:
+        cash_total = _money(principal + interest + penalty - discount)
 
     if principal <= Decimal("0.00"):
         raise HTTPException(status_code=400, detail="O principal deve ser maior que zero")
@@ -255,9 +264,12 @@ def apply_settlement_breakdown(
         raise HTTPException(status_code=400, detail="O valor final da baixa deve ser maior que zero")
     if Decimal(entry.paid_amount or 0) > principal:
         raise HTTPException(status_code=400, detail="O valor ja pago nao pode ficar maior que o principal final")
+    if penalty_mode == "return_credit" and penalty > Decimal("0.00") and not entry.supplier_id:
+        raise HTTPException(status_code=400, detail="Credito devolucao exige fornecedor vinculado ao lancamento")
 
     settled_at_value = settled_at or entry.settled_at or _settled_datetime(date.today())
     adjustment_category_id = entry.interest_category_id or ensure_default_financial_category(db, company.id).id
+    purchase_return_category_id = _purchase_return_adjustment_category_id(db, company.id) if penalty_mode == "return_credit" else None
     effective_date = settled_at_value.date() if settled_at_value else date.today()
     adjustment_account_id = entry.account_id
 
@@ -271,26 +283,39 @@ def apply_settlement_breakdown(
 
     generated_adjustments: list[tuple[FinancialEntry, Decimal]] = []
 
-    def add_adjustment(kind: str, title_prefix: str, amount: Decimal, applied_amount: Decimal) -> None:
-        adjustment_entry_type = "income" if kind == "discount" else "expense"
+    def add_adjustment(
+        kind: str,
+        title_prefix: str,
+        amount: Decimal,
+        applied_amount: Decimal,
+        *,
+        category_id: str,
+        entry_type: str,
+        status: str = "settled",
+        paid_amount: Decimal | None = None,
+        settled_at_override: datetime | None = None,
+        account_id: str | None = adjustment_account_id,
+        description: str | None = None,
+    ) -> None:
         adjustment_entry = FinancialEntry(
             company_id=company.id,
-            account_id=adjustment_account_id,
-            category_id=adjustment_category_id,
-            entry_type=adjustment_entry_type,
-            status="settled",
+            account_id=account_id,
+            category_id=category_id,
+            supplier_id=entry.supplier_id,
+            entry_type=entry_type,
+            status=status,
             title=f"{title_prefix} - {entry.title}",
-            description=f"Gerado automaticamente na baixa de {entry.title}",
+            description=description or f"Gerado automaticamente na baixa de {entry.title}",
             notes=entry.notes,
             counterparty_name=entry.counterparty_name,
             document_number=entry.document_number,
             issue_date=effective_date,
             competence_date=effective_date,
             due_date=effective_date,
-            settled_at=settled_at_value,
+            settled_at=settled_at_override,
             principal_amount=amount,
             total_amount=amount,
-            paid_amount=amount,
+            paid_amount=amount if paid_amount is None else paid_amount,
             source_system=SETTLEMENT_ADJUSTMENT_SOURCE,
             source_reference=_settlement_adjustment_source_reference(entry.id, kind),
         )
@@ -299,11 +324,49 @@ def apply_settlement_breakdown(
         generated_adjustments.append((adjustment_entry, applied_amount))
 
     if interest > Decimal("0.00"):
-        add_adjustment("interest", "Juros da baixa", interest, interest)
-    if penalty > Decimal("0.00"):
-        add_adjustment("penalty", "Multa da baixa", penalty, penalty)
+        add_adjustment(
+            "interest",
+            "Juros da baixa",
+            interest,
+            interest,
+            category_id=adjustment_category_id,
+            entry_type="expense",
+            settled_at_override=settled_at_value,
+        )
+    if penalty > Decimal("0.00") and penalty_mode == "return_credit":
+        add_adjustment(
+            "return_credit",
+            "Credito devolucao",
+            penalty,
+            -penalty,
+            category_id=purchase_return_category_id,
+            entry_type="income",
+            status="planned",
+            paid_amount=Decimal("0.00"),
+            settled_at_override=None,
+            account_id=None,
+            description=f"Fatura recebida gerada automaticamente na baixa de {entry.title}",
+        )
+    elif penalty > Decimal("0.00"):
+        add_adjustment(
+            "penalty",
+            "Multa da baixa",
+            penalty,
+            penalty,
+            category_id=adjustment_category_id,
+            entry_type="expense",
+            settled_at_override=settled_at_value,
+        )
     if discount > Decimal("0.00"):
-        add_adjustment("discount", "Desconto da baixa", discount, -discount)
+        add_adjustment(
+            "discount",
+            "Desconto da baixa",
+            discount,
+            -discount,
+            category_id=adjustment_category_id,
+            entry_type="income",
+            settled_at_override=settled_at_value,
+        )
 
     return cash_total, generated_adjustments
 

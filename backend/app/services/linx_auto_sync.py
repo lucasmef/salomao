@@ -15,6 +15,7 @@ from app.db.models.security import Company
 from app.services.audit import write_audit_log
 from app.services.backup import ensure_pre_import_backup
 from app.services.inter import sync_inter_charges, sync_inter_statement, sync_standalone_inter_charges
+from app.services.linx_customer_birthdays import send_linx_customer_birthday_alert
 from app.services.linx_receivable_settlement import settle_paid_pending_inter_receivables
 from app.services.linx_customers import sync_linx_customers
 from app.services.linx_movements import sync_linx_movements
@@ -51,6 +52,7 @@ class LinxAutoSyncRun:
     inter_statement_message: str | None = None
     inter_charges_message: str | None = None
     customers_message: str | None = None
+    birthday_alert_message: str | None = None
     receivables_message: str | None = None
     movements_message: str | None = None
     products_message: str | None = None
@@ -259,6 +261,7 @@ def _build_error_email(
     inter_statement_message: str | None,
     inter_charges_message: str | None,
     customers_message: str | None,
+    birthday_alert_message: str | None,
     receivables_message: str | None,
     movements_message: str | None,
     products_message: str | None,
@@ -285,6 +288,7 @@ def _build_error_email(
             f"- Extrato Inter: {inter_statement_message or 'nao executado'}",
             f"- Boletos Inter: {inter_charges_message or 'nao executado'}",
             f"- Clientes/fornecedores: {customers_message or 'nao executado'}",
+            f"- Aniversariantes: {birthday_alert_message or 'nao executado'}",
             f"- Faturas a receber: {receivables_message or 'nao executado'}",
             f"- Movimentos: {movements_message or 'nao executado'}",
             f"- Produtos: {products_message or 'nao executado'}",
@@ -320,6 +324,7 @@ def run_linx_auto_sync_for_company(
     inter_statement_message: str | None = None
     inter_charges_message: str | None = None
     customers_message: str | None = None
+    birthday_alert_message: str | None = None
     receivables_message: str | None = None
     movements_message: str | None = None
     products_message: str | None = None
@@ -333,6 +338,8 @@ def run_linx_auto_sync_for_company(
     else:
         inter_statement_ok = False
         inter_charges_ok = False
+        customers_ok = False
+        movements_ok = False
         receivables_ok = False
         statement_start_date, statement_end_date = _default_inter_statement_period(local_now)
         charge_start_date, charge_end_date = _default_inter_charges_period(local_now)
@@ -381,6 +388,7 @@ def run_linx_auto_sync_for_company(
         try:
             customers_result = sync_linx_customers(db, company)
             customers_message = customers_result.message
+            customers_ok = True
         except Exception as error:  # pragma: no cover
             db.rollback()
             errors.append(f"Clientes/fornecedores: {error}")
@@ -404,6 +412,7 @@ def run_linx_auto_sync_for_company(
                 company_id=company.id,
                 batch_id=batch_id,
             ) > 0
+            movements_ok = True
         except Exception as error:  # pragma: no cover
             db.rollback()
             errors.append(f"Movimentos/Snapshots: {error}")
@@ -467,6 +476,13 @@ def run_linx_auto_sync_for_company(
                 db.rollback()
                 errors.append(f"Baixas automaticas Linx: {error}")
 
+        if customers_ok and movements_ok:
+            try:
+                birthday_alert_message = send_linx_customer_birthday_alert(db, company, now=local_now)
+            except Exception as error:  # pragma: no cover
+                db.rollback()
+                errors.append(f"Aniversariantes: {error}")
+
     summary = _build_summary(
         customers_message=customers_message,
         receivables_message=receivables_message,
@@ -501,6 +517,7 @@ def run_linx_auto_sync_for_company(
             "inter_statement_message": inter_statement_message,
             "inter_charges_message": inter_charges_message,
             "customers_message": customers_message,
+            "birthday_alert_message": birthday_alert_message,
             "receivables_message": receivables_message,
             "movements_message": movements_message,
             "products_message": products_message,
@@ -527,6 +544,7 @@ def run_linx_auto_sync_for_company(
                 inter_statement_message=inter_statement_message,
                 inter_charges_message=inter_charges_message,
                 customers_message=customers_message,
+                birthday_alert_message=birthday_alert_message,
                 receivables_message=receivables_message,
                 movements_message=movements_message,
                 products_message=products_message,
@@ -556,6 +574,7 @@ def run_linx_auto_sync_for_company(
         inter_statement_message=inter_statement_message,
         inter_charges_message=inter_charges_message,
         customers_message=customers_message,
+        birthday_alert_message=birthday_alert_message,
         receivables_message=receivables_message,
         movements_message=movements_message,
         products_message=products_message,

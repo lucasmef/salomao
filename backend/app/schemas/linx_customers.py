@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel
 
@@ -18,6 +18,7 @@ class LinxCustomerDirectoryItemRead(BaseModel):
     legal_name: str
     display_name: str | None = None
     document_number: str | None = None
+    birth_date: date | None = None
     registration_type: str | None = None
     registration_type_label: str
     person_type: str | None = None

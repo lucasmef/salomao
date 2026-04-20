@@ -391,11 +391,14 @@ def ensure_schema_updates(engine: Engine) -> None:
             "linx_auto_sync_enabled": "BOOLEAN DEFAULT 0",
             "linx_auto_sync_alert_email": "VARCHAR(255)",
             "linx_auto_sync_last_run_at": "DATETIME",
+            "linx_birthday_alert_last_sent_at": "DATETIME",
             "linx_auto_sync_last_status": "VARCHAR(20)",
             "linx_auto_sync_last_error": "TEXT",
         }
         for column_name, sql_type in company_columns.items():
             _add_column_if_missing(connection, "companies", column_name, sql_type)
+
+        _add_column_if_missing(connection, "linx_customers", "birth_date", "DATE")
 
         user_columns = {
             "mfa_enabled": "BOOLEAN DEFAULT 0",
@@ -645,6 +648,10 @@ def ensure_schema_updates(engine: Engine) -> None:
             "idx_report_layout_formula_items_line_position": ("report_layout_formula_items", (
                 "CREATE INDEX idx_report_layout_formula_items_line_position "
                 "ON report_layout_formula_items(line_id, position)"
+            )),
+            "idx_linx_customers_birth_date": ("linx_customers", (
+                "CREATE INDEX idx_linx_customers_birth_date "
+                "ON linx_customers(birth_date)"
             )),
         }
         for index_name, (table_name, create_sql) in indexes.items():

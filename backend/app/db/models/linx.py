@@ -98,6 +98,7 @@ class LinxCustomer(Base, IdMixin, TimestampMixin):
     legal_name: Mapped[str] = mapped_column(String(200))
     display_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     document_number: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     person_type: Mapped[str | None] = mapped_column(String(1), nullable=True)
     registration_type: Mapped[str | None] = mapped_column(String(1), nullable=True, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
