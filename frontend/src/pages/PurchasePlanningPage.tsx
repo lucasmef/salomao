@@ -465,6 +465,16 @@ function buildPurchaseNetDisplayLine(
   return `(-) ${formatPurchaseDisplayAmount(returnsAmount)} = ${formatPurchaseDisplayAmount(netAmount)}`;
 }
 
+function renderOutstandingReceiptHint(
+  outstandingAmount: string | number | null | undefined,
+) {
+  return (
+    <span className="purchase-outstanding-receipt-hint">
+      Falta: {formatPurchaseDisplayAmount(outstandingAmount)}
+    </span>
+  );
+}
+
 function buildBrandKey(
   brandId: string | null | undefined,
   brandName: string | null | undefined,
@@ -3203,9 +3213,15 @@ export function PurchasePlanningPage({
                                       className="metric-line"
                                       title="Recebido"
                                     >
-                                      <div className="metric-value-container color-recebido">
-                                        {formatPurchaseDisplayAmount(
-                                          collectionSnapshot?.receivedAmount ||
+                                      <div className="metric-value-stack">
+                                        <div className="metric-value-container color-recebido">
+                                          {formatPurchaseDisplayAmount(
+                                            collectionSnapshot?.receivedAmount ||
+                                              0,
+                                          )}
+                                        </div>
+                                        {renderOutstandingReceiptHint(
+                                          collectionSnapshot?.outstandingAmount ||
                                             0,
                                         )}
                                       </div>
@@ -3404,9 +3420,20 @@ export function PurchasePlanningPage({
                             {showPlanningDetail && (
                               <>
                                 <div className="metric-line" title="Recebido">
-                                  <div className="metric-value-container color-recebido">
-                                    {formatPurchaseDisplayAmount(
-                                      centsToAmount(totals.receivedCents),
+                                  <div className="metric-value-stack">
+                                    <div className="metric-value-container color-recebido">
+                                      {formatPurchaseDisplayAmount(
+                                        centsToAmount(totals.receivedCents),
+                                      )}
+                                    </div>
+                                    {renderOutstandingReceiptHint(
+                                      centsToAmount(
+                                        Math.max(
+                                          totals.plannedCents -
+                                            totals.receivedCents,
+                                          0,
+                                        ),
+                                      ),
                                     )}
                                   </div>
                                   <div className="metric-actions-container" />
@@ -4268,6 +4295,7 @@ export function PurchasePlanningPage({
                           <col className="brand-collection-col-detail" />
                           <col className="brand-collection-col-detail" />
                           <col className="brand-collection-col-detail" />
+                          <col className="brand-collection-col-detail" />
                           <col className="brand-collection-col-profit" />
                         </>
                       )}
@@ -4283,6 +4311,9 @@ export function PurchasePlanningPage({
                           <>
                             <th className="numeric-cell brand-collection-col-detail">
                               Recebido
+                            </th>
+                            <th className="numeric-cell brand-collection-col-detail">
+                              Falta receber
                             </th>
                             <th className="numeric-cell brand-collection-col-detail">
                               Devolvido
@@ -4386,6 +4417,12 @@ export function PurchasePlanningPage({
                                     <td className="numeric-cell color-recebido">
                                       {formatPurchaseDisplayAmount(
                                         collectionSnapshot?.receivedAmount || 0,
+                                      )}
+                                    </td>
+                                    <td className="numeric-cell color-a-receber">
+                                      {formatPurchaseDisplayAmount(
+                                        collectionSnapshot?.outstandingAmount ||
+                                          0,
                                       )}
                                     </td>
                                     <td className="numeric-cell color-devolucao">
