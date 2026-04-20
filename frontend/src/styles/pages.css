@@ -5876,9 +5876,8 @@ textarea {
 }
 
 .purchase-outstanding-receipt-hint {
-  font-size: 0.64rem;
-  line-height: 1.05;
-  font-weight: 700;
+  font: inherit;
+  line-height: inherit;
   color: #d4a017;
 }
 
