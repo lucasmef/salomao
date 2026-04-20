@@ -142,9 +142,9 @@ def test_revenue_comparison_reuses_historical_cache_but_queries_today_live(monke
 
     assert first == second
     assert query_calls == [
-        (date(2026, 4, 10), date(2026, 4, 10)),
-        (date(2025, 1, 1), date(2026, 4, 9)),
-        (date(2026, 4, 10), date(2026, 4, 10)),
+        (date(2026, 4, 1), date(2026, 4, 10)),
+        (date(2025, 1, 1), date(2026, 3, 31)),
+        (date(2026, 4, 1), date(2026, 4, 10)),
     ]
 
 

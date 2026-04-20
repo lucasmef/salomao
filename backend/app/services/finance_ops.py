@@ -341,9 +341,9 @@ def apply_settlement_breakdown(
             -penalty,
             category_id=purchase_return_category_id,
             entry_type="income",
-            status="planned",
-            paid_amount=Decimal("0.00"),
-            settled_at_override=None,
+            status="settled",
+            paid_amount=penalty,
+            settled_at_override=settled_at_value,
             account_id=None,
             description=f"Fatura recebida gerada automaticamente na baixa de {entry.title}",
         )
@@ -677,7 +677,7 @@ def _ensure_entry_can_be_deleted(
         raise HTTPException(status_code=400, detail="Apenas lancamentos em aberto podem ser excluidos")
     if not allow_reconciled_generated and (Decimal(entry.paid_amount or 0) > Decimal("0.00") or entry.settled_at is not None):
         raise HTTPException(status_code=400, detail="Lancamento com baixa nao pode ser excluido")
-    if entry.transfer_id or entry.loan_installment_id or entry.is_recurring_generated:
+    if (entry.transfer_id and not allow_reconciled_generated) or entry.loan_installment_id or entry.is_recurring_generated:
         raise HTTPException(status_code=400, detail="Lancamento vinculado a outro processo nao pode ser excluido")
     has_reconciliation = db.scalar(
         select(func.count())
@@ -896,6 +896,69 @@ def delete_entry(
         after_state=_entry_dict(entry),
     )
     return entry
+
+
+def delete_transfer(db: Session, company: Company, transfer_id: str, actor_user: User) -> Transfer:
+    transfer = db.get(Transfer, transfer_id)
+    if not transfer or transfer.company_id != company.id:
+        raise HTTPException(status_code=404, detail="Transferencia nao encontrada")
+
+    entries = list(
+        db.scalars(
+            select(FinancialEntry).where(
+                FinancialEntry.company_id == company.id,
+                FinancialEntry.transfer_id == transfer.id,
+                FinancialEntry.is_deleted.is_(False),
+            )
+        )
+    )
+    if not entries:
+        raise HTTPException(status_code=404, detail="Lancamentos da transferencia nao encontrados")
+
+    for entry in entries:
+        has_reconciliation = db.scalar(
+            select(func.count())
+            .select_from(Reconciliation)
+            .where(Reconciliation.financial_entry_id == entry.id)
+        ) or 0
+        has_group_reconciliation = db.scalar(
+            select(func.count())
+            .select_from(ReconciliationLine)
+            .where(ReconciliationLine.financial_entry_id == entry.id)
+        ) or 0
+        if has_reconciliation or has_group_reconciliation:
+            raise HTTPException(
+                status_code=400,
+                detail="Transferencia conciliada nao pode ser excluida. Desconciliar primeiro.",
+            )
+
+    before_state = {
+        "source_account_id": transfer.source_account_id,
+        "destination_account_id": transfer.destination_account_id,
+        "source_entry_id": transfer.source_entry_id,
+        "destination_entry_id": transfer.destination_entry_id,
+        "amount": f"{Decimal(transfer.amount):.2f}",
+        "status": transfer.status,
+    }
+
+    for entry in entries:
+        delete_entry(db, company, entry.id, actor_user, allow_reconciled_generated=True)
+        entry.transfer_id = None
+
+    db.delete(transfer)
+    db.flush()
+
+    write_audit_log(
+        db,
+        action="delete_transfer",
+        entity_name="transfer",
+        entity_id=transfer.id,
+        company_id=company.id,
+        actor_user=actor_user,
+        before_state=before_state,
+        after_state=None,
+    )
+    return transfer
 
 
 def create_transfer(db: Session, company: Company, payload: TransferCreate, actor_user: User) -> Transfer:

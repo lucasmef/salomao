@@ -26,6 +26,7 @@ type Props = {
   onCreateSupplier: (payload: Record<string, unknown>) => Promise<Supplier>;
   onCreateEntry: (payload: Record<string, unknown>) => Promise<void>;
   onCreateTransfer: (payload: Record<string, unknown>) => Promise<void>;
+  onDeleteTransfer: (transferId: string) => Promise<void>;
   onUpdateEntry: (entryId: string, payload: Record<string, unknown>) => Promise<void>;
   onBulkUpdateCategory: (entryIds: string[], categoryId: string) => Promise<void>;
   onBulkDeleteEntries: (entryIds: string[]) => Promise<void>;
@@ -374,6 +375,7 @@ export function EntriesPage({
   onCreateSupplier,
   onCreateEntry,
   onCreateTransfer,
+  onDeleteTransfer,
   onUpdateEntry,
   onBulkUpdateCategory,
   onBulkDeleteEntries,
@@ -878,6 +880,26 @@ export function EntriesPage({
 
   function isTransferEntry(entry: FinancialEntry) {
     return Boolean(entry.transfer_id);
+  }
+
+  async function handleDeleteTransfer(entry: FinancialEntry) {
+    if (!entry.transfer_id) {
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: "Excluir Transferência",
+      message: "Esta ação excluirá as duas pernas da transferência. Deseja continuar?",
+      confirmLabel: "Excluir Transferência",
+      tone: "danger"
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setActiveRowMenuId(null);
+    await onDeleteTransfer(entry.transfer_id);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1630,7 +1652,13 @@ export function EntriesPage({
                         )}
                       </div>
                     ) : (
-                      <span className="entries-row-menu-placeholder">-</span>
+                      <button
+                        className="text-action-button is-danger"
+                        onClick={() => void handleDeleteTransfer(entry)}
+                        type="button"
+                      >
+                        Excluir Transferência
+                      </button>
                     )}
                   </td>
                 </tr>

@@ -13,7 +13,7 @@ from app.db.models.banking import (
     ReconciliationGroup,
     ReconciliationLine,
 )
-from app.db.models.finance import Account, FinancialEntry
+from app.db.models.finance import Account, FinancialEntry, Transfer
 from app.db.models.security import Company, User
 from app.schemas.dashboard import DashboardAccountBalance
 from app.schemas.financial_entry import FinancialEntryCreate
@@ -154,11 +154,89 @@ def _build_grouped_transaction_notes(transactions: list[BankTransaction], existi
 def _is_reconciliation_generated_entry(entry: FinancialEntry, match_type: str | None = None) -> bool:
     if _is_settlement_adjustment_entry(entry):
         return True
+    if match_type == "action_transfer" and entry.transfer_id:
+        return True
     if entry.transfer_id or entry.loan_installment_id:
         return False
     if match_type and match_type not in {"action_create_entry", "action_mark_bank_fee"}:
         return False
     return bool(entry.source_system == "ofx" and (entry.source_reference or "").startswith("bank-batch:"))
+
+
+def _load_generated_entries_for_unreconcile(
+    db: Session,
+    company: Company,
+    entries: dict[str, FinancialEntry],
+    match_type: str | None,
+) -> dict[str, FinancialEntry]:
+    generated_entries: dict[str, FinancialEntry] = {}
+    transfer_ids: set[str] = set()
+
+    for entry in entries.values():
+        if not _is_reconciliation_generated_entry(entry, match_type):
+            continue
+        generated_entries[entry.id] = entry
+        if entry.transfer_id:
+            transfer_ids.add(entry.transfer_id)
+
+    if transfer_ids:
+        for transfer_entry in db.scalars(
+            select(FinancialEntry).where(
+                FinancialEntry.company_id == company.id,
+                FinancialEntry.transfer_id.in_(transfer_ids),
+                FinancialEntry.is_deleted.is_(False),
+            )
+        ):
+            generated_entries[transfer_entry.id] = transfer_entry
+
+    return generated_entries
+
+
+def _delete_generated_entries_for_unreconcile(
+    db: Session,
+    company: Company,
+    generated_entries: dict[str, FinancialEntry],
+    actor_user: User,
+) -> list[str]:
+    deleted_entry_ids: list[str] = []
+    transfer_ids = {entry.transfer_id for entry in generated_entries.values() if entry.transfer_id}
+
+    for entry in generated_entries.values():
+        transfer_id = entry.transfer_id
+        if entry.is_deleted:
+            if transfer_id:
+                entry.transfer_id = None
+            continue
+        delete_entry(db, company, entry.id, actor_user, allow_reconciled_generated=True)
+        if transfer_id:
+            entry.transfer_id = None
+        deleted_entry_ids.append(entry.id)
+
+    for transfer_id in sorted(transfer_ids):
+        transfer = db.get(Transfer, transfer_id)
+        if not transfer or transfer.company_id != company.id:
+            continue
+        before_state = {
+            "source_account_id": transfer.source_account_id,
+            "destination_account_id": transfer.destination_account_id,
+            "source_entry_id": transfer.source_entry_id,
+            "destination_entry_id": transfer.destination_entry_id,
+            "amount": f"{Decimal(transfer.amount):.2f}",
+            "status": transfer.status,
+        }
+        db.delete(transfer)
+        write_audit_log(
+            db,
+            action="delete_transfer",
+            entity_name="transfer",
+            entity_id=transfer.id,
+            company_id=company.id,
+            actor_user=actor_user,
+            before_state=before_state,
+            after_state=None,
+        )
+
+    return deleted_entry_ids
 
 
 def _undo_mode_from_entries(applied_entries: list[ReconciliationAppliedEntry]) -> str | None:
@@ -894,24 +972,28 @@ def undo_reconciliation_by_bank_transaction(
                 )
             )
         }
-        generated_entries = [
-            entry
-            for entry in entries.values()
-            if _is_reconciliation_generated_entry(entry, group.match_type)
-        ]
+        generated_entries = _load_generated_entries_for_unreconcile(db, company, entries, group.match_type)
         if generated_entries and not delete_generated_entries:
             raise ValueError("Esta desconciliacao vai excluir lancamento(s) criado(s) na conciliacao. Confirme para continuar.")
+
+        if generated_entries:
+            deleted_entry_ids.extend(
+                _delete_generated_entries_for_unreconcile(
+                    db,
+                    company,
+                    generated_entries,
+                    actor_user,
+                )
+            )
 
         for entry_id, amount_to_remove in entry_totals.items():
             entry = entries.get(entry_id)
             if not entry:
                 continue
-            if _is_reconciliation_generated_entry(entry, group.match_type):
-                delete_entry(db, company, entry.id, actor_user, allow_reconciled_generated=True)
-                deleted_entry_ids.append(entry.id)
-            else:
-                _apply_unreconciled_status(entry, amount_to_remove)
-                reopened_entry_ids.append(entry.id)
+            if entry.id in generated_entries:
+                continue
+            _apply_unreconciled_status(entry, amount_to_remove)
+            reopened_entry_ids.append(entry.id)
 
         for line in group_lines:
             db.delete(line)

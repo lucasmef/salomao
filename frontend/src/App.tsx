@@ -250,6 +250,10 @@ const emptyDashboard: DashboardOverview = {
   overdue_payables: [],
   overdue_receivables: [],
   pending_reconciliations: 0,
+  week_birthdays: {
+    week_label: null,
+    items: [],
+  },
 };
 
 const emptyLookups: CategoryLookups = { group_options: [], subgroup_options: [] };

@@ -964,6 +964,19 @@ export type DashboardAccountBalance = {
   exclude_from_balance?: boolean;
 };
 
+export type DashboardBirthdayItem = {
+  linx_code: number;
+  customer_name: string;
+  birth_date: string;
+  birthday_date: string;
+  last_purchase_date: string;
+};
+
+export type DashboardWeekBirthdays = {
+  week_label: string | null;
+  items: DashboardBirthdayItem[];
+};
+
 export type DashboardOverview = {
   period_label: string;
   kpis: {
@@ -989,6 +1002,7 @@ export type DashboardOverview = {
   overdue_payables: DashboardPendingItem[];
   overdue_receivables: DashboardPendingItem[];
   pending_reconciliations: number;
+  week_birthdays: DashboardWeekBirthdays;
 };
 
 export type UserCreatePayload = {
@@ -1049,6 +1063,7 @@ export type LinxCustomerDirectoryItem = {
   legal_name: string;
   display_name: string | null;
   document_number: string | null;
+  birth_date: string | null;
   registration_type: string | null;
   registration_type_label: string;
   person_type: string | null;

@@ -417,6 +417,65 @@ html, body {
   font-size: 0.92rem;
 }
 
+.birthday-week-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.birthday-week-subtitle {
+  margin: 4px 0 0;
+  color: #607087;
+  font-size: 0.78rem;
+}
+
+.birthday-week-list {
+  display: grid;
+  gap: 8px;
+}
+
+.birthday-week-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.birthday-week-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.birthday-week-copy strong {
+  color: #18253a;
+  font-size: 0.9rem;
+}
+
+.birthday-week-copy span {
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.birthday-week-date {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.birthday-week-empty {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
 .warning-panel {
   border-color: #f1d4a5;
   background: #fffaf0;

@@ -6,7 +6,7 @@ from app.api.deps import DbSession
 from app.schemas.dashboard import DashboardOverview
 from app.services.cache_invalidation import refresh_finance_analytics_caches
 from app.services.company_context import get_current_company
-from app.services.dashboard import get_cached_dashboard_overview
+from app.services.dashboard import build_dashboard_week_birthdays, get_cached_dashboard_overview
 
 router = APIRouter()
 
@@ -25,7 +25,12 @@ def get_dashboard_overview(
         - timedelta(days=1)
     )
     company = get_current_company(db)
-    return get_cached_dashboard_overview(db, company, start=period_start, end=period_end, refresh=refresh)
+    overview = get_cached_dashboard_overview(db, company, start=period_start, end=period_end, refresh=refresh)
+    return overview.model_copy(
+        update={
+            "week_birthdays": build_dashboard_week_birthdays(db, company),
+        }
+    )
 
 
 @router.post("/analytics/refresh", status_code=status.HTTP_202_ACCEPTED)

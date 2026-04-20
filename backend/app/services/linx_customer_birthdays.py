@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, time
 
-from sqlalchemy import and_, extract, func, select
+from sqlalchemy import and_, extract, func, or_, select
 from sqlalchemy.orm import Session
 from zoneinfo import ZoneInfo
 
@@ -23,6 +23,7 @@ class BirthdayCustomerAlertItem:
     linx_code: int
     customer_name: str
     birth_date: date
+    birthday_date: date
     last_purchase_at: datetime
 
 
@@ -58,15 +59,31 @@ def _should_send_alert_now(company: Company, *, now: datetime, force: bool) -> b
     return last_sent_local.date() < now.date()
 
 
-def list_birthday_customers_for_date(
+def list_birthday_customers_for_dates(
     db: Session,
     company: Company,
     *,
-    target_date: date,
+    target_dates: list[date],
 ) -> list[BirthdayCustomerAlertItem]:
+    if not target_dates:
+        return []
+
     purchase_datetime = func.coalesce(LinxMovement.issue_date, LinxMovement.launch_date)
-    cutoff_date = _subtract_years(target_date, RECENT_PURCHASE_LOOKBACK_YEARS)
+    min_target_date = min(target_dates)
+    cutoff_date = _subtract_years(min_target_date, RECENT_PURCHASE_LOOKBACK_YEARS)
     cutoff_datetime = datetime.combine(cutoff_date, time.min)
+    normalized_dates = sorted(set(target_dates))
+    birthday_dates_by_month_day = {
+        (item.month, item.day): item
+        for item in normalized_dates
+    }
+    birthday_filters = [
+        and_(
+            extract("month", LinxCustomer.birth_date) == item.month,
+            extract("day", LinxCustomer.birth_date) == item.day,
+        )
+        for item in normalized_dates
+    ]
 
     rows = db.execute(
         select(
@@ -89,8 +106,7 @@ def list_birthday_customers_for_date(
             LinxCustomer.is_active.is_(True),
             LinxCustomer.anonymous_customer.is_(False),
             LinxCustomer.registration_type.in_(("C", "A")),
-            extract("month", LinxCustomer.birth_date) == target_date.month,
-            extract("day", LinxCustomer.birth_date) == target_date.day,
+            or_(*birthday_filters),
             LinxMovement.movement_type == "sale",
             purchase_datetime >= cutoff_datetime,
         )
@@ -107,15 +123,32 @@ def list_birthday_customers_for_date(
     for linx_code, legal_name, display_name, birth_date, last_purchase_at in rows:
         if birth_date is None or last_purchase_at is None:
             continue
+        birthday_date = birthday_dates_by_month_day.get((birth_date.month, birth_date.day))
+        if birthday_date is None:
+            continue
         items.append(
             BirthdayCustomerAlertItem(
                 linx_code=int(linx_code),
                 customer_name=(display_name or legal_name).strip(),
                 birth_date=birth_date,
+                birthday_date=birthday_date,
                 last_purchase_at=last_purchase_at,
             )
         )
-    return items
+    return sorted(items, key=lambda item: (item.birthday_date, item.customer_name.lower(), item.linx_code))
+
+
+def list_birthday_customers_for_date(
+    db: Session,
+    company: Company,
+    *,
+    target_date: date,
+) -> list[BirthdayCustomerAlertItem]:
+    return list_birthday_customers_for_dates(
+        db,
+        company,
+        target_dates=[target_date],
+    )
 
 
 def send_linx_customer_birthday_alert(

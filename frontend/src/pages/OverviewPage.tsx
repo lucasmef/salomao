@@ -1,6 +1,7 @@
 import { FormEvent } from "react";
 
 import { PageHeader } from "../components/PageHeader";
+import { Skeleton } from "../components/Skeleton";
 import { formatMoney } from "../lib/format";
 import type { DashboardOverview } from "../types";
 
@@ -16,7 +17,26 @@ function toInput(value: Date) {
   return value.toISOString().slice(0, 10);
 }
 
-import { Skeleton } from "../components/Skeleton";
+function parseIsoDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
+}
+
+function formatBirthdayDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  }).format(parseIsoDate(value));
+}
+
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(parseIsoDate(value));
+}
 
 export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onApplyFilters }: Props) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -151,6 +171,57 @@ export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onA
           <p className="empty-state-desc">Vá em <strong>Configurações &gt; Categorias</strong> e marque as linhas do DRE que você deseja acompanhar aqui.</p>
         </div>
       )}
+
+      {loading ? (
+        <section className="panel-card birthday-week-panel">
+          <div className="panel-title">
+            <div>
+              <h3>Aniversariantes da semana</h3>
+              <p className="birthday-week-subtitle">Clientes com compra nos 2 ultimos anos</p>
+            </div>
+          </div>
+          <div className="birthday-week-list">
+            {[...Array(3)].map((_, index) => (
+              <div className="birthday-week-item" key={index}>
+                <div className="birthday-week-copy">
+                  <Skeleton width="55%" height="1rem" />
+                  <Skeleton width="42%" height="0.8rem" />
+                </div>
+                <Skeleton width="26%" height="1.75rem" />
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : dashboard ? (
+        <section className="panel-card birthday-week-panel">
+          <div className="panel-title">
+            <div>
+              <h3>Aniversariantes da semana</h3>
+              <p className="birthday-week-subtitle">
+                {dashboard.week_birthdays.week_label ?? "Semana atual"} • clientes com compra nos 2 ultimos anos
+              </p>
+            </div>
+          </div>
+
+          {dashboard.week_birthdays.items.length ? (
+            <div className="birthday-week-list">
+              {dashboard.week_birthdays.items.map((item) => (
+                <article className="birthday-week-item" key={`${item.linx_code}-${item.birthday_date}`}>
+                  <div className="birthday-week-copy">
+                    <strong>{item.customer_name}</strong>
+                    <span>
+                      Nascimento {formatShortDate(item.birth_date)} • ultima compra {formatShortDate(item.last_purchase_date)}
+                    </span>
+                  </div>
+                  <div className="birthday-week-date">{formatBirthdayDate(item.birthday_date)}</div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="birthday-week-empty">Nenhum aniversariante elegivel nesta semana.</p>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }

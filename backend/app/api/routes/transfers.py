@@ -4,7 +4,7 @@ from app.api.deps import CurrentUser, DbSession
 from app.schemas.transfer import TransferCreate, TransferRead
 from app.services.cache_invalidation import clear_finance_analytics_caches
 from app.services.company_context import get_current_company
-from app.services.finance_ops import create_transfer, list_transfers
+from app.services.finance_ops import create_transfer, delete_transfer, list_transfers
 
 router = APIRouter()
 
@@ -46,3 +46,16 @@ def post_transfer(payload: TransferCreate, db: DbSession, current_user: CurrentU
     )
     db.refresh(transfer)
     return _serialize_transfer(transfer)
+
+
+@router.delete("/{transfer_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_transfer_route(transfer_id: str, db: DbSession, current_user: CurrentUser) -> None:
+    company = get_current_company(db)
+    transfer = delete_transfer(db, company, transfer_id, current_user)
+    db.commit()
+    clear_finance_analytics_caches(
+        company.id,
+        db=db,
+        company=company,
+        affected_dates=[transfer.transfer_date] if transfer.transfer_date else None,
+    )

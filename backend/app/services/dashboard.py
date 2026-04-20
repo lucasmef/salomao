@@ -1,5 +1,6 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import case, extract, func, or_, select
 from sqlalchemy.orm import Session
@@ -10,12 +11,14 @@ from app.db.models.linx import LinxMovement
 from app.db.models.security import Company
 from app.schemas.dashboard import (
     DashboardAccountBalance,
+    DashboardBirthdayItem,
     DashboardKpis,
     DashboardOverview,
     DashboardPendingItem,
     DashboardRevenueComparison,
     DashboardRevenueComparisonPoint,
     DashboardSeriesPoint,
+    DashboardWeekBirthdays,
 )
 from app.services.analytics_hybrid import (
     ANALYTICS_DASHBOARD_OVERVIEW,
@@ -31,13 +34,16 @@ from app.services.analytics_hybrid import (
     write_live_json_cache,
 )
 from app.services.cashflow import get_cached_cashflow_overview
+from app.services.linx_customer_birthdays import list_birthday_customers_for_dates
 from app.services.reports import get_cached_reports_overview
 
 MONTH_LABELS = ("Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez")
+WEEKDAY_LABELS = ("Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom")
 CURRENT_MONTH_OVERVIEW_CACHE_TTL_SECONDS = 86400
 HISTORICAL_MONTH_OVERVIEW_CACHE_TTL_SECONDS = 604800
 MAX_OVERVIEW_CACHE_ITEMS = 24
 HISTORICAL_REVENUE_COMPARISON_CACHE_TTL_SECONDS = 21600
+DASHBOARD_TIMEZONE = ZoneInfo("America/Sao_Paulo")
 
 
 def _month_start(value: date) -> date:
@@ -63,6 +69,48 @@ def _overview_cache_ttl_seconds(start: date, end: date, *, today: date | None = 
     if start == current_month_start and end == current_month_end:
         return CURRENT_MONTH_OVERVIEW_CACHE_TTL_SECONDS
     return HISTORICAL_MONTH_OVERVIEW_CACHE_TTL_SECONDS
+
+
+def _today_in_sao_paulo() -> date:
+    return datetime.now(DASHBOARD_TIMEZONE).date()
+
+
+def _week_range(current_day: date) -> tuple[date, date]:
+    week_start = current_day - timedelta(days=current_day.weekday())
+    return week_start, week_start + timedelta(days=6)
+
+
+def _format_week_label(start: date, end: date) -> str:
+    return f"{WEEKDAY_LABELS[start.weekday()]} {start.strftime('%d/%m')} a {WEEKDAY_LABELS[end.weekday()]} {end.strftime('%d/%m')}"
+
+
+def build_dashboard_week_birthdays(
+    db: Session,
+    company: Company,
+    *,
+    today: date | None = None,
+) -> DashboardWeekBirthdays:
+    reference_day = today or _today_in_sao_paulo()
+    week_start, week_end = _week_range(reference_day)
+    target_dates = [week_start + timedelta(days=offset) for offset in range(7)]
+    birthdays = list_birthday_customers_for_dates(
+        db,
+        company,
+        target_dates=target_dates,
+    )
+    return DashboardWeekBirthdays(
+        week_label=_format_week_label(week_start, week_end),
+        items=[
+            DashboardBirthdayItem(
+                linx_code=item.linx_code,
+                customer_name=item.customer_name,
+                birth_date=item.birth_date,
+                birthday_date=item.birthday_date,
+                last_purchase_date=item.last_purchase_at.date(),
+            )
+            for item in birthdays
+        ],
+    )
 
 def clear_dashboard_overview_cache(company_id: str | None = None) -> None:
     clear_live_cache(company_id, kinds=[ANALYTICS_DASHBOARD_OVERVIEW])

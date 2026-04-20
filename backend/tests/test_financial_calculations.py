@@ -14,7 +14,7 @@ from fastapi import HTTPException
 
 from app.db.base import Base
 from app.db.models.banking import BankTransaction
-from app.db.models.finance import Account, Category, FinancialEntry
+from app.db.models.finance import Account, Category, FinancialEntry, Transfer
 from app.db.models.linx import LinxMovement, SalesSnapshot
 from app.db.models.purchasing import CollectionSeason, PurchasePlan, Supplier
 from app.db.models.security import Company, User
@@ -25,7 +25,12 @@ from app.services.cashflow import build_cashflow_overview
 from app.services.finance_ops import create_transfer, settle_entry
 from app.services.import_parsers import ParsedSalesRow
 from app.services.imports import import_linx_sales
-from app.services.reconciliation import create_entry_from_bank_transaction, create_reconciliation
+from app.services.reconciliation import (
+    build_reconciliation_worklist,
+    create_entry_from_bank_transaction,
+    create_reconciliation,
+    undo_reconciliation_by_bank_transaction,
+)
 from app.services.reports import build_reports_overview
 from app.schemas.financial_entry import EntrySettlementRequest
 from app.services.category_catalog import ensure_category_catalog
@@ -335,6 +340,93 @@ class FinancialCalculationsTestCase(unittest.TestCase):
         self.assertEqual(overview.current_balance, Decimal("1200.00"))
         self.assertEqual(balances["Caixa Loja"], Decimal("950.00"))
         self.assertEqual(balances["Aplicacoes"], Decimal("250.00"))
+
+    def test_transfer_created_by_reconciliation_requires_delete_confirmation_on_undo(self) -> None:
+        source_account = self._add_account("Inter", "1000.00")
+        destination_account = self._add_account("Adiantamentos", "0.00")
+        transaction = self._add_bank_transaction(
+            account=source_account,
+            posted_at=date(2026, 4, 13),
+            amount="-182.00",
+            fit_id="ofx-transfer-001",
+        )
+
+        create_entry_from_bank_transaction(
+            self.db,
+            self.company,
+            BankTransactionActionCreate(
+                bank_transaction_ids=[transaction.id],
+                action_type="mark_transfer",
+                destination_account_id=destination_account.id,
+                title="Transferencia para Adiantamentos",
+            ),
+            self.user,
+        )
+
+        worklist = build_reconciliation_worklist(
+            self.db,
+            self.company,
+            account_id=source_account.id,
+            date_from=date(2026, 4, 13),
+            date_to=date(2026, 4, 13),
+        )
+
+        self.assertEqual(len(worklist.items), 1)
+        self.assertEqual(worklist.items[0].undo_mode, "delete_entry")
+        self.assertEqual(len(worklist.items[0].applied_entries), 1)
+        self.assertTrue(worklist.items[0].applied_entries[0].can_delete_on_unreconcile)
+
+    def test_transfer_created_by_reconciliation_deletes_both_legs_on_undo(self) -> None:
+        source_account = self._add_account("Inter", "1000.00")
+        destination_account = self._add_account("Adiantamentos", "0.00")
+        transaction = self._add_bank_transaction(
+            account=source_account,
+            posted_at=date(2026, 4, 13),
+            amount="-182.00",
+            fit_id="ofx-transfer-002",
+        )
+
+        result = create_entry_from_bank_transaction(
+            self.db,
+            self.company,
+            BankTransactionActionCreate(
+                bank_transaction_ids=[transaction.id],
+                action_type="mark_transfer",
+                destination_account_id=destination_account.id,
+                title="Transferencia para Adiantamentos",
+            ),
+            self.user,
+        )
+
+        transfer = self.db.get(Transfer, result["transfer_id"])
+        self.assertIsNotNone(transfer)
+        assert transfer is not None
+        source_entry_id = transfer.source_entry_id
+        destination_entry_id = transfer.destination_entry_id
+
+        response = undo_reconciliation_by_bank_transaction(
+            self.db,
+            self.company,
+            transaction.id,
+            True,
+            self.user,
+        )
+
+        self.assertEqual(response.bank_transaction_ids, [transaction.id])
+        self.assertEqual(response.reopened_entry_ids, [])
+        self.assertCountEqual(response.deleted_entry_ids, [source_entry_id, destination_entry_id])
+
+        deleted_source_entry = self.db.get(FinancialEntry, source_entry_id)
+        deleted_destination_entry = self.db.get(FinancialEntry, destination_entry_id)
+        self.assertIsNotNone(deleted_source_entry)
+        self.assertIsNotNone(deleted_destination_entry)
+        assert deleted_source_entry is not None
+        assert deleted_destination_entry is not None
+        self.assertTrue(deleted_source_entry.is_deleted)
+        self.assertTrue(deleted_destination_entry.is_deleted)
+        self.assertEqual(deleted_source_entry.status, "cancelled")
+        self.assertEqual(deleted_destination_entry.status, "cancelled")
+        self.assertIsNone(self.db.get(Transfer, result["transfer_id"]))
 
     def test_dro_uses_partial_expense_paid_amount(self) -> None:
         account = self._add_account("Banco", "0.00")
@@ -686,12 +778,13 @@ class FinancialCalculationsTestCase(unittest.TestCase):
         self.assertEqual(entry.paid_amount, Decimal("1500.00"))
         self.assertEqual(entry.total_amount, Decimal("1500.00"))
         self.assertEqual(credit_entry.entry_type, "income")
-        self.assertEqual(credit_entry.status, "planned")
+        self.assertEqual(credit_entry.status, "settled")
         self.assertEqual(credit_entry.category_id, purchase_return_category.id)
         self.assertEqual(credit_entry.supplier_id, supplier.id)
         self.assertEqual(credit_entry.document_number, "NF-500")
         self.assertEqual(credit_entry.total_amount, Decimal("500.00"))
-        self.assertEqual(credit_entry.paid_amount, Decimal("0.00"))
+        self.assertEqual(credit_entry.paid_amount, Decimal("500.00"))
+        self.assertEqual(credit_entry.settled_at.date(), date(2026, 4, 20))
         self.assertIsNone(credit_entry.account_id)
 
     def test_settle_entry_requires_due_date(self) -> None:
