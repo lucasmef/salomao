@@ -468,9 +468,14 @@ function buildPurchaseNetDisplayLine(
 function renderOutstandingReceiptHint(
   outstandingAmount: string | number | null | undefined,
 ) {
+  const formattedAmount = formatPurchaseDisplayAmount(outstandingAmount);
   return (
-    <span className="purchase-outstanding-receipt-hint">
-      Falta: {formatPurchaseDisplayAmount(outstandingAmount)}
+    <span
+      className="purchase-outstanding-receipt-hint"
+      title={`Falta receber: ${formattedAmount}`}
+      aria-label={`Falta receber: ${formattedAmount}`}
+    >
+      {formattedAmount}
     </span>
   );
 }
