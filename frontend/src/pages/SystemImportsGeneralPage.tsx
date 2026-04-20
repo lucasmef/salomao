@@ -16,6 +16,7 @@ type Props = {
   onUploadBoletoC6: (file: File) => Promise<void>;
   onRunC6Settlement: () => Promise<void>;
   onSyncCustomers: () => Promise<void>;
+  onSyncPurchaseInvoices: () => Promise<string | void>;
   onSyncInterCharges: () => Promise<void>;
   onSyncInterStatement: () => Promise<void>;
   onSyncReceivables: () => Promise<void>;
@@ -51,6 +52,7 @@ export function SystemImportsGeneralPage({
   onUploadBoletoC6,
   onRunC6Settlement,
   onSyncCustomers,
+  onSyncPurchaseInvoices,
   onSyncInterCharges,
   onSyncInterStatement,
   onSyncReceivables,
@@ -71,6 +73,10 @@ export function SystemImportsGeneralPage({
     [importSummary],
   );
   const latestLinxCustomersImport = useMemo(() => latestBatchFor(importSummary, "linx_customers"), [importSummary]);
+  const latestLinxPurchaseInvoicesImport = useMemo(
+    () => latestBatchFor(importSummary, "linx_purchase_payables"),
+    [importSummary],
+  );
   const latestInterBoletoImport = useMemo(() => latestBatchFor(importSummary, "boletos:inter"), [importSummary]);
   const latestC6BoletoImport = useMemo(() => latestBatchFor(importSummary, "boletos:c6"), [importSummary]);
   const latestInterChargeSync = useMemo(() => latestBatchFor(importSummary, "inter_charge_sync"), [importSummary]);
@@ -141,6 +147,27 @@ export function SystemImportsGeneralPage({
               <div className="billing-import-meta">
                 {renderBatchMeta(latestLinxCustomersImport)}
                 <small className="compact-muted">Cadastro usado para nome e dados de boleto.</small>
+              </div>
+            </div>
+
+            <div className="compact-import-card billing-import-card">
+              <div className="billing-import-header">
+                <strong>Faturas de compra Linx API</strong>
+                <button
+                  className="primary-button compact-action-button"
+                  disabled={submitting}
+                  onClick={() => void onSyncPurchaseInvoices()}
+                  title="Atualizar faturas de compra da API Linx"
+                  type="button"
+                >
+                  Atualizar
+                </button>
+              </div>
+              <div className="billing-import-meta">
+                {renderBatchMeta(latestLinxPurchaseInvoicesImport)}
+                <small className="compact-muted">
+                  Busca faturas de compra em aberto da API Linx e inclui somente lancamentos novos ou alterados.
+                </small>
               </div>
             </div>
 

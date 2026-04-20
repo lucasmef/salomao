@@ -3178,6 +3178,7 @@ function AppRuntime() {
               importSummary={importSummary}
               onRunC6Settlement={runC6LinxSettlement}
               onSyncCustomers={syncLinxCustomersImport}
+              onSyncPurchaseInvoices={syncLinxPurchaseInvoices}
               onSyncInterCharges={syncInterChargesImport}
               onSyncInterStatement={syncInterStatementImport}
               onSyncReceivables={syncLinxReceivablesImport}
