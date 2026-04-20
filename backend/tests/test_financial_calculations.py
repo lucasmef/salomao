@@ -22,7 +22,7 @@ from app.schemas.reconciliation import BankTransactionActionCreate, Reconciliati
 from app.schemas.transfer import TransferCreate
 from app.services.bootstrap import ensure_company_catalog
 from app.services.cashflow import build_cashflow_overview
-from app.services.finance_ops import create_transfer, settle_entry
+from app.services.finance_ops import create_transfer, delete_transfer, settle_entry
 from app.services.import_parsers import ParsedSalesRow
 from app.services.imports import import_linx_sales
 from app.services.reconciliation import (
@@ -427,6 +427,49 @@ class FinancialCalculationsTestCase(unittest.TestCase):
         self.assertEqual(deleted_source_entry.status, "cancelled")
         self.assertEqual(deleted_destination_entry.status, "cancelled")
         self.assertIsNone(self.db.get(Transfer, result["transfer_id"]))
+
+    def test_delete_transfer_removes_both_legs_even_when_one_is_already_open(self) -> None:
+        source_account = self._add_account("Inter", "1000.00")
+        destination_account = self._add_account("Adiantamentos", "0.00")
+        transfer = create_transfer(
+            self.db,
+            self.company,
+            TransferCreate(
+                source_account_id=source_account.id,
+                destination_account_id=destination_account.id,
+                transfer_date=date(2026, 4, 13),
+                amount=Decimal("182.00"),
+                status="settled",
+                description="Transferencia para Adiantamentos",
+            ),
+            self.user,
+        )
+        self.db.commit()
+
+        source_entry = self.db.get(FinancialEntry, transfer.source_entry_id)
+        destination_entry = self.db.get(FinancialEntry, transfer.destination_entry_id)
+        assert source_entry is not None
+        assert destination_entry is not None
+        source_entry.status = "planned"
+        source_entry.paid_amount = Decimal("0.00")
+        source_entry.settled_at = None
+        self.db.commit()
+
+        deleted_transfer = delete_transfer(self.db, self.company, transfer.id, self.user)
+        self.db.commit()
+
+        self.assertEqual(deleted_transfer.id, transfer.id)
+        deleted_source_entry = self.db.get(FinancialEntry, transfer.source_entry_id)
+        deleted_destination_entry = self.db.get(FinancialEntry, transfer.destination_entry_id)
+        assert deleted_source_entry is not None
+        assert deleted_destination_entry is not None
+        self.assertTrue(deleted_source_entry.is_deleted)
+        self.assertTrue(deleted_destination_entry.is_deleted)
+        self.assertEqual(deleted_source_entry.status, "cancelled")
+        self.assertEqual(deleted_destination_entry.status, "cancelled")
+        self.assertIsNone(deleted_source_entry.transfer_id)
+        self.assertIsNone(deleted_destination_entry.transfer_id)
+        self.assertIsNone(self.db.get(Transfer, transfer.id))
 
     def test_dro_uses_partial_expense_paid_amount(self) -> None:
         account = self._add_account("Banco", "0.00")

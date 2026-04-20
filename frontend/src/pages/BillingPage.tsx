@@ -774,6 +774,10 @@ export function BillingPage({
       .filter((item) => matchesDateRange(item.issue_date, invoiceIssueDateRange))
       .filter((item) => matchesDateRange(item.due_date, invoiceDateRange));
   }, [invoiceClientFilters, invoiceDateRange, invoiceIssueDateRange, invoiceRows, invoiceStatusFilters]);
+  const filteredInvoicesTotal = useMemo(
+    () => filteredInvoices.reduce((total, item) => total + Number(item.amount || 0), 0),
+    [filteredInvoices],
+  );
 
   const filteredBoletos = useMemo(() => {
     const selectedStatuses = boletoStatusFilters.length ? boletoStatusFilters : ALL_BOLETO_STATUS_FILTERS;
@@ -831,7 +835,7 @@ export function BillingPage({
       filesBySource[sourceType] ??
       dashboard.files.find((item) => sourceType.endsWith(":") && item.source_type.startsWith(sourceType));
     if (!file) {
-      return <small className="compact-muted">Nenhuma carga ainda.</small>;
+      return null;
     }
     return (
       <small className="compact-muted">
@@ -1272,12 +1276,14 @@ export function BillingPage({
             <div className="billing-section-heading">
               <h3>Faturas</h3>
             </div>
+            <div className="billing-section-meta">
+              <span className="billing-section-count">{filteredInvoices.length}</span>
+            </div>
           </div>
 
           <div className="billing-section-toolbar">
             <div className="billing-section-meta">
               {renderFileMeta("linx_receivables")}
-              <span className="billing-section-count">{filteredInvoices.length}</span>
             </div>
             <div className="billing-section-pagination">
               {renderTablePagination(filteredInvoices.length, invoicePage, invoicePageSize, setInvoicePage, setInvoicePageSize)}
@@ -1384,6 +1390,24 @@ export function BillingPage({
                 </tr>
               ) : null}
             </tbody>
+            {filteredInvoices.length ? (
+              <tfoot>
+                <tr className="entries-total-row">
+                  <td colSpan={6}>
+                    <div className="entries-total-summary billing-invoices-total-summary">
+                      <div>
+                        <span>Total filtrado</span>
+                        <strong>{formatMoney(filteredInvoicesTotal)}</strong>
+                      </div>
+                      <div>
+                        <span>Faturas filtradas</span>
+                        <strong>{filteredInvoices.length}</strong>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
+            ) : null}
           </table>
         </div>
 

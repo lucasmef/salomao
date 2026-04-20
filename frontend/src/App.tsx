@@ -1427,6 +1427,13 @@ function AppRuntime() {
     }, "Lançamento excluído.", { refreshBase: true });
   }
 
+  async function deleteTransfer(transferId: string) {
+    if (!session) return;
+    await runMutation(async () => {
+      await fetchJson(`/transfers/${transferId}`, { method: "DELETE", token: session.token });
+    }, "TransferÃªncia excluÃ­da.", { refreshBase: true, sections: ["lancamentos", "operacoes", "overview", "relatorios", "caixa"] });
+  }
+
   async function settleEntry(entryId: string, payload: Record<string, unknown>) {
     if (!session) return;
     await runMutation(async () => {
@@ -2775,6 +2782,7 @@ function AppRuntime() {
                   onCreateEntry={createEntry}
                   onCreateSupplier={createSupplier}
                   onCreateTransfer={createTransferFromEntries}
+                  onDeleteTransfer={deleteTransfer}
                   onDeleteEntry={deleteEntry}
                   onBulkDeleteEntries={bulkDeleteEntries}
                   onReverseEntry={reverseEntry}
