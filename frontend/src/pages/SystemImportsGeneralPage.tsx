@@ -13,6 +13,7 @@ type Props = {
   submitting: boolean;
   onUploadHistorical: (file: File) => Promise<void>;
   onUploadBoletoInter: (file: File) => Promise<void>;
+  onUploadBoletoC6: (file: File) => Promise<void>;
   onSyncCustomers: () => Promise<void>;
   onSyncInterCharges: () => Promise<void>;
   onSyncInterStatement: () => Promise<void>;
@@ -31,6 +32,7 @@ function renderBatchMeta(batch: ImportBatch | null, emptyLabel = "Ultima carga: 
   if (!batch) {
     return <small className="compact-muted">{emptyLabel}</small>;
   }
+
   return (
     <small className="compact-muted">
       Ultima carga: {batch.filename} em {formatDateTime(batch.created_at)}
@@ -45,6 +47,7 @@ export function SystemImportsGeneralPage({
   submitting,
   onUploadHistorical,
   onUploadBoletoInter,
+  onUploadBoletoC6,
   onSyncCustomers,
   onSyncInterCharges,
   onSyncInterStatement,
@@ -53,6 +56,8 @@ export function SystemImportsGeneralPage({
   const currentTab = tabs.find((item) => item.key === "importacoes-gerais") ?? tabs[0];
   const [historicalFile, setHistoricalFile] = useState<File | null>(null);
   const [interFile, setInterFile] = useState<File | null>(null);
+  const [c6File, setC6File] = useState<File | null>(null);
+
   const hasInterAccount = useMemo(
     () => accounts.some((account) => account.is_active && account.inter_api_enabled),
     [accounts],
@@ -65,6 +70,7 @@ export function SystemImportsGeneralPage({
   );
   const latestLinxCustomersImport = useMemo(() => latestBatchFor(importSummary, "linx_customers"), [importSummary]);
   const latestInterBoletoImport = useMemo(() => latestBatchFor(importSummary, "boletos:inter"), [importSummary]);
+  const latestC6BoletoImport = useMemo(() => latestBatchFor(importSummary, "boletos:c6"), [importSummary]);
   const latestInterChargeSync = useMemo(() => latestBatchFor(importSummary, "inter_charge_sync"), [importSummary]);
 
   async function handleUploadInterReport() {
@@ -73,6 +79,14 @@ export function SystemImportsGeneralPage({
     }
     await onUploadBoletoInter(interFile);
     setInterFile(null);
+  }
+
+  async function handleUploadC6Report() {
+    if (!c6File) {
+      return;
+    }
+    await onUploadBoletoC6(c6File);
+    setC6File(null);
   }
 
   return (
@@ -86,11 +100,9 @@ export function SystemImportsGeneralPage({
       <section className="content-grid billing-summary-grid">
         <article className="panel-card compact-panel-card billing-summary-panel">
           <div className="panel-title compact-title-row">
-            <h3>Importação rápida da cobrança</h3>
+            <h3>Importacao rapida da cobranca</h3>
           </div>
-          <div className="billing-import-meta">
-            <small className="compact-muted">O relatório C6 agora é importado pela aba Cobrança &gt; Boletos faltando.</small>
-          </div>
+
           <div className="compact-import-grid billing-import-grid">
             <div className="compact-import-card billing-import-card">
               <div className="billing-import-header">
@@ -107,7 +119,7 @@ export function SystemImportsGeneralPage({
               </div>
               <div className="billing-import-meta">
                 {renderBatchMeta(latestLinxReceivablesImport)}
-                <small className="compact-muted">Usa a base espelho da API para a cobrança.</small>
+                <small className="compact-muted">Usa a base espelho da API para a cobranca.</small>
               </div>
             </div>
 
@@ -132,12 +144,53 @@ export function SystemImportsGeneralPage({
 
             <div className="compact-import-card billing-import-card">
               <div className="billing-import-header">
-                <strong>Relatório Inter</strong>
+                <strong>Relatorio C6</strong>
+                <button
+                  className="primary-button compact-action-button"
+                  disabled={submitting || !c6File}
+                  onClick={() => void handleUploadC6Report()}
+                  title="Importar relatorio C6"
+                  type="button"
+                >
+                  Importar
+                </button>
+              </div>
+              <input
+                id="system-boletos-c6-file"
+                className="hidden-file-input"
+                type="file"
+                accept=".csv"
+                onChange={(event) => setC6File(event.target.files?.[0] ?? null)}
+              />
+              <div className="billing-file-picker-row">
+                <label className="secondary-button compact-file-trigger" htmlFor="system-boletos-c6-file">
+                  Selecionar
+                </label>
+                {c6File ? (
+                  <span className="compact-file-name" title={c6File.name}>
+                    {c6File.name}
+                  </span>
+                ) : null}
+              </div>
+              <div className="billing-import-meta">
+                {renderBatchMeta(latestC6BoletoImport)}
+                <small className="compact-muted">CSV usado para conferir boletos faltando e retornos do C6.</small>
+                {c6File ? (
+                  <small className="compact-muted" title={c6File.name}>
+                    Novo arquivo: {c6File.name}
+                  </small>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="compact-import-card billing-import-card">
+              <div className="billing-import-header">
+                <strong>Relatorio Inter</strong>
                 <button
                   className="primary-button compact-action-button"
                   disabled={submitting || !interFile}
                   onClick={() => void handleUploadInterReport()}
-                  title="Importar relatório Inter"
+                  title="Importar relatorio Inter"
                   type="button"
                 >
                   Importar
@@ -162,6 +215,7 @@ export function SystemImportsGeneralPage({
               </div>
               <div className="billing-import-meta">
                 {renderBatchMeta(latestInterBoletoImport)}
+                <small className="compact-muted">ZIP do retorno/importacao de boletos do Inter.</small>
                 {interFile ? (
                   <small className="compact-muted" title={interFile.name}>
                     Novo arquivo: {interFile.name}
@@ -177,7 +231,7 @@ export function SystemImportsGeneralPage({
                   className="primary-button compact-action-button"
                   disabled={submitting || !hasInterAccount}
                   onClick={() => void onSyncInterCharges()}
-                  title="Atualizar cobranças do Inter"
+                  title="Atualizar cobrancas do Inter"
                   type="button"
                 >
                   Atualizar
@@ -197,15 +251,15 @@ export function SystemImportsGeneralPage({
       <section className="content-grid two-columns">
         <article className="panel compact-import-panel">
           <div className="panel-heading compact-panel-heading">
-            <p className="eyebrow">Histórico</p>
+            <p className="eyebrow">Historico</p>
             <h3>Livro caixa antigo</h3>
           </div>
           <div className="compact-upload-box">
             <input type="file" accept=".xlsx" onChange={(event) => setHistoricalFile(event.target.files?.[0] ?? null)} />
             <div className="import-last-meta">
               {latestHistoricalImport
-                ? `Última importação: ${latestHistoricalImport.filename} em ${formatDateTime(latestHistoricalImport.created_at)}`
-                : "Última importação: nenhuma"}
+                ? `Ultima importacao: ${latestHistoricalImport.filename} em ${formatDateTime(latestHistoricalImport.created_at)}`
+                : "Ultima importacao: nenhuma"}
             </div>
             <button
               className="primary-button compact-action-button"
@@ -227,8 +281,8 @@ export function SystemImportsGeneralPage({
             {!hasInterAccount && <div className="import-last-meta">Nenhuma conta com API Inter habilitada.</div>}
             <div className="import-last-meta">
               {latestInterStatementImport
-                ? `Última sincronização: ${latestInterStatementImport.filename} em ${formatDateTime(latestInterStatementImport.created_at)}`
-                : "Última sincronização: nenhuma"}
+                ? `Ultima sincronizacao: ${latestInterStatementImport.filename} em ${formatDateTime(latestInterStatementImport.created_at)}`
+                : "Ultima sincronizacao: nenhuma"}
             </div>
             <button
               className="primary-button compact-action-button"
@@ -243,24 +297,39 @@ export function SystemImportsGeneralPage({
       </section>
 
       <section className="panel">
-        <div className="panel-title"><h3>Histórico de importações</h3></div>
+        <div className="panel-title">
+          <h3>Historico de importacoes</h3>
+        </div>
         <div className="table-shell">
           <table className="erp-table">
-            <thead><tr><th>Data/Hora</th><th>Arquivo</th><th>Tipo</th><th>Processo</th><th>Status</th><th>Observação</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Data/Hora</th>
+                <th>Arquivo</th>
+                <th>Tipo</th>
+                <th>Processo</th>
+                <th>Status</th>
+                <th>Observacao</th>
+              </tr>
+            </thead>
             <tbody>
               {importSummary.import_batches.map((batch) => (
                 <tr key={batch.id}>
                   <td>{formatDateTime(batch.created_at)}</td>
                   <td>{batch.filename}</td>
                   <td>{batch.source_type}</td>
-                  <td>{batch.records_valid}/{batch.records_total}</td>
+                  <td>
+                    {batch.records_valid}/{batch.records_total}
+                  </td>
                   <td>{formatEntryStatus(batch.status)}</td>
-                  <td>{batch.error_summary ?? "Processado sem observações."}</td>
+                  <td>{batch.error_summary ?? "Processado sem observacoes."}</td>
                 </tr>
               ))}
               {!importSummary.import_batches.length && (
                 <tr>
-                  <td colSpan={6} className="empty-cell">Nenhuma importação registrada ainda.</td>
+                  <td colSpan={6} className="empty-cell">
+                    Nenhuma importacao registrada ainda.
+                  </td>
                 </tr>
               )}
             </tbody>

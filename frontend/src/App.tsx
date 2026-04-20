@@ -3168,6 +3168,7 @@ function AppRuntime() {
               onSyncInterCharges={syncInterChargesImport}
               onSyncInterStatement={syncInterStatementImport}
               onSyncReceivables={syncLinxReceivablesImport}
+              onUploadBoletoC6={uploadBoletoC6Import}
               onUploadBoletoInter={uploadBoletoInterImport}
               onUploadHistorical={uploadHistoricalCashbookImport}
               submitting={submitting}
