@@ -2,7 +2,9 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.core.statuses import OPEN_STATUS, normalize_open_alias
 
 
 class FinancialEntryBase(BaseModel):
@@ -16,7 +18,7 @@ class FinancialEntryBase(BaseModel):
     purchase_invoice_id: str | None = None
     purchase_installment_id: str | None = None
     entry_type: str = Field(max_length=40)
-    status: str = Field(default="planned", max_length=20)
+    status: str = Field(default=OPEN_STATUS, max_length=20)
     title: str = Field(min_length=2, max_length=160)
     description: str | None = None
     notes: str | None = None
@@ -36,6 +38,11 @@ class FinancialEntryBase(BaseModel):
     external_source: str | None = Field(default=None, max_length=50)
     source_system: str | None = Field(default=None, max_length=50)
     source_reference: str | None = Field(default=None, max_length=120)
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, value: str | None) -> str:
+        return normalize_open_alias(value, default=OPEN_STATUS) or OPEN_STATUS
 
     @model_validator(mode="after")
     def validate_totals(self) -> "FinancialEntryBase":

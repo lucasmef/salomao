@@ -121,7 +121,7 @@ class FinancialEntry(Base, IdMixin, TimestampMixin):
         index=True,
     )
     entry_type: Mapped[str] = mapped_column(String(40))
-    status: Mapped[str] = mapped_column(String(20), default="planned")
+    status: Mapped[str] = mapped_column(String(20), default="open")
     title: Mapped[str] = mapped_column(String(160))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -163,7 +163,7 @@ class Transfer(Base, IdMixin, TimestampMixin):
     destination_account_id: Mapped[str] = mapped_column(ForeignKey("accounts.id"), index=True)
     transfer_date: Mapped[date] = mapped_column(Date, index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
-    status: Mapped[str] = mapped_column(String(20), default="planned")
+    status: Mapped[str] = mapped_column(String(20), default="open")
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_entry_id: Mapped[str | None] = mapped_column(
@@ -218,7 +218,7 @@ class LoanInstallment(Base, IdMixin, TimestampMixin):
     principal_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     interest_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     total_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
-    status: Mapped[str] = mapped_column(String(20), default="planned")
+    status: Mapped[str] = mapped_column(String(20), default="open")
     financial_entry_id: Mapped[str | None] = mapped_column(
         ForeignKey("financial_entries.id"),
         nullable=True,

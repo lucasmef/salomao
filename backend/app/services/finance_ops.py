@@ -7,6 +7,13 @@ from fastapi import HTTPException, status
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.statuses import (
+    OPEN_FILTER_QUERY_VALUES,
+    OPEN_STATUS,
+    SETTLED_STATUS,
+    expand_status_filter_values,
+    normalize_open_alias,
+)
 from app.db.models.finance import (
     Account,
     Category,
@@ -123,8 +130,9 @@ def _entry_reference_date(entry: FinancialEntry) -> date:
 def _synchronize_entry_financial_state(entry: FinancialEntry) -> None:
     total_amount = _money(entry.total_amount or Decimal("0.00"))
     paid_amount = _money(entry.paid_amount or Decimal("0.00"))
+    entry.status = normalize_open_alias(entry.status, default=OPEN_STATUS) or OPEN_STATUS
 
-    if entry.status == "settled":
+    if entry.status == SETTLED_STATUS:
         entry.paid_amount = total_amount
         if entry.settled_at is None:
             entry.settled_at = _settled_datetime(_entry_reference_date(entry))
@@ -187,7 +195,7 @@ def _entry_dict(entry: FinancialEntry) -> dict[str, str | None]:
     return {
         "id": entry.id,
         "title": entry.title,
-        "status": entry.status,
+        "status": normalize_open_alias(entry.status),
         "entry_type": entry.entry_type,
         "account_id": entry.account_id,
         "category_id": entry.category_id,
@@ -215,7 +223,7 @@ def _remove_existing_settlement_adjustments(db: Session, company_id: str, entry_
 
 
 def _require_due_date_for_paid_status(status_value: str | None, due_date: date | None) -> None:
-    if status_value == "settled" and due_date is None:
+    if normalize_open_alias(status_value) == SETTLED_STATUS and due_date is None:
         raise HTTPException(status_code=400, detail="Data de vencimento obrigatoria para lancamentos pagos")
 
 
@@ -402,7 +410,7 @@ def _upsert_entry_fields(
     entry.purchase_invoice_id = payload.purchase_invoice_id
     entry.purchase_installment_id = payload.purchase_installment_id
     entry.entry_type = payload.entry_type
-    entry.status = payload.status
+    entry.status = normalize_open_alias(payload.status, default=OPEN_STATUS) or OPEN_STATUS
     entry.title = payload.title
     entry.description = payload.description
     entry.notes = payload.notes
@@ -447,18 +455,15 @@ def list_entries(
     )
 
     if filters.statuses:
-        normalized_statuses = {status for status in filters.statuses if status}
-        effective_statuses: set[str] = set()
-        if "open" in normalized_statuses:
-            effective_statuses.update({"planned", "partial"})
-        effective_statuses.update(status for status in normalized_statuses if status != "open")
+        effective_statuses = set(expand_status_filter_values(filters.statuses))
         if effective_statuses:
             stmt = stmt.where(FinancialEntry.status.in_(list(effective_statuses)))
     elif filters.status:
-        if filters.status == "open":
-            stmt = stmt.where(FinancialEntry.status.in_(["planned", "partial"]))
+        normalized_status = normalize_open_alias(filters.status)
+        if normalized_status == OPEN_STATUS:
+            stmt = stmt.where(FinancialEntry.status.in_(OPEN_FILTER_QUERY_VALUES))
         else:
-            stmt = stmt.where(FinancialEntry.status == filters.status)
+            stmt = stmt.where(FinancialEntry.status == normalized_status)
     if filters.account_id:
         stmt = stmt.where(FinancialEntry.account_id == filters.account_id)
     if filters.category_id:
@@ -476,7 +481,7 @@ def list_entries(
     if filters.reconciled is True:
         stmt = stmt.where(
             FinancialEntry.id.in_(select(reconciled_entries.c.financial_entry_id)),
-            FinancialEntry.status == "settled",
+            FinancialEntry.status == SETTLED_STATUS,
         )
     elif filters.reconciled is False:
         stmt = stmt.where(~FinancialEntry.id.in_(select(reconciled_entries.c.financial_entry_id)))
@@ -673,7 +678,7 @@ def _ensure_entry_can_be_deleted(
     *,
     allow_reconciled_generated: bool = False,
 ) -> None:
-    if not allow_reconciled_generated and entry.status not in {"planned", "cancelled", "open"}:
+    if not allow_reconciled_generated and normalize_open_alias(entry.status) not in {OPEN_STATUS, "cancelled"}:
         raise HTTPException(status_code=400, detail="Apenas lancamentos em aberto podem ser excluidos")
     if not allow_reconciled_generated and (Decimal(entry.paid_amount or 0) > Decimal("0.00") or entry.settled_at is not None):
         raise HTTPException(status_code=400, detail="Lancamento com baixa nao pode ser excluido")
@@ -848,7 +853,7 @@ def reverse_entry(
     if not entry or entry.company_id != company.id or entry.is_deleted:
         raise HTTPException(status_code=404, detail="Lancamento nao encontrado")
     before_state = _entry_dict(entry)
-    entry.status = "planned"
+    entry.status = OPEN_STATUS
     entry.paid_amount = Decimal("0.00")
     entry.settled_at = None
     entry.notes = payload.notes or entry.notes
@@ -1179,7 +1184,7 @@ def generate_recurrence_entries(
                     interest_category_id=rule.interest_category_id,
                     recurrence_rule_id=rule.id,
                     entry_type=rule.entry_type,
-                    status="planned",
+                    status=OPEN_STATUS,
                     title=rule.title_template or rule.name,
                     description=rule.description,
                     notes=rule.notes,
@@ -1282,7 +1287,7 @@ def create_loan_contract(
             category_id=payload.category_id,
             interest_category_id=interest_category_id,
             entry_type="expense",
-            status="planned",
+            status=OPEN_STATUS,
             title=f"{payload.title} - Parcela {installment_number}/{payload.installments_count}",
             counterparty_name=payload.lender_name,
             document_number=payload.contract_number,
@@ -1306,7 +1311,7 @@ def create_loan_contract(
             principal_amount=_money(principal),
             interest_amount=_money(interest),
             total_amount=total,
-            status="planned",
+            status=OPEN_STATUS,
             financial_entry_id=entry.id,
         )
         db.add(installment)

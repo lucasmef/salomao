@@ -7,6 +7,7 @@ from decimal import Decimal
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.statuses import OPEN_STATUS
 from app.db.models.banking import (
     BankTransaction,
     Reconciliation,
@@ -254,7 +255,7 @@ def _apply_unreconciled_status(entry: FinancialEntry, amount_to_remove: Decimal)
     new_paid = max(Decimal(entry.paid_amount or 0) - amount_to_remove, Decimal("0.00"))
     entry.paid_amount = new_paid
     if new_paid <= Decimal("0.00"):
-        entry.status = "planned"
+        entry.status = OPEN_STATUS
         entry.settled_at = None
     elif new_paid < Decimal(entry.total_amount):
         entry.status = "partial"
@@ -888,7 +889,7 @@ def create_entry_from_bank_transaction(
             category_id=payload.category_id,
             supplier_id=payload.supplier_id,
             entry_type=entry_type,
-            status="planned",
+            status=OPEN_STATUS,
             title=title[:160],
             description=" | ".join(descriptions)[:1000] if descriptions else None,
             notes=notes,

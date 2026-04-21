@@ -504,6 +504,18 @@ def _future_events(
             transfer = db.get(Transfer, entry.transfer_id)
             if not transfer:
                 continue
+            if account_id is None:
+                source_ignored = bool(
+                    ignored_account_ids and transfer.source_account_id in ignored_account_ids
+                )
+                destination_ignored = bool(
+                    ignored_account_ids and transfer.destination_account_id in ignored_account_ids
+                )
+                # Internal transfers between accounts that are both inside the same
+                # consolidated perimeter do not change company cash and should not
+                # inflate projected inflows/outflows.
+                if source_ignored == destination_ignored:
+                    continue
             if transfer.source_account_id == entry.account_id:
                 events.append(CashflowEvent(entry.due_date, launched_outflow=remaining_amount))
             elif transfer.destination_account_id == entry.account_id:

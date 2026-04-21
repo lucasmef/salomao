@@ -10,6 +10,7 @@ from time import monotonic
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.statuses import OPEN_STATUS, UNSETTLED_STATUS_QUERY_VALUES
 from app.db.models.finance import Category, FinancialEntry
 from app.db.models.linx import LinxMovement
 from app.db.models.reporting import (
@@ -602,7 +603,7 @@ def _entry_component_items(entry: FinancialEntry, *, use_paid_amount: bool) -> l
 
     if use_paid_amount:
         principal_amount = _safe_decimal(entry.paid_amount)
-        if principal_amount <= ZERO and entry.status in {"settled", "planned"}:
+        if principal_amount <= ZERO and entry.status in {"settled", OPEN_STATUS, "planned"}:
             principal_amount = _safe_decimal(entry.total_amount)
     else:
         principal_amount = _safe_decimal(entry.principal_amount)
@@ -1111,7 +1112,7 @@ def build_reports_overview(
                 FinancialEntry.company_id == company.id,
                 FinancialEntry.entry_type != "transfer",
                 FinancialEntry.is_deleted.is_(False),
-                FinancialEntry.status.in_(["planned", "settled", "partial"]),
+                FinancialEntry.status.in_([*UNSETTLED_STATUS_QUERY_VALUES, "settled"]),
             )
         )
     )
@@ -1127,7 +1128,7 @@ def build_reports_overview(
                 FinancialEntry.company_id == company.id,
                 FinancialEntry.entry_type != "transfer",
                 FinancialEntry.is_deleted.is_(False),
-                FinancialEntry.status.in_(["planned", "settled", "partial"]),
+                FinancialEntry.status.in_([*UNSETTLED_STATUS_QUERY_VALUES, "settled"]),
             )
         )
     )

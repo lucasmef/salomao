@@ -80,7 +80,7 @@ class PurchasePlan(Base, IdMixin, TimestampMixin):
     payment_term: Mapped[str | None] = mapped_column(String(120), nullable=True)
     payment_basis: Mapped[str] = mapped_column(String(20), default="delivery")
     season_phase: Mapped[str] = mapped_column(String(20), default="main")
-    status: Mapped[str] = mapped_column(String(20), default="planned")
+    status: Mapped[str] = mapped_column(String(20), default="open")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     brand = relationship("PurchaseBrand")
@@ -139,7 +139,7 @@ class PurchaseInstallment(Base, IdMixin, TimestampMixin):
     installment_label: Mapped[str | None] = mapped_column(String(40), nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
-    status: Mapped[str] = mapped_column(String(20), default="planned")
+    status: Mapped[str] = mapped_column(String(20), default="open")
     financial_entry_id: Mapped[str | None] = mapped_column(ForeignKey("financial_entries.id"), nullable=True, index=True)
 
     invoice = relationship("PurchaseInvoice", back_populates="installments")

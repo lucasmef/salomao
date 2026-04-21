@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from app.core.statuses import OPEN_FILTER_QUERY_VALUES, OPEN_STATUS, normalize_open_alias
 from app.db.models.banking import BankTransaction
 from app.db.models.finance import Account, Category, FinancialEntry
 from app.db.models.imports import ImportBatch
@@ -89,9 +90,9 @@ HISTORICAL_STRUCTURED_ENTRY_TYPE_ALIASES = {
     "transferencia": "transfer",
 }
 HISTORICAL_STRUCTURED_STATUS_ALIASES = {
-    "planned": "planned",
-    "aberto": "planned",
-    "previsto": "planned",
+    "planned": OPEN_STATUS,
+    "aberto": OPEN_STATUS,
+    "previsto": OPEN_STATUS,
     "partial": "partial",
     "parcial": "partial",
     "settled": "settled",
@@ -199,7 +200,7 @@ def cleanup_open_linx_sales_entries(db: Session, company_id: str) -> int:
                 FinancialEntry.company_id == company_id,
                 FinancialEntry.entry_type == "income",
                 FinancialEntry.source_system == ELECTRONIC_RECEIVABLE_SOURCE,
-                FinancialEntry.status.in_(["planned", "partial"]),
+                FinancialEntry.status.in_(OPEN_FILTER_QUERY_VALUES),
                 FinancialEntry.is_deleted.is_(False),
             )
         )
@@ -261,7 +262,7 @@ def _sync_sales_control_entries(
                     company_id=company.id,
                     account_id=control_account.id,
                     entry_type="income",
-                    status="planned",
+                    status=OPEN_STATUS,
                     title=f"{label} {row.snapshot_date.isoformat()}",
                     issue_date=row.snapshot_date,
                     competence_date=row.snapshot_date,
@@ -293,7 +294,7 @@ def _sync_sales_control_entries(
             paid_amount = min(Decimal(existing.paid_amount or 0), amount)
             existing.paid_amount = paid_amount
             if paid_amount <= Decimal("0.00"):
-                existing.status = "planned"
+                existing.status = OPEN_STATUS
                 existing.settled_at = None
             elif paid_amount < amount:
                 existing.status = "partial"
@@ -683,7 +684,7 @@ def _resolve_structured_status(row, *, total_amount: Decimal, paid_amount: Decim
     if paid_amount is None:
         return "settled"
     if paid_amount <= Decimal("0.00"):
-        return "planned"
+        return OPEN_STATUS
     if paid_amount >= total_amount:
         return "settled"
     return "partial"
@@ -734,15 +735,16 @@ def _validate_structured_status_amounts(
     paid_amount: Decimal,
 ) -> None:
     row_label = f"Aba '{row.sheet_name}', linha {row.sheet_row_number}"
+    normalized_status = normalize_open_alias(status, default=OPEN_STATUS) or OPEN_STATUS
     if paid_amount < Decimal("0.00"):
         raise ValueError(f"{row_label}: paid_amount nao pode ser negativo.")
     if paid_amount > total_amount:
         raise ValueError(f"{row_label}: paid_amount nao pode ser maior que total_amount.")
-    if status == "planned" and paid_amount != Decimal("0.00"):
-        raise ValueError(f"{row_label}: status planned exige paid_amount zerado.")
+    if normalized_status == OPEN_STATUS and paid_amount != Decimal("0.00"):
+        raise ValueError(f"{row_label}: status open exige paid_amount zerado.")
     if status == "cancelled" and paid_amount != Decimal("0.00"):
         raise ValueError(f"{row_label}: status cancelled exige paid_amount zerado.")
-    if status in {"planned", "cancelled"} and row.settled_at is not None:
+    if normalized_status in {OPEN_STATUS, "cancelled"} and row.settled_at is not None:
         raise ValueError(f"{row_label}: settled_at so pode ser informado para linhas baixadas/parciais.")
     if status == "partial" and (paid_amount <= Decimal("0.00") or paid_amount >= total_amount):
         raise ValueError(f"{row_label}: status partial exige paid_amount maior que zero e menor que total_amount.")

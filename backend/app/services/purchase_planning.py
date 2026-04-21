@@ -16,6 +16,7 @@ from fastapi import HTTPException
 from sqlalchemy import and_, case, func, literal, or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.statuses import OPEN_STATUS, OPEN_STATUS_QUERY_VALUES, normalize_open_alias
 from app.db.models.finance import Category, FinancialEntry
 from app.db.models.imports import ImportBatch
 from app.db.models.linx import LinxMovement, LinxProduct, PurchasePayableTitle
@@ -1080,7 +1081,7 @@ def _sync_purchase_return_refund_entry(
     if entry is None or entry.company_id != company.id or entry.is_deleted:
         purchase_return.refund_entry_id = None
         return
-    if entry.status != "planned":
+    if normalize_open_alias(entry.status) != OPEN_STATUS:
         return
     entry.category_id = _purchase_return_refund_category_id(db, company.id)
     entry.supplier_id = purchase_return.supplier_id
@@ -1122,7 +1123,7 @@ def _ensure_purchase_return_refund_entry(
             category_id=_purchase_return_refund_category_id(db, company.id),
             supplier_id=purchase_return.supplier_id,
             entry_type="historical_purchase_return",
-            status="planned",
+            status=OPEN_STATUS,
             title=_purchase_return_refund_title(purchase_return, supplier_name),
             description="Recebivel gerado automaticamente ao aprovar devolucao de compra",
             notes=purchase_return.notes,
@@ -1155,7 +1156,7 @@ def _remove_purchase_return_refund_entry(
     if refund_entry is None or refund_entry.company_id != company.id or refund_entry.is_deleted:
         purchase_return.refund_entry_id = None
         return
-    if refund_entry.status not in {"planned", "cancelled"} or Decimal(refund_entry.paid_amount or 0) > Decimal("0.00"):
+    if normalize_open_alias(refund_entry.status) not in {OPEN_STATUS, "cancelled"} or Decimal(refund_entry.paid_amount or 0) > Decimal("0.00"):
         raise HTTPException(
             status_code=400,
             detail="Nao e possivel voltar o status enquanto a fatura de reembolso ja possui movimentacao",
@@ -2192,7 +2193,7 @@ def _build_plan_financial_totals(
             .where(
                 FinancialEntry.company_id == company_id,
                 FinancialEntry.entry_type == "expense",
-                FinancialEntry.status.in_(["planned", "partial", "settled"]),
+                FinancialEntry.status.in_([OPEN_STATUS, "planned", "partial", "settled"]),
                 FinancialEntry.is_deleted.is_(False),
                 func.coalesce(FinancialEntry.issue_date, FinancialEntry.competence_date, FinancialEntry.due_date) >= min_period_start,
                 func.coalesce(FinancialEntry.issue_date, FinancialEntry.competence_date, FinancialEntry.due_date) <= max_period_end,
@@ -2621,7 +2622,7 @@ def delete_purchase_plan(
 def _sync_installment_status(installment: PurchaseInstallment) -> str:
     linked_entry = installment.financial_entry
     if linked_entry is None or linked_entry.is_deleted:
-        return "planned"
+        return OPEN_STATUS
     paid_amount = Decimal(linked_entry.paid_amount or 0)
     if paid_amount >= Decimal(installment.amount or 0) and linked_entry.status == "settled":
         return "paid"
@@ -2795,7 +2796,7 @@ def _create_financial_entry_for_installment(
         purchase_invoice_id=invoice.id,
         purchase_installment_id=installment.id,
         entry_type="expense",
-        status="planned",
+        status=OPEN_STATUS,
         title=_build_purchase_installment_entry_title(supplier.name, invoice.invoice_number, installment),
         description="Gerado automaticamente a partir da nota fiscal de compra.",
         notes=invoice.notes,
@@ -3589,7 +3590,7 @@ def import_linx_purchase_payables(
                     installment_label=row.installment_label,
                     due_date=row.due_date,
                     amount=_resolve_linx_purchase_payable_amount(row),
-                    status="planned",
+                    status=OPEN_STATUS,
                 )
                 db.add(installment)
                 db.flush()
@@ -3867,7 +3868,7 @@ def sync_linx_purchase_payables(
                     installment_label=row.installment_label,
                     due_date=row.due_date,
                     amount=_resolve_linx_purchase_payable_amount(row),
-                    status="planned",
+                    status=OPEN_STATUS,
                 )
                 db.add(installment)
                 db.flush()
@@ -4001,7 +4002,7 @@ def cleanup_deleted_purchase_entry(
         if installment.financial_entry_id == entry.id:
             installment.financial_entry_id = None
         installment.financial_entry = None
-        installment.status = "planned"
+        installment.status = OPEN_STATUS
         entry.purchase_invoice = None
         entry.purchase_installment = None
         entry.purchase_invoice_id = None
@@ -4416,7 +4417,7 @@ def create_purchase_invoice(
             installment_label=item.installment_label,
             due_date=item.due_date,
             amount=_money(item.amount),
-            status="planned",
+            status=OPEN_STATUS,
         )
         db.add(installment)
         db.flush()
@@ -4568,7 +4569,11 @@ def _apply_filters_to_plan_stmt(stmt, filters: PurchasePlanningFilters):
     if filters.collection_id:
         stmt = stmt.where(PurchasePlan.collection_id == filters.collection_id)
     if filters.status:
-        stmt = stmt.where(PurchasePlan.status == filters.status)
+        normalized_status = normalize_open_alias(filters.status)
+        if normalized_status == OPEN_STATUS:
+            stmt = stmt.where(PurchasePlan.status.in_(OPEN_STATUS_QUERY_VALUES))
+        else:
+            stmt = stmt.where(PurchasePlan.status == normalized_status)
     return stmt
 
 
@@ -4618,7 +4623,11 @@ def _apply_filters_to_entry_stmt(stmt, filters: PurchasePlanningFilters, db: Ses
     if filters.collection_id:
         stmt = stmt.where(FinancialEntry.collection_id == filters.collection_id)
     if filters.status:
-        stmt = stmt.where(FinancialEntry.status == filters.status)
+        normalized_status = normalize_open_alias(filters.status)
+        if normalized_status == OPEN_STATUS:
+            stmt = stmt.where(FinancialEntry.status.in_([OPEN_STATUS, "planned", "partial"]))
+        else:
+            stmt = stmt.where(FinancialEntry.status == normalized_status)
     return stmt
 
 

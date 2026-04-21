@@ -412,7 +412,7 @@ def test_purchase_return_workflow_generates_single_refund_entry_on_approval(
     refund_entry = db_session.get(finance_models.FinancialEntry, purchase_return.refund_entry_id)
     assert refund_entry is not None
     assert refund_entry.entry_type == "historical_purchase_return"
-    assert refund_entry.status == "planned"
+    assert refund_entry.status == "open"
     assert refund_entry.supplier_id == supplier.id
     assert refund_entry.document_number == "NF-200"
     assert refund_entry.due_date == date(2026, 4, 15)
@@ -1454,7 +1454,7 @@ def test_create_purchase_invoice_generates_financial_entries_and_updates_plan_to
         date(2026, 6, 23),
         date(2026, 7, 23),
     ]
-    assert all(entry.status == "planned" for entry in financial_entries)
+    assert all(entry.status == "open" for entry in financial_entries)
     assert all(entry.supplier_id == supplier.id for entry in financial_entries)
     assert all(entry.collection_id == collection.id for entry in financial_entries)
     assert all(entry.category_id for entry in financial_entries)

@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import case, extract, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.statuses import UNSETTLED_STATUS_QUERY_VALUES
 from app.db.models.banking import BankTransaction, Reconciliation, ReconciliationLine
 from app.db.models.finance import FinancialEntry
 from app.db.models.linx import LinxMovement
@@ -275,7 +276,7 @@ def build_dashboard_overview(
     overdue_filters = [
         FinancialEntry.company_id == company.id,
         FinancialEntry.is_deleted.is_(False),
-        FinancialEntry.status.in_(["planned", "partial"]),
+        FinancialEntry.status.in_(UNSETTLED_STATUS_QUERY_VALUES),
         FinancialEntry.due_date.is_not(None),
         FinancialEntry.due_date < date.today(),
         or_(

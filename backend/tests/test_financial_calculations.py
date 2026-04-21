@@ -644,6 +644,37 @@ class FinancialCalculationsTestCase(unittest.TestCase):
         self.assertEqual(destination_overview.projected_inflows, Decimal("100.00"))
         self.assertEqual(destination_overview.projected_ending_balance, Decimal("100.00"))
 
+    def test_consolidated_projection_ignores_internal_planned_transfer(self) -> None:
+        source_account = self._add_account("Caixa Loja", "1000.00")
+        destination_account = self._add_account("Reserva", "250.00")
+
+        create_transfer(
+            self.db,
+            self.company,
+            TransferCreate(
+                source_account_id=source_account.id,
+                destination_account_id=destination_account.id,
+                transfer_date=date(2026, 3, 25),
+                amount=Decimal("100.00"),
+                status="planned",
+                description="Reserva semanal",
+            ),
+            self.user,
+        )
+        self.db.commit()
+
+        overview = build_cashflow_overview(
+            self.db,
+            self.company,
+            start_date=date(2026, 3, 24),
+            end_date=date(2026, 3, 26),
+        )
+
+        self.assertEqual(overview.current_balance, Decimal("1250.00"))
+        self.assertEqual(overview.projected_inflows, Decimal("0.00"))
+        self.assertEqual(overview.projected_outflows, Decimal("0.00"))
+        self.assertEqual(overview.projected_ending_balance, Decimal("1250.00"))
+
     def test_cashflow_ignores_deleted_open_entries(self) -> None:
         account = self._add_account("Inter", "2825.00")
         expense_category = self._add_category()

@@ -270,7 +270,7 @@ const purchaseSelectStyles = {
 };
 
 const PLAN_STATUS_FALLBACK = [
-  { value: "planned", label: "Planejado" },
+  { value: "open", label: "Em aberto" },
   { value: "confirmed", label: "Confirmado" },
 ];
 const SEASON_TYPE_OPTIONS = [
@@ -504,7 +504,7 @@ function labelizeStatus(value: string | null | undefined) {
     active: "Ativo",
     inactive: "Inativo",
     open: "Aberto",
-    planned: "Planejado",
+    planned: "Em aberto",
     confirmed: "Confirmado",
     linked: "Vinculada",
     partial: "Parcial",
@@ -2173,7 +2173,7 @@ export function PurchasePlanningPage({
         editablePlan?.expected_delivery_date ?? collection.end_date,
       purchased_amount: normalizedAmount,
       payment_term: paymentTerm,
-      status: editablePlan?.status ?? "planned",
+      status: editablePlan?.status === "planned" ? "open" : editablePlan?.status ?? "open",
       notes: editablePlan?.notes ?? null,
     };
     if (editablePlan) {
@@ -2208,7 +2208,7 @@ export function PurchasePlanningPage({
       expected_delivery_date: collection.end_date,
       purchased_amount: "0.00",
       payment_term: paymentTerm,
-      status: "planned",
+      status: "open",
       notes: null,
       ...overrides,
     };
@@ -2243,7 +2243,7 @@ export function PurchasePlanningPage({
         plan.expected_delivery_date ?? collection.end_date,
       purchased_amount: plan.purchased_amount,
       payment_term: paymentTerm,
-      status: plan.status ?? "planned",
+      status: plan.status === "planned" ? "open" : plan.status ?? "open",
       notes: plan.notes ?? null,
       ...overrides,
     };
@@ -2308,7 +2308,7 @@ export function PurchasePlanningPage({
       collection,
       collectionSnapshot,
     )
-      ? "planned"
+      ? "open"
       : "confirmed";
     for (const plan of collectionSnapshot.plans) {
       await onUpdatePlan(
@@ -2498,11 +2498,11 @@ export function PurchasePlanningPage({
               Todos
             </button>
             <button
-              className={filters.status === "planned" ? "active" : ""}
+              className={(filters.status === "open" || filters.status === "planned") ? "active" : ""}
               type="button"
-              onClick={() => onChangeFilters({ ...filters, status: "planned" })}
+              onClick={() => onChangeFilters({ ...filters, status: "open" })}
             >
-              Planejado
+              Em aberto
             </button>
             <button
               className={filters.status === "confirmed" ? "active" : ""}

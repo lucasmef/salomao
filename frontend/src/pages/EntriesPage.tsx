@@ -42,7 +42,7 @@ type Props = {
 const emptyForm = {
   title: "",
   entry_type: "expense",
-  status: "planned",
+  status: "open",
   account_id: "",
   category_id: "",
   supplier_id: "",
@@ -342,7 +342,6 @@ function renderStatusBadge(status: string) {
     case "confirmed":
       tone = "success";
       break;
-    case "planned":
     case "open":
       tone = "warning";
       break;
@@ -865,7 +864,7 @@ export function EntriesPage({
 
   function canDeleteEntry(entry: FinancialEntry) {
     return (
-      (entry.status === "planned" || entry.status === "cancelled" || entry.status === "open") &&
+      (entry.status === "open" || entry.status === "planned" || entry.status === "cancelled") &&
       Number(entry.paid_amount) <= 0 &&
       !entry.settled_at &&
       !entry.transfer_id &&
@@ -1636,7 +1635,7 @@ export function EntriesPage({
                                 Excluir
                               </button>
                             )}
-                            {!isPurchaseInvoiceEntry(entry) && (entry.status === "planned" || entry.status === "partial") && (
+                            {!isPurchaseInvoiceEntry(entry) && ((entry.status === "open" || entry.status === "planned") || entry.status === "partial") && (
                               <button
                                 className="entries-row-menu-item is-danger"
                                 onClick={() => {
@@ -1726,7 +1725,7 @@ export function EntriesPage({
               <label>
                 Status
                 <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
-                  <option value="planned">Em aberto</option>
+                  <option value="open">Em aberto</option>
                   <option value="settled">Pago</option>
                 </select>
               </label>

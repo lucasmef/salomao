@@ -2,7 +2,9 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.core.statuses import OPEN_STATUS, normalize_open_alias
 
 
 SeasonType = Literal["summer", "winter"]
@@ -131,8 +133,13 @@ class PurchasePlanBase(BaseModel):
     expected_delivery_date: date | None = None
     purchased_amount: Decimal
     payment_term: str | None = Field(default=None, max_length=120)
-    status: str = Field(default="planned", max_length=20)
+    status: str = Field(default=OPEN_STATUS, max_length=20)
     notes: str | None = None
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, value: str | None) -> str:
+        return normalize_open_alias(value, default=OPEN_STATUS) or OPEN_STATUS
 
 
 class PurchasePlanCreate(PurchasePlanBase):
