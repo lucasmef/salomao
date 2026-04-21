@@ -550,6 +550,14 @@ function buildCashflowQuery(params: {
   return query.toString();
 }
 
+function shouldRefreshCurrentMonthCashflow(filters: {
+  start: string;
+  end: string;
+}) {
+  const currentMonth = getCurrentMonthRange();
+  return filters.start === currentMonth.start && filters.end === currentMonth.end;
+}
+
 async function fetchOverviewSnapshot(
   activeSession: SessionState,
   filters: { start: string; end: string },
@@ -1167,7 +1175,9 @@ function AppRuntime() {
           if (isInitialSectionLoad) {
             setCashflowFilters(effectiveCashflowFilters);
           }
-          const cashflowData = await fetchCashflowSnapshot(activeSession, effectiveCashflowFilters);
+          const cashflowData = await fetchCashflowSnapshot(activeSession, effectiveCashflowFilters, {
+            refresh: shouldRefreshCurrentMonthCashflow(effectiveCashflowFilters),
+          });
           setCashflow(cashflowData);
           break;
         }
@@ -1529,7 +1539,9 @@ function AppRuntime() {
     setSubmitting(true);
     try {
       const effectiveFilters = nextFilters ?? cashflowFilters;
-      const response = await fetchCashflowSnapshot(session, effectiveFilters);
+      const response = await fetchCashflowSnapshot(session, effectiveFilters, {
+        refresh: shouldRefreshCurrentMonthCashflow(effectiveFilters),
+      });
       if (nextFilters) {
         setCashflowFilters(effectiveFilters);
       }
