@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import desc, select
@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.db.models.imports import ImportBatch
-from app.db.models.linx import ReceivableTitle
+from app.db.models.linx import LinxOpenReceivable, ReceivableTitle
 from app.db.models.security import Company
 from app.services.boletos import build_boleto_dashboard
 from app.services.cashflow import build_cashflow_overview
@@ -118,6 +118,68 @@ def test_receivables_snapshot_overwrites_dashboard_and_cashflow(monkeypatch) -> 
         )
         assert sum((point.crediario_inflows for point in overview.daily_projection), Decimal("0.00")) == Decimal(
             "0.00"
+        )
+    finally:
+        session.close()
+
+
+def test_cashflow_prefers_linx_open_receivables_over_legacy_receivable_titles() -> None:
+    session, company = _build_session()
+    try:
+        batch = ImportBatch(
+            company_id=company.id,
+            source_type="linx_receivables",
+            filename="receber-legado.xls",
+            status="processed",
+            records_total=1,
+            records_valid=1,
+            records_invalid=0,
+        )
+        session.add(batch)
+        session.flush()
+
+        session.add(
+            ReceivableTitle(
+                company_id=company.id,
+                source_batch_id=batch.id,
+                issue_date=date(2026, 4, 1),
+                due_date=date(2026, 4, 10),
+                invoice_number="LEG-1",
+                company_code="1",
+                installment_label="1",
+                original_amount=Decimal("40344.19"),
+                amount_with_interest=Decimal("40344.19"),
+                customer_name="CLIENTE LEGADO",
+                document_reference=None,
+                status="Em aberto",
+                seller_name=None,
+            )
+        )
+        session.add(
+            LinxOpenReceivable(
+                company_id=company.id,
+                linx_code=9001,
+                customer_name="CLIENTE API",
+                due_date=datetime(2026, 4, 10),
+                amount=Decimal("24457.97"),
+                interest_amount=Decimal("0.00"),
+                discount_amount=Decimal("0.00"),
+                document_number="API-1",
+            )
+        )
+        session.commit()
+
+        dashboard = build_boleto_dashboard(session, company)
+        assert sum((Decimal(item.amount) for item in dashboard.receivables), Decimal("0.00")) == Decimal("24457.9700")
+
+        overview = build_cashflow_overview(
+            session,
+            company,
+            start_date=date(2026, 4, 1),
+            end_date=date(2026, 4, 30),
+        )
+        assert sum((point.crediario_inflows for point in overview.daily_projection), Decimal("0.00")) == Decimal(
+            "24457.9700"
         )
     finally:
         session.close()

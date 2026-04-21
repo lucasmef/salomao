@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.finance import Account, FinancialEntry, Transfer
 from app.db.models.imports import ImportBatch
-from app.db.models.linx import ReceivableTitle
+from app.db.models.linx import LinxOpenReceivable, ReceivableTitle
 from app.db.models.security import Company
 from app.schemas.cashflow import AccountBalance, CashflowOverview, CashflowPoint
 from app.services.analytics_hybrid import (
@@ -396,6 +396,62 @@ def _latest_receivables_batch_id(db: Session, company_id: str) -> str | None:
     return latest_batch.id if latest_batch else None
 
 
+def _load_open_receivable_events(
+    db: Session,
+    *,
+    company_id: str,
+    start_date: date,
+    end_date: date,
+) -> list[CashflowEvent]:
+    open_receivables = list(
+        db.scalars(
+            select(LinxOpenReceivable).where(
+                LinxOpenReceivable.company_id == company_id,
+                LinxOpenReceivable.due_date.is_not(None),
+                LinxOpenReceivable.due_date >= start_date,
+                LinxOpenReceivable.due_date <= end_date,
+            )
+        )
+    )
+    if open_receivables:
+        events: list[CashflowEvent] = []
+        for receivable in open_receivables:
+            due_date = receivable.due_date.date() if receivable.due_date else None
+            if due_date is None:
+                continue
+            amount = max(
+                Decimal(receivable.amount or 0)
+                + Decimal(receivable.interest_amount or 0)
+                - Decimal(receivable.discount_amount or 0),
+                Decimal("0.00"),
+            )
+            if amount <= Decimal("0.00"):
+                continue
+            events.append(CashflowEvent(due_date, crediario_inflow=amount))
+        return events
+
+    latest_batch_id = _latest_receivables_batch_id(db, company_id)
+    if not latest_batch_id:
+        return []
+
+    events: list[CashflowEvent] = []
+    receivables = db.scalars(
+        select(ReceivableTitle).where(
+            ReceivableTitle.company_id == company_id,
+            ReceivableTitle.source_batch_id == latest_batch_id,
+            ReceivableTitle.due_date.is_not(None),
+            ReceivableTitle.due_date >= start_date,
+            ReceivableTitle.due_date <= end_date,
+        )
+    )
+    for title in receivables:
+        if not _receivable_is_open(title.status):
+            continue
+        amount = title.amount_with_interest or title.original_amount
+        events.append(CashflowEvent(title.due_date, crediario_inflow=Decimal(amount)))
+    return events
+
+
 def _current_balance_for_account(db: Session, company_id: str, account: Account) -> Decimal:
     if account.account_type == RECEIVABLES_CONTROL_ACCOUNT_TYPE:
         open_entries = db.scalars(
@@ -459,22 +515,14 @@ def _future_events(
     events: list[CashflowEvent] = []
 
     if include_crediario_receivables:
-        latest_batch_id = _latest_receivables_batch_id(db, company.id)
-        if latest_batch_id:
-            receivables = db.scalars(
-                select(ReceivableTitle).where(
-                    ReceivableTitle.company_id == company.id,
-                    ReceivableTitle.source_batch_id == latest_batch_id,
-                    ReceivableTitle.due_date.is_not(None),
-                    ReceivableTitle.due_date >= start_date,
-                    ReceivableTitle.due_date <= end_date,
-                )
+        events.extend(
+            _load_open_receivable_events(
+                db,
+                company_id=company.id,
+                start_date=start_date,
+                end_date=end_date,
             )
-            for title in receivables:
-                if not _receivable_is_open(title.status):
-                    continue
-                amount = title.amount_with_interest or title.original_amount
-                events.append(CashflowEvent(title.due_date, crediario_inflow=Decimal(amount)))
+        )
 
     planned_entries = db.scalars(
         select(FinancialEntry).where(
