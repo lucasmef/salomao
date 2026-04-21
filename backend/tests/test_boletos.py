@@ -516,6 +516,8 @@ def test_build_boleto_dashboard_prefers_linx_api_receivables_and_customers() -> 
         assert dashboard.receivables[0].invoice_number == "9001"
         assert dashboard.receivables[0].document == "FAT-API/A"
         assert dashboard.receivables[0].corrected_amount == Decimal("255.00")
+        assert [item.invoice_number for item in dashboard.invoice_items] == ["9001"]
+        assert dashboard.invoice_items[0].client_name == "Cliente API"
         assert dashboard.clients[0].address_street == "Rua API"
         assert dashboard.clients[0].tax_id == "12345678901"
         assert dashboard.clients[0].phone_primary == "4833334444"

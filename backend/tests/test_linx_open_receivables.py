@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import FastAPI
@@ -21,7 +21,11 @@ from app.schemas.linx_open_receivables import (
     LinxOpenReceivableDirectorySummaryRead,
     LinxOpenReceivableListItemRead,
 )
-from app.services.linx_open_receivables import list_linx_open_receivables, sync_linx_open_receivables
+from app.services.linx_open_receivables import (
+    _build_sync_plan,
+    list_linx_open_receivables,
+    sync_linx_open_receivables,
+)
 
 
 def _build_session() -> tuple[Session, Company, User]:
@@ -161,6 +165,44 @@ def test_sync_linx_open_receivables_tracks_open_only(monkeypatch) -> None:
         second = sync_linx_open_receivables(session, company)
         assert "1 removida(s)" in second.message
         assert session.query(LinxOpenReceivable).filter_by(company_id=company.id).count() == 0
+    finally:
+        session.close()
+
+
+def test_build_sync_plan_runs_full_refresh_once_per_day() -> None:
+    session, company, _ = _build_session()
+    try:
+        session.add(
+            LinxOpenReceivable(
+                company_id=company.id,
+                linx_code=55885,
+                customer_code=1147,
+                customer_name="VALDETE DAMIAN SILVESTRI",
+                due_date=datetime(2026, 4, 5),
+                amount=Decimal("118.05"),
+                linx_row_timestamp=15866000,
+            )
+        )
+        session.commit()
+
+        first_plan = _build_sync_plan(session, company_id=company.id, full_refresh=False)
+        assert first_plan.mode == "full"
+        assert first_plan.timestamp == 0
+
+        session.add(
+            ImportBatch(
+                company_id=company.id,
+                source_type="linx_open_receivables",
+                filename="linx-open-receivables-full.xml",
+                status="processed",
+                created_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+            )
+        )
+        session.commit()
+
+        second_plan = _build_sync_plan(session, company_id=company.id, full_refresh=False)
+        assert second_plan.mode == "incremental"
+        assert second_plan.timestamp == 15866000
     finally:
         session.close()
 

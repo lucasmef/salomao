@@ -32,6 +32,19 @@ function formatRangeLabel(start: string, end: string) {
   return start ? `${formatDate(start)} - ...` : `... - ${formatDate(end)}`;
 }
 
+function parseIsoDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
+}
+
+function formatBirthdayDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  }).format(parseIsoDate(value));
+}
+
 function CalendarRangeIcon() {
   return (
     <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 16 16" width="14">
@@ -328,6 +341,35 @@ export function OverviewSectionPage({
             }
           />
         </div>
+      </section>
+
+      <section className="panel-card birthday-week-panel">
+        <div className="panel-title">
+          <div>
+            <h3>Aniversariantes da semana</h3>
+            <p className="birthday-week-subtitle">
+              {dashboard?.week_birthdays.week_label ?? "Semana atual"} • clientes com compra nos 2 ultimos anos
+            </p>
+          </div>
+        </div>
+
+        {dashboard?.week_birthdays.items.length ? (
+          <div className="birthday-week-list">
+            {dashboard.week_birthdays.items.map((item) => (
+              <article className="birthday-week-item" key={`${item.linx_code}-${item.birthday_date}`}>
+                <div className="birthday-week-copy">
+                  <strong>{item.customer_name}</strong>
+                  <span>
+                    Nascimento {formatDate(item.birth_date)} • ultima compra {formatDate(item.last_purchase_date)}
+                  </span>
+                </div>
+                <div className="birthday-week-date">{formatBirthdayDate(item.birthday_date)}</div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="birthday-week-empty">Nenhum aniversariante elegivel nesta semana.</p>
+        )}
       </section>
     </SectionChrome>
   );

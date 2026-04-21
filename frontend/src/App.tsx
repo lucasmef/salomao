@@ -1746,7 +1746,7 @@ function AppRuntime() {
       const result = await fetchJson<ImportResult>("/imports/linx-open-receivables/sync", {
         method: "POST",
         token: session.token,
-        body: JSON.stringify({}),
+        body: JSON.stringify({ full_refresh: true }),
       });
       setFeedback({ tone: "success", message: result.message });
     }, "Faturas a receber sincronizadas do Linx.", { sections: ["boletos", "caixa", "importacoes"] });
@@ -1902,7 +1902,7 @@ function AppRuntime() {
       const result = await fetchJson<ImportResult>("/imports/linx-open-receivables/sync", {
         method: "POST",
         token: session.token,
-        body: JSON.stringify({}),
+        body: JSON.stringify({ full_refresh: true }),
       });
       setFeedback({ tone: "success", message: result.message });
     }, "Faturas a receber do Linx atualizadas.", { sections: ["cadastros", "importacoes"] });

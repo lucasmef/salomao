@@ -913,6 +913,45 @@ def _load_receivable_items(db: Session, company_id: str) -> list[ReceivableItem]
 
 
 def _load_all_receivable_items(db: Session, company_id: str) -> list[ReceivableItem]:
+    linx_open_receivables = list(
+        db.scalars(
+            select(LinxOpenReceivable)
+            .where(LinxOpenReceivable.company_id == company_id)
+            .order_by(LinxOpenReceivable.due_date.asc(), LinxOpenReceivable.customer_name.asc())
+        )
+    )
+    if linx_open_receivables:
+        items: list[ReceivableItem] = []
+        for receivable in linx_open_receivables:
+            issue_date = receivable.issue_date.date() if receivable.issue_date else None
+            due_date = receivable.due_date.date() if receivable.due_date else None
+            amount = Decimal(receivable.amount or 0)
+            interest_amount = Decimal(receivable.interest_amount or 0)
+            discount_amount = Decimal(receivable.discount_amount or 0)
+            installment_label = ""
+            if receivable.installment_number and receivable.installment_count:
+                installment_label = f"{receivable.installment_number:03d}/{receivable.installment_count:03d}"
+            elif receivable.installment_number:
+                installment_label = f"{receivable.installment_number:03d}"
+
+            document_parts = [part for part in [receivable.document_number, receivable.document_series] if part]
+            items.append(
+                ReceivableItem(
+                    client_name=(receivable.customer_name or "").strip() or f"Cliente {receivable.linx_code}",
+                    client_code=str(receivable.customer_code or ""),
+                    client_key=normalize_text(receivable.customer_name or f"Cliente {receivable.linx_code}"),
+                    issue_date=issue_date,
+                    due_date=due_date,
+                    invoice_number=str(receivable.linx_code),
+                    installment=installment_label,
+                    amount=amount,
+                    corrected_amount=max(amount + interest_amount - discount_amount, Decimal("0")),
+                    document="/".join(document_parts),
+                    status="Em aberto",
+                )
+            )
+        return items
+
     latest_batch = db.scalar(
         select(ImportBatch)
         .where(

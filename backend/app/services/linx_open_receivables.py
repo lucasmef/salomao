@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 from sqlalchemy import String, case, cast, func, or_, select
@@ -31,6 +32,7 @@ LINX_WS_PASSWORD = "linx_export"
 LINX_API_TIMEOUT_SECONDS = 90.0
 LINX_FULL_LOAD_START = "2024-01-01 00:00:00"
 LINX_PAGE_LIMIT = 5000
+LINX_SYNC_TIMEZONE = ZoneInfo("America/Sao_Paulo")
 
 
 @dataclass(frozen=True)
@@ -242,6 +244,8 @@ def _build_sync_plan(db: Session, *, company_id: str, full_refresh: bool) -> Lin
     )
     if full_refresh or not has_any_row:
         return LinxOpenReceivablesSyncPlan(mode="full", timestamp=0)
+    if not _has_processed_full_batch_today(db, company_id=company_id):
+        return LinxOpenReceivablesSyncPlan(mode="full", timestamp=0)
 
     latest_timestamp = int(
         db.scalar(
@@ -250,6 +254,28 @@ def _build_sync_plan(db: Session, *, company_id: str, full_refresh: bool) -> Lin
         or 0
     )
     return LinxOpenReceivablesSyncPlan(mode="incremental", timestamp=latest_timestamp)
+
+
+def _has_processed_full_batch_today(db: Session, *, company_id: str) -> bool:
+    now_local = datetime.now(LINX_SYNC_TIMEZONE)
+    day_start_local = datetime.combine(now_local.date(), time.min, tzinfo=LINX_SYNC_TIMEZONE)
+    next_day_local = day_start_local + timedelta(days=1)
+    day_start_utc = day_start_local.astimezone(timezone.utc)
+    next_day_utc = next_day_local.astimezone(timezone.utc)
+    return bool(
+        db.scalar(
+            select(ImportBatch.id)
+            .where(
+                ImportBatch.company_id == company_id,
+                ImportBatch.source_type == LINX_OPEN_RECEIVABLES_SOURCE,
+                ImportBatch.status == "processed",
+                ImportBatch.filename.like("%-full.xml"),
+                ImportBatch.created_at >= day_start_utc,
+                ImportBatch.created_at < next_day_utc,
+            )
+            .limit(1)
+        )
+    )
 
 
 def _collect_rows(
