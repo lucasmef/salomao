@@ -36,6 +36,10 @@ def _run_has_refreshable_changes(run) -> bool:
 
 
 
+def _optional_run_message(run, field_name: str):
+    return getattr(run, field_name, None)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     with SessionLocal() as db:
@@ -68,15 +72,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  boletos inter: {run.inter_charges_message}")
         if run.customers_message:
             print(f"  clientes: {run.customers_message}")
-        if run.birthday_alert_message:
-            print(f"  aniversariantes: {run.birthday_alert_message}")
+        birthday_alert_message = _optional_run_message(run, "birthday_alert_message")
+        if birthday_alert_message:
+            print(f"  aniversariantes: {birthday_alert_message}")
         if run.receivables_message:
             print(f"  faturas: {run.receivables_message}")
         if run.movements_message:
             print(f"  movimentos: {run.movements_message}")
         if run.products_message:
             print(f"  produtos: {run.products_message}")
-        if run.error_message and run.status == "failed":
+        if run.error_message and run.status in {"failed", "partial_failure"}:
             hard_failure_found = True
             print(f"  erro: {run.error_message}")
 

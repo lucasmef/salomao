@@ -123,8 +123,12 @@ def test_cashflow_ignores_excluded_account_in_consolidated_balance_but_keeps_exp
         excluded_only = build_cashflow_overview(session, company, account_id=excluded.id)
 
         assert consolidated.current_balance == Decimal("150.00")
-        assert len(consolidated.account_balances) == 1
-        assert consolidated.account_balances[0].account_id == included.id
+        assert len(consolidated.account_balances) == 2
+        balances = {item.account_id: item for item in consolidated.account_balances}
+        assert balances[included.id].current_balance == Decimal("150.00")
+        assert balances[included.id].exclude_from_balance is False
+        assert balances[excluded.id].current_balance == Decimal("275.00")
+        assert balances[excluded.id].exclude_from_balance is True
 
         assert excluded_only.current_balance == Decimal("275.00")
         assert len(excluded_only.account_balances) == 1

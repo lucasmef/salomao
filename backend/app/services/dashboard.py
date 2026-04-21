@@ -2,13 +2,13 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import case, extract, func, or_, select
+from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.statuses import UNSETTLED_STATUS_QUERY_VALUES
 from app.db.models.banking import BankTransaction, Reconciliation, ReconciliationLine
 from app.db.models.finance import FinancialEntry
-from app.db.models.linx import LinxMovement
+from app.db.models.linx import SalesSnapshot
 from app.db.models.security import Company
 from app.schemas.dashboard import (
     DashboardAccountBalance,
@@ -130,31 +130,18 @@ def _query_revenue_totals_by_year_month(
 ) -> dict[tuple[int, int], Decimal]:
     if end_date < start_date:
         return {}
-    movement_date = func.date(func.coalesce(LinxMovement.launch_date, LinxMovement.issue_date))
-    amount_expr = func.coalesce(LinxMovement.total_amount, LinxMovement.net_amount, 0)
-    year_expr = extract("year", movement_date)
-    month_expr = extract("month", movement_date)
+    year_expr = extract("year", SalesSnapshot.snapshot_date)
+    month_expr = extract("month", SalesSnapshot.snapshot_date)
     rows = db.execute(
         select(
             year_expr.label("year"),
             month_expr.label("month"),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (LinxMovement.movement_type == "sale", amount_expr),
-                        (LinxMovement.movement_type == "sale_return", -amount_expr),
-                        else_=0,
-                    )
-                ),
-                0,
-            ).label("amount"),
+            func.coalesce(func.sum(SalesSnapshot.gross_revenue), 0).label("amount"),
         )
         .where(
-            LinxMovement.company_id == company_id,
-            LinxMovement.movement_group == "sale",
-            movement_date.is_not(None),
-            movement_date >= start_date,
-            movement_date <= end_date,
+            SalesSnapshot.company_id == company_id,
+            SalesSnapshot.snapshot_date >= start_date,
+            SalesSnapshot.snapshot_date <= end_date,
         )
         .group_by(year_expr, month_expr)
     ).all()
