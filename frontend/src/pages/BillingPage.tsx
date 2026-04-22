@@ -49,6 +49,7 @@ type DateRange = {
   end: string;
 };
 type FilterPopover = "status" | "client" | "issue_date" | "due_date" | "type" | "bank" | null;
+type ClientFilterPopover = "client" | "uses_boleto" | "mode" | null;
 type SortDirection = "asc" | "desc";
 type ClientUsesBoletoFilter = "all" | "yes" | "no";
 type ClientModeFilter = "all" | "individual" | "mensal" | "negociacao";
@@ -579,6 +580,7 @@ export function BillingPage({
   const [boletoBankFilters, setBoletoBankFilters] = useState<string[]>([]);
   const [invoicePopover, setInvoicePopover] = useState<FilterPopover>(null);
   const [boletoPopover, setBoletoPopover] = useState<FilterPopover>(null);
+  const [clientPopover, setClientPopover] = useState<ClientFilterPopover>(null);
   const [invoicePage, setInvoicePage] = useState(1);
   const [boletoPage, setBoletoPage] = useState(1);
   const [invoicePageSize, setInvoicePageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -1030,6 +1032,7 @@ export function BillingPage({
       return;
     }
 
+    setClientPopover(null);
     setClientConfigSearch("");
     setClientConfigUsesBoletoFilter("yes");
     setClientConfigModeFilter("all");
@@ -1114,6 +1117,7 @@ export function BillingPage({
       void handleSaveClients(dirtyClients);
     }
 
+    setClientPopover(null);
     setClientsModalOpen(false);
   }
 
@@ -1500,6 +1504,61 @@ export function BillingPage({
           <button className="primary-button" onClick={onApply} type="button">
             Aplicar
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderClientSearchPopover() {
+    return (
+      <div className="entries-floating-panel entries-column-filter-popover entries-category-filter-popover billing-column-filter-popover">
+        <div className="entries-category-filter-head">
+          <strong>Filtrar cliente</strong>
+        </div>
+        <div className="billing-filter-search">
+          <input
+            placeholder="Buscar cliente"
+            type="search"
+            value={clientConfigSearch}
+            onChange={(event) => setClientConfigSearch(event.target.value)}
+          />
+        </div>
+        <div className="entries-column-filter-popover-actions">
+          <button
+            className="ghost-button"
+            onClick={() => {
+              setClientConfigSearch("");
+              setClientPopover(null);
+            }}
+            type="button"
+          >
+            Limpar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderClientOptionPopover<T extends string>(
+    title: string,
+    value: T,
+    options: Array<{ value: T; label: string }>,
+    onChange: (nextValue: T) => void,
+  ) {
+    return (
+      <div className="entries-floating-panel entries-column-filter-popover entries-category-filter-popover billing-column-filter-popover">
+        <div className="entries-category-filter-head">
+          <strong>{title}</strong>
+        </div>
+        <div className="entries-category-filter-list">
+          {options.map((option) => (
+            <label className="entries-category-filter-option" key={option.value}>
+              <input checked={value === option.value} onChange={() => onChange(option.value)} type="radio" />
+              <div className="entries-category-filter-text">
+                <strong>{option.label}</strong>
+              </div>
+            </label>
+          ))}
         </div>
       </div>
     );
@@ -2277,57 +2336,81 @@ export function BillingPage({
             </div>
           </div>
 
-          <div className="billing-clients-toolbar">
-            <label className="billing-search-field">
-              <span>Cliente</span>
-              <input
-                disabled={submitting}
-                placeholder="Buscar cliente"
-                type="search"
-                value={clientConfigSearch}
-                onChange={(event) => setClientConfigSearch(event.target.value)}
-              />
-            </label>
-            <label className="billing-search-field billing-search-field--compact">
-              <span>Usa boleto</span>
-              <select
-                disabled={submitting}
-                value={clientConfigUsesBoletoFilter}
-                onChange={(event) => setClientConfigUsesBoletoFilter(event.target.value as ClientUsesBoletoFilter)}
-              >
-                <option value="yes">Sim</option>
-                <option value="all">Todos</option>
-                <option value="no">Nao</option>
-              </select>
-            </label>
-            <label className="billing-search-field billing-search-field--compact">
-              <span>Modo</span>
-              <select
-                disabled={submitting}
-                value={clientConfigModeFilter}
-                onChange={(event) => setClientConfigModeFilter(event.target.value as ClientModeFilter)}
-              >
-                <option value="all">Todos</option>
-                <option value="individual">Individual</option>
-                <option value="mensal">Mensal</option>
-                <option value="negociacao">Negociacao</option>
-              </select>
-            </label>
-            <div className="billing-section-meta">
-              <span className="billing-section-count">{filteredClients.length}</span>
-            </div>
-          </div>
-
           <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
             <table className="erp-table entries-list-table billing-clients-table">
               <thead>
                 <tr>
-                  <th>{renderSortButton("Cliente", clientConfigSortKey === "client_name", clientConfigSortDirection, () => toggleClientSort("client_name"))}</th>
+                  <th className="billing-filter-header-cell">
+                    {renderHeaderFilterButton(
+                      "Cliente",
+                      Boolean(clientConfigSearch.trim()),
+                      () => toggleClientSort("client_name"),
+                      () => setClientPopover((current) => (current === "client" ? null : "client")),
+                      {
+                        isSortActive: clientConfigSortKey === "client_name",
+                        direction: clientConfigSortDirection,
+                      },
+                    )}
+                    {clientPopover === "client" ? renderClientSearchPopover() : null}
+                  </th>
                   <th>{renderSortButton("Faturas", clientConfigSortKey === "receivable_count", clientConfigSortDirection, () => toggleClientSort("receivable_count"))}</th>
                   <th>{renderSortButton("Boletos", clientConfigSortKey === "open_boleto_count", clientConfigSortDirection, () => toggleClientSort("open_boleto_count"))}</th>
                   <th className="numeric-cell">{renderSortButton("Valor", clientConfigSortKey === "total_amount", clientConfigSortDirection, () => toggleClientSort("total_amount"), true)}</th>
-                  <th>{renderSortButton("Usa boleto", clientConfigSortKey === "uses_boleto", clientConfigSortDirection, () => toggleClientSort("uses_boleto"))}</th>
-                  <th>{renderSortButton("Modo", clientConfigSortKey === "mode", clientConfigSortDirection, () => toggleClientSort("mode"))}</th>
+                  <th className="billing-filter-header-cell">
+                    {renderHeaderFilterButton(
+                      "Usa boleto",
+                      clientConfigUsesBoletoFilter !== "all",
+                      () => toggleClientSort("uses_boleto"),
+                      () => setClientPopover((current) => (current === "uses_boleto" ? null : "uses_boleto")),
+                      {
+                        isSortActive: clientConfigSortKey === "uses_boleto",
+                        direction: clientConfigSortDirection,
+                      },
+                    )}
+                    {clientPopover === "uses_boleto"
+                      ? renderClientOptionPopover<ClientUsesBoletoFilter>(
+                          "Filtrar usa boleto",
+                          clientConfigUsesBoletoFilter,
+                          [
+                            { value: "yes", label: "Sim" },
+                            { value: "all", label: "Todos" },
+                            { value: "no", label: "Nao" },
+                          ],
+                          (nextValue) => {
+                            setClientConfigUsesBoletoFilter(nextValue);
+                            setClientPopover(null);
+                          },
+                        )
+                      : null}
+                  </th>
+                  <th className="billing-filter-header-cell">
+                    {renderHeaderFilterButton(
+                      "Modo",
+                      clientConfigModeFilter !== "all",
+                      () => toggleClientSort("mode"),
+                      () => setClientPopover((current) => (current === "mode" ? null : "mode")),
+                      {
+                        isSortActive: clientConfigSortKey === "mode",
+                        direction: clientConfigSortDirection,
+                      },
+                    )}
+                    {clientPopover === "mode"
+                      ? renderClientOptionPopover<ClientModeFilter>(
+                          "Filtrar modo",
+                          clientConfigModeFilter,
+                          [
+                            { value: "all", label: "Todos" },
+                            { value: "individual", label: "Individual" },
+                            { value: "mensal", label: "Mensal" },
+                            { value: "negociacao", label: "Negociacao" },
+                          ],
+                          (nextValue) => {
+                            setClientConfigModeFilter(nextValue);
+                            setClientPopover(null);
+                          },
+                        )
+                      : null}
+                  </th>
                   <th>{renderSortButton("Dia", clientConfigSortKey === "boleto_due_day", clientConfigSortDirection, () => toggleClientSort("boleto_due_day"))}</th>
                   <th>{renderSortButton("Cobrar multa/juros", clientConfigSortKey === "include_interest", clientConfigSortDirection, () => toggleClientSort("include_interest"))}</th>
                 </tr>
