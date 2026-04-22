@@ -82,7 +82,6 @@ type BillingAlertSort =
 type StandaloneBoletoSort =
   | "client_name"
   | "document_id"
-  | "description"
   | "issue_date"
   | "due_date"
   | "amount"
@@ -618,8 +617,6 @@ export function BoletosPage({
                 return compareText(left.client_name, right.client_name);
               case "document_id":
                 return compareText(left.document_id, right.document_id);
-              case "description":
-                return compareText(left.description, right.description);
               case "issue_date":
                 return compareText(left.issue_date, right.issue_date);
               case "amount":
@@ -1972,7 +1969,6 @@ export function BoletosPage({
                 <colgroup>
                   <col className="billing-alert-col-client" />
                   <col className="billing-alert-col-document" />
-                  <col className="billing-alert-col-description" />
                   <col className="billing-alert-col-issue-date" />
                   <col className="billing-alert-col-due-date" />
                   <col className="billing-alert-col-amount" />
@@ -1984,7 +1980,6 @@ export function BoletosPage({
                   <tr>
                     <th>{renderSortButton("Cliente", "client_name", standaloneSort, standaloneSortDirection, () => toggleStandaloneSort("client_name"))}</th>
                     <th>{renderSortButton("Documento", "document_id", standaloneSort, standaloneSortDirection, () => toggleStandaloneSort("document_id"))}</th>
-                    <th>{renderSortButton("Descrição", "description", standaloneSort, standaloneSortDirection, () => toggleStandaloneSort("description"))}</th>
                     <th>{renderSortButton("Emissão", "issue_date", standaloneSort, standaloneSortDirection, () => toggleStandaloneSort("issue_date"))}</th>
                     <th>{renderSortButton("Vencimento", "due_date", standaloneSort, standaloneSortDirection, () => toggleStandaloneSort("due_date"))}</th>
                     <th className="numeric-cell">{renderSortButton("Valor", "amount", standaloneSort, standaloneSortDirection, () => toggleStandaloneSort("amount"), true)}</th>
@@ -1998,7 +1993,6 @@ export function BoletosPage({
                     <tr key={item.id}>
                       <td>{item.client_name}</td>
                       <td>{item.document_id}</td>
-                      <td>{item.description || "-"}</td>
                       <td>{formatDate(item.issue_date)}</td>
                       <td>{formatDate(item.due_date)}</td>
                       <td className="numeric-cell">{formatMoney(item.amount)}</td>
@@ -2043,7 +2037,7 @@ export function BoletosPage({
                   ))}
                   {!visibleStandaloneBoletos.length && (
                     <tr>
-                      <td className="empty-cell" colSpan={9}>Nenhum boleto avulso em {formatStandaloneBoletoFilterLabel(standaloneBoletoFilter).toLowerCase()}.</td>
+                      <td className="empty-cell" colSpan={8}>Nenhum boleto avulso em {formatStandaloneBoletoFilterLabel(standaloneBoletoFilter).toLowerCase()}.</td>
                     </tr>
                   )}
                 </tbody>

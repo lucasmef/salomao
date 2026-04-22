@@ -14,6 +14,7 @@ type Props = {
   onUploadHistorical: (file: File) => Promise<void>;
   onUploadBoletoInter: (file: File) => Promise<void>;
   onUploadBoletoC6: (file: File) => Promise<void>;
+  onUploadClientData: (file: File) => Promise<void>;
   onRunC6Settlement: () => Promise<void>;
   onSyncCustomers: () => Promise<void>;
   onSyncPurchaseInvoices: () => Promise<string | void>;
@@ -50,6 +51,7 @@ export function SystemImportsGeneralPage({
   onUploadHistorical,
   onUploadBoletoInter,
   onUploadBoletoC6,
+  onUploadClientData,
   onRunC6Settlement,
   onSyncCustomers,
   onSyncPurchaseInvoices,
@@ -61,6 +63,7 @@ export function SystemImportsGeneralPage({
   const [historicalFile, setHistoricalFile] = useState<File | null>(null);
   const [interFile, setInterFile] = useState<File | null>(null);
   const [c6File, setC6File] = useState<File | null>(null);
+  const [customerDataFile, setCustomerDataFile] = useState<File | null>(null);
 
   const hasInterAccount = useMemo(
     () => accounts.some((account) => account.is_active && account.inter_api_enabled),
@@ -79,6 +82,7 @@ export function SystemImportsGeneralPage({
   );
   const latestInterBoletoImport = useMemo(() => latestBatchFor(importSummary, "boletos:inter"), [importSummary]);
   const latestC6BoletoImport = useMemo(() => latestBatchFor(importSummary, "boletos:c6"), [importSummary]);
+  const latestCustomerDataImport = useMemo(() => latestBatchFor(importSummary, "boletos:etiquetas"), [importSummary]);
   const latestInterChargeSync = useMemo(() => latestBatchFor(importSummary, "inter_charge_sync"), [importSummary]);
 
   async function handleUploadInterReport() {
@@ -95,6 +99,14 @@ export function SystemImportsGeneralPage({
     }
     await onUploadBoletoC6(c6File);
     setC6File(null);
+  }
+
+  async function handleUploadCustomerData() {
+    if (!customerDataFile) {
+      return;
+    }
+    await onUploadClientData(customerDataFile);
+    setCustomerDataFile(null);
   }
 
   return (
@@ -147,6 +159,47 @@ export function SystemImportsGeneralPage({
               <div className="billing-import-meta">
                 {renderBatchMeta(latestLinxCustomersImport)}
                 <small className="compact-muted">Cadastro usado para nome e dados de boleto.</small>
+              </div>
+            </div>
+
+            <div className="compact-import-card billing-import-card">
+              <div className="billing-import-header">
+                <strong>Atualiza dados clientes</strong>
+                <button
+                  className="primary-button compact-action-button"
+                  disabled={submitting || !customerDataFile}
+                  onClick={() => void handleUploadCustomerData()}
+                  title="Importar dados dos clientes"
+                  type="button"
+                >
+                  Importar
+                </button>
+              </div>
+              <input
+                id="system-boletos-customer-data-file"
+                className="hidden-file-input"
+                type="file"
+                accept=".txt,.html"
+                onChange={(event) => setCustomerDataFile(event.target.files?.[0] ?? null)}
+              />
+              <div className="billing-file-picker-row">
+                <label className="secondary-button compact-file-trigger" htmlFor="system-boletos-customer-data-file">
+                  Selecionar
+                </label>
+                {customerDataFile ? (
+                  <span className="compact-file-name" title={customerDataFile.name}>
+                    {customerDataFile.name}
+                  </span>
+                ) : null}
+              </div>
+              <div className="billing-import-meta">
+                {renderBatchMeta(latestCustomerDataImport)}
+                <small className="compact-muted">TXT ou HTML das etiquetas para atualizar cadastro usado na cobranca.</small>
+                {customerDataFile ? (
+                  <small className="compact-muted" title={customerDataFile.name}>
+                    Novo arquivo: {customerDataFile.name}
+                  </small>
+                ) : null}
               </div>
             </div>
 

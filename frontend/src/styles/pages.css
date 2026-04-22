@@ -3325,6 +3325,32 @@ textarea {
   width: min(1180px, calc(100vw - 32px));
 }
 
+.billing-clients-modal-header-actions {
+  align-items: center;
+}
+
+.billing-clients-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+
+.billing-clients-toolbar .billing-section-meta {
+  margin-left: auto;
+}
+
+.billing-clients-table th,
+.billing-clients-table td {
+  vertical-align: middle;
+}
+
+.billing-clients-table td input[type="checkbox"] {
+  display: block;
+  margin: 0 auto;
+}
+
 .billing-summary-actions {
   justify-content: flex-end;
   margin-bottom: 12px;
@@ -3469,8 +3495,7 @@ textarea {
   line-height: 1;
 }
 
-.billing-section-actions > button,
-.billing-section-actions .checkbox-line {
+.billing-section-actions > button {
   min-height: 34px;
 }
 
@@ -3487,22 +3512,19 @@ textarea {
   height: 16px;
 }
 
-.billing-section-actions .checkbox-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 4px;
+.billing-toolbar-toggle-button {
+  color: #7b8aa1;
 }
 
-.billing-toolbar-toggle {
-  color: #607087;
-  font-size: 0.74rem;
-}
-
-.billing-toolbar-toggle .button-icon {
+.billing-toolbar-toggle-button .button-icon {
   width: 15px;
   height: 15px;
-  color: #7b8aa1;
+}
+
+.billing-toolbar-toggle-button.is-active {
+  border-color: #1d4ed8;
+  background: rgba(29, 78, 216, 0.12);
+  color: #1d4ed8;
 }
 
 .billing-section-pagination {

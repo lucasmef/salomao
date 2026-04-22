@@ -2113,6 +2113,52 @@ function AppRuntime() {
     }, "Boletos avulsos sincronizados.", { sections: ["boletos", "importacoes"] });
   }
 
+  async function refreshBillingModule() {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchJson<ImportResult>("/imports/linx-open-receivables/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({ full_refresh: true }),
+      });
+      await fetchJson<ImportResult>("/imports/linx-customers/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      await fetchJson<ImportResult>("/boletos/inter/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+      await fetchJson<ImportResult>("/boletos/standalone/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({}),
+      });
+
+      const hasC6BoletoImports = importSummary.import_batches.some((batch) => batch.source_type.toLowerCase().includes("c6"));
+      if (hasC6BoletoImports) {
+        await fetchJson<{ message: string }>("/boletos/linx/c6-settlement", {
+          method: "POST",
+          token: session.token,
+          body: JSON.stringify({}),
+        });
+      }
+
+      setShowMissingBoletosExportFallback(false);
+      for (const targetSection of ["boletos", "caixa", "importacoes"] as const) {
+        await loadSectionData(session, targetSection, { force: true });
+      }
+      setFeedback({ tone: "success", message: "Modulo de cobranca atualizado." });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function downloadStandaloneBoletoPdf(boletoId: string) {
     if (!session) return;
     setSubmitting(true);
@@ -2876,17 +2922,15 @@ function AppRuntime() {
                   dashboard={boletoDashboard}
                   onDownloadInterBoletoPdf={downloadInterBoletoPdf}
                   onDownloadInterBoletoPdfBatch={downloadInterBoletoPdfBatch}
-                  onExportMissingBoletos={exportMissingBoletos}
                   onIssueInterCharges={issueInterCharges}
                   onReceiveInterBoleto={receiveInterBoleto}
                   onCreateStandaloneBoleto={createStandaloneBoleto}
                   onDownloadStandaloneBoletoPdf={downloadStandaloneBoletoPdf}
                   onMarkStandaloneBoletoDownloaded={markStandaloneBoletoDownloaded}
                   onSaveClients={saveBoletoClients}
-                  onSyncStandaloneBoletos={syncStandaloneBoletos}
+                  onRefreshBillingModule={refreshBillingModule}
                   onToggleAllMonthlyMissingBoletos={toggleAllMonthlyMissingBoletos}
                   onUploadBoletoC6={uploadBoletoC6Import}
-                  onUploadClientData={uploadBoletoCustomerDataImport}
                   showMissingExportFallback={showMissingBoletosExportFallback}
                   showAllMonthlyMissingBoletos={showAllMonthlyMissingBoletos}
                   submitting={submitting}
@@ -3207,6 +3251,7 @@ function AppRuntime() {
               onSyncInterStatement={syncInterStatementImport}
               onSyncReceivables={syncLinxReceivablesImport}
               onUploadBoletoC6={uploadBoletoC6Import}
+              onUploadClientData={uploadBoletoCustomerDataImport}
               onUploadBoletoInter={uploadBoletoInterImport}
               onUploadHistorical={uploadHistoricalCashbookImport}
               submitting={submitting}

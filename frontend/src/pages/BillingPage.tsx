@@ -14,7 +14,6 @@ type Props = {
   submitting: boolean;
   onDownloadInterBoletoPdf: (boletoId: string) => Promise<void>;
   onDownloadInterBoletoPdfBatch: (boletoIds: string[]) => Promise<void>;
-  onExportMissingBoletos: (selectionKeys: string[]) => Promise<void>;
   onIssueInterCharges: (selectionKeys: string[]) => Promise<void>;
   onReceiveInterBoleto: (boletoId: string, payWith?: "BOLETO" | "PIX") => Promise<void>;
   onCreateStandaloneBoleto: (payload: {
@@ -27,10 +26,9 @@ type Props = {
   onDownloadStandaloneBoletoPdf: (boletoId: string) => Promise<void>;
   onMarkStandaloneBoletoDownloaded: (boletoId: string) => Promise<void>;
   onCancelStandaloneBoleto: (boletoId: string) => Promise<void>;
-  onSyncStandaloneBoletos: () => Promise<void>;
+  onRefreshBillingModule: () => Promise<void>;
   onToggleAllMonthlyMissingBoletos: (showAll: boolean) => Promise<void>;
   onUploadBoletoC6: (file: File) => Promise<void>;
-  onUploadClientData: (file: File) => Promise<void>;
   showMissingExportFallback: boolean;
   onSaveClients: (payload: {
     clients: Array<{
@@ -44,13 +42,25 @@ type Props = {
   }) => Promise<void>;
 };
 
-type EditableClient = BoletoClient & { dirty?: boolean };
+type EditableClient = BoletoClient & { dirty?: boolean; open_boleto_count: number };
 type BillingView = "invoices" | "boletos";
 type DateRange = {
   start: string;
   end: string;
 };
 type FilterPopover = "status" | "client" | "issue_date" | "due_date" | "type" | "bank" | null;
+type SortDirection = "asc" | "desc";
+type ClientUsesBoletoFilter = "all" | "yes" | "no";
+type ClientModeFilter = "all" | "individual" | "mensal" | "negociacao";
+type ClientSortKey =
+  | "client_name"
+  | "receivable_count"
+  | "open_boleto_count"
+  | "total_amount"
+  | "uses_boleto"
+  | "mode"
+  | "boleto_due_day"
+  | "include_interest";
 type StandaloneBoletoDraft = {
   account_id: string;
   client_name: string;
@@ -79,6 +89,7 @@ type InvoiceRow = {
   status: string;
   status_key: InvoiceStatusKey;
 };
+type InvoiceSortKey = "client_name" | "title" | "issue_date" | "due_date" | "amount" | "status";
 type BoletoRowKind = "bank" | "standalone" | "paid_pending" | "missing" | "excess";
 type BoletoRow = {
   id: string;
@@ -106,6 +117,16 @@ type BoletoRow = {
   inter_account_id: string | null;
   local_status: string | null;
 };
+type BoletoSortKey =
+  | "client_name"
+  | "document_id"
+  | "description"
+  | "issue_date"
+  | "due_date"
+  | "amount"
+  | "status"
+  | "status_loja"
+  | "bank";
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 const DEFAULT_PAGE_SIZE = 25;
@@ -224,11 +245,33 @@ function formatBillingCompactAmount(value: string | number | null | undefined) {
   return formatMoney(value).replace(/^R\$\s?/, "");
 }
 
+function formatBoletoBankValue(row: Pick<BoletoRow, "bank" | "status_banco">) {
+  return row.status_banco === "-" ? row.bank || "-" : `${row.bank || "-"} / ${row.status_banco}`;
+}
+
 function ClockIcon() {
   return (
     <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
       <circle cx="10" cy="10" r="6.25" stroke="currentColor" strokeWidth="1.7" />
       <path d="M10 6.75v3.65l2.35 1.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function SortDirectionIcon({ direction }: { direction: SortDirection }) {
+  if (direction === "asc") {
+    return (
+      <svg aria-hidden="true" height="14" viewBox="0 0 16 16" width="14">
+        <path d="M8 12V4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+        <path d="m4.75 7.25 3.25-3.25 3.25 3.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden="true" height="14" viewBox="0 0 16 16" width="14">
+      <path d="M8 4v8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      <path d="m4.75 8.75 3.25 3.25 3.25-3.25" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
     </svg>
   );
 }
@@ -385,6 +428,10 @@ function uniqueStandaloneClientNames(clients: BoletoClient[]) {
   return uniqueValues(clients.map((item) => item.client_name));
 }
 
+function normalizeClientName(value: string | null | undefined) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
 function DownloadIcon() {
   return (
     <svg aria-hidden="true" className="button-icon" viewBox="0 0 20 20" fill="none">
@@ -483,27 +530,28 @@ export function BillingPage({
   submitting,
   onDownloadInterBoletoPdf,
   onDownloadInterBoletoPdfBatch,
-  onExportMissingBoletos,
   onIssueInterCharges,
   onReceiveInterBoleto,
   onCreateStandaloneBoleto,
   onDownloadStandaloneBoletoPdf,
   onMarkStandaloneBoletoDownloaded,
   onCancelStandaloneBoleto,
-  onSyncStandaloneBoletos,
+  onRefreshBillingModule,
   onToggleAllMonthlyMissingBoletos,
   onUploadBoletoC6,
-  onUploadClientData,
   showMissingExportFallback,
   onSaveClients,
 }: Props) {
   const [c6File, setC6File] = useState<File | null>(null);
   const [c6ModalOpen, setC6ModalOpen] = useState(false);
-  const [customerDataFile, setCustomerDataFile] = useState<File | null>(null);
-  const [customerDataModalOpen, setCustomerDataModalOpen] = useState(false);
   const [clientsModalOpen, setClientsModalOpen] = useState(false);
   const [standaloneBoletoModalOpen, setStandaloneBoletoModalOpen] = useState(false);
   const [clients, setClients] = useState<EditableClient[]>([]);
+  const [clientConfigSearch, setClientConfigSearch] = useState("");
+  const [clientConfigUsesBoletoFilter, setClientConfigUsesBoletoFilter] = useState<ClientUsesBoletoFilter>("yes");
+  const [clientConfigModeFilter, setClientConfigModeFilter] = useState<ClientModeFilter>("all");
+  const [clientConfigSortKey, setClientConfigSortKey] = useState<ClientSortKey>("client_name");
+  const [clientConfigSortDirection, setClientConfigSortDirection] = useState<SortDirection>("asc");
   const [selectedMissingKeys, setSelectedMissingKeys] = useState<string[]>([]);
   const [selectedDownloadableBoletoIds, setSelectedDownloadableBoletoIds] = useState<string[]>([]);
   const [standaloneBoletoDraft, setStandaloneBoletoDraft] = useState<StandaloneBoletoDraft>({
@@ -535,10 +583,10 @@ export function BillingPage({
   const [boletoPage, setBoletoPage] = useState(1);
   const [invoicePageSize, setInvoicePageSize] = useState(DEFAULT_PAGE_SIZE);
   const [boletoPageSize, setBoletoPageSize] = useState(DEFAULT_PAGE_SIZE);
-
-  useEffect(() => {
-    setClients(dashboard.clients.map((item) => ({ ...item, dirty: false })));
-  }, [dashboard.clients]);
+  const [invoiceSortKey, setInvoiceSortKey] = useState<InvoiceSortKey>("due_date");
+  const [invoiceSortDirection, setInvoiceSortDirection] = useState<SortDirection>("asc");
+  const [boletoSortKey, setBoletoSortKey] = useState<BoletoSortKey>("due_date");
+  const [boletoSortDirection, setBoletoSortDirection] = useState<SortDirection>("asc");
 
   useEffect(() => {
     const visibleKeys = new Set(dashboard.missing_boletos.map((item) => item.selection_key));
@@ -554,6 +602,36 @@ export function BillingPage({
     () => accounts.some((account) => account.is_active && account.inter_api_enabled),
     [accounts],
   );
+  const clientOpenBoletoCountMap = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    const increment = (clientName: string | null | undefined) => {
+      const key = normalizeClientName(clientName);
+      if (!key) {
+        return;
+      }
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    };
+
+    dashboard.all_boletos
+      .filter((item) => !["paid", "cancelled"].includes(item.status_bucket))
+      .forEach((item) => increment(item.client_name));
+    dashboard.standalone_boletos
+      .filter((item) => !["paid", "cancelled"].includes(item.status_bucket))
+      .forEach((item) => increment(item.client_name));
+
+    return counts;
+  }, [dashboard.all_boletos, dashboard.standalone_boletos]);
+
+  useEffect(() => {
+    setClients(
+      dashboard.clients.map((item) => ({
+        ...item,
+        dirty: false,
+        open_boleto_count: clientOpenBoletoCountMap.get(normalizeClientName(item.client_name)) ?? 0,
+      })),
+    );
+  }, [clientOpenBoletoCountMap, dashboard.clients]);
   const invoiceSourceItems = dashboard.invoice_items.length ? dashboard.invoice_items : dashboard.receivables;
   const invoiceRows = useMemo<InvoiceRow[]>(
     () =>
@@ -765,6 +843,53 @@ export function BillingPage({
     }
     return boletoClients.filter((item) => item.toLowerCase().includes(query));
   }, [boletoClientSearch, boletoClients]);
+  const filteredClients = useMemo(
+    () =>
+      clients
+        .filter((client) => {
+          if (clientConfigUsesBoletoFilter === "yes") {
+            return client.uses_boleto;
+          }
+          if (clientConfigUsesBoletoFilter === "no") {
+            return !client.uses_boleto;
+          }
+          return true;
+        })
+        .filter((client) => clientConfigModeFilter === "all" || client.mode === clientConfigModeFilter)
+        .filter((client) => {
+          const query = clientConfigSearch.trim().toLowerCase();
+          if (!query) {
+            return true;
+          }
+          return client.client_name.toLowerCase().includes(query);
+        })
+        .sort((left, right) => {
+          const result = (() => {
+            switch (clientConfigSortKey) {
+              case "receivable_count":
+                return left.receivable_count - right.receivable_count;
+              case "open_boleto_count":
+                return left.open_boleto_count - right.open_boleto_count;
+              case "total_amount":
+                return compareAmount(left.total_amount, right.total_amount);
+              case "uses_boleto":
+                return Number(left.uses_boleto) - Number(right.uses_boleto);
+              case "mode":
+                return compareText(left.mode, right.mode);
+              case "boleto_due_day":
+                return Number(left.boleto_due_day ?? 0) - Number(right.boleto_due_day ?? 0);
+              case "include_interest":
+                return Number(left.include_interest) - Number(right.include_interest);
+              case "client_name":
+              default:
+                return compareText(left.client_name, right.client_name);
+            }
+          })();
+
+          return clientConfigSortDirection === "asc" ? result : -result;
+        }),
+    [clientConfigModeFilter, clientConfigSearch, clientConfigSortDirection, clientConfigSortKey, clientConfigUsesBoletoFilter, clients],
+  );
 
   const filteredInvoices = useMemo(() => {
     const selectedStatuses = invoiceStatusFilters.length ? invoiceStatusFilters : (["open", "paid", "overdue", "cancelled"] as InvoiceStatusKey[]);
@@ -774,6 +899,31 @@ export function BillingPage({
       .filter((item) => matchesDateRange(item.issue_date, invoiceIssueDateRange))
       .filter((item) => matchesDateRange(item.due_date, invoiceDateRange));
   }, [invoiceClientFilters, invoiceDateRange, invoiceIssueDateRange, invoiceRows, invoiceStatusFilters]);
+  const sortedInvoices = useMemo(
+    () =>
+      [...filteredInvoices].sort((left, right) => {
+        const result = (() => {
+          switch (invoiceSortKey) {
+            case "client_name":
+              return compareText(left.client_name, right.client_name);
+            case "title":
+              return compareText(left.title, right.title);
+            case "issue_date":
+              return compareDate(left.issue_date, right.issue_date);
+            case "amount":
+              return compareAmount(left.amount, right.amount);
+            case "status":
+              return compareText(left.status, right.status);
+            case "due_date":
+            default:
+              return compareDate(left.due_date, right.due_date);
+          }
+        })();
+
+        return invoiceSortDirection === "asc" ? result : -result;
+      }),
+    [filteredInvoices, invoiceSortDirection, invoiceSortKey],
+  );
   const filteredInvoicesTotal = useMemo(
     () => filteredInvoices.reduce((total, item) => total + Number(item.amount || 0), 0),
     [filteredInvoices],
@@ -795,28 +945,73 @@ export function BillingPage({
       .filter((item) => matchesDateRange(item.issue_date, boletoIssueDateRange))
       .filter((item) => matchesDateRange(item.due_date, boletoDateRange));
   }, [boletoBankFilters, boletoClientFilters, boletoDateRange, boletoIssueDateRange, boletoRows, boletoStatusFilters, boletoTypeFilters]);
+  const sortedBoletos = useMemo(
+    () =>
+      [...filteredBoletos].sort((left, right) => {
+        const result = (() => {
+          switch (boletoSortKey) {
+            case "client_name":
+              return compareText(left.client_name, right.client_name);
+            case "document_id":
+              return compareText(left.document_id, right.document_id);
+            case "description":
+              return compareText(left.description, right.description);
+            case "issue_date":
+              return compareDate(left.issue_date, right.issue_date);
+            case "amount":
+              return compareAmount(left.amount, right.amount);
+            case "status":
+              return compareText(left.status, right.status);
+            case "status_loja":
+              return compareText(left.status_loja, right.status_loja);
+            case "bank":
+              return compareText(formatBoletoBankValue(left), formatBoletoBankValue(right));
+            case "due_date":
+            default:
+              return compareDate(left.due_date, right.due_date);
+          }
+        })();
+
+        return boletoSortDirection === "asc" ? result : -result;
+      }),
+    [boletoSortDirection, boletoSortKey, filteredBoletos],
+  );
+  const filteredBoletosTotal = useMemo(
+    () => filteredBoletos.reduce((total, item) => total + Number(item.amount || 0), 0),
+    [filteredBoletos],
+  );
 
   useEffect(() => {
     setInvoicePage(1);
-  }, [invoiceClientFilters, invoiceDateRange, invoiceIssueDateRange, invoicePageSize, invoiceStatusFilters]);
+  }, [invoiceClientFilters, invoiceDateRange, invoiceIssueDateRange, invoicePageSize, invoiceSortDirection, invoiceSortKey, invoiceStatusFilters]);
 
   useEffect(() => {
     setBoletoPage(1);
-  }, [boletoBankFilters, boletoClientFilters, boletoDateRange, boletoIssueDateRange, boletoPageSize, boletoStatusFilters, boletoTypeFilters]);
+  }, [
+    boletoBankFilters,
+    boletoClientFilters,
+    boletoDateRange,
+    boletoIssueDateRange,
+    boletoPageSize,
+    boletoSortDirection,
+    boletoSortKey,
+    boletoStatusFilters,
+    boletoTypeFilters,
+  ]);
 
   const paginatedInvoices = useMemo(
     () => {
-      const limit = resolvePageSizeLimit(invoicePageSize, filteredInvoices.length);
-      return filteredInvoices.slice((invoicePage - 1) * limit, invoicePage * limit);
+      const limit = resolvePageSizeLimit(invoicePageSize, sortedInvoices.length);
+      return sortedInvoices.slice((invoicePage - 1) * limit, invoicePage * limit);
     },
-    [filteredInvoices, invoicePage, invoicePageSize],
+    [invoicePage, invoicePageSize, sortedInvoices],
   );
   const paginatedBoletos = useMemo(
     () => {
-      const limit = resolvePageSizeLimit(boletoPageSize, filteredBoletos.length);
-      return filteredBoletos.slice((boletoPage - 1) * limit, boletoPage * limit);
+      const limit = resolvePageSizeLimit(boletoPageSize, sortedBoletos.length);
+      return sortedBoletos.slice((boletoPage - 1) * limit, boletoPage * limit);
     },
-    [filteredBoletos, boletoPage, boletoPageSize],
+    [boletoPage, boletoPageSize, sortedBoletos],
   );
   const visibleMissingPageKeys = useMemo(
     () => paginatedBoletos.map((item) => item.selection_key).filter((item): item is string => Boolean(item)),
@@ -829,6 +1024,35 @@ export function BillingPage({
         .map((item) => item.boletoId as string),
     [paginatedBoletos],
   );
+
+  useEffect(() => {
+    if (!clientsModalOpen) {
+      return;
+    }
+
+    setClientConfigSearch("");
+    setClientConfigUsesBoletoFilter("yes");
+    setClientConfigModeFilter("all");
+    setClientConfigSortKey("client_name");
+    setClientConfigSortDirection("asc");
+  }, [clientsModalOpen]);
+
+  useEffect(() => {
+    if (!clientsModalOpen || submitting) {
+      return;
+    }
+
+    const dirtyClients = clients.filter((item) => item.dirty);
+    if (!dirtyClients.length) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void handleSaveClients(dirtyClients);
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [clients, clientsModalOpen, submitting]);
 
   function renderFileMeta(sourceType: string) {
     const file =
@@ -844,9 +1068,13 @@ export function BillingPage({
     );
   }
 
-  async function handleSaveClients() {
+  async function handleSaveClients(clientsToSave: EditableClient[] = clients) {
+    if (!clientsToSave.length) {
+      return;
+    }
+
     await onSaveClients({
-      clients: clients.map((item) => ({
+      clients: clientsToSave.map((item) => ({
         client_key: item.client_key,
         uses_boleto: item.uses_boleto,
         mode: item.mode,
@@ -855,6 +1083,38 @@ export function BillingPage({
         notes: item.notes,
       })),
     });
+
+    const savedKeys = new Set(clientsToSave.map((item) => item.client_key));
+    setClients((current) => current.map((item) => (savedKeys.has(item.client_key) ? { ...item, dirty: false } : item)));
+  }
+
+  function updateClientConfig(clientKey: string, patch: Partial<EditableClient>) {
+    setClients((current) =>
+      current.map((item) => (item.client_key === clientKey ? { ...item, ...patch, dirty: true } : item)),
+    );
+  }
+
+  function toggleClientSort(nextSort: ClientSortKey) {
+    if (clientConfigSortKey === nextSort) {
+      setClientConfigSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setClientConfigSortKey(nextSort);
+    setClientConfigSortDirection("asc");
+  }
+
+  function closeClientsModal() {
+    if (submitting) {
+      return;
+    }
+
+    const dirtyClients = clients.filter((item) => item.dirty);
+    if (dirtyClients.length) {
+      void handleSaveClients(dirtyClients);
+    }
+
+    setClientsModalOpen(false);
   }
 
   function resolveInterEnvironment(boleto: Pick<BoletoRow, "inter_account_id">) {
@@ -895,14 +1155,6 @@ export function BillingPage({
       row.status_key !== "cancelled" &&
       row.status_key !== "paid",
     );
-  }
-
-  function closeCustomerDataModal() {
-    if (submitting) {
-      return;
-    }
-    setCustomerDataModalOpen(false);
-    setCustomerDataFile(null);
   }
 
   function closeC6Modal() {
@@ -1021,13 +1273,60 @@ export function BillingPage({
     setBoletoPopover(null);
   }
 
-  function renderHeaderFilterButton(label: string, isActive: boolean, onClick: () => void) {
+  function toggleInvoiceSort(nextSort: InvoiceSortKey) {
+    if (invoiceSortKey === nextSort) {
+      setInvoiceSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setInvoiceSortKey(nextSort);
+    setInvoiceSortDirection("asc");
+  }
+
+  function toggleBoletoSort(nextSort: BoletoSortKey) {
+    if (boletoSortKey === nextSort) {
+      setBoletoSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setBoletoSortKey(nextSort);
+    setBoletoSortDirection("asc");
+  }
+
+  function renderSortButton(
+    label: string,
+    isActive: boolean,
+    direction: SortDirection,
+    onClick: () => void,
+    numeric = false,
+  ) {
     return (
-      <div className="finance-open-items-table-header">
-        <button className="table-sort-button billing-filter-header-button" onClick={onClick} type="button">
-          <strong>{label}</strong>
-        </button>
-        <button className={`entries-column-filter-trigger ${isActive ? "is-active" : ""}`.trim()} onClick={onClick} type="button">
+      <button className={`table-sort-button ${numeric ? "numeric" : ""}`.trim()} onClick={onClick} type="button">
+        <strong>{label}</strong>
+        {isActive ? (
+          <span className="table-sort-indicator is-active">
+            <SortDirectionIcon direction={direction} />
+          </span>
+        ) : null}
+      </button>
+    );
+  }
+
+  function renderHeaderFilterButton(
+    label: string,
+    isFilterActive: boolean,
+    onSort: () => void,
+    onFilter: () => void,
+    options?: {
+      isSortActive?: boolean;
+      direction?: SortDirection;
+      numeric?: boolean;
+    },
+  ) {
+    return (
+      <div className={`finance-open-items-table-header ${options?.numeric ? "is-numeric" : ""}`.trim()}>
+        {renderSortButton(label, options?.isSortActive ?? false, options?.direction ?? "asc", onSort, options?.numeric ?? false)}
+        <button className={`entries-column-filter-trigger ${isFilterActive ? "is-active" : ""}`.trim()} onClick={onFilter} type="button">
           <FilterFunnelIcon />
         </button>
       </div>
@@ -1272,15 +1571,6 @@ export function BillingPage({
     return (
       <section className="panel compact-panel-card">
         <div className="billing-section-header">
-          <div className="billing-section-header-top">
-            <div className="billing-section-heading">
-              <h3>Faturas</h3>
-            </div>
-            <div className="billing-section-meta">
-              <span className="billing-section-count">{filteredInvoices.length}</span>
-            </div>
-          </div>
-
           <div className="billing-section-toolbar">
             <div className="billing-section-meta">
               {renderFileMeta("linx_receivables")}
@@ -1304,8 +1594,15 @@ export function BillingPage({
             <thead>
               <tr>
                 <th className="billing-filter-header-cell">
-                  {renderHeaderFilterButton("Cliente", invoicePopover === "client", () =>
-                    setInvoicePopover((current) => (current === "client" ? null : "client")),
+                  {renderHeaderFilterButton(
+                    "Cliente",
+                    invoicePopover === "client",
+                    () => toggleInvoiceSort("client_name"),
+                    () => setInvoicePopover((current) => (current === "client" ? null : "client")),
+                    {
+                      isSortActive: invoiceSortKey === "client_name",
+                      direction: invoiceSortDirection,
+                    },
                   )}
                   {invoicePopover === "client"
                     ? renderClientPopover(
@@ -1325,27 +1622,50 @@ export function BillingPage({
                       )
                     : null}
                 </th>
-                <th>Titulo</th>
+                <th>{renderSortButton("Titulo", invoiceSortKey === "title", invoiceSortDirection, () => toggleInvoiceSort("title"))}</th>
                 <th className="billing-filter-header-cell">
-                  {renderHeaderFilterButton("Emissao", invoicePopover === "issue_date", () =>
-                    setInvoicePopover((current) => (current === "issue_date" ? null : "issue_date")),
+                  {renderHeaderFilterButton(
+                    "Emissao",
+                    invoicePopover === "issue_date",
+                    () => toggleInvoiceSort("issue_date"),
+                    () => setInvoicePopover((current) => (current === "issue_date" ? null : "issue_date")),
+                    {
+                      isSortActive: invoiceSortKey === "issue_date",
+                      direction: invoiceSortDirection,
+                    },
                   )}
                   {invoicePopover === "issue_date"
                     ? renderDatePopover(invoiceIssueDateDraft, setInvoiceIssueDateDraft, applyInvoiceIssueDateFilter, clearInvoiceIssueDateFilter)
                     : null}
                 </th>
                 <th className="billing-filter-header-cell">
-                  {renderHeaderFilterButton("Vencimento", invoicePopover === "due_date", () =>
-                    setInvoicePopover((current) => (current === "due_date" ? null : "due_date")),
+                  {renderHeaderFilterButton(
+                    "Vencimento",
+                    invoicePopover === "due_date",
+                    () => toggleInvoiceSort("due_date"),
+                    () => setInvoicePopover((current) => (current === "due_date" ? null : "due_date")),
+                    {
+                      isSortActive: invoiceSortKey === "due_date",
+                      direction: invoiceSortDirection,
+                    },
                   )}
                   {invoicePopover === "due_date"
                     ? renderDatePopover(invoiceDateDraft, setInvoiceDateDraft, applyInvoiceDateFilter, clearInvoiceDateFilter)
                     : null}
                 </th>
-                <th className="numeric-cell">Valor</th>
+                <th className="numeric-cell">
+                  {renderSortButton("Valor", invoiceSortKey === "amount", invoiceSortDirection, () => toggleInvoiceSort("amount"), true)}
+                </th>
                 <th className="billing-filter-header-cell">
-                  {renderHeaderFilterButton("Status", invoicePopover === "status", () =>
-                    setInvoicePopover((current) => (current === "status" ? null : "status")),
+                  {renderHeaderFilterButton(
+                    "Status",
+                    invoicePopover === "status",
+                    () => toggleInvoiceSort("status"),
+                    () => setInvoicePopover((current) => (current === "status" ? null : "status")),
+                    {
+                      isSortActive: invoiceSortKey === "status",
+                      direction: invoiceSortDirection,
+                    },
                   )}
                   {invoicePopover === "status"
                     ? renderStatusPopover<InvoiceStatusKey>(
@@ -1497,15 +1817,6 @@ export function BillingPage({
     return (
       <section className="panel compact-panel-card">
         <div className="billing-section-header">
-          <div className="billing-section-header-top">
-            <div className="billing-section-heading">
-              <h3>Boletos</h3>
-            </div>
-            <div className="billing-section-meta">
-              <span className="billing-section-count">{filteredBoletos.length}</span>
-            </div>
-          </div>
-
           <div className="billing-section-toolbar">
             <div className="billing-section-actions">
             <button
@@ -1518,11 +1829,17 @@ export function BillingPage({
             >
               <UsersIcon />
             </button>
-            <label className="checkbox-line compact-inline billing-toolbar-toggle" title="Mostrar todos os boletos mensais">
+            <button
+              aria-label="Mostrar todos os boletos mensais"
+              aria-pressed={showAllMonthlyMissingBoletos}
+              className={`secondary-button icon-only-button billing-toolbar-icon-button billing-toolbar-toggle-button${showAllMonthlyMissingBoletos ? " is-active" : ""}`}
+              disabled={submitting}
+              onClick={() => void onToggleAllMonthlyMissingBoletos(!showAllMonthlyMissingBoletos)}
+              title="Mostrar todos os boletos mensais"
+              type="button"
+            >
               <CalendarIcon />
-              <input checked={showAllMonthlyMissingBoletos} disabled={submitting} onChange={(event) => void onToggleAllMonthlyMissingBoletos(event.target.checked)} type="checkbox" />
-              <span>Mostrar todos os boletos mensais</span>
-            </label>
+            </button>
             {showMissingExportFallback ? null : null}
             <button
               aria-label="Baixar selecionados"
@@ -1545,11 +1862,11 @@ export function BillingPage({
               <SendIcon />
             </button>
             <button
-              aria-label="Atualizar Inter"
+              aria-label="Atualizar cobrança"
               className="secondary-button icon-only-button billing-toolbar-icon-button"
-              disabled={submitting || !hasInterApiAccount}
-              onClick={() => void onSyncStandaloneBoletos()}
-              title="Atualizar Inter"
+              disabled={submitting}
+              onClick={() => void onRefreshBillingModule()}
+              title="Atualizar cobrança"
               type="button"
             >
               <RefreshIcon />
@@ -1622,7 +1939,16 @@ export function BillingPage({
                   </div>
                 </th>
                 <th className="billing-filter-header-cell">
-                  {renderHeaderFilterButton("Cliente", boletoPopover === "client", () => setBoletoPopover((current) => (current === "client" ? null : "client")))}
+                  {renderHeaderFilterButton(
+                    "Cliente",
+                    boletoPopover === "client",
+                    () => toggleBoletoSort("client_name"),
+                    () => setBoletoPopover((current) => (current === "client" ? null : "client")),
+                    {
+                      isSortActive: boletoSortKey === "client_name",
+                      direction: boletoSortDirection,
+                    },
+                  )}
                   {boletoPopover === "client"
                     ? renderClientPopover(
                         boletoClients,
@@ -1641,23 +1967,50 @@ export function BillingPage({
                       )
                     : null}
                 </th>
-                <th>Documento</th>
-                <th>Descricao</th>
+                <th>{renderSortButton("Documento", boletoSortKey === "document_id", boletoSortDirection, () => toggleBoletoSort("document_id"))}</th>
+                <th>{renderSortButton("Descricao", boletoSortKey === "description", boletoSortDirection, () => toggleBoletoSort("description"))}</th>
                 <th className="billing-filter-header-cell">
-                  {renderHeaderFilterButton("Emissao", boletoPopover === "issue_date", () =>
-                    setBoletoPopover((current) => (current === "issue_date" ? null : "issue_date")),
+                  {renderHeaderFilterButton(
+                    "Emissao",
+                    boletoPopover === "issue_date",
+                    () => toggleBoletoSort("issue_date"),
+                    () => setBoletoPopover((current) => (current === "issue_date" ? null : "issue_date")),
+                    {
+                      isSortActive: boletoSortKey === "issue_date",
+                      direction: boletoSortDirection,
+                    },
                   )}
                   {boletoPopover === "issue_date"
                     ? renderDatePopover(boletoIssueDateDraft, setBoletoIssueDateDraft, applyBoletoIssueDateFilter, clearBoletoIssueDateFilter)
                     : null}
                 </th>
                 <th className="billing-filter-header-cell">
-                  {renderHeaderFilterButton("Vencimento", boletoPopover === "due_date", () => setBoletoPopover((current) => (current === "due_date" ? null : "due_date")))}
+                  {renderHeaderFilterButton(
+                    "Vencimento",
+                    boletoPopover === "due_date",
+                    () => toggleBoletoSort("due_date"),
+                    () => setBoletoPopover((current) => (current === "due_date" ? null : "due_date")),
+                    {
+                      isSortActive: boletoSortKey === "due_date",
+                      direction: boletoSortDirection,
+                    },
+                  )}
                   {boletoPopover === "due_date" ? renderDatePopover(boletoDateDraft, setBoletoDateDraft, applyBoletoDateFilter, clearBoletoDateFilter) : null}
                 </th>
-                <th className="numeric-cell">Valor</th>
+                <th className="numeric-cell">
+                  {renderSortButton("Valor", boletoSortKey === "amount", boletoSortDirection, () => toggleBoletoSort("amount"), true)}
+                </th>
                 <th className="billing-filter-header-cell">
-                  {renderHeaderFilterButton("Status", boletoPopover === "status", () => setBoletoPopover((current) => (current === "status" ? null : "status")))}
+                  {renderHeaderFilterButton(
+                    "Status",
+                    boletoPopover === "status",
+                    () => toggleBoletoSort("status"),
+                    () => setBoletoPopover((current) => (current === "status" ? null : "status")),
+                    {
+                      isSortActive: boletoSortKey === "status",
+                      direction: boletoSortDirection,
+                    },
+                  )}
                   {boletoPopover === "status"
                     ? renderStatusPopover<BoletoStatusKey>(
                         ALL_BOLETO_STATUS_FILTERS,
@@ -1671,11 +2024,29 @@ export function BillingPage({
                     : null}
                 </th>
                 <th className="billing-filter-header-cell">
-                  {renderHeaderFilterButton("Status loja", boletoPopover === "type", () => setBoletoPopover((current) => (current === "type" ? null : "type")))}
+                  {renderHeaderFilterButton(
+                    "Status loja",
+                    boletoPopover === "type",
+                    () => toggleBoletoSort("status_loja"),
+                    () => setBoletoPopover((current) => (current === "type" ? null : "type")),
+                    {
+                      isSortActive: boletoSortKey === "status_loja",
+                      direction: boletoSortDirection,
+                    },
+                  )}
                   {boletoPopover === "type" ? renderBoletoTypePopover() : null}
                 </th>
                 <th className="billing-filter-header-cell">
-                  {renderHeaderFilterButton("Banco", boletoPopover === "bank", () => setBoletoPopover((current) => (current === "bank" ? null : "bank")))}
+                  {renderHeaderFilterButton(
+                    "Banco",
+                    boletoPopover === "bank",
+                    () => toggleBoletoSort("bank"),
+                    () => setBoletoPopover((current) => (current === "bank" ? null : "bank")),
+                    {
+                      isSortActive: boletoSortKey === "bank",
+                      direction: boletoSortDirection,
+                    },
+                  )}
                   {boletoPopover === "bank" ? renderBankPopover() : null}
                 </th>
                 <th>Acoes</th>
@@ -1740,6 +2111,24 @@ export function BillingPage({
                 </tr>
               ) : null}
             </tbody>
+            {filteredBoletos.length ? (
+              <tfoot>
+                <tr className="entries-total-row">
+                  <td colSpan={11}>
+                    <div className="entries-total-summary billing-invoices-total-summary">
+                      <div>
+                        <span>Total filtrado</span>
+                        <strong>{formatMoney(filteredBoletosTotal)}</strong>
+                      </div>
+                      <div>
+                        <span>Boletos filtrados</span>
+                        <strong>{filteredBoletos.length}</strong>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
+            ) : null}
           </table>
         </div>
 
@@ -1825,55 +2214,6 @@ export function BillingPage({
     );
   }
 
-  function renderCustomerDataModal() {
-    if (!customerDataModalOpen) {
-      return null;
-    }
-
-    const customerDataImport = filesBySource["boletos:etiquetas"];
-
-    return (
-      <div className="modal-backdrop" role="presentation">
-        <div className="modal-card billing-customer-modal">
-          <div className="panel-title compact-title-row">
-            <h3>Atualizar dados dos clientes</h3>
-            <ModalCloseButton onClick={closeCustomerDataModal} />
-          </div>
-
-          <div className="billing-modal-copy">
-            <p>Envie o arquivo etiquetas.txt para atualizar os dados cadastrais dos clientes usados na cobranca.</p>
-            <small className="compact-muted">
-              {customerDataImport ? `Ultima carga: ${customerDataImport.name} em ${formatDate(customerDataImport.updated_at)}` : "Nenhuma carga de etiquetas feita ainda."}
-            </small>
-          </div>
-
-          <div className="compact-import-card billing-modal-upload-card">
-            <input id="boletos-customer-data-file" className="hidden-file-input" type="file" accept=".txt,.html" onChange={(event) => setCustomerDataFile(event.target.files?.[0] ?? null)} />
-            <div className="billing-file-picker-row">
-              <label className="secondary-button compact-file-trigger" htmlFor="boletos-customer-data-file">
-                Selecionar etiquetas
-              </label>
-              {customerDataFile ? (
-                <span className="compact-file-name" title={customerDataFile.name}>
-                  {customerDataFile.name}
-                </span>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="action-row">
-            <button className="primary-button" disabled={submitting || !customerDataFile} onClick={() => customerDataFile && void onUploadClientData(customerDataFile)} type="button">
-              Importar etiquetas
-            </button>
-            <button className="ghost-button" onClick={closeCustomerDataModal} type="button">
-              Cancelar
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   function renderC6UploadModal() {
     if (!c6ModalOpen) {
       return null;
@@ -1929,59 +2269,121 @@ export function BillingPage({
         <div className="modal-card billing-clients-modal">
           <div className="panel-title compact-title-row">
             <h3>Clientes</h3>
-            <div className="action-row">
-              <button className="secondary-button" disabled={submitting} onClick={() => setCustomerDataModalOpen(true)} type="button">
-                Atualizar dados dos clientes
-              </button>
-              <button className="primary-button" disabled={submitting} onClick={() => void handleSaveClients()} type="button">
-                Salvar configuracoes
-              </button>
-              <ModalCloseButton disabled={submitting} onClick={() => setClientsModalOpen(false)} />
+            <div className="action-row billing-clients-modal-header-actions">
+              <small className="compact-muted">
+                {submitting ? "Salvando alteracoes..." : "Alteracoes salvas automaticamente."}
+              </small>
+              <ModalCloseButton disabled={submitting} onClick={closeClientsModal} />
+            </div>
+          </div>
+
+          <div className="billing-clients-toolbar">
+            <label className="billing-search-field">
+              <span>Cliente</span>
+              <input
+                disabled={submitting}
+                placeholder="Buscar cliente"
+                type="search"
+                value={clientConfigSearch}
+                onChange={(event) => setClientConfigSearch(event.target.value)}
+              />
+            </label>
+            <label className="billing-search-field billing-search-field--compact">
+              <span>Usa boleto</span>
+              <select
+                disabled={submitting}
+                value={clientConfigUsesBoletoFilter}
+                onChange={(event) => setClientConfigUsesBoletoFilter(event.target.value as ClientUsesBoletoFilter)}
+              >
+                <option value="yes">Sim</option>
+                <option value="all">Todos</option>
+                <option value="no">Nao</option>
+              </select>
+            </label>
+            <label className="billing-search-field billing-search-field--compact">
+              <span>Modo</span>
+              <select
+                disabled={submitting}
+                value={clientConfigModeFilter}
+                onChange={(event) => setClientConfigModeFilter(event.target.value as ClientModeFilter)}
+              >
+                <option value="all">Todos</option>
+                <option value="individual">Individual</option>
+                <option value="mensal">Mensal</option>
+                <option value="negociacao">Negociacao</option>
+              </select>
+            </label>
+            <div className="billing-section-meta">
+              <span className="billing-section-count">{filteredClients.length}</span>
             </div>
           </div>
 
           <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-            <table className="erp-table entries-list-table">
+            <table className="erp-table entries-list-table billing-clients-table">
               <thead>
                 <tr>
-                  <th>Cliente</th>
-                  <th>Faturas</th>
-                  <th className="numeric-cell">Valor</th>
-                  <th>Usa boleto</th>
-                  <th>Modo</th>
-                  <th>Dia</th>
-                  <th>Cobrar multa/juros</th>
-                  <th>Observacoes</th>
+                  <th>{renderSortButton("Cliente", clientConfigSortKey === "client_name", clientConfigSortDirection, () => toggleClientSort("client_name"))}</th>
+                  <th>{renderSortButton("Faturas", clientConfigSortKey === "receivable_count", clientConfigSortDirection, () => toggleClientSort("receivable_count"))}</th>
+                  <th>{renderSortButton("Boletos", clientConfigSortKey === "open_boleto_count", clientConfigSortDirection, () => toggleClientSort("open_boleto_count"))}</th>
+                  <th className="numeric-cell">{renderSortButton("Valor", clientConfigSortKey === "total_amount", clientConfigSortDirection, () => toggleClientSort("total_amount"), true)}</th>
+                  <th>{renderSortButton("Usa boleto", clientConfigSortKey === "uses_boleto", clientConfigSortDirection, () => toggleClientSort("uses_boleto"))}</th>
+                  <th>{renderSortButton("Modo", clientConfigSortKey === "mode", clientConfigSortDirection, () => toggleClientSort("mode"))}</th>
+                  <th>{renderSortButton("Dia", clientConfigSortKey === "boleto_due_day", clientConfigSortDirection, () => toggleClientSort("boleto_due_day"))}</th>
+                  <th>{renderSortButton("Cobrar multa/juros", clientConfigSortKey === "include_interest", clientConfigSortDirection, () => toggleClientSort("include_interest"))}</th>
                 </tr>
               </thead>
               <tbody>
-                {clients.map((client) => (
+                {filteredClients.map((client) => (
                   <tr key={client.client_key}>
                     <td title={client.client_name}>{client.client_name}</td>
                     <td>{client.receivable_count}</td>
+                    <td>{client.open_boleto_count}</td>
                     <td className="numeric-cell">{formatMoney(client.total_amount)}</td>
                     <td>
-                      <input type="checkbox" checked={client.uses_boleto} onChange={(event) => setClients((current) => current.map((item) => (item.client_key === client.client_key ? { ...item, uses_boleto: event.target.checked, dirty: true } : item)))} />
+                      <input
+                        disabled={submitting}
+                        type="checkbox"
+                        checked={client.uses_boleto}
+                        onChange={(event) => updateClientConfig(client.client_key, { uses_boleto: event.target.checked })}
+                      />
                     </td>
                     <td>
-                      <select value={client.mode} onChange={(event) => setClients((current) => current.map((item) => (item.client_key === client.client_key ? { ...item, mode: event.target.value, dirty: true } : item)))}>
+                      <select
+                        disabled={submitting}
+                        value={client.mode}
+                        onChange={(event) => updateClientConfig(client.client_key, { mode: event.target.value })}
+                      >
                         <option value="individual">Individual</option>
                         <option value="mensal">Mensal</option>
                         <option value="negociacao">Negociacao</option>
                       </select>
                     </td>
                     <td>
-                      <input className="mini-input" type="number" min={1} max={31} value={client.boleto_due_day ?? ""} onChange={(event) => setClients((current) => current.map((item) => (item.client_key === client.client_key ? { ...item, boleto_due_day: event.target.value ? Number(event.target.value) : null, dirty: true } : item)))} />
+                      <input
+                        className="mini-input"
+                        disabled={submitting}
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={client.boleto_due_day ?? ""}
+                        onChange={(event) =>
+                          updateClientConfig(client.client_key, {
+                            boleto_due_day: event.target.value ? Number(event.target.value) : null,
+                          })
+                        }
+                      />
                     </td>
                     <td>
-                      <input type="checkbox" checked={client.include_interest} onChange={(event) => setClients((current) => current.map((item) => (item.client_key === client.client_key ? { ...item, include_interest: event.target.checked, dirty: true } : item)))} />
-                    </td>
-                    <td>
-                      <input value={client.notes ?? ""} onChange={(event) => setClients((current) => current.map((item) => (item.client_key === client.client_key ? { ...item, notes: event.target.value, dirty: true } : item)))} />
+                      <input
+                        disabled={submitting}
+                        type="checkbox"
+                        checked={client.include_interest}
+                        onChange={(event) => updateClientConfig(client.client_key, { include_interest: event.target.checked })}
+                      />
                     </td>
                   </tr>
                 ))}
-                {!clients.length ? (
+                {!filteredClients.length ? (
                   <tr>
                     <td colSpan={8}>Nenhum cliente encontrado.</td>
                   </tr>
@@ -1999,7 +2401,6 @@ export function BillingPage({
       {view === "invoices" ? renderInvoiceTable() : renderBoletosTable()}
       {renderClientsModal()}
       {renderC6UploadModal()}
-      {renderCustomerDataModal()}
       {renderStandaloneBoletoModal()}
     </div>
   );
