@@ -48,11 +48,12 @@ type DateRange = {
   start: string;
   end: string;
 };
-type FilterPopover = "status" | "client" | "issue_date" | "due_date" | "type" | "bank" | null;
+type FilterPopover = "payment" | "status" | "client" | "issue_date" | "due_date" | null;
 type ClientFilterPopover = "client" | "uses_boleto" | "mode" | null;
 type SortDirection = "asc" | "desc";
 type ClientUsesBoletoFilter = "all" | "yes" | "no";
 type ClientModeFilter = "all" | "individual" | "mensal" | "negociacao";
+type BoletoPaymentKey = "open" | "paid";
 type ClientSortKey =
   | "client_name"
   | "receivable_count"
@@ -79,7 +80,6 @@ type BoletoStatusKey =
   | "missing"
   | "excess"
   | "standalone";
-type BoletoTypeKey = "recurring" | "standalone" | "paid_pending" | "missing" | "excess";
 type InvoiceRow = {
   id: string;
   client_name: string;
@@ -102,12 +102,10 @@ type BoletoRow = {
   due_date: string | null;
   amount: string;
   bank: string | null;
+  payment_key: BoletoPaymentKey;
+  payment_label: string;
   status: string;
   status_key: BoletoStatusKey;
-  type_key: BoletoTypeKey;
-  type_label: string;
-  status_loja: string;
-  status_banco: string;
   filter_keys: BoletoStatusKey[];
   selection_key: string | null;
   boletos: BoletoAlertItem["boletos"];
@@ -125,16 +123,15 @@ type BoletoSortKey =
   | "issue_date"
   | "due_date"
   | "amount"
-  | "status"
-  | "status_loja"
-  | "bank";
+  | "payment"
+  | "status";
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 const DEFAULT_PAGE_SIZE = 25;
 const DEFAULT_INVOICE_FILTERS: InvoiceStatusKey[] = ["overdue"];
 const DEFAULT_BOLETO_FILTERS: BoletoStatusKey[] = ["overdue"];
 const ALL_BOLETO_STATUS_FILTERS: BoletoStatusKey[] = ["open", "paid", "overdue", "paid_pending", "missing", "excess", "standalone"];
-const ALL_BOLETO_TYPE_FILTERS: BoletoTypeKey[] = ["recurring", "standalone", "paid_pending", "missing", "excess"];
+const ALL_BOLETO_PAYMENT_FILTERS: BoletoPaymentKey[] = ["open", "paid"];
 
 function getTodayInputDate() {
   return new Date().toISOString().slice(0, 10);
@@ -217,22 +214,6 @@ function boletoStatusLabel(status: BoletoStatusKey) {
   }
 }
 
-function boletoTypeLabel(type: BoletoTypeKey) {
-  switch (type) {
-    case "standalone":
-      return "Boleto avulso";
-    case "paid_pending":
-      return "Pago sem baixa";
-    case "missing":
-      return "Boleto faltando";
-    case "excess":
-      return "Boleto em excesso";
-    case "recurring":
-    default:
-      return "Cobranca recorrente";
-  }
-}
-
 function formatBillingShortDate(value: string | null | undefined) {
   const formatted = formatDate(value);
   const parts = formatted.split("/");
@@ -244,10 +225,6 @@ function formatBillingShortDate(value: string | null | undefined) {
 
 function formatBillingCompactAmount(value: string | number | null | undefined) {
   return formatMoney(value).replace(/^R\$\s?/, "");
-}
-
-function formatBoletoBankValue(row: Pick<BoletoRow, "bank" | "status_banco">) {
-  return row.status_banco === "-" ? row.bank || "-" : `${row.bank || "-"} / ${row.status_banco}`;
 }
 
 function ClockIcon() {
@@ -399,6 +376,37 @@ function resolveRegularBoletoStatus(item: { status_bucket: string }): BoletoStat
   return "open";
 }
 
+function resolveBoletoPaymentState(statusKey: BoletoStatusKey): BoletoPaymentKey {
+  return statusKey === "paid" || statusKey === "paid_pending" ? "paid" : "open";
+}
+
+function boletoPaymentLabel(statusKey: BoletoPaymentKey) {
+  return statusKey === "paid" ? "Pago" : "Em aberto";
+}
+
+function resolveBoletoDisplayStatus(kind: BoletoRowKind, statusKey: BoletoStatusKey): BoletoStatusKey {
+  if (kind === "standalone") {
+    return "standalone";
+  }
+  if (kind === "paid_pending" || kind === "missing" || kind === "excess") {
+    return kind;
+  }
+  return statusKey;
+}
+
+function resolveBoletoFilterKeys(kind: BoletoRowKind, statusKey: BoletoStatusKey): BoletoStatusKey[] {
+  if (kind === "paid_pending") {
+    return ["paid", "paid_pending"];
+  }
+  if (kind === "standalone") {
+    return [...new Set<BoletoStatusKey>(["standalone", statusKey])];
+  }
+  if (kind === "missing" || kind === "excess") {
+    return [kind];
+  }
+  return [statusKey];
+}
+
 function renderReceivableDetails(item: BoletoAlertItem) {
   if (!item.receivables.length) {
     return "-";
@@ -418,11 +426,6 @@ function summarizeBoletoDocuments(boletos: BoletoAlertItem["boletos"]) {
     .map((item) => item.document_id || item.inter_codigo_solicitacao || item.barcode || item.bank)
     .filter(Boolean)
     .join(", ");
-}
-
-function formatStatusSummary(boletos: BoletoAlertItem["boletos"]) {
-  const labels = uniqueValues(boletos.map((item) => formatEntryStatus(item.status)));
-  return labels.length ? labels.join(", ") : "-";
 }
 
 function uniqueStandaloneClientNames(clients: BoletoClient[]) {
@@ -564,7 +567,7 @@ export function BillingPage({
   });
   const [invoiceStatusFilters, setInvoiceStatusFilters] = useState<InvoiceStatusKey[]>(DEFAULT_INVOICE_FILTERS);
   const [boletoStatusFilters, setBoletoStatusFilters] = useState<BoletoStatusKey[]>(DEFAULT_BOLETO_FILTERS);
-  const [boletoTypeFilters, setBoletoTypeFilters] = useState<BoletoTypeKey[]>([]);
+  const [boletoPaymentFilters, setBoletoPaymentFilters] = useState<BoletoPaymentKey[]>([]);
   const [invoiceClientFilters, setInvoiceClientFilters] = useState<string[]>([]);
   const [boletoClientFilters, setBoletoClientFilters] = useState<string[]>([]);
   const [invoiceClientSearch, setInvoiceClientSearch] = useState("");
@@ -577,7 +580,6 @@ export function BillingPage({
   const [boletoIssueDateRange, setBoletoIssueDateRange] = useState<DateRange>({ start: "", end: "" });
   const [boletoDateDraft, setBoletoDateDraft] = useState<DateRange>({ start: "", end: "" });
   const [boletoDateRange, setBoletoDateRange] = useState<DateRange>({ start: "", end: "" });
-  const [boletoBankFilters, setBoletoBankFilters] = useState<string[]>([]);
   const [invoicePopover, setInvoicePopover] = useState<FilterPopover>(null);
   const [boletoPopover, setBoletoPopover] = useState<FilterPopover>(null);
   const [clientPopover, setClientPopover] = useState<ClientFilterPopover>(null);
@@ -662,18 +664,16 @@ export function BillingPage({
         kind: "bank",
         client_name: item.client_name ?? "",
         document_id: item.document_id || "-",
-        description: item.linha_digitavel || item.barcode || item.inter_codigo_solicitacao || "-",
+        description: "-",
         issue_date: item.issue_date ?? null,
         due_date: item.due_date ?? null,
         amount: item.amount,
         bank: item.bank ?? "-",
-        status: boletoStatusLabel(statusKey),
-        status_key: statusKey,
-        type_key: "recurring",
-        type_label: boletoTypeLabel("recurring"),
-        status_loja: boletoTypeLabel("recurring"),
-        status_banco: formatEntryStatus(item.status),
-        filter_keys: [statusKey],
+        payment_key: resolveBoletoPaymentState(statusKey),
+        payment_label: boletoPaymentLabel(resolveBoletoPaymentState(statusKey)),
+        status: boletoStatusLabel(resolveBoletoDisplayStatus("bank", statusKey)),
+        status_key: resolveBoletoDisplayStatus("bank", statusKey),
+        filter_keys: resolveBoletoFilterKeys("bank", statusKey),
         selection_key: null,
         boletos: [],
         boletoId: item.id,
@@ -700,13 +700,11 @@ export function BillingPage({
         due_date: item.due_date ?? null,
         amount: item.amount,
         bank: item.bank ?? "-",
-        status: boletoStatusLabel(statusKey),
-        status_key: statusKey,
-        type_key: "standalone",
-        type_label: boletoTypeLabel("standalone"),
-        status_loja: boletoTypeLabel("standalone"),
-        status_banco: formatEntryStatus(item.status),
-        filter_keys: [statusKey, "standalone"],
+        payment_key: resolveBoletoPaymentState(statusKey),
+        payment_label: boletoPaymentLabel(resolveBoletoPaymentState(statusKey)),
+        status: boletoStatusLabel(resolveBoletoDisplayStatus("standalone", statusKey)),
+        status_key: resolveBoletoDisplayStatus("standalone", statusKey),
+        filter_keys: resolveBoletoFilterKeys("standalone", statusKey),
         selection_key: null,
         boletos: [],
         boletoId: null,
@@ -729,13 +727,11 @@ export function BillingPage({
         due_date: item.due_date ?? null,
         amount: item.amount,
         bank: item.bank ?? null,
+        payment_key: "paid",
+        payment_label: boletoPaymentLabel("paid"),
         status: boletoStatusLabel("paid_pending"),
         status_key: "paid_pending",
-        type_key: "paid_pending",
-        type_label: boletoTypeLabel("paid_pending"),
-        status_loja: boletoTypeLabel("paid_pending"),
-        status_banco: formatStatusSummary(item.boletos),
-        filter_keys: ["paid_pending"],
+        filter_keys: resolveBoletoFilterKeys("paid_pending", "paid_pending"),
         selection_key: null,
         boletos: item.boletos,
         boletoId: null,
@@ -758,13 +754,11 @@ export function BillingPage({
         due_date: item.due_date ?? null,
         amount: item.amount,
         bank: null,
+        payment_key: "open",
+        payment_label: boletoPaymentLabel("open"),
         status: boletoStatusLabel("missing"),
         status_key: "missing",
-        type_key: "missing",
-        type_label: boletoTypeLabel("missing"),
-        status_loja: boletoTypeLabel("missing"),
-        status_banco: "-",
-        filter_keys: ["missing"],
+        filter_keys: resolveBoletoFilterKeys("missing", "missing"),
         selection_key: item.selection_key,
         boletos: [],
         boletoId: null,
@@ -787,13 +781,11 @@ export function BillingPage({
         due_date: item.due_date ?? null,
         amount: item.amount,
         bank: item.bank ?? null,
+        payment_key: "open",
+        payment_label: boletoPaymentLabel("open"),
         status: boletoStatusLabel("excess"),
         status_key: "excess",
-        type_key: "excess",
-        type_label: boletoTypeLabel("excess"),
-        status_loja: boletoTypeLabel("excess"),
-        status_banco: formatStatusSummary(item.boletos),
-        filter_keys: ["excess"],
+        filter_keys: resolveBoletoFilterKeys("excess", "excess"),
         selection_key: null,
         boletos: item.boletos,
         boletoId: null,
@@ -829,7 +821,6 @@ export function BillingPage({
 
   const invoiceClients = useMemo(() => uniqueValues(invoiceRows.map((item) => item.client_name)), [invoiceRows]);
   const boletoClients = useMemo(() => uniqueValues(boletoRows.map((item) => item.client_name)), [boletoRows]);
-  const boletoBanks = useMemo(() => uniqueValues(boletoRows.map((item) => item.bank || "-")), [boletoRows]);
 
   const visibleInvoiceClients = useMemo(() => {
     const query = invoiceClientSearch.trim().toLowerCase();
@@ -933,20 +924,14 @@ export function BillingPage({
 
   const filteredBoletos = useMemo(() => {
     const selectedStatuses = boletoStatusFilters.length ? boletoStatusFilters : ALL_BOLETO_STATUS_FILTERS;
-    const ignoreDefaultStatusFilter =
-      boletoTypeFilters.length > 0 &&
-      boletoStatusFilters.length === DEFAULT_BOLETO_FILTERS.length &&
-      boletoStatusFilters.every((value, index) => value === DEFAULT_BOLETO_FILTERS[index]);
+    const selectedPayments = boletoPaymentFilters.length ? boletoPaymentFilters : ALL_BOLETO_PAYMENT_FILTERS;
     return boletoRows
-      .filter((item) => !boletoTypeFilters.length || boletoTypeFilters.includes(item.type_key))
-      // When the user chooses a type filter from the header, don't keep the default
-      // "Atrasado" filter silently hiding the selected type.
-      .filter((item) => ignoreDefaultStatusFilter || item.filter_keys.some((key) => selectedStatuses.includes(key)))
+      .filter((item) => item.filter_keys.some((key) => selectedStatuses.includes(key)))
+      .filter((item) => selectedPayments.includes(item.payment_key))
       .filter((item) => !boletoClientFilters.length || boletoClientFilters.includes(item.client_name))
-      .filter((item) => !boletoBankFilters.length || boletoBankFilters.includes(item.bank || "-"))
       .filter((item) => matchesDateRange(item.issue_date, boletoIssueDateRange))
       .filter((item) => matchesDateRange(item.due_date, boletoDateRange));
-  }, [boletoBankFilters, boletoClientFilters, boletoDateRange, boletoIssueDateRange, boletoRows, boletoStatusFilters, boletoTypeFilters]);
+  }, [boletoClientFilters, boletoDateRange, boletoIssueDateRange, boletoPaymentFilters, boletoRows, boletoStatusFilters]);
   const sortedBoletos = useMemo(
     () =>
       [...filteredBoletos].sort((left, right) => {
@@ -962,12 +947,10 @@ export function BillingPage({
               return compareDate(left.issue_date, right.issue_date);
             case "amount":
               return compareAmount(left.amount, right.amount);
+            case "payment":
+              return Number(left.payment_key === "paid") - Number(right.payment_key === "paid");
             case "status":
               return compareText(left.status, right.status);
-            case "status_loja":
-              return compareText(left.status_loja, right.status_loja);
-            case "bank":
-              return compareText(formatBoletoBankValue(left), formatBoletoBankValue(right));
             case "due_date":
             default:
               return compareDate(left.due_date, right.due_date);
@@ -990,15 +973,14 @@ export function BillingPage({
   useEffect(() => {
     setBoletoPage(1);
   }, [
-    boletoBankFilters,
     boletoClientFilters,
     boletoDateRange,
     boletoIssueDateRange,
     boletoPageSize,
+    boletoPaymentFilters,
     boletoSortDirection,
     boletoSortKey,
     boletoStatusFilters,
-    boletoTypeFilters,
   ]);
 
   const paginatedInvoices = useMemo(
@@ -1135,8 +1117,7 @@ export function BillingPage({
       row.kind === "bank" &&
       row.bank === "INTER" &&
       row.inter_codigo_solicitacao &&
-      row.status_key !== "cancelled" &&
-      row.status_key !== "paid",
+      row.payment_key !== "paid",
     );
   }
 
@@ -1146,8 +1127,7 @@ export function BillingPage({
       row.bank === "INTER" &&
       row.inter_codigo_solicitacao &&
       resolveInterEnvironment(row) === "sandbox" &&
-      row.status_key !== "paid" &&
-      row.status_key !== "cancelled",
+      row.payment_key !== "paid",
     );
   }
 
@@ -1156,8 +1136,19 @@ export function BillingPage({
       row.kind === "standalone" &&
       row.bank === "INTER" &&
       row.inter_codigo_solicitacao &&
-      row.status_key !== "cancelled" &&
-      row.status_key !== "paid",
+      row.payment_key !== "paid",
+    );
+  }
+
+  function renderBoletoPaymentIndicator(row: BoletoRow) {
+    return (
+      <span
+        aria-label={row.payment_label}
+        className={`billing-payment-indicator is-${row.payment_key}`}
+        title={row.payment_label}
+      >
+        <CheckIcon />
+      </span>
     );
   }
 
@@ -1221,6 +1212,16 @@ export function BillingPage({
     setSelectedMissingKeys((current) =>
       current.includes(selectionKey) ? current.filter((item) => item !== selectionKey) : [...current, selectionKey],
     );
+  }
+
+  async function handleIssueInterCharges(selectionKeys: string[]) {
+    const normalizedKeys = [...new Set(selectionKeys.map((item) => String(item).trim()).filter(Boolean))];
+    if (!normalizedKeys.length) {
+      return;
+    }
+
+    await onIssueInterCharges(normalizedKeys);
+    setSelectedMissingKeys((current) => current.filter((item) => !normalizedKeys.includes(item)));
   }
 
   function toggleDownloadSelection(boletoId: string) {
@@ -1373,65 +1374,32 @@ export function BillingPage({
     );
   }
 
-  function renderBoletoTypePopover() {
+  function renderPaymentPopover() {
     return (
       <div className="entries-floating-panel entries-column-filter-popover entries-category-filter-popover billing-column-filter-popover">
         <div className="entries-category-filter-head">
-          <strong>Filtrar tipo</strong>
+          <strong>Filtrar pagamento</strong>
         </div>
         <div className="entries-category-filter-list">
-          {ALL_BOLETO_TYPE_FILTERS.map((value) => (
+          {ALL_BOLETO_PAYMENT_FILTERS.map((value) => (
             <label className="entries-category-filter-option" key={value}>
               <input
-                checked={boletoTypeFilters.includes(value)}
+                checked={boletoPaymentFilters.includes(value)}
                 onChange={() =>
-                  setBoletoTypeFilters((current) =>
+                  setBoletoPaymentFilters((current) =>
                     current.includes(value) ? current.filter((item) => item !== value) : [...current, value],
                   )
                 }
                 type="checkbox"
               />
               <div className="entries-category-filter-text">
-                <strong>{boletoTypeLabel(value)}</strong>
+                <strong>{boletoPaymentLabel(value)}</strong>
               </div>
             </label>
           ))}
         </div>
         <div className="entries-column-filter-popover-actions">
-          <button className="ghost-button" onClick={() => setBoletoTypeFilters([])} type="button">
-            Limpar
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  function renderBankPopover() {
-    return (
-      <div className="entries-floating-panel entries-column-filter-popover entries-category-filter-popover billing-column-filter-popover">
-        <div className="entries-category-filter-head">
-          <strong>Filtrar banco</strong>
-        </div>
-        <div className="entries-category-filter-list">
-          {boletoBanks.map((value) => (
-            <label className="entries-category-filter-option" key={value}>
-              <input
-                checked={boletoBankFilters.includes(value)}
-                onChange={() =>
-                  setBoletoBankFilters((current) =>
-                    current.includes(value) ? current.filter((item) => item !== value) : [...current, value],
-                  )
-                }
-                type="checkbox"
-              />
-              <div className="entries-category-filter-text">
-                <strong>{value}</strong>
-              </div>
-            </label>
-          ))}
-        </div>
-        <div className="entries-column-filter-popover-actions">
-          <button className="ghost-button" onClick={() => setBoletoBankFilters([])} type="button">
+          <button className="ghost-button" onClick={() => setBoletoPaymentFilters([])} type="button">
             Limpar
           </button>
         </div>
@@ -1858,7 +1826,7 @@ export function BillingPage({
     if (row.kind === "missing" && row.selection_key) {
       return (
         <div className="billing-boleto-row-actions billing-boleto-row-actions--compact">
-          <button className="secondary-button billing-secondary-action" disabled={submitting || !hasInterApiAccount} onClick={() => void onIssueInterCharges([row.selection_key!])} type="button">
+          <button className="secondary-button billing-secondary-action" disabled={submitting || !hasInterApiAccount} onClick={() => void handleIssueInterCharges([row.selection_key!])} type="button">
             Emitir
           </button>
         </div>
@@ -1914,7 +1882,7 @@ export function BillingPage({
               aria-label="Emitir no Inter"
               className="primary-button icon-only-button billing-toolbar-icon-button"
               disabled={submitting || !selectedMissingKeys.length || !hasInterApiAccount}
-              onClick={() => void onIssueInterCharges(selectedMissingKeys)}
+              onClick={() => void handleIssueInterCharges(selectedMissingKeys)}
               title="Emitir no Inter"
               type="button"
             >
@@ -1958,9 +1926,8 @@ export function BillingPage({
               <col className="billing-alert-col-issue-date" />
               <col className="billing-alert-col-due-date" />
               <col className="billing-alert-col-amount" />
+              <col className="billing-alert-col-payment" />
               <col className="billing-alert-col-status" />
-              <col className="billing-alert-col-status" />
-              <col className="billing-alert-col-bank" />
               <col className="billing-alert-col-actions" />
             </colgroup>
             <thead>
@@ -2061,6 +2028,19 @@ export function BillingPage({
                 </th>
                 <th className="billing-filter-header-cell">
                   {renderHeaderFilterButton(
+                    "Pago",
+                    boletoPopover === "payment",
+                    () => toggleBoletoSort("payment"),
+                    () => setBoletoPopover((current) => (current === "payment" ? null : "payment")),
+                    {
+                      isSortActive: boletoSortKey === "payment",
+                      direction: boletoSortDirection,
+                    },
+                  )}
+                  {boletoPopover === "payment" ? renderPaymentPopover() : null}
+                </th>
+                <th className="billing-filter-header-cell">
+                  {renderHeaderFilterButton(
                     "Status",
                     boletoPopover === "status",
                     () => toggleBoletoSort("status"),
@@ -2081,32 +2061,6 @@ export function BillingPage({
                         () => setBoletoStatusFilters([]),
                       )
                     : null}
-                </th>
-                <th className="billing-filter-header-cell">
-                  {renderHeaderFilterButton(
-                    "Status loja",
-                    boletoPopover === "type",
-                    () => toggleBoletoSort("status_loja"),
-                    () => setBoletoPopover((current) => (current === "type" ? null : "type")),
-                    {
-                      isSortActive: boletoSortKey === "status_loja",
-                      direction: boletoSortDirection,
-                    },
-                  )}
-                  {boletoPopover === "type" ? renderBoletoTypePopover() : null}
-                </th>
-                <th className="billing-filter-header-cell">
-                  {renderHeaderFilterButton(
-                    "Banco",
-                    boletoPopover === "bank",
-                    () => toggleBoletoSort("bank"),
-                    () => setBoletoPopover((current) => (current === "bank" ? null : "bank")),
-                    {
-                      isSortActive: boletoSortKey === "bank",
-                      direction: boletoSortDirection,
-                    },
-                  )}
-                  {boletoPopover === "bank" ? renderBankPopover() : null}
                 </th>
                 <th>Acoes</th>
               </tr>
@@ -2154,17 +2108,16 @@ export function BillingPage({
                     <span className="billing-date-mobile">{formatBillingShortDate(row.due_date)}</span>
                   </td>
                   <td className="numeric-cell billing-boleto-col-amount">{formatBillingCompactAmount(row.amount)}</td>
+                  <td className="billing-boleto-col-payment">{renderBoletoPaymentIndicator(row)}</td>
                   <td className="billing-boleto-col-status">
                     {renderBoletoStatusBadge(row.status_key, row.status)}
                   </td>
-                  <td className="billing-boleto-col-store-status">{row.status_loja}</td>
-                  <td className="billing-boleto-col-bank">{row.status_banco === "-" ? row.bank || "-" : `${row.bank || "-"} / ${row.status_banco}`}</td>
                   <td className="billing-open-boletos-actions-cell billing-boleto-col-actions">{renderBoletoActions(row)}</td>
                 </tr>
               ))}
               {!paginatedBoletos.length ? (
                 <tr>
-                  <td className="empty-cell" colSpan={11}>
+                  <td className="empty-cell" colSpan={10}>
                     Nenhum boleto encontrado.
                   </td>
                 </tr>
@@ -2173,7 +2126,7 @@ export function BillingPage({
             {filteredBoletos.length ? (
               <tfoot>
                 <tr className="entries-total-row">
-                  <td colSpan={11}>
+                  <td colSpan={10}>
                     <div className="entries-total-summary billing-invoices-total-summary">
                       <div>
                         <span>Total filtrado</span>
@@ -2338,6 +2291,16 @@ export function BillingPage({
 
           <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
             <table className="erp-table entries-list-table billing-clients-table">
+              <colgroup>
+                <col className="billing-clients-col-client" />
+                <col className="billing-clients-col-count" />
+                <col className="billing-clients-col-count" />
+                <col className="billing-clients-col-value" />
+                <col className="billing-clients-col-toggle" />
+                <col className="billing-clients-col-mode" />
+                <col className="billing-clients-col-day" />
+                <col className="billing-clients-col-toggle" />
+              </colgroup>
               <thead>
                 <tr>
                   <th className="billing-filter-header-cell">
@@ -2353,8 +2316,8 @@ export function BillingPage({
                     )}
                     {clientPopover === "client" ? renderClientSearchPopover() : null}
                   </th>
-                  <th>{renderSortButton("Faturas", clientConfigSortKey === "receivable_count", clientConfigSortDirection, () => toggleClientSort("receivable_count"))}</th>
-                  <th>{renderSortButton("Boletos", clientConfigSortKey === "open_boleto_count", clientConfigSortDirection, () => toggleClientSort("open_boleto_count"))}</th>
+                  <th className="billing-client-count-cell">{renderSortButton("Faturas", clientConfigSortKey === "receivable_count", clientConfigSortDirection, () => toggleClientSort("receivable_count"))}</th>
+                  <th className="billing-client-count-cell">{renderSortButton("Boletos", clientConfigSortKey === "open_boleto_count", clientConfigSortDirection, () => toggleClientSort("open_boleto_count"))}</th>
                   <th className="numeric-cell">{renderSortButton("Valor", clientConfigSortKey === "total_amount", clientConfigSortDirection, () => toggleClientSort("total_amount"), true)}</th>
                   <th className="billing-filter-header-cell">
                     {renderHeaderFilterButton(
@@ -2411,18 +2374,18 @@ export function BillingPage({
                         )
                       : null}
                   </th>
-                  <th>{renderSortButton("Dia", clientConfigSortKey === "boleto_due_day", clientConfigSortDirection, () => toggleClientSort("boleto_due_day"))}</th>
-                  <th>{renderSortButton("Cobrar multa/juros", clientConfigSortKey === "include_interest", clientConfigSortDirection, () => toggleClientSort("include_interest"))}</th>
+                  <th className="billing-client-day-cell">{renderSortButton("Dia", clientConfigSortKey === "boleto_due_day", clientConfigSortDirection, () => toggleClientSort("boleto_due_day"))}</th>
+                  <th className="billing-client-bool-cell">{renderSortButton("Juros", clientConfigSortKey === "include_interest", clientConfigSortDirection, () => toggleClientSort("include_interest"))}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredClients.map((client) => (
                   <tr key={client.client_key}>
-                    <td title={client.client_name}>{client.client_name}</td>
-                    <td>{client.receivable_count}</td>
-                    <td>{client.open_boleto_count}</td>
-                    <td className="numeric-cell">{formatMoney(client.total_amount)}</td>
-                    <td>
+                    <td className="billing-client-name-cell" title={client.client_name}>{client.client_name}</td>
+                    <td className="billing-client-count-cell">{client.receivable_count}</td>
+                    <td className="billing-client-count-cell">{client.open_boleto_count}</td>
+                    <td className="numeric-cell billing-client-value-cell">{formatMoney(client.total_amount)}</td>
+                    <td className="billing-client-bool-cell">
                       <input
                         disabled={submitting}
                         type="checkbox"
@@ -2430,7 +2393,7 @@ export function BillingPage({
                         onChange={(event) => updateClientConfig(client.client_key, { uses_boleto: event.target.checked })}
                       />
                     </td>
-                    <td>
+                    <td className="billing-client-mode-cell">
                       <select
                         disabled={submitting}
                         value={client.mode}
@@ -2441,7 +2404,7 @@ export function BillingPage({
                         <option value="negociacao">Negociacao</option>
                       </select>
                     </td>
-                    <td>
+                    <td className="billing-client-day-cell">
                       <input
                         className="mini-input"
                         disabled={submitting}
@@ -2456,7 +2419,7 @@ export function BillingPage({
                         }
                       />
                     </td>
-                    <td>
+                    <td className="billing-client-bool-cell">
                       <input
                         disabled={submitting}
                         type="checkbox"

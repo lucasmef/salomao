@@ -3346,6 +3346,62 @@ textarea {
   vertical-align: middle;
 }
 
+.billing-clients-table {
+  table-layout: fixed;
+}
+
+.billing-clients-col-count {
+  width: 76px;
+}
+
+.billing-clients-col-value {
+  width: 124px;
+}
+
+.billing-clients-col-toggle {
+  width: 82px;
+}
+
+.billing-clients-col-mode {
+  width: 134px;
+}
+
+.billing-clients-col-day {
+  width: 64px;
+}
+
+.billing-client-name-cell,
+.billing-clients-table th:first-child {
+  max-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.billing-client-count-cell,
+.billing-client-bool-cell {
+  text-align: center;
+}
+
+.billing-client-value-cell {
+  white-space: nowrap;
+}
+
+.billing-client-mode-cell select {
+  width: 100%;
+}
+
+.billing-client-day-cell {
+  text-align: center;
+}
+
+.billing-client-day-cell .mini-input {
+  width: 52px;
+  min-width: 52px;
+  padding-inline: 4px;
+  text-align: center;
+}
+
 .billing-clients-table td input[type="checkbox"] {
   display: block;
   margin: 0 auto;
@@ -3505,11 +3561,28 @@ textarea {
   height: 38px;
   padding: 0;
   border-radius: 12px;
+  box-sizing: border-box;
+  line-height: 1;
+  overflow: hidden;
 }
 
 .billing-toolbar-icon-button .button-icon {
+  display: block;
+  flex: 0 0 auto;
   width: 16px;
   height: 16px;
+}
+
+.section-content-card .billing-toolbar-icon-button.primary-button {
+  min-width: 38px;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 12px;
+}
+
+.section-content-card .billing-toolbar-icon-button.primary-button:hover {
+  transform: none;
 }
 
 .billing-toolbar-toggle-button {
@@ -4021,6 +4094,10 @@ textarea {
   width: 9%;
 }
 
+.billing-alert-col-payment {
+  width: 66px;
+}
+
 .billing-alert-col-status {
   width: 14%;
 }
@@ -4210,6 +4287,34 @@ textarea {
 .billing-status-pill.is-standalone {
   background: #fff7e8;
   color: #9a6700;
+}
+
+.billing-boleto-col-payment {
+  text-align: center;
+}
+
+.billing-payment-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+}
+
+.billing-payment-indicator .button-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.billing-payment-indicator.is-open {
+  background: #f2f4f7;
+  color: #98a2b3;
+}
+
+.billing-payment-indicator.is-paid {
+  background: #ebfbf2;
+  color: #1f7a45;
 }
 
 @media (max-width: 1100px) {
@@ -4569,11 +4674,7 @@ textarea {
   .billing-open-boletos-table th:nth-child(5),
   .billing-open-boletos-table td:nth-child(5),
   .billing-open-boletos-table th:nth-child(8),
-  .billing-open-boletos-table td:nth-child(8),
-  .billing-open-boletos-table th:nth-child(9),
-  .billing-open-boletos-table td:nth-child(9),
-  .billing-open-boletos-table th:nth-child(10),
-  .billing-open-boletos-table td:nth-child(10) {
+  .billing-open-boletos-table td:nth-child(8) {
     display: none;
   }
 
