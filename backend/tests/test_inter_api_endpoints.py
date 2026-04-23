@@ -7,8 +7,9 @@ import zipfile
 from fastapi import FastAPI
 import httpx
 from fastapi.testclient import TestClient
+from pypdf import PdfWriter
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_current_user, get_db
@@ -78,7 +79,11 @@ class FakeInterApiClient:
         }
 
     def get_charge_pdf(self, codigo_solicitacao: str) -> bytes:
-        return f"%PDF-{codigo_solicitacao}".encode("ascii")
+        output = BytesIO()
+        writer = PdfWriter()
+        writer.add_blank_page(width=72, height=72)
+        writer.write(output)
+        return output.getvalue()
 
     def create_charge(self, payload: dict) -> dict:
         self.__class__.issued_payloads.append(payload)
@@ -192,6 +197,9 @@ def test_inter_endpoints_smoke(monkeypatch) -> None:
     FakeInterApiClient.paid_codes = []
 
     monkeypatch.setattr("app.services.inter.InterApiClient", FakeInterApiClient)
+    monkeypatch.setattr("app.services.inter_export.InterApiClient", FakeInterApiClient)
+    test_session_factory = sessionmaker(bind=session.get_bind(), autoflush=False, autocommit=False, class_=Session)
+    monkeypatch.setattr("app.api.routes.boletos.SessionLocal", test_session_factory)
 
     app = FastAPI()
     app.include_router(api_router, prefix="/api/v1")
@@ -254,7 +262,7 @@ def test_inter_endpoints_smoke(monkeypatch) -> None:
         pdf_response = client.get(f"/api/v1/boletos/inter/{boleto_id}/pdf")
         assert pdf_response.status_code == 200
         assert pdf_response.headers["content-type"].startswith("application/pdf")
-        assert pdf_response.content.startswith(b"%PDF-SOL-")
+        assert pdf_response.content.startswith(b"%PDF-")
 
         cancel_response = client.post(
             f"/api/v1/boletos/inter/{boleto_id}/cancel",
@@ -278,7 +286,24 @@ def test_inter_endpoints_smoke(monkeypatch) -> None:
         with zipfile.ZipFile(BytesIO(zip_response.content)) as archive:
             names = archive.namelist()
             assert len(names) == 1
-            assert archive.read(names[0]).startswith(b"%PDF-SOL-")
+            assert archive.read(names[0]).startswith(b"%PDF-")
+
+        export_response = client.post(
+            "/api/v1/boletos/inter/export",
+            json={"boleto_ids": [boleto_id]},
+        )
+        assert export_response.status_code == 201
+        export_job = export_response.json()
+        assert export_job["status"] in {"pending", "processing", "completed"}
+
+        export_status_response = client.get(f"/api/v1/boletos/inter/export/{export_job['id']}")
+        assert export_status_response.status_code == 200
+        assert export_status_response.json()["status"] == "completed"
+
+        export_file_response = client.get(f"/api/v1/boletos/inter/export/{export_job['id']}/file")
+        assert export_file_response.status_code == 200
+        assert export_file_response.headers["content-type"].startswith("application/pdf")
+        assert export_file_response.content.startswith(b"%PDF-")
     finally:
         client.close()
         session.close()

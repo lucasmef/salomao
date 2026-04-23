@@ -1,3 +1,4 @@
+import os
 from io import BytesIO
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile, status
