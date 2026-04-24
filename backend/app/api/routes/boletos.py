@@ -1,5 +1,6 @@
 import os
 from io import BytesIO
+from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
@@ -12,16 +13,16 @@ from app.db.models.security import Company
 from app.db.session import SessionLocal
 from app.schemas.boletos import (
     BoletoClientConfigBulkUpdate,
-    BoletoInterCancelRequest,
-    BoletoInterReceiveRequest,
     BoletoDashboardRead,
     BoletoExportJobRead,
+    BoletoInterCancelRequest,
+    BoletoInterReceiveRequest,
     BoletoMissingExportRequest,
     BoletoPdfBatchRequest,
     StandaloneBoletoCreateRequest,
 )
-from app.schemas.inter import InterChargeIssueRequest, InterChargeSyncRequest
 from app.schemas.imports import ImportBatchRead, ImportResult, OperationResult
+from app.schemas.inter import InterChargeIssueRequest, InterChargeSyncRequest
 from app.services.boletos import (
     build_boleto_dashboard,
     build_missing_boletos_export,
@@ -40,8 +41,8 @@ from app.services.inter import (
     issue_inter_charges,
     mark_standalone_boleto_downloaded,
     receive_inter_charge,
-    sync_standalone_inter_charges,
     sync_inter_charges,
+    sync_standalone_inter_charges,
 )
 from app.services.inter_export import (
     cleanup_old_exports,
@@ -70,7 +71,9 @@ def _join_notes(notes: list[str]) -> str:
 
 def _append_batch_notes(batch: ImportBatch, notes: str) -> None:
     current_summary = (batch.error_summary or "").strip()
-    batch.error_summary = " ".join(part for part in [current_summary, notes] if part).strip() or None
+    batch.error_summary = (
+        " ".join(part for part in [current_summary, notes] if part).strip() or None
+    )
 
 
 def _run_settlement_after_import(
@@ -92,7 +95,12 @@ def _run_settlement_after_import(
                 company,
                 filter_banks=filter_banks,
             )
-            settlement_notes.extend(_collect_settlement_notes(settlement_summary, include_empty_message=False))
+            settlement_notes.extend(
+                _collect_settlement_notes(
+                    settlement_summary,
+                    include_empty_message=False,
+                )
+            )
         except Exception as error:
             db.rollback()
             settlement_notes.append(f"Baixa automatica no Linx nao executada: {error}")
@@ -110,7 +118,11 @@ def get_boleto_dashboard(
     include_all_monthly_missing: bool = Query(default=False),
 ) -> BoletoDashboardRead:
     company = get_current_company(db)
-    return build_boleto_dashboard(db, company, include_all_monthly_missing=include_all_monthly_missing)
+    return build_boleto_dashboard(
+        db,
+        company,
+        include_all_monthly_missing=include_all_monthly_missing,
+    )
 
 
 @router.post("/missing/export")
@@ -143,7 +155,7 @@ def save_boleto_clients(
 @router.post("/import/inter", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
 async def upload_inter_boletos(
     db: DbSession,
-    file: UploadFile = File(...),
+    file: Annotated[UploadFile, File(...)],
 ) -> ImportResult:
     company = get_current_company(db)
     try:
@@ -176,7 +188,7 @@ async def upload_inter_boletos(
 @router.post("/import/c6", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
 async def upload_c6_boletos(
     db: DbSession,
-    file: UploadFile = File(...),
+    file: Annotated[UploadFile, File(...)],
 ) -> ImportResult:
     company = get_current_company(db)
     try:
@@ -206,7 +218,11 @@ async def upload_c6_boletos(
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-@router.post("/linx/settlement", response_model=OperationResult, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/linx/settlement",
+    response_model=OperationResult,
+    status_code=status.HTTP_201_CREATED,
+)
 def trigger_linx_settlement(
     db: DbSession,
 ) -> OperationResult:
@@ -217,13 +233,19 @@ def trigger_linx_settlement(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
 
-    return OperationResult(message=_join_notes(_collect_settlement_notes(summary, include_empty_message=True)))
+    return OperationResult(
+        message=_join_notes(_collect_settlement_notes(summary, include_empty_message=True))
+    )
 
 
-@router.post("/import/customer-data", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/import/customer-data",
+    response_model=ImportResult,
+    status_code=status.HTTP_201_CREATED,
+)
 async def upload_customer_data(
     db: DbSession,
-    file: UploadFile = File(...),
+    file: Annotated[UploadFile, File(...)],
 ) -> ImportResult:
     company = get_current_company(db)
     try:
@@ -301,7 +323,11 @@ def download_inter_boleto_pdf_batch(
 ) -> StreamingResponse:
     company = get_current_company(db)
     try:
-        content, filename = download_inter_charge_pdfs_zip(db, company, boleto_ids=payload.boleto_ids)
+        content, filename = download_inter_charge_pdfs_zip(
+            db,
+            company,
+            boleto_ids=payload.boleto_ids,
+        )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -312,7 +338,11 @@ def download_inter_boleto_pdf_batch(
     )
 
 
-@router.post("/inter/export", response_model=BoletoExportJobRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/inter/export",
+    response_model=BoletoExportJobRead,
+    status_code=status.HTTP_201_CREATED,
+)
 def trigger_inter_pdf_export(
     payload: BoletoPdfBatchRequest,
     background_tasks: BackgroundTasks,
@@ -354,15 +384,23 @@ def download_inter_pdf_export_file(
         raise HTTPException(status_code=404, detail="Trabalho de exportacao nao encontrado.")
     if job.status != "completed" or not job.file_path or not os.path.exists(job.file_path):
         raise HTTPException(status_code=400, detail="Arquivo de exportacao nao disponível.")
-    
+
     return FileResponse(
         job.file_path,
         filename=job.filename or "export.pdf",
-        media_type="application/pdf" if job.filename and job.filename.endswith(".pdf") else "application/zip",
+        media_type=(
+            "application/pdf"
+            if job.filename and job.filename.endswith(".pdf")
+            else "application/zip"
+        ),
     )
 
 
-@router.post("/inter/{boleto_id}/cancel", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/inter/{boleto_id}/cancel",
+    response_model=ImportResult,
+    status_code=status.HTTP_201_CREATED,
+)
 def cancel_inter_boleto(
     boleto_id: str,
     payload: BoletoInterCancelRequest,
@@ -381,7 +419,11 @@ def cancel_inter_boleto(
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-@router.post("/inter/{boleto_id}/receive", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/inter/{boleto_id}/receive",
+    response_model=ImportResult,
+    status_code=status.HTTP_201_CREATED,
+)
 def receive_inter_boleto(
     boleto_id: str,
     payload: BoletoInterReceiveRequest,
@@ -451,7 +493,11 @@ def download_standalone_boleto_pdf(
     )
 
 
-@router.post("/standalone/{boleto_id}/cancel", response_model=ImportResult, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/standalone/{boleto_id}/cancel",
+    response_model=ImportResult,
+    status_code=status.HTTP_201_CREATED,
+)
 def cancel_standalone_boleto(
     boleto_id: str,
     payload: BoletoInterCancelRequest,

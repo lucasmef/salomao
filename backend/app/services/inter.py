@@ -98,6 +98,8 @@ class StandaloneBoletoReceiptNotification:
     amount: Decimal
     paid_amount: Decimal
     inter_codigo_solicitacao: str | None
+
+
 INTER_BATCH_SOURCE_TYPES = {
     "statement": "inter_statement",
     "charge_sync": "inter_charge_sync",
@@ -282,7 +284,9 @@ def _map_statement_to_transaction_payload(
     account_id: str,
     transaction: dict[str, Any],
 ) -> dict[str, Any]:
-    posted_at = _parse_date(str(transaction.get("dataTransacao") or transaction.get("dataInclusao") or ""))
+    posted_at = _parse_date(
+        str(transaction.get("dataTransacao") or transaction.get("dataInclusao") or "")
+    )
     if posted_at is None:
         raise ValueError("Transacao do Inter sem data valida")
     title = _normalize_optional_text(str(transaction.get("titulo") or ""))
@@ -295,7 +299,9 @@ def _map_statement_to_transaction_payload(
         "bank_name": "Banco Inter",
         "bank_code": INTER_BANK_CODE,
         "posted_at": posted_at,
-        "trn_type": str(transaction.get("tipoOperacao") or transaction.get("tipoTransacao") or "OUTROS"),
+        "trn_type": str(
+            transaction.get("tipoOperacao") or transaction.get("tipoTransacao") or "OUTROS"
+        ),
         "amount": _resolve_statement_amount(transaction),
         "fit_id": _build_statement_fit_id(transaction),
         "check_number": _normalize_optional_text(str(transaction.get("numeroDocumento") or "")),
@@ -665,7 +671,8 @@ def _raise_inter_request_error(error: Exception, *, stage: str) -> None:
         detail = _extract_inter_error_detail(response)
         if response.status_code in {401, 403}:
             message = (
-                "Banco Inter recusou a autenticacao da integracao. Confira client id, client secret, "
+                "Banco Inter recusou a autenticacao da integracao. "
+                "Confira client id, client secret, "
                 "certificado, chave privada e permissoes da aplicacao."
             )
         elif response.status_code == 400:
@@ -700,10 +707,16 @@ def _load_inter_account_config(account: Account) -> InterAccountConfig:
         raise ValueError("API do Inter nao esta habilitada para esta conta")
 
     api_key = _normalize_optional_text(account.inter_api_key)
-    account_number = _normalize_optional_text(account.inter_account_number or account.account_number)
+    account_number = _normalize_optional_text(
+        account.inter_account_number or account.account_number
+    )
     client_secret = _normalize_optional_text(decrypt_text(account.inter_client_secret_encrypted))
-    certificate_pem = _normalize_optional_text(decrypt_text(account.inter_certificate_pem_encrypted))
-    private_key_pem = _normalize_optional_text(decrypt_text(account.inter_private_key_pem_encrypted))
+    certificate_pem = _normalize_optional_text(
+        decrypt_text(account.inter_certificate_pem_encrypted)
+    )
+    private_key_pem = _normalize_optional_text(
+        decrypt_text(account.inter_private_key_pem_encrypted)
+    )
 
     if not api_key:
         raise ValueError("Configure a chave da API do Inter nesta conta")
@@ -728,7 +741,9 @@ def _load_inter_account_config(account: Account) -> InterAccountConfig:
     )
 
 
-def _get_inter_account(db: Session, company: Company, account_id: str) -> tuple[Account, InterAccountConfig]:
+def _get_inter_account(
+    db: Session, company: Company, account_id: str
+) -> tuple[Account, InterAccountConfig]:
     account = db.get(Account, account_id)
     if not account or account.company_id != company.id:
         raise ValueError("Conta Inter nao encontrada")
@@ -756,7 +771,9 @@ def _resolve_inter_account(
     if not enabled_accounts:
         raise ValueError("Nenhuma conta com API do Inter habilitada foi encontrada.")
     if len(enabled_accounts) > 1:
-        raise ValueError("Existe mais de uma conta com API do Inter habilitada. Mantenha apenas uma ativa.")
+        raise ValueError(
+            "Existe mais de uma conta com API do Inter habilitada. Mantenha apenas uma ativa."
+        )
     account = enabled_accounts[0]
     return account, _load_inter_account_config(account)
 
@@ -880,9 +897,8 @@ class InterApiClient:
                 response.raise_for_status()
                 break
             except (ssl.SSLError, httpx.RequestError, httpx.HTTPStatusError) as error:
-                if (
-                    isinstance(error, httpx.HTTPStatusError)
-                    and _should_retry_response(error.response, attempt=attempt, max_attempts=INTER_MAX_RETRY_ATTEMPTS)
+                if isinstance(error, httpx.HTTPStatusError) and _should_retry_response(
+                    error.response, attempt=attempt, max_attempts=INTER_MAX_RETRY_ATTEMPTS
                 ):
                     _sleep_before_retry(error.response, attempt=attempt)
                     continue
@@ -896,7 +912,9 @@ class InterApiClient:
 
     def request(self, method: str, path: str, **kwargs: Any) -> Any:
         normalized_method = method.upper()
-        max_attempts = INTER_MAX_RETRY_ATTEMPTS if normalized_method in INTER_SAFE_REQUEST_METHODS else 1
+        max_attempts = (
+            INTER_MAX_RETRY_ATTEMPTS if normalized_method in INTER_SAFE_REQUEST_METHODS else 1
+        )
         response: httpx.Response | None = None
         for attempt in range(1, INTER_RATE_LIMIT_MAX_ATTEMPTS + 1):
             # Respect global lockout across all requests
@@ -922,9 +940,8 @@ class InterApiClient:
                 ):
                     self._token = None
                     continue
-                if (
-                    isinstance(error, httpx.HTTPStatusError)
-                    and _should_retry_response(error.response, attempt=attempt, max_attempts=max_attempts)
+                if isinstance(error, httpx.HTTPStatusError) and _should_retry_response(
+                    error.response, attempt=attempt, max_attempts=max_attempts
                 ):
                     _sleep_before_retry(error.response, attempt=attempt)
                     continue
@@ -934,7 +951,9 @@ class InterApiClient:
         try:
             return response.json()
         except ValueError as error:
-            raise ValueError("Banco Inter retornou uma resposta invalida para a integracao.") from error
+            raise ValueError(
+                "Banco Inter retornou uma resposta invalida para a integracao."
+            ) from error
 
     def get_complete_statement(self, start_date: date, end_date: date) -> list[dict[str, Any]]:
         params: dict[str, Any] = {
@@ -1219,7 +1238,9 @@ def sync_inter_statement(
     duplicates = 0
     linked = 0
     for transaction in transactions:
-        payload = _map_statement_to_transaction_payload(company.id, batch.id, account.id, transaction)
+        payload = _map_statement_to_transaction_payload(
+            company.id, batch.id, account.id, transaction
+        )
         existing = db.scalar(
             select(BankTransaction).where(
                 BankTransaction.account_id == account.id,
@@ -1246,7 +1267,9 @@ def sync_inter_statement(
         if duplicates:
             details.append(f"{duplicates} lancamentos do Inter ja existiam para esta conta.")
         if linked:
-            details.append(f"{linked} lancamentos do Inter foram vinculados a movimentos OFX existentes.")
+            details.append(
+                f"{linked} lancamentos do Inter foram vinculados a movimentos OFX existentes."
+            )
         batch.error_summary = " ".join(details)
     db.commit()
     db.refresh(batch)
@@ -1271,7 +1294,9 @@ def sync_inter_charges(
         requested_start_date=start_date,
         requested_end_date=end_date,
     )
-    batch_filename = f"inter-cobrancas-{effective_start_date.isoformat()}-{effective_end_date.isoformat()}"
+    batch_filename = (
+        f"inter-cobrancas-{effective_start_date.isoformat()}-{effective_end_date.isoformat()}"
+    )
     if sync_mode == "full":
         batch_filename = (
             "inter-cobrancas-full-"
@@ -1301,7 +1326,9 @@ def sync_inter_charges(
             codigo_solicitacao = _extract_charge_summary_code(normalized_summary)
             if codigo_solicitacao:
                 processed_charge_codes.add(codigo_solicitacao)
-            has_essential_info = (isinstance(normalized_summary.get("cobranca"), dict) and isinstance(normalized_summary.get("boleto"), dict))
+            has_essential_info = isinstance(
+                normalized_summary.get("cobranca"), dict
+            ) and isinstance(normalized_summary.get("boleto"), dict)
             if has_essential_info:
                 detail = normalized_summary
             elif codigo_solicitacao:
@@ -1328,10 +1355,12 @@ def sync_inter_charges(
         for record in pending_records:
             if not _is_pending_inter_charge_status(record.status):
                 continue
-            codigo_solicitacao = _normalize_optional_text(str(record.inter_codigo_solicitacao or ""))
+            codigo_solicitacao = _normalize_optional_text(
+                str(record.inter_codigo_solicitacao or "")
+            )
             if not codigo_solicitacao or codigo_solicitacao in processed_charge_codes:
                 continue
-            
+
             # Rate limit individual refreshes: only check if not updated in the last 4 hours
             # to avoid hitting API limits for old pending boletos on every sync cycle.
             now_utc = datetime.now(timezone.utc)
@@ -1343,7 +1372,7 @@ def sync_inter_charges(
                 )
                 if (now_utc - updated_at).total_seconds() < 4 * 3600:
                     continue
-                
+
             detail = client.get_charge_detail(codigo_solicitacao)
             _, created = _upsert_boleto_record(
                 db,
@@ -1375,7 +1404,9 @@ def sync_inter_charges(
             if settlement_summary.failed_invoice_count:
                 settlement_warning = "; ".join(settlement_summary.failure_messages)
             elif settlement_summary.email_error:
-                settlement_warning = f"Resumo de baixa automatica nao enviado: {settlement_summary.email_error}"
+                settlement_warning = (
+                    f"Resumo de baixa automatica nao enviado: {settlement_summary.email_error}"
+                )
         except Exception as error:
             settlement_warning = f"Baixa automatica no Linx nao executada: {error}"
 
@@ -1388,13 +1419,16 @@ def sync_inter_charges(
         details.append(full_sync_detail)
     elif sync_mode == "incremental":
         details.append(
-            f"Sincronizacao incremental do Inter executada de {effective_start_date.isoformat()} ate {effective_end_date.isoformat()}."
+            "Sincronizacao incremental do Inter executada de "
+            f"{effective_start_date.isoformat()} ate "
+            f"{effective_end_date.isoformat()}."
         )
     if updated_count:
         details.append(f"{updated_count} cobranca(s) do Inter foram atualizadas.")
     if refreshed_pending_count:
         details.append(
-            f"{refreshed_pending_count} boleto(s) pendente(s) foram conferidos individualmente no Inter."
+            f"{refreshed_pending_count} boleto(s) pendente(s) "
+            "foram conferidos individualmente no Inter."
         )
     if settlement_message:
         details.append(settlement_message)
@@ -1514,7 +1548,11 @@ def _resolve_standalone_customer(db: Session, *, company_id: str, client_name: s
         if normalized_name in names:
             exact_match = customer
             break
-        if not prefix_match and any(name.startswith(normalized_name) or normalized_name.startswith(name) for name in names if name):
+        if not prefix_match and any(
+            name.startswith(normalized_name) or normalized_name.startswith(name)
+            for name in names
+            if name
+        ):
             prefix_match = customer
     resolved = exact_match or prefix_match
     if not resolved:
@@ -1522,11 +1560,15 @@ def _resolve_standalone_customer(db: Session, *, company_id: str, client_name: s
     return resolved
 
 
-def _build_inter_charge_payload(item: Any, config: BoletoCustomerConfig, *, today: date) -> dict[str, Any]:
+def _build_inter_charge_payload(
+    item: Any, config: BoletoCustomerConfig, *, today: date
+) -> dict[str, Any]:
     due_date = _resolve_export_due_date(item, config, today)
     tax_id = _digits_only(config.tax_id)
     payload = {
-        "seuNumero": _build_export_charge_code(item, config.client_code, bool(config.include_interest)),
+        "seuNumero": _build_export_charge_code(
+            item, config.client_code, bool(config.include_interest)
+        ),
         "valorNominal": format(Decimal(item.amount).quantize(Decimal("0.01")), "f"),
         "dataVencimento": due_date.isoformat(),
         "numDiasAgenda": 30,
@@ -1595,9 +1637,7 @@ def _upsert_standalone_boleto_record(
     codigo_solicitacao = _normalize_optional_text(str(cobranca.get("codigoSolicitacao") or ""))
     seu_numero = _normalize_optional_text(str(cobranca.get("seuNumero") or ""))
     resolved_client_name = (
-        client_name
-        or _normalize_optional_text(str(pagador.get("nome") or ""))
-        or "Cliente avulso"
+        client_name or _normalize_optional_text(str(pagador.get("nome") or "")) or "Cliente avulso"
     )
     record = _find_existing_standalone_boleto_record(
         db,
@@ -1626,19 +1666,31 @@ def _upsert_standalone_boleto_record(
     record.tax_id = _digits_only(tax_id or str(pagador.get("cpfCnpj") or "")) or record.tax_id
     record.email = (email or record.email or "").strip() or record.email
     record.document_id = seu_numero or codigo_solicitacao or record.document_id
-    record.issue_date = issue_date_override or _parse_date(str(cobranca.get("dataEmissao") or "")) or record.issue_date
+    record.issue_date = (
+        issue_date_override
+        or _parse_date(str(cobranca.get("dataEmissao") or ""))
+        or record.issue_date
+    )
     record.due_date = _parse_date(str(cobranca.get("dataVencimento") or "")) or record.due_date
     record.amount = _to_decimal(cobranca.get("valorNominal") or record.amount)
     record.paid_amount = _to_decimal(cobranca.get("valorTotalRecebido"))
     record.status = _map_charge_status(str(cobranca.get("situacao") or "")) or record.status
     record.description = description if description is not None else record.description
     record.notes = notes if notes is not None else record.notes
-    record.barcode = _normalize_optional_text(str(boleto.get("codigoBarras") or "")) or record.barcode
+    record.barcode = (
+        _normalize_optional_text(str(boleto.get("codigoBarras") or "")) or record.barcode
+    )
     record.inter_codigo_solicitacao = codigo_solicitacao or record.inter_codigo_solicitacao
     record.inter_seu_numero = seu_numero or record.inter_seu_numero
-    record.inter_nosso_numero = _normalize_optional_text(str(boleto.get("nossoNumero") or "")) or record.inter_nosso_numero
-    record.linha_digitavel = _normalize_optional_text(str(boleto.get("linhaDigitavel") or "")) or record.linha_digitavel
-    record.pix_copia_e_cola = _normalize_optional_text(str(pix.get("pixCopiaECola") or "")) or record.pix_copia_e_cola
+    record.inter_nosso_numero = (
+        _normalize_optional_text(str(boleto.get("nossoNumero") or "")) or record.inter_nosso_numero
+    )
+    record.linha_digitavel = (
+        _normalize_optional_text(str(boleto.get("linhaDigitavel") or "")) or record.linha_digitavel
+    )
+    record.pix_copia_e_cola = (
+        _normalize_optional_text(str(pix.get("pixCopiaECola") or "")) or record.pix_copia_e_cola
+    )
     record.inter_txid = _normalize_optional_text(str(pix.get("txid") or "")) or record.inter_txid
     if local_status is not None:
         record.local_status = local_status
@@ -1659,7 +1711,9 @@ def create_standalone_inter_charge(
     transport: httpx.BaseTransport | None = None,
 ) -> ImportResult:
     account, config = _resolve_inter_account(db, company, account_id)
-    resolved_customer = _resolve_standalone_customer(db, company_id=company.id, client_name=client_name.strip())
+    resolved_customer = _resolve_standalone_customer(
+        db, company_id=company.id, client_name=client_name.strip()
+    )
     normalized_amount = Decimal(amount).quantize(Decimal("0.01"))
     payload = _build_standalone_charge_payload(
         customer=resolved_customer,
@@ -1683,7 +1737,9 @@ def create_standalone_inter_charge(
                 or ""
             )
         )
-        detail = client.get_charge_detail(codigo_solicitacao) if codigo_solicitacao else created_payload
+        detail = (
+            client.get_charge_detail(codigo_solicitacao) if codigo_solicitacao else created_payload
+        )
         _upsert_standalone_boleto_record(
             db,
             company_id=company.id,
@@ -1738,7 +1794,9 @@ def sync_standalone_inter_charges(
         batch.status = "processed"
         db.commit()
         db.refresh(batch)
-        return ImportResult(batch=batch, message="Nenhum boleto avulso cadastrado para sincronizar.")
+        return ImportResult(
+            batch=batch, message="Nenhum boleto avulso cadastrado para sincronizar."
+        )
 
     batch = _start_sync_batch(
         db,
@@ -1770,7 +1828,9 @@ def sync_standalone_inter_charges(
                 issue_date_override=record.issue_date,
             )
             cobranca = detail.get("cobranca") or {}
-            is_paid_now = _is_paid_charge(updated_record.status, Decimal(updated_record.paid_amount or 0))
+            is_paid_now = _is_paid_charge(
+                updated_record.status, Decimal(updated_record.paid_amount or 0)
+            )
             if is_paid_now and not was_paid:
                 newly_paid_notifications.append(
                     StandaloneBoletoReceiptNotification(
@@ -1794,7 +1854,9 @@ def sync_standalone_inter_charges(
     batch.status = "processed"
     if newly_paid_notifications:
         try:
-            subject, body, html_body = _build_standalone_paid_email(company, newly_paid_notifications)
+            subject, body, html_body = _build_standalone_paid_email(
+                company, newly_paid_notifications
+            )
             ensure_email_transport_configured()
             send_email(
                 subject,
@@ -1816,7 +1878,10 @@ def sync_standalone_inter_charges(
     if newly_paid_notifications:
         return ImportResult(
             batch=batch,
-            message=f"Boletos avulsos sincronizados com sucesso. {len(newly_paid_notifications)} pagamento(s) identificado(s).",
+            message=(
+                "Boletos avulsos sincronizados com sucesso. "
+                f"{len(newly_paid_notifications)} pagamento(s) identificado(s)."
+            ),
         )
     return ImportResult(batch=batch, message="Boletos avulsos sincronizados com sucesso.")
 
@@ -1836,7 +1901,9 @@ def issue_inter_charges(
     account, config = _resolve_inter_account(db, company, account_id)
     dashboard = build_boleto_dashboard(db, company, include_all_monthly_missing=True)
     selected_items = [
-        item for item in dashboard.missing_boletos if item.selection_key in normalized_selection_keys
+        item
+        for item in dashboard.missing_boletos
+        if item.selection_key in normalized_selection_keys
     ]
     if len(selected_items) != len(set(normalized_selection_keys)):
         raise ValueError("Alguns boletos selecionados nao estao mais disponiveis para emissao.")
@@ -1853,7 +1920,9 @@ def issue_inter_charges(
             validation_errors.append(f"{item.client_name}: {', '.join(missing_fields)}")
             continue
         assert customer_config is not None
-        prepared_payloads.append((item, _build_inter_charge_payload(item, customer_config, today=today)))
+        prepared_payloads.append(
+            (item, _build_inter_charge_payload(item, customer_config, today=today))
+        )
 
     if validation_errors:
         raise ValueError(
@@ -1902,7 +1971,9 @@ def issue_inter_charges(
     return ImportResult(batch=batch, message="Boletos emitidos no Inter com sucesso.")
 
 
-def _resolve_pdf_download_account(db: Session, company: Company, boleto: Any) -> tuple[Account, InterAccountConfig]:
+def _resolve_pdf_download_account(
+    db: Session, company: Company, boleto: Any
+) -> tuple[Account, InterAccountConfig]:
     if boleto.inter_account_id:
         return _get_inter_account(db, company, boleto.inter_account_id)
 
@@ -1917,7 +1988,10 @@ def _resolve_pdf_download_account(db: Session, company: Company, boleto: Any) ->
     if not fallback_accounts:
         raise ValueError("Nenhuma conta Inter habilitada foi encontrada para este boleto.")
     if len(fallback_accounts) > 1:
-        raise ValueError("Este boleto nao informa a conta Inter de origem. Sincronize novamente para habilitar o PDF.")
+        raise ValueError(
+            "Este boleto nao informa a conta Inter de origem. "
+            "Sincronize novamente para habilitar o PDF."
+        )
     account = fallback_accounts[0]
     return account, _load_inter_account_config(account)
 
@@ -1952,7 +2026,9 @@ def _load_inter_boleto_for_action(db: Session, company: Company, boleto_id: str)
     return boleto
 
 
-def _load_standalone_boleto_for_pdf(db: Session, company: Company, boleto_id: str) -> StandaloneBoletoRecord:
+def _load_standalone_boleto_for_pdf(
+    db: Session, company: Company, boleto_id: str
+) -> StandaloneBoletoRecord:
     boleto = db.scalar(
         select(StandaloneBoletoRecord).where(
             StandaloneBoletoRecord.id == boleto_id,
@@ -1985,7 +2061,9 @@ def cancel_standalone_inter_charge(
     )
     client = InterApiClient(config, transport=transport)
     try:
-        client.cancel_charge(str(boleto.inter_codigo_solicitacao), motivo_cancelamento=motivo_cancelamento.strip())
+        client.cancel_charge(
+            str(boleto.inter_codigo_solicitacao), motivo_cancelamento=motivo_cancelamento.strip()
+        )
         detail = client.get_charge_detail(str(boleto.inter_codigo_solicitacao))
         record, _created = _upsert_standalone_boleto_record(
             db,
@@ -2052,7 +2130,9 @@ def download_inter_charge_pdfs_zip(
     used_names: set[str] = set()
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for boleto_id in normalized_ids:
-            pdf_bytes, filename = download_inter_charge_pdf(db, company, boleto_id=boleto_id, transport=transport)
+            pdf_bytes, filename = download_inter_charge_pdf(
+                db, company, boleto_id=boleto_id, transport=transport
+            )
             stem = filename[:-4] if filename.lower().endswith(".pdf") else filename
             candidate = filename
             suffix = 2
@@ -2084,7 +2164,9 @@ def cancel_inter_charge(
     )
     client = InterApiClient(config, transport=transport)
     try:
-        client.cancel_charge(str(boleto.inter_codigo_solicitacao), motivo_cancelamento=motivo_cancelamento.strip())
+        client.cancel_charge(
+            str(boleto.inter_codigo_solicitacao), motivo_cancelamento=motivo_cancelamento.strip()
+        )
         detail = client.get_charge_detail(str(boleto.inter_codigo_solicitacao))
         record, _created = _upsert_boleto_record(
             db,
@@ -2128,7 +2210,9 @@ def receive_inter_charge(
     )
     client = InterApiClient(config, transport=transport)
     try:
-        client.pay_charge(str(boleto.inter_codigo_solicitacao), pagar_com=pagar_com.strip().upper() or "BOLETO")
+        client.pay_charge(
+            str(boleto.inter_codigo_solicitacao), pagar_com=pagar_com.strip().upper() or "BOLETO"
+        )
         detail = client.get_charge_detail(str(boleto.inter_codigo_solicitacao))
         _upsert_boleto_record(
             db,

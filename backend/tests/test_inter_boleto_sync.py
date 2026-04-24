@@ -10,9 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.core.crypto import encrypt_text
 from app.db.base import Base
-from app.db.models.boleto import BoletoRecord, StandaloneBoletoRecord
+from app.db.models.boleto import BoletoCustomerConfig, BoletoRecord, StandaloneBoletoRecord
 from app.db.models.finance import Account
-from app.db.models.boleto import BoletoCustomerConfig
 from app.db.models.linx import LinxCustomer, LinxOpenReceivable
 from app.db.models.security import Company
 from app.services.boletos import normalize_text
@@ -191,7 +190,7 @@ def test_sync_inter_charges_updates_existing_record_and_creates_new_one() -> Non
         session.close()
 
 
-def test_build_inter_charge_payload_defaults_missing_address_number_to_zero_and_omits_contact_fields() -> None:
+def test_build_inter_charge_payload_defaults_address_number_to_zero() -> None:
     config = BoletoCustomerConfig(
         company_id="company-1",
         client_key="CLIENTE EXEMPLO",
@@ -230,7 +229,7 @@ def test_build_inter_charge_payload_defaults_missing_address_number_to_zero_and_
     assert "telefone" not in payload["pagador"]
 
 
-def test_build_standalone_charge_payload_defaults_missing_address_number_to_zero_and_omits_contact_fields() -> None:
+def test_build_standalone_charge_payload_defaults_address_number_to_zero() -> None:
     customer = LinxCustomer(
         company_id="company-1",
         linx_code=1001,
@@ -311,17 +310,19 @@ def test_sync_inter_charges_triggers_linx_settlement_for_processed_codes(monkeyp
 
     monkeypatch.setattr(
         "app.services.inter.settle_paid_pending_inter_receivables",
-        lambda db, company, *, filter_charge_codes=None, filter_banks=None: settlement_calls.append(
-            (
-                set(filter_charge_codes) if filter_charge_codes is not None else None,
-                set(filter_banks) if filter_banks is not None else None,
+        lambda db, company, *, filter_charge_codes=None, filter_banks=None: (
+            settlement_calls.append(
+                (
+                    set(filter_charge_codes) if filter_charge_codes is not None else None,
+                    set(filter_banks) if filter_banks is not None else None,
+                )
             )
-        )
-        or LinxSettlementSummary(
-            attempted_invoice_count=1,
-            settled_invoice_count=1,
-            failed_invoice_count=0,
-            client_count=1,
+            or LinxSettlementSummary(
+                attempted_invoice_count=1,
+                settled_invoice_count=1,
+                failed_invoice_count=0,
+                client_count=1,
+            )
         ),
     )
 
@@ -343,7 +344,9 @@ def test_sync_inter_charges_triggers_linx_settlement_for_processed_codes(monkeyp
         session.close()
 
 
-def test_sync_inter_charges_retries_linx_settlement_even_without_new_processed_codes(monkeypatch) -> None:
+def test_sync_inter_charges_retries_linx_settlement_even_without_new_processed_codes(
+    monkeypatch,
+) -> None:
     session = _build_session()
     settlement_calls: list[tuple[set[str] | None, set[str] | None]] = []
 
@@ -356,17 +359,19 @@ def test_sync_inter_charges_retries_linx_settlement_even_without_new_processed_c
 
     monkeypatch.setattr(
         "app.services.inter.settle_paid_pending_inter_receivables",
-        lambda db, company, *, filter_charge_codes=None, filter_banks=None: settlement_calls.append(
-            (
-                set(filter_charge_codes) if filter_charge_codes is not None else None,
-                set(filter_banks) if filter_banks is not None else None,
+        lambda db, company, *, filter_charge_codes=None, filter_banks=None: (
+            settlement_calls.append(
+                (
+                    set(filter_charge_codes) if filter_charge_codes is not None else None,
+                    set(filter_banks) if filter_banks is not None else None,
+                )
             )
-        )
-        or LinxSettlementSummary(
-            attempted_invoice_count=1,
-            settled_invoice_count=1,
-            failed_invoice_count=0,
-            client_count=1,
+            or LinxSettlementSummary(
+                attempted_invoice_count=1,
+                settled_invoice_count=1,
+                failed_invoice_count=0,
+                client_count=1,
+            )
         ),
     )
 
@@ -553,7 +558,9 @@ def test_sync_inter_charges_keeps_distinct_records_when_inter_reuses_seu_numero(
             transport=httpx.MockTransport(handler),
         )
 
-        records = session.query(BoletoRecord).order_by(BoletoRecord.inter_codigo_solicitacao.asc()).all()
+        records = (
+            session.query(BoletoRecord).order_by(BoletoRecord.inter_codigo_solicitacao.asc()).all()
+        )
         assert len(records) == 2
         assert result.batch.records_total == 2
         assert result.batch.records_valid == 2
@@ -573,7 +580,11 @@ def test_sync_inter_charges_uses_linx_fatura_code_as_document_id_when_available(
         if request.url.path == "/cobranca/v3/cobrancas":
             return httpx.Response(
                 200,
-                json={"cobrancas": [{"cobranca": {"codigoSolicitacao": "SOL-LINX", "seuNumero": "325/001/008"}}]},
+                json={
+                    "cobrancas": [
+                        {"cobranca": {"codigoSolicitacao": "SOL-LINX", "seuNumero": "325/001/008"}}
+                    ]
+                },
             )
         if request.url.path == "/cobranca/v3/cobrancas/SOL-LINX":
             return httpx.Response(
@@ -763,7 +774,8 @@ def test_sync_inter_charges_uses_full_initial_window_for_first_default_sync() ->
             "Carga completa inicial do Inter executada com emissao entre "
             f"{INTER_CHARGE_FULL_SYNC_START.isoformat()} e {requested_end_date.isoformat()} "
             "ou vencimento entre "
-            f"{INTER_CHARGE_FULL_SYNC_START.isoformat()} e {INTER_CHARGE_FULL_SYNC_DUE_END.isoformat()}."
+            f"{INTER_CHARGE_FULL_SYNC_START.isoformat()} e "
+            f"{INTER_CHARGE_FULL_SYNC_DUE_END.isoformat()}."
         ) in (result.batch.error_summary or "")
     finally:
         session.close()
@@ -774,7 +786,9 @@ def test_sync_inter_charges_uses_incremental_window_after_first_api_sync() -> No
     requested_end_date = date.today()
     requested_start_date = requested_end_date - timedelta(days=90)
     reference_issue_date = date(2026, 3, 15)
-    expected_start_date = reference_issue_date - timedelta(days=INTER_CHARGE_INCREMENTAL_LOOKBACK_DAYS)
+    expected_start_date = reference_issue_date - timedelta(
+        days=INTER_CHARGE_INCREMENTAL_LOOKBACK_DAYS
+    )
     captured_params: dict[str, str] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -840,12 +854,20 @@ def test_sync_inter_charges_deduplicates_full_sync_summaries_from_emission_and_d
             if filter_by == "EMISSAO":
                 return httpx.Response(
                     200,
-                    json={"cobrancas": [{"cobranca": {"codigoSolicitacao": "SOL-001", "seuNumero": "SEU-001"}}]},
+                    json={
+                        "cobrancas": [
+                            {"cobranca": {"codigoSolicitacao": "SOL-001", "seuNumero": "SEU-001"}}
+                        ]
+                    },
                 )
             if filter_by == "VENCIMENTO":
                 return httpx.Response(
                     200,
-                    json={"cobrancas": [{"cobranca": {"codigoSolicitacao": "SOL-001", "seuNumero": "SEU-001"}}]},
+                    json={
+                        "cobrancas": [
+                            {"cobranca": {"codigoSolicitacao": "SOL-001", "seuNumero": "SEU-001"}}
+                        ]
+                    },
                 )
         if request.url.path == "/cobranca/v3/cobrancas/SOL-001":
             detail_calls.append(request.url.path)
@@ -915,7 +937,9 @@ def test_cancel_and_receive_inter_charge_update_boleto_status() -> None:
                             "dataSituacao": "2026-03-10" if status_value == "RECEBIDO" else "",
                             "dataVencimento": "2026-03-10",
                             "valorNominal": "250.00",
-                            "valorTotalRecebido": "250.00" if status_value == "RECEBIDO" else "0.00",
+                            "valorTotalRecebido": (
+                                "250.00" if status_value == "RECEBIDO" else "0.00"
+                            ),
                             "pagador": {"nome": "Cliente Exemplo", "cpfCnpj": "12345678901"},
                         },
                         "boleto": {
@@ -977,7 +1001,9 @@ def test_cancel_and_receive_inter_charge_update_boleto_status() -> None:
         session.close()
 
 
-def test_cancel_standalone_inter_charge_marks_record_as_canceled_even_when_detail_is_stale() -> None:
+def test_cancel_standalone_inter_charge_marks_record_as_canceled_even_when_detail_is_stale() -> (
+    None
+):
     session = _build_session()
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -1047,7 +1073,9 @@ def test_cancel_standalone_inter_charge_marks_record_as_canceled_even_when_detai
         session.close()
 
 
-def test_sync_standalone_inter_charges_reopens_cancelled_record_when_inter_still_reports_open() -> None:
+def test_sync_standalone_inter_charges_reopens_cancelled_record_when_inter_still_reports_open() -> (
+    None
+):
     session = _build_session()
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -1170,7 +1198,9 @@ def test_sync_standalone_inter_charges_updates_downloaded_record_bank_status(mon
         monkeypatch.setattr("app.services.inter.ensure_email_transport_configured", lambda: None)
         monkeypatch.setattr(
             "app.services.inter.send_email",
-            lambda subject, body, *, recipients=None, html_body=None: email_calls.append((subject, body, recipients, html_body)),
+            lambda subject, body, *, recipients=None, html_body=None: email_calls.append(
+                (subject, body, recipients, html_body)
+            ),
         )
 
         result = sync_standalone_inter_charges(
@@ -1180,7 +1210,10 @@ def test_sync_standalone_inter_charges_updates_downloaded_record_bank_status(mon
         )
 
         boleto = session.query(StandaloneBoletoRecord).one()
-        assert result.message == "Boletos avulsos sincronizados com sucesso. 1 pagamento(s) identificado(s)."
+        assert (
+            result.message
+            == "Boletos avulsos sincronizados com sucesso. 1 pagamento(s) identificado(s)."
+        )
         assert boleto.status == "Recebido por boleto"
         assert boleto.local_status == "downloaded"
         assert boleto.paid_amount == Decimal("79.90")
