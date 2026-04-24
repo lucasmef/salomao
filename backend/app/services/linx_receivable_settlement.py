@@ -502,7 +502,25 @@ def _prepare_receivable_lookup_target(
 
 
 def _open_receivable_settlement_target(page: Any, *, root_url: str) -> Any:
-    del root_url
+    direct_url = f"{root_url}/gestor_web/{LINX_RECEIVABLE_SETTLEMENT_PATH}"
+    try:
+        page.goto(direct_url, wait_until="domcontentloaded")
+    except Exception:
+        pass
+    else:
+        try:
+            page.wait_for_timeout(1_000)
+        except Exception:
+            pass
+        _wait_for_page_idle(page)
+        _raise_if_permission_denied(page)
+        if _find_first_locator(page, LINX_SETTLEMENT_INVOICE_SELECTORS) is not None:
+            return page
+
+    try:
+        page.goto(f"{root_url}/v4/home/index.asp", wait_until="domcontentloaded")
+    except Exception:
+        pass
     menu_locator = page.locator(LINX_RECEIVABLE_SETTLEMENT_MENU_SELECTOR).first
     try:
         menu_locator.evaluate("el => el.click()")

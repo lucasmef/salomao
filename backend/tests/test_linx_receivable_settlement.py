@@ -21,6 +21,7 @@ from app.services.linx_receivable_settlement import (
     _build_success_email,
     _client_names_match,
     _install_dialog_auto_accept,
+    _open_receivable_settlement_target,
     _page_mentions_invoice,
     _page_matches_due_date,
     _parse_brl_amount,
@@ -515,6 +516,45 @@ def test_prepare_receivable_lookup_target_retries_when_invoice_field_is_missing(
     assert retried_target == "segundo"
     assert fill_calls == [("primeiro", "55048"), ("segundo", "55048")]
     assert page.wait_calls == [800]
+
+
+def test_open_receivable_settlement_target_prefers_direct_navigation_when_invoice_field_exists(monkeypatch) -> None:
+    class _Page:
+        def __init__(self) -> None:
+            self.goto_calls: list[tuple[str, str]] = []
+            self.wait_calls: list[int] = []
+
+        def goto(self, url: str, *, wait_until: str) -> None:
+            self.goto_calls.append((url, wait_until))
+
+        def wait_for_timeout(self, value: int) -> None:
+            self.wait_calls.append(value)
+
+    page = _Page()
+
+    monkeypatch.setattr(
+        "app.services.linx_receivable_settlement._wait_for_page_idle",
+        lambda current_page: None,
+    )
+    monkeypatch.setattr(
+        "app.services.linx_receivable_settlement._raise_if_permission_denied",
+        lambda current_target: None,
+    )
+    monkeypatch.setattr(
+        "app.services.linx_receivable_settlement._find_first_locator",
+        lambda current_page, selectors: object(),
+    )
+
+    target = _open_receivable_settlement_target(page, root_url="https://linx.example.test")
+
+    assert target is page
+    assert page.goto_calls == [
+        (
+            "https://linx.example.test/gestor_web/financeiro/baixa_faturas.asp?tipolanc=receber",
+            "domcontentloaded",
+        )
+    ]
+    assert page.wait_calls == [1_000]
 
 
 def test_build_settlement_candidates_sorts_clients_and_receivables_by_oldest_due_date() -> None:
