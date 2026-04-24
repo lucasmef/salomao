@@ -73,7 +73,12 @@ def _append_batch_notes(batch: ImportBatch, notes: str) -> None:
     batch.error_summary = " ".join(part for part in [current_summary, notes] if part).strip() or None
 
 
-def _run_c6_settlement_after_import(company_id: str, batch_id: str) -> str:
+def _run_settlement_after_import(
+    company_id: str,
+    batch_id: str,
+    *,
+    filter_banks: set[str] | None = None,
+) -> str:
     with SessionLocal() as db:
         company = db.get(Company, company_id)
         batch = db.get(ImportBatch, batch_id)
@@ -85,7 +90,7 @@ def _run_c6_settlement_after_import(company_id: str, batch_id: str) -> str:
             settlement_summary = settle_paid_pending_inter_receivables(
                 db,
                 company,
-                filter_banks={"C6"},
+                filter_banks=filter_banks,
             )
             settlement_notes.extend(_collect_settlement_notes(settlement_summary, include_empty_message=False))
         except Exception as error:
@@ -143,13 +148,26 @@ async def upload_inter_boletos(
     company = get_current_company(db)
     try:
         content = await file.read()
-        return import_boleto_report(
+        result = import_boleto_report(
             db,
             company,
             bank="INTER",
             filename=file.filename or "relatorio-inter.xlsx",
             content=content,
         )
+        joined_notes = await run_in_threadpool(
+            _run_settlement_after_import,
+            company.id,
+            result.batch.id,
+            filter_banks={"INTER"},
+        )
+        if joined_notes:
+            batch = db.get(ImportBatch, result.batch.id)
+            if batch:
+                db.refresh(batch)
+                result.batch = ImportBatchRead.model_validate(batch)
+            result.message = " ".join([result.message, joined_notes]).strip()
+        return result
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -170,7 +188,12 @@ async def upload_c6_boletos(
             filename=file.filename or "relatorio-c6.csv",
             content=content,
         )
-        joined_notes = await run_in_threadpool(_run_c6_settlement_after_import, company.id, result.batch.id)
+        joined_notes = await run_in_threadpool(
+            _run_settlement_after_import,
+            company.id,
+            result.batch.id,
+            filter_banks={"C6"},
+        )
         if joined_notes:
             batch = db.get(ImportBatch, result.batch.id)
             if batch:
@@ -183,17 +206,13 @@ async def upload_c6_boletos(
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-@router.post("/linx/c6-settlement", response_model=OperationResult, status_code=status.HTTP_201_CREATED)
-def trigger_c6_linx_settlement(
+@router.post("/linx/settlement", response_model=OperationResult, status_code=status.HTTP_201_CREATED)
+def trigger_linx_settlement(
     db: DbSession,
 ) -> OperationResult:
     company = get_current_company(db)
     try:
-        summary = settle_paid_pending_inter_receivables(
-            db,
-            company,
-            filter_banks={"C6"},
-        )
+        summary = settle_paid_pending_inter_receivables(db, company)
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error

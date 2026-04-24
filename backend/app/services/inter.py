@@ -1363,12 +1363,12 @@ def sync_inter_charges(
 
     settlement_message: str | None = None
     settlement_warning: str | None = None
-    if run_settlement and processed_charge_codes:
+    if run_settlement:
         try:
             settlement_summary = settle_paid_pending_inter_receivables(
                 db,
                 company,
-                filter_charge_codes=processed_charge_codes,
+                filter_banks={"INTER"},
             )
             if settlement_summary.attempted_invoice_count:
                 settlement_message = settlement_summary.message

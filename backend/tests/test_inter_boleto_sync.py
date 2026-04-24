@@ -266,7 +266,7 @@ def test_build_standalone_charge_payload_defaults_missing_address_number_to_zero
 
 def test_sync_inter_charges_triggers_linx_settlement_for_processed_codes(monkeypatch) -> None:
     session = _build_session()
-    settlement_calls: list[set[str]] = []
+    settlement_calls: list[tuple[set[str] | None, set[str] | None]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/oauth/v2/token":
@@ -311,7 +311,12 @@ def test_sync_inter_charges_triggers_linx_settlement_for_processed_codes(monkeyp
 
     monkeypatch.setattr(
         "app.services.inter.settle_paid_pending_inter_receivables",
-        lambda db, company, *, filter_charge_codes=None: settlement_calls.append(set(filter_charge_codes or set()))
+        lambda db, company, *, filter_charge_codes=None, filter_banks=None: settlement_calls.append(
+            (
+                set(filter_charge_codes) if filter_charge_codes is not None else None,
+                set(filter_banks) if filter_banks is not None else None,
+            )
+        )
         or LinxSettlementSummary(
             attempted_invoice_count=1,
             settled_invoice_count=1,
@@ -332,7 +337,52 @@ def test_sync_inter_charges_triggers_linx_settlement_for_processed_codes(monkeyp
             transport=httpx.MockTransport(handler),
         )
 
-        assert settlement_calls == [{"SOL-001"}]
+        assert settlement_calls == [(None, {"INTER"})]
+        assert "Baixa automatica no Linx concluida" in (result.batch.error_summary or "")
+    finally:
+        session.close()
+
+
+def test_sync_inter_charges_retries_linx_settlement_even_without_new_processed_codes(monkeypatch) -> None:
+    session = _build_session()
+    settlement_calls: list[tuple[set[str] | None, set[str] | None]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/oauth/v2/token":
+            return httpx.Response(200, json={"access_token": "token-123"})
+        if request.url.path == "/cobranca/v3/cobrancas":
+            return httpx.Response(200, json={"cobrancas": []})
+        raise AssertionError(f"Requisicao inesperada: {request.url}")
+
+    monkeypatch.setattr(
+        "app.services.inter.settle_paid_pending_inter_receivables",
+        lambda db, company, *, filter_charge_codes=None, filter_banks=None: settlement_calls.append(
+            (
+                set(filter_charge_codes) if filter_charge_codes is not None else None,
+                set(filter_banks) if filter_banks is not None else None,
+            )
+        )
+        or LinxSettlementSummary(
+            attempted_invoice_count=1,
+            settled_invoice_count=1,
+            failed_invoice_count=0,
+            client_count=1,
+        ),
+    )
+
+    try:
+        company, account = _build_company_and_account(session)
+
+        result = sync_inter_charges(
+            session,
+            company,
+            account_id=account.id,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+            transport=httpx.MockTransport(handler),
+        )
+
+        assert settlement_calls == [(None, {"INTER"})]
         assert "Baixa automatica no Linx concluida" in (result.batch.error_summary or "")
     finally:
         session.close()

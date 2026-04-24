@@ -15,7 +15,7 @@ type Props = {
   onUploadBoletoInter: (file: File) => Promise<void>;
   onUploadBoletoC6: (file: File) => Promise<void>;
   onUploadClientData: (file: File) => Promise<void>;
-  onRunC6Settlement: () => Promise<void>;
+  onRunLinxSettlement: () => Promise<void>;
   onSyncCustomers: () => Promise<void>;
   onSyncPurchaseInvoices: () => Promise<string | void>;
   onSyncInterCharges: () => Promise<void>;
@@ -52,7 +52,7 @@ export function SystemImportsGeneralPage({
   onUploadBoletoInter,
   onUploadBoletoC6,
   onUploadClientData,
-  onRunC6Settlement,
+  onRunLinxSettlement,
   onSyncCustomers,
   onSyncPurchaseInvoices,
   onSyncInterCharges,
@@ -231,11 +231,11 @@ export function SystemImportsGeneralPage({
                   <button
                     className="secondary-button compact-action-button"
                     disabled={submitting}
-                    onClick={() => void onRunC6Settlement()}
-                    title="Forcar baixa automatica dos boletos C6 no Linx"
+                    onClick={() => void onRunLinxSettlement()}
+                    title="Forcar baixa automatica de todos os boletos pagos sem baixa no Linx"
                     type="button"
                   >
-                    Forcar baixa
+                    Forcar baixa geral
                   </button>
                   <button
                     className="primary-button compact-action-button"
@@ -267,7 +267,7 @@ export function SystemImportsGeneralPage({
               </div>
               <div className="billing-import-meta">
                 {renderBatchMeta(latestC6BoletoImport)}
-                <small className="compact-muted">CSV usado para conferir boletos faltando, retornos do C6 e disparar a baixa no Linx.</small>
+                <small className="compact-muted">CSV usado para conferir boletos faltando, retornos do C6 e alimentar os pagos sem baixa.</small>
                 {c6File ? (
                   <small className="compact-muted" title={c6File.name}>
                     Novo arquivo: {c6File.name}
