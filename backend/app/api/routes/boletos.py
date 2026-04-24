@@ -112,6 +112,14 @@ def _run_settlement_after_import(
         return joined_notes
 
 
+def _run_c6_settlement_after_import(company_id: str, batch_id: str) -> str:
+    return _run_settlement_after_import(
+        company_id,
+        batch_id,
+        filter_banks={"C6"},
+    )
+
+
 @router.get("/dashboard", response_model=BoletoDashboardRead)
 def get_boleto_dashboard(
     db: DbSession,
@@ -229,6 +237,30 @@ def trigger_linx_settlement(
     company = get_current_company(db)
     try:
         summary = settle_paid_pending_inter_receivables(db, company)
+    except ValueError as error:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return OperationResult(
+        message=_join_notes(_collect_settlement_notes(summary, include_empty_message=True))
+    )
+
+
+@router.post(
+    "/linx/c6-settlement",
+    response_model=OperationResult,
+    status_code=status.HTTP_201_CREATED,
+)
+def trigger_c6_linx_settlement(
+    db: DbSession,
+) -> OperationResult:
+    company = get_current_company(db)
+    try:
+        summary = settle_paid_pending_inter_receivables(
+            db,
+            company,
+            filter_banks={"C6"},
+        )
     except ValueError as error:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(error)) from error
