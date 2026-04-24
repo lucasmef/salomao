@@ -1,0 +1,95 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: read
+
+jobs:
+  backend-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --extra dev
+
+      - name: Lint changed backend Python files
+        working-directory: backend
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git -C .. fetch origin "${{ github.base_ref }}" --depth=1
+            BASE_REF="origin/${{ github.base_ref }}"
+            mapfile -t files < <(
+              git -C .. diff --name-only --diff-filter=ACMR "$BASE_REF"...HEAD -- 'backend/**/*.py' |
+              sed 's#^backend/##'
+            )
+          else
+            BEFORE="${{ github.event.before }}"
+            if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              mapfile -t files < <(git ls-files '*.py')
+            else
+              git -C .. fetch origin "$BEFORE" --depth=1 || true
+              mapfile -t files < <(
+                git -C .. diff --name-only --diff-filter=ACMR "$BEFORE" HEAD -- 'backend/**/*.py' |
+                sed 's#^backend/##'
+              )
+            fi
+          fi
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No backend Python files changed."
+            exit 0
+          fi
+
+          uv run ruff check "${files[@]}"
+
+      - name: Test backend
+        working-directory: backend
+        env:
+          PYTHONPATH: "."
+        run: uv run pytest
+
+  frontend-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck frontend
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build

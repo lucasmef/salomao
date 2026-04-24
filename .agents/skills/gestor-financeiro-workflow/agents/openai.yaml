@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gestor Financeiro Workflow"
+  short_description: "Fluxo seguro para evoluir o projeto."
+  default_prompt: "Use $gestor-financeiro-workflow ao trabalhar no projeto Gestor Financeiro."
