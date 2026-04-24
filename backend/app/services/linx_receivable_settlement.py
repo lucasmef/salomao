@@ -361,6 +361,7 @@ def _settle_candidates_in_portal(
         browser = playwright.chromium.launch(headless=settings.headless)
         context = browser.new_context()
         page = context.new_page()
+        _install_dialog_auto_accept(page)
         page.set_default_timeout(settings.timeout_ms)
         try:
             root_url = _login_and_get_report_root(page, settings, timeout_error_cls)
@@ -556,11 +557,6 @@ def _validate_receivable_confirmation_context(
     body_text = _read_body_text(page)
     normalized_body = _normalize_text(body_text)
 
-    if LINX_SETTLEMENT_PREVIOUS_OPEN_WARNING in normalized_body:
-        raise ValueError(
-            f"Double-check falhou para a fatura {invoice_number}: o Linx informou que existem faturas anteriores em aberto para este cliente."
-        )
-
     if not _page_mentions_invoice(page, invoice_number=invoice_number, normalized_body=normalized_body):
         raise ValueError(
             f"Double-check falhou para a fatura {invoice_number}: o numero da fatura nao apareceu de forma confiavel na tela do Linx."
@@ -719,9 +715,27 @@ def _page_mentions_invoice(page: Any, *, invoice_number: str, normalized_body: s
             return True
     invoice_patterns = (
         rf"NUMERO\s+DA\s+FATURA\s*:?\s*{re.escape(invoice_number)}",
+        rf"NUMERO\s+DA\s+FATURA\s*/\s*EMPRESA\s*:?\s*{re.escape(invoice_number)}(?:\s*/\s*\d+)?",
+        rf"NUMERO\s+DA\s+FATURA/EMPRESA\s*:?\s*{re.escape(invoice_number)}(?:\s*/\s*\d+)?",
         rf"FATURA\s*:?\s*{re.escape(invoice_number)}",
     )
     return any(re.search(pattern, normalized_body, flags=re.IGNORECASE) for pattern in invoice_patterns)
+
+
+def _install_dialog_auto_accept(page: Any) -> None:
+    if not hasattr(page, "on"):
+        return
+
+    def _handle_dialog(dialog: Any) -> None:
+        try:
+            dialog.accept()
+        except Exception:
+            return
+
+    try:
+        page.on("dialog", _handle_dialog)
+    except Exception:
+        return
 
 
 def _page_matches_client_name(page: Any, *, expected_client_name: str, normalized_body: str) -> bool:

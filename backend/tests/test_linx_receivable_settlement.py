@@ -20,9 +20,12 @@ from app.services.linx_receivable_settlement import (
     _build_settlement_candidates,
     _build_success_email,
     _client_names_match,
+    _install_dialog_auto_accept,
+    _page_mentions_invoice,
     _page_matches_due_date,
     _parse_brl_amount,
     _prepare_receivable_lookup_target,
+    _validate_receivable_confirmation_context,
     settle_paid_pending_inter_receivables,
 )
 
@@ -361,6 +364,118 @@ def test_page_matches_due_date_from_body_text() -> None:
         expected_due_date=date(2026, 4, 10),
         normalized_body="CLIENTE MARIA APARECIDA VENCIMENTO 10/04/2026 VALOR PAGO 170,50",
     )
+
+
+def test_page_mentions_invoice_accepts_numero_fatura_empresa_pattern() -> None:
+    class _BodyLocator:
+        def __init__(self, text: str) -> None:
+            self._text = text
+
+        def count(self) -> int:
+            return 1
+
+        @property
+        def first(self) -> "_BodyLocator":
+            return self
+
+        def inner_text(self) -> str:
+            return self._text
+
+    class _EmptyLocator:
+        def count(self) -> int:
+            return 0
+
+        @property
+        def first(self) -> "_EmptyLocator":
+            return self
+
+    class _Page:
+        def locator(self, selector: str):
+            if selector == "body":
+                return _BodyLocator("Numero da fatura/Empresa:\t53615/1")
+            return _EmptyLocator()
+
+    assert _page_mentions_invoice(
+        _Page(),
+        invoice_number="53615",
+        normalized_body="NUMERO DA FATURA/EMPRESA: 53615/1",
+    )
+
+
+def test_validate_receivable_confirmation_context_ignores_previous_open_warning_when_other_data_match() -> None:
+    values = {
+        "input[name='f_valorfatura']": "170,50",
+        "input[name='cliente']": "MARIANA DAMIAN SILVESTRE",
+        "input[name='data_vencimento']": "10/04/2026",
+    }
+    body_text = (
+        "Existe(m) fatura(s) em aberto deste cliente com vencimento anterior a esta "
+        "Numero da fatura/Empresa: 53615/1 "
+        "Cliente: MARIANA DAMIAN SILVESTRE "
+        "Vencimento: 10/04/2026 "
+        "Valor da Fatura: 170,50"
+    )
+
+    class _Locator:
+        def __init__(self, value: str = "", *, text: str | None = None, exists: bool = True) -> None:
+            self._value = value
+            self._text = text if text is not None else value
+            self._exists = exists
+
+        def count(self) -> int:
+            return 1 if self._exists else 0
+
+        @property
+        def first(self) -> "_Locator":
+            return self
+
+        def input_value(self) -> str:
+            return self._value
+
+        def inner_text(self) -> str:
+            return self._text
+
+        def text_content(self) -> str:
+            return self._text
+
+    class _Page:
+        def locator(self, selector: str) -> _Locator:
+            if selector == "body":
+                return _Locator(text=body_text)
+            if selector in values:
+                return _Locator(values[selector])
+            return _Locator(exists=False)
+
+    _validate_receivable_confirmation_context(
+        _Page(),
+        invoice_number="53615",
+        expected_client_name="MARIANA DAMIAN SILVESTRE",
+        expected_due_date=date(2026, 4, 10),
+        expected_amount=Decimal("170.50"),
+    )
+
+
+def test_install_dialog_auto_accept_registers_dialog_handler() -> None:
+    registered: dict[str, object] = {}
+
+    class _Dialog:
+        def __init__(self) -> None:
+            self.accepted = False
+
+        def accept(self) -> None:
+            self.accepted = True
+
+    class _Page:
+        def on(self, event_name: str, handler) -> None:
+            registered[event_name] = handler
+
+    page = _Page()
+    _install_dialog_auto_accept(page)
+
+    assert "dialog" in registered
+    dialog = _Dialog()
+    registered["dialog"](dialog)
+    assert dialog.accepted is True
 
 
 def test_prepare_receivable_lookup_target_retries_when_invoice_field_is_missing(monkeypatch) -> None:
