@@ -1120,7 +1120,7 @@ def _build_success_email(
     html_body = "".join(
         [
             "<html><body style='font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111827;line-height:1.35'>",
-            f"<div style='max-width:720px'>",
+            "<div style='max-width:720px'>",
             f"<h2 style='margin:0 0 10px;font-size:18px;line-height:1.25'>{escape(subject)}</h2>",
             (
                 f"<p style='margin:0 0 10px;font-size:12px;line-height:1.35'>"

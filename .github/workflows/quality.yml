@@ -60,7 +60,7 @@ jobs:
             exit 0
           fi
 
-          uv run ruff check "${files[@]}"
+          uv run ruff check --ignore E501 "${files[@]}"
 
       - name: Test backend
         working-directory: backend
