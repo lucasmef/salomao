@@ -2293,7 +2293,7 @@ textarea {
 }
 
 .entry-form-section-compact {
-  grid-column: span 1;
+  grid-column: 1 / -1;
 }
 
 .entry-form-section-title {

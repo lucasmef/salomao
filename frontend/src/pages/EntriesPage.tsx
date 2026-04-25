@@ -1725,9 +1725,9 @@ export function EntriesPage({
                   <span>Emissão, competência e vencimento</span>
                 </div>
                 <div className="entry-form-section-grid entry-form-date-grid">
-              <label>Emissão<input autoFocus type="date" value={form.issue_date} onChange={(event) => setForm({ ...form, issue_date: event.target.value })} /></label>
-              <label>Competência<input type="date" value={form.competence_date} onChange={(event) => setForm({ ...form, competence_date: event.target.value })} /></label>
-              <label>Vencimento<input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} /></label>
+                  <label>Emissão<input autoFocus type="date" value={form.issue_date} onChange={(event) => setForm({ ...form, issue_date: event.target.value })} /></label>
+                  <label>Competência<input type="date" value={form.competence_date} onChange={(event) => setForm({ ...form, competence_date: event.target.value })} /></label>
+                  <label>Vencimento<input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} /></label>
                 </div>
               </section>
 
@@ -1737,22 +1737,22 @@ export function EntriesPage({
                   <span>Identificação, natureza e classificação do lançamento</span>
                 </div>
                 <div className="entry-form-section-grid entry-form-main-grid">
-              <label>
+                  <label>
                 Status
                 <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
                   <option value="open">Em aberto</option>
                   <option value="settled">Pago</option>
                 </select>
-              </label>
-              <label>
+                  </label>
+                  <label>
                 Tipo
                 <select value={form.entry_type} onChange={(event) => setForm({ ...form, entry_type: event.target.value, category_id: "" })}>
                   <option value="expense">Despesa</option>
                   <option value="income">Receita</option>
                 </select>
-              </label>
-              <label>Título<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="Se vazio, usa a categoria" /></label>
-              <label>
+                  </label>
+                  <label>Título<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="Se vazio, usa a categoria" /></label>
+                  <label>
                 Fornecedor {supplierRequired ? "*" : ""}
                 <Select<EntryFormOption, false>
                   classNamePrefix="react-select"
