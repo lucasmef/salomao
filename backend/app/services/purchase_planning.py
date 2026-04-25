@@ -1862,15 +1862,6 @@ def create_purchase_return(
     )
     db.add(purchase_return)
     db.flush()
-    if _purchase_return_status_index(normalized_status) >= _purchase_return_status_index(PURCHASE_RETURN_APPROVAL_STATUS):
-        _ensure_purchase_return_refund_entry(
-            db,
-            company,
-            purchase_return,
-            actor_user,
-            supplier_name=supplier.name,
-        )
-        db.flush()
     purchase_return = db.scalar(
         select(PurchaseReturn)
         .where(PurchaseReturn.id == purchase_return.id)
@@ -1923,21 +1914,6 @@ def update_purchase_return(
     purchase_return.invoice_number = payload.invoice_number.strip() if payload.invoice_number else None
     purchase_return.status = next_status
     purchase_return.notes = payload.notes
-    if _purchase_return_status_index(next_status) >= _purchase_return_status_index(PURCHASE_RETURN_APPROVAL_STATUS):
-        _ensure_purchase_return_refund_entry(
-            db,
-            company,
-            purchase_return,
-            actor_user,
-            supplier_name=supplier.name,
-        )
-    else:
-        _remove_purchase_return_refund_entry(
-            db,
-            company,
-            purchase_return,
-            actor_user,
-        )
     db.flush()
     write_audit_log(
         db,
@@ -1958,8 +1934,6 @@ def delete_purchase_return(
     purchase_return_id: str,
     actor_user: User,
 ) -> None:
-    from app.services.finance_ops import delete_entry
-
     purchase_return = db.scalar(
         select(PurchaseReturn)
         .where(PurchaseReturn.id == purchase_return_id, PurchaseReturn.company_id == company.id)
@@ -1969,10 +1943,6 @@ def delete_purchase_return(
         raise HTTPException(status_code=404, detail="Devolucao de compra nao encontrada")
 
     before_state = _serialize_purchase_return(purchase_return).model_dump(mode="json")
-    if purchase_return.refund_entry_id:
-        refund_entry = db.get(FinancialEntry, purchase_return.refund_entry_id)
-        if refund_entry is not None and refund_entry.company_id == company.id and not refund_entry.is_deleted:
-            delete_entry(db, company, refund_entry.id, actor_user)
     db.delete(purchase_return)
     db.flush()
     write_audit_log(

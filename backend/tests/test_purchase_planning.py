@@ -366,11 +366,45 @@ def test_purchase_return_crud_flow(db_session: Session) -> None:
     assert list_purchase_returns(db_session, company, year=2026, limit=20) == []
 
 
-def test_purchase_return_workflow_generates_single_refund_entry_on_approval(
+def test_purchase_return_approval_does_not_generate_refund_entry(
     db_session: Session,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(purchase_planning_service, "_today", lambda: date(2026, 4, 15))
+    company, user = create_company_context(db_session)
+    supplier = create_supplier(db_session, company.id, "Fornecedor Aprovado")
+
+    created = create_purchase_return(
+        db_session,
+        company,
+        PurchaseReturnCreate(
+            supplier_id=supplier.id,
+            return_date=date(2026, 4, 1),
+            amount=Decimal("180.50"),
+            invoice_number="NF-200",
+            status="refund_approved",
+            notes="Reembolso aprovado sem lancamento automatico",
+        ),
+        user,
+    )
+    db_session.flush()
+
+    purchase_return = db_session.get(purchasing_models.PurchaseReturn, created.id)
+    assert purchase_return is not None
+    assert purchase_return.refund_entry_id is None
+    refund_entries = list(
+        db_session.scalars(
+            select(finance_models.FinancialEntry).where(
+                finance_models.FinancialEntry.company_id == company.id,
+                finance_models.FinancialEntry.source_system == "purchase_return_workflow",
+                finance_models.FinancialEntry.is_deleted.is_(False),
+            )
+        )
+    )
+    assert refund_entries == []
+
+
+def test_purchase_return_update_does_not_generate_refund_entry(
+    db_session: Session,
+) -> None:
     company, user = create_company_context(db_session)
     supplier = create_supplier(db_session, company.id, "Fornecedor Workflow")
 
@@ -407,87 +441,6 @@ def test_purchase_return_workflow_generates_single_refund_entry_on_approval(
 
     purchase_return = db_session.get(purchasing_models.PurchaseReturn, created.id)
     assert purchase_return is not None
-    assert purchase_return.refund_entry_id is not None
-
-    refund_entry = db_session.get(finance_models.FinancialEntry, purchase_return.refund_entry_id)
-    assert refund_entry is not None
-    assert refund_entry.entry_type == "income"
-    assert refund_entry.status == "open"
-    assert refund_entry.supplier_id == supplier.id
-    assert refund_entry.document_number == "NF-200"
-    assert refund_entry.due_date == date(2026, 4, 15)
-    assert refund_entry.issue_date == date(2026, 4, 15)
-    assert refund_entry.total_amount == Decimal("180.50")
-    refund_category = db_session.get(finance_models.Category, refund_entry.category_id)
-    assert refund_category is not None
-    assert refund_category.name == "Devolucoes de Compra"
-    assert refund_category.entry_kind == "income"
-
-    transfer_category = db_session.scalar(
-        select(finance_models.Category).where(
-            finance_models.Category.company_id == company.id,
-            finance_models.Category.name == "Transferencia entre Contas",
-        )
-    )
-    assert transfer_category is not None
-    refund_entry.entry_type = "historical_purchase_return"
-    refund_entry.category_id = transfer_category.id
-
-    update_purchase_return(
-        db_session,
-        company,
-        created.id,
-        PurchaseReturnUpdate(
-            supplier_id=supplier.id,
-            return_date=date(2026, 4, 1),
-            amount=Decimal("180.50"),
-            invoice_number="NF-200",
-            status="refunded",
-            notes="Recebivel ja gerado",
-        ),
-        user,
-    )
-    db_session.flush()
-    db_session.refresh(refund_entry)
-    assert refund_entry.entry_type == "income"
-    repaired_category = db_session.get(finance_models.Category, refund_entry.category_id)
-    assert repaired_category is not None
-    assert repaired_category.name == "Devolucoes de Compra"
-
-    update_purchase_return(
-        db_session,
-        company,
-        created.id,
-        PurchaseReturnUpdate(
-            supplier_id=supplier.id,
-            return_date=date(2026, 4, 1),
-            amount=Decimal("180.50"),
-            invoice_number="NF-200",
-            status="refund_approved",
-            notes="Volta um passo",
-        ),
-        user,
-    )
-    db_session.flush()
-
-    update_purchase_return(
-        db_session,
-        company,
-        created.id,
-        PurchaseReturnUpdate(
-            supplier_id=supplier.id,
-            return_date=date(2026, 4, 1),
-            amount=Decimal("180.50"),
-            invoice_number="NF-200",
-            status="factory_pending",
-            notes="Retrocesso livre permitido",
-        ),
-        user,
-    )
-    db_session.flush()
-
-    purchase_return = db_session.get(purchasing_models.PurchaseReturn, created.id)
-    assert purchase_return is not None
     assert purchase_return.refund_entry_id is None
 
     active_refund_entries = list(
@@ -500,6 +453,124 @@ def test_purchase_return_workflow_generates_single_refund_entry_on_approval(
         )
     )
     assert active_refund_entries == []
+
+
+def test_purchase_return_update_preserves_existing_refund_entry(
+    db_session: Session,
+) -> None:
+    company, user = create_company_context(db_session)
+    supplier = create_supplier(db_session, company.id, "Fornecedor Antigo")
+    legacy_category = finance_models.Category(
+        company_id=company.id,
+        code="LEGACY-RET",
+        name="Transferencia entre Contas",
+        entry_kind="transfer",
+        report_group="Movimentacoes Internas",
+        report_subgroup="Transferencias Internas",
+        is_active=True,
+    )
+    db_session.add(legacy_category)
+    created = create_purchase_return(
+        db_session,
+        company,
+        PurchaseReturnCreate(
+            supplier_id=supplier.id,
+            return_date=date(2026, 4, 1),
+            amount=Decimal("180.50"),
+            invoice_number="NF-200",
+            status="request_open",
+            notes="Aguardando retorno da fabrica",
+        ),
+        user,
+    )
+    db_session.flush()
+    purchase_return = db_session.get(purchasing_models.PurchaseReturn, created.id)
+    assert purchase_return is not None
+    legacy_entry = finance_models.FinancialEntry(
+        company_id=company.id,
+        category_id=legacy_category.id,
+        supplier_id=supplier.id,
+        entry_type="historical_purchase_return",
+        status="open",
+        title="Recebivel antigo",
+        description="Recebivel gerado automaticamente ao aprovar devolucao de compra",
+        counterparty_name=supplier.name,
+        document_number="NF-200",
+        issue_date=date(2026, 4, 15),
+        competence_date=date(2026, 4, 15),
+        due_date=date(2026, 4, 15),
+        principal_amount=Decimal("180.50"),
+        total_amount=Decimal("180.50"),
+        paid_amount=Decimal("0.00"),
+        source_system="purchase_return_workflow",
+        source_reference=purchase_return.id,
+        is_deleted=False,
+    )
+    db_session.add(legacy_entry)
+    db_session.flush()
+    purchase_return.refund_entry_id = legacy_entry.id
+    db_session.flush()
+
+    update_purchase_return(
+        db_session,
+        company,
+        created.id,
+        PurchaseReturnUpdate(
+            supplier_id=supplier.id,
+            return_date=date(2026, 4, 1),
+            amount=Decimal("180.50"),
+            invoice_number="NF-200",
+            status="refunded",
+            notes="Recebivel antigo preservado",
+        ),
+        user,
+    )
+    db_session.flush()
+    db_session.refresh(legacy_entry)
+    assert legacy_entry.entry_type == "historical_purchase_return"
+    assert legacy_entry.category_id == legacy_category.id
+    assert legacy_entry.is_deleted is False
+
+    delete_purchase_return(db_session, company, created.id, user)
+    db_session.flush()
+    db_session.refresh(legacy_entry)
+    assert legacy_entry.is_deleted is False
+
+
+def test_purchase_return_refunded_status_does_not_generate_refund_entry(
+    db_session: Session,
+) -> None:
+    company, user = create_company_context(db_session)
+    supplier = create_supplier(db_session, company.id, "Fornecedor Reembolsado")
+
+    created = create_purchase_return(
+        db_session,
+        company,
+        PurchaseReturnCreate(
+            supplier_id=supplier.id,
+            return_date=date(2026, 4, 1),
+            amount=Decimal("180.50"),
+            invoice_number="NF-201",
+            status="refunded",
+            notes="Reembolso ja recebido fora do fluxo",
+        ),
+        user,
+    )
+    db_session.flush()
+
+    purchase_return = db_session.get(purchasing_models.PurchaseReturn, created.id)
+    assert purchase_return is not None
+    assert purchase_return.refund_entry_id is None
+    refund_entries = list(
+        db_session.scalars(
+            select(finance_models.FinancialEntry).where(
+                finance_models.FinancialEntry.company_id == company.id,
+                finance_models.FinancialEntry.source_system == "purchase_return_workflow",
+                finance_models.FinancialEntry.is_deleted.is_(False),
+            )
+        )
+    )
+    assert refund_entries == []
 
 
 def test_delete_purchase_plan_removes_unlinked_plan(db_session: Session) -> None:
