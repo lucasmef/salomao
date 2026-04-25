@@ -1708,8 +1708,23 @@ export function EntriesPage({
       {showEntryModal && (
         <div className="modal-backdrop">
           <div className="modal-card compact-entry-modal">
-            <div className="panel-title compact-title-row">
-              <h3>{editingId ? "Editar lançamento" : "Novo lançamento"}</h3>
+            <div className="entry-modal-topbar">
+              <div className="entry-status-toggle" aria-label="Status do lançamento">
+                <button
+                  className={form.status === "open" ? "is-active" : ""}
+                  onClick={() => setForm({ ...form, status: "open" })}
+                  type="button"
+                >
+                  Em aberto
+                </button>
+                <button
+                  className={form.status === "settled" ? "is-active" : ""}
+                  onClick={() => setForm({ ...form, status: "settled" })}
+                  type="button"
+                >
+                  Pago
+                </button>
+              </div>
               <ModalCloseButton
                 onClick={() => {
                   setShowEntryModal(false);
@@ -1737,13 +1752,6 @@ export function EntriesPage({
                   <span>Identificação, natureza e classificação do lançamento</span>
                 </div>
                 <div className="entry-form-section-grid entry-form-main-grid">
-                  <label>
-                Status
-                <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
-                  <option value="open">Em aberto</option>
-                  <option value="settled">Pago</option>
-                </select>
-                  </label>
                   <label>
                 Tipo
                 <select value={form.entry_type} onChange={(event) => setForm({ ...form, entry_type: event.target.value, category_id: "" })}>
@@ -1812,7 +1820,7 @@ export function EntriesPage({
               <label>Juros<MoneyInput value={form.interest_amount} onValueChange={(value) => setForm({ ...form, interest_amount: value })} /></label>
               <label>Desconto<MoneyInput value={form.discount_amount} onValueChange={(value) => setForm({ ...form, discount_amount: value })} /></label>
               <label>Multa<MoneyInput value={form.penalty_amount} onValueChange={(value) => setForm({ ...form, penalty_amount: value })} /></label>
-              <label>
+              <label className="entry-total-field">
                 Total
                 <input value={formatMoney(entryPreviewTotal)} disabled readOnly />
               </label>
