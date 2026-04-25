@@ -411,13 +411,27 @@ def test_purchase_return_workflow_generates_single_refund_entry_on_approval(
 
     refund_entry = db_session.get(finance_models.FinancialEntry, purchase_return.refund_entry_id)
     assert refund_entry is not None
-    assert refund_entry.entry_type == "historical_purchase_return"
+    assert refund_entry.entry_type == "income"
     assert refund_entry.status == "open"
     assert refund_entry.supplier_id == supplier.id
     assert refund_entry.document_number == "NF-200"
     assert refund_entry.due_date == date(2026, 4, 15)
     assert refund_entry.issue_date == date(2026, 4, 15)
     assert refund_entry.total_amount == Decimal("180.50")
+    refund_category = db_session.get(finance_models.Category, refund_entry.category_id)
+    assert refund_category is not None
+    assert refund_category.name == "Devolucoes de Compra"
+    assert refund_category.entry_kind == "income"
+
+    transfer_category = db_session.scalar(
+        select(finance_models.Category).where(
+            finance_models.Category.company_id == company.id,
+            finance_models.Category.name == "Transferencia entre Contas",
+        )
+    )
+    assert transfer_category is not None
+    refund_entry.entry_type = "historical_purchase_return"
+    refund_entry.category_id = transfer_category.id
 
     update_purchase_return(
         db_session,
@@ -434,6 +448,11 @@ def test_purchase_return_workflow_generates_single_refund_entry_on_approval(
         user,
     )
     db_session.flush()
+    db_session.refresh(refund_entry)
+    assert refund_entry.entry_type == "income"
+    repaired_category = db_session.get(finance_models.Category, refund_entry.category_id)
+    assert repaired_category is not None
+    assert repaired_category.name == "Devolucoes de Compra"
 
     update_purchase_return(
         db_session,

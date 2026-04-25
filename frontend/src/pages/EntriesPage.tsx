@@ -1718,10 +1718,25 @@ export function EntriesPage({
                 }}
               />
             </div>
-            <form className="form-grid dense wide entry-form-grid" onSubmit={handleSubmit}>
+            <form className="form-grid dense wide entry-form-grid entry-form-layout" onSubmit={handleSubmit}>
+              <section className="entry-form-section">
+                <div className="entry-form-section-title">
+                  <h4>Datas</h4>
+                  <span>Emissão, competência e vencimento</span>
+                </div>
+                <div className="entry-form-section-grid entry-form-date-grid">
               <label>Emissão<input autoFocus type="date" value={form.issue_date} onChange={(event) => setForm({ ...form, issue_date: event.target.value })} /></label>
               <label>Competência<input type="date" value={form.competence_date} onChange={(event) => setForm({ ...form, competence_date: event.target.value })} /></label>
               <label>Vencimento<input type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} /></label>
+                </div>
+              </section>
+
+              <section className="entry-form-section">
+                <div className="entry-form-section-title">
+                  <h4>Dados principais</h4>
+                  <span>Identificação, natureza e classificação do lançamento</span>
+                </div>
+                <div className="entry-form-section-grid entry-form-main-grid">
               <label>
                 Status
                 <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
@@ -1784,6 +1799,15 @@ export function EntriesPage({
                   {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </select>
               </label>
+                </div>
+              </section>
+
+              <section className="entry-form-section entry-form-section-compact">
+                <div className="entry-form-section-title">
+                  <h4>Valores</h4>
+                  <span>Total calculado automaticamente</span>
+                </div>
+                <div className="entry-form-section-grid entry-form-amount-grid">
               <label className="amount-primary-field">Principal<MoneyInput value={form.principal_amount} onValueChange={(value) => setForm({ ...form, principal_amount: value })} /></label>
               <label>Juros<MoneyInput value={form.interest_amount} onValueChange={(value) => setForm({ ...form, interest_amount: value })} /></label>
               <label>Desconto<MoneyInput value={form.discount_amount} onValueChange={(value) => setForm({ ...form, discount_amount: value })} /></label>
@@ -1792,7 +1816,16 @@ export function EntriesPage({
                 Total
                 <input value={formatMoney(entryPreviewTotal)} disabled readOnly />
               </label>
+                </div>
+              </section>
+
+              <section className="entry-form-section entry-form-section-compact">
+                <div className="entry-form-section-title">
+                  <h4>Observação</h4>
+                  <span>Detalhes internos do lançamento</span>
+                </div>
               <label className="span-three entry-form-observation">Observação<textarea rows={4} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value, description: "" })} /></label>
+              </section>
               <div className="action-row">
                 <button className={`primary-button ${submitting ? "is-loading" : ""}`} disabled={submitting} type="submit">{editingId ? "Salvar alterações" : "Criar lançamento"}</button>
                 <button

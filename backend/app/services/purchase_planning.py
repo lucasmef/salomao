@@ -1085,6 +1085,7 @@ def _sync_purchase_return_refund_entry(
         return
     entry.category_id = _purchase_return_refund_category_id(db, company.id)
     entry.supplier_id = purchase_return.supplier_id
+    entry.entry_type = "income"
     entry.title = _purchase_return_refund_title(purchase_return, supplier_name)
     entry.description = "Recebivel gerado automaticamente ao aprovar devolucao de compra"
     entry.notes = purchase_return.notes
@@ -1122,7 +1123,7 @@ def _ensure_purchase_return_refund_entry(
         FinancialEntryCreate(
             category_id=_purchase_return_refund_category_id(db, company.id),
             supplier_id=purchase_return.supplier_id,
-            entry_type="historical_purchase_return",
+            entry_type="income",
             status=OPEN_STATUS,
             title=_purchase_return_refund_title(purchase_return, supplier_name),
             description="Recebivel gerado automaticamente ao aprovar devolucao de compra",
