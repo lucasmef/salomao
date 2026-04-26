@@ -288,6 +288,52 @@ def test_brand_basis_uses_product_brand_and_does_not_create_supplier_row(db_sess
     assert "Não classificados" not in rows_by_brand
 
 
+def test_brand_basis_unmatched_product_brand_stays_unclassified(db_session: Session) -> None:
+    company, user = create_company_context(db_session)
+    create_collection(db_session, company, "Inverno 2026")
+    veste = create_supplier(db_session, company.id, "Veste")
+    create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="John John",
+            planning_basis="brand",
+            linx_brand_names=["John John"],
+            supplier_ids=[veste.id],
+        ),
+        user,
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=103,
+        brand_name="Marca Sem Mapeamento",
+        supplier_name="Veste",
+        collection_name="Inverno 2026",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=103,
+        product_code=103,
+        document_number="103",
+        movement_type="purchase_return",
+        total_amount=Decimal("90.00"),
+        launch_date=date(2026, 7, 10),
+    )
+
+    overview = build_purchase_planning_overview(
+        db_session,
+        company,
+        PurchasePlanningFilters(year=2026),
+        mode="planning",
+    )
+    rows_by_brand = {row.brand_name: row for row in overview.rows}
+
+    assert rows_by_brand["Não classificados"].returns_total == Decimal("90.00")
+    assert rows_by_brand["Não classificados"].supplier_names == ["Veste"]
+
+
 def create_linx_product(
     db: Session,
     company: Company,
@@ -1549,7 +1595,7 @@ def test_planning_overview_keeps_supplier_ids_for_sem_marca_rows(db_session: Ses
     db_session.commit()
 
     overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters())
-    sem_marca_row = next(row for row in overview.rows if row.brand_name == "Sem marca")
+    sem_marca_row = next(row for row in overview.rows if row.brand_name == "Não classificados")
 
     assert sem_marca_row.supplier_ids == [supplier.id]
     assert sem_marca_row.supplier_names == ["Fornecedor Sem Marca"]
@@ -1597,7 +1643,7 @@ def test_planning_overview_ignores_non_purchase_entries_in_sem_marca(db_session:
     db_session.commit()
 
     overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters())
-    sem_marca_row = next(row for row in overview.rows if row.brand_name == "Sem marca")
+    sem_marca_row = next(row for row in overview.rows if row.brand_name == "Não classificados")
 
     assert sem_marca_row.supplier_ids == [purchase_supplier.id]
     assert sem_marca_row.supplier_names == ["Fornecedor Compra"]

@@ -2449,6 +2449,33 @@ export function PurchasePlanningPage({
     );
   }
 
+  async function deleteCollectionOrderDraft(index: number) {
+    if (!collectionOrdersModal) return;
+    const draft = collectionOrdersModal.drafts[index];
+    if (!draft) return;
+    if (!draft.planId) {
+      setCollectionOrdersModal((current) =>
+        current
+          ? {
+              ...current,
+              drafts: current.drafts.filter((_, draftIndex) => draftIndex !== index),
+            }
+          : current,
+      );
+      return;
+    }
+    if (!window.confirm("Excluir este pedido?")) return;
+    await onDeletePlan(draft.planId);
+    setCollectionOrdersModal((current) =>
+      current
+        ? {
+            ...current,
+            drafts: current.drafts.filter((_, draftIndex) => draftIndex !== index),
+          }
+        : current,
+    );
+  }
+
   async function handleSaveCollectionOrders() {
     if (!collectionOrdersModal) return;
     const snapshot = planningBrands.find(
@@ -4822,6 +4849,7 @@ export function PurchasePlanningPage({
                   <th>Pedido</th>
                   <th className="numeric-cell">Valor</th>
                   <th>Observação</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -4857,6 +4885,15 @@ export function PurchasePlanningPage({
                         placeholder="Observação do pedido"
                         rows={2}
                       />
+                    </td>
+                    <td>
+                      <button
+                        className="ghost-button danger-text-action"
+                        type="button"
+                        onClick={() => void deleteCollectionOrderDraft(index)}
+                      >
+                        Excluir
+                      </button>
                     </td>
                   </tr>
                 ))}
