@@ -4403,27 +4403,25 @@ export function PurchasePlanningPage({
                   />
                 </label>
               )}
-              <label className="brand-modal-field brand-modal-field--suppliers">
-                <Select<SelectOption, true>
-                  options={brandSupplierOptions}
-                  value={selectedBrandSupplierOptions}
-                  onChange={(options) =>
-                    setBrandModal((current) => ({
-                      ...current,
-                      supplier_ids: asMultiValue(options),
-                    }))
-                  }
-                  isMulti
-                  isClearable
-                  placeholder={
-                    brandModal.planning_basis === "brand"
-                      ? "Fornecedores relacionados"
-                      : "Fornecedores"
-                  }
-                  styles={purchaseSelectStyles}
-                  menuPortalTarget={portalTarget}
-                />
-              </label>
+              {brandModal.planning_basis === "supplier" && (
+                <label className="brand-modal-field brand-modal-field--suppliers">
+                  <Select<SelectOption, true>
+                    options={brandSupplierOptions}
+                    value={selectedBrandSupplierOptions}
+                    onChange={(options) =>
+                      setBrandModal((current) => ({
+                        ...current,
+                        supplier_ids: asMultiValue(options),
+                      }))
+                    }
+                    isMulti
+                    isClearable
+                    placeholder="Fornecedores"
+                    styles={purchaseSelectStyles}
+                    menuPortalTarget={portalTarget}
+                  />
+                </label>
+              )}
               <label className="brand-modal-field brand-modal-field--notes">
                 <input
                   placeholder="Observações"

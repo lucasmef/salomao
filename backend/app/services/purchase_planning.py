@@ -5586,11 +5586,21 @@ def build_purchase_planning_overview(
         )
         if filters.brand_id and supplier_brand_id != filters.brand_id:
             continue
+        if supplier_brand_id is None and is_supplier_covered(supplier.id if supplier else None):
+            continue
 
         matched_row = False
         for row in aggregates.values():
             row_collection_key = _normalize_collection_lookup_key(str(row["collection_name"]))
             if row_collection_key != collection_key:
+                continue
+            row_brand_id = str(row["brand_id"]) if row["brand_id"] else None
+            row_brand_name = str(row["brand_name"]) if row["brand_name"] else None
+            if supplier_brand_id and row_brand_id != supplier_brand_id:
+                continue
+            if supplier_brand_id is None and row_brand_id is not None:
+                continue
+            if supplier_brand_id is None and row_brand_name != "Não classificados":
                 continue
             supplier_names = row["supplier_names"] if isinstance(row["supplier_names"], list) else []
             if supplier_names and not any(_supplier_lookup_keys(name) & _supplier_lookup_keys(cost_total.supplier_name) for name in supplier_names):

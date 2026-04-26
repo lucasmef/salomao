@@ -278,17 +278,41 @@ def test_brand_basis_uses_product_brand_and_does_not_create_supplier_row(db_sess
         amount=Decimal("200.00"),
         issue_date=datetime(2026, 7, 11),
     )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=101,
+        product_code=101,
+        document_number="101",
+        movement_type="purchase_return",
+        total_amount=Decimal("50.00"),
+        launch_date=date(2026, 7, 12),
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=102,
+        product_code=102,
+        document_number="102",
+        movement_type="purchase_return",
+        total_amount=Decimal("70.00"),
+        launch_date=date(2026, 7, 13),
+    )
 
     overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters(year=2026), mode="planning")
     rows_by_brand = {row.brand_name: row for row in overview.rows}
 
     assert rows_by_brand["John John"].sold_total == Decimal("300.00")
+    assert rows_by_brand["John John"].returns_total == Decimal("50.00")
     assert rows_by_brand["Dudalina"].sold_total == Decimal("200.00")
+    assert rows_by_brand["Dudalina"].returns_total == Decimal("70.00")
     assert "Veste" not in rows_by_brand
     assert "Não classificados" not in rows_by_brand
 
 
-def test_brand_basis_unmatched_product_brand_stays_unclassified(db_session: Session) -> None:
+def test_brand_basis_unmatched_product_brand_supplier_does_not_create_supplier_row(
+    db_session: Session,
+) -> None:
     company, user = create_company_context(db_session)
     create_collection(db_session, company, "Inverno 2026")
     veste = create_supplier(db_session, company.id, "Veste")
@@ -330,8 +354,8 @@ def test_brand_basis_unmatched_product_brand_stays_unclassified(db_session: Sess
     )
     rows_by_brand = {row.brand_name: row for row in overview.rows}
 
-    assert rows_by_brand["Não classificados"].returns_total == Decimal("90.00")
-    assert rows_by_brand["Não classificados"].supplier_names == ["Veste"]
+    assert "Veste" not in rows_by_brand
+    assert "Não classificados" not in rows_by_brand
 
 
 def create_linx_product(
