@@ -465,6 +465,24 @@ function buildPurchaseNetDisplayLine(
   return `(-) ${formatPurchaseDisplayAmount(returnsAmount)} = ${formatPurchaseDisplayAmount(netAmount)}`;
 }
 
+function calculateEditablePlanAmountForTargetTotal(
+  targetTotal: string | number | null | undefined,
+  plans: PurchasePlan[],
+  editablePlan: PurchasePlan | null,
+) {
+  const targetTotalCents = toCents(targetTotal);
+  if (!editablePlan) {
+    return centsToAmount(targetTotalCents);
+  }
+
+  const otherPlansCents = plans.reduce(
+    (sum, plan) =>
+      plan.id === editablePlan.id ? sum : sum + toCents(plan.purchased_amount),
+    0,
+  );
+  return centsToAmount(targetTotalCents - otherPlansCents);
+}
+
 function renderOutstandingReceiptHint(
   outstandingAmount: string | number | null | undefined,
 ) {
@@ -2148,8 +2166,13 @@ export function PurchasePlanningPage({
     const editablePlan = inlinePlanEdit.plan_id
       ? collectionSnapshot?.plans.find(
           (plan) => plan.id === inlinePlanEdit.plan_id,
-        )
+        ) ?? null
       : getInlineEditablePlan(collectionSnapshot);
+    const purchasedAmount = calculateEditablePlanAmountForTargetTotal(
+      normalizedAmount,
+      collectionSnapshot?.plans ?? [],
+      editablePlan,
+    );
     const supplierIds = editablePlan?.supplier_ids?.length
       ? editablePlan.supplier_ids
       : snapshot.supplierIds;
@@ -2171,7 +2194,7 @@ export function PurchasePlanningPage({
       order_date: editablePlan?.order_date ?? today,
       expected_delivery_date:
         editablePlan?.expected_delivery_date ?? collection.end_date,
-      purchased_amount: normalizedAmount,
+      purchased_amount: purchasedAmount,
       payment_term: paymentTerm,
       status: editablePlan?.status === "planned" ? "open" : editablePlan?.status ?? "open",
       notes: editablePlan?.notes ?? null,
