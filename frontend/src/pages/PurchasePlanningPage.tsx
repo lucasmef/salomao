@@ -40,6 +40,7 @@ type Props = {
   embedded?: boolean;
   view: PurchasePlanningView;
   brands: PurchaseBrand[];
+  linxBrandNames: string[];
   collections: CollectionSeason[];
   suppliers: Supplier[];
   purchaseSuppliers: Supplier[];
@@ -110,7 +111,7 @@ type BrandModalState = {
   id: string | null;
   name: string;
   planning_basis: "brand" | "supplier";
-  linx_brand_names: string;
+  linx_brand_names: string[];
   supplier_ids: string[];
   default_payment_term: string;
   notes: string;
@@ -302,17 +303,6 @@ const PURCHASE_RETURN_STATUS_LABELS = Object.fromEntries(
   PURCHASE_RETURN_STATUS_OPTIONS.map((option) => [option.value, option.label]),
 ) as Record<string, string>;
 
-function parseLinxBrandNames(value: string) {
-  return Array.from(
-    new Set(
-      value
-        .split(/[\n,;]/)
-        .map((item) => item.trim())
-        .filter(Boolean),
-    ),
-  );
-}
-
 const emptySupplierModal = (): SupplierModalState => ({
   id: null,
   name: "",
@@ -325,7 +315,7 @@ const emptyBrandModal = (): BrandModalState => ({
   id: null,
   name: "",
   planning_basis: "supplier",
-  linx_brand_names: "",
+  linx_brand_names: [],
   supplier_ids: [],
   default_payment_term: "1x",
   notes: "",
@@ -828,6 +818,7 @@ function EyeIcon() {
 export function PurchasePlanningPage({
   view,
   brands,
+  linxBrandNames,
   collections,
   suppliers,
   purchaseSuppliers,
@@ -979,6 +970,22 @@ export function PurchasePlanningPage({
       ),
     [suppliers],
   );
+  const linxBrandOptions = useMemo<SelectOption[]>(
+    () =>
+      sortByLabel(
+        Array.from(
+          new Set([
+            ...linxBrandNames,
+            ...brands.flatMap((brand) => brand.linx_brand_names ?? []),
+            ...brandModal.linx_brand_names,
+          ].filter(Boolean)),
+        ).map((brandName) => ({
+          value: brandName,
+          label: brandName,
+        })),
+      ),
+    [brandModal.linx_brand_names, brands, linxBrandNames],
+  );
   const purchaseSupplierOptions = useMemo<SelectOption[]>(
     () =>
       sortByLabel(
@@ -1101,6 +1108,9 @@ export function PurchasePlanningPage({
     null;
   const selectedBrandSupplierOptions = brandSupplierOptions.filter((option) =>
     brandModal.supplier_ids.includes(option.value),
+  );
+  const selectedLinxBrandOptions = linxBrandOptions.filter((option) =>
+    brandModal.linx_brand_names.includes(option.value),
   );
   const selectedCollectionSeasonTypeOption =
     SEASON_TYPE_OPTIONS.find(
@@ -1762,7 +1772,7 @@ export function PurchasePlanningPage({
             id: brand.id,
             name: brand.name,
             planning_basis: brand.planning_basis ?? "supplier",
-            linx_brand_names: (brand.linx_brand_names ?? []).join("\n"),
+            linx_brand_names: brand.linx_brand_names ?? [],
             supplier_ids: brand.supplier_ids,
             default_payment_term: brand.default_payment_term ?? "1x",
             notes: brand.notes ?? "",
@@ -1972,7 +1982,13 @@ export function PurchasePlanningPage({
     const payload = {
       name: brandModal.name.trim(),
       planning_basis: brandModal.planning_basis,
-      linx_brand_names: parseLinxBrandNames(brandModal.linx_brand_names),
+      linx_brand_names: Array.from(
+        new Set(
+          brandModal.linx_brand_names
+            .map((item) => item.trim())
+            .filter(Boolean),
+        ),
+      ),
       supplier_ids: Array.from(
         new Set(brandModal.supplier_ids.filter(Boolean)),
       ),
@@ -4215,16 +4231,21 @@ export function PurchasePlanningPage({
               </div>
               {brandModal.planning_basis === "brand" && (
                 <label className="brand-modal-field brand-modal-field--linx-brands">
-                  <textarea
-                    placeholder="Marcas da Linx, uma por linha"
-                    value={brandModal.linx_brand_names}
-                    onChange={(event) =>
+                  <Select<SelectOption, true>
+                    options={linxBrandOptions}
+                    value={selectedLinxBrandOptions}
+                    onChange={(options) =>
                       setBrandModal((current) => ({
                         ...current,
-                        linx_brand_names: event.target.value,
+                        linx_brand_names: asMultiValue(options),
                       }))
                     }
-                    rows={3}
+                    isMulti
+                    isClearable
+                    placeholder="Marcas"
+                    noOptionsMessage={() => "Nenhuma marca encontrada"}
+                    styles={purchaseSelectStyles}
+                    menuPortalTarget={portalTarget}
                   />
                 </label>
               )}

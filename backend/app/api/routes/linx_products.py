@@ -3,7 +3,7 @@ from fastapi import APIRouter, Query
 from app.api.deps import DbSession
 from app.schemas.linx_products import LinxProductDirectoryRead, LinxProductSearchRead
 from app.services.company_context import get_current_company
-from app.services.linx_products import list_linx_products, search_linx_products
+from app.services.linx_products import list_linx_product_brands, list_linx_products, search_linx_products
 
 router = APIRouter()
 
@@ -16,6 +16,15 @@ def search_products(
 ) -> LinxProductSearchRead:
     company = get_current_company(db)
     return search_linx_products(db, company, query=q, limit=limit)
+
+
+@router.get("/brands", response_model=list[str])
+def get_linx_product_brands(
+    db: DbSession,
+    limit: int = Query(default=500, ge=1, le=1000),
+) -> list[str]:
+    company = get_current_company(db)
+    return list_linx_product_brands(db, company, limit=limit)
 
 
 @router.get("", response_model=LinxProductDirectoryRead)

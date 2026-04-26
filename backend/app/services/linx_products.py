@@ -278,6 +278,21 @@ def list_linx_products(
     )
 
 
+def list_linx_product_brands(db: Session, company: Company, *, limit: int = 500) -> list[str]:
+    rows = db.scalars(
+        select(LinxProduct.brand_name)
+        .where(
+            LinxProduct.company_id == company.id,
+            LinxProduct.brand_name.is_not(None),
+            LinxProduct.brand_name != "",
+        )
+        .distinct()
+        .order_by(LinxProduct.brand_name.asc())
+        .limit(limit)
+    )
+    return [str(brand_name) for brand_name in rows if str(brand_name).strip()]
+
+
 def search_linx_products(
     db: Session,
     company: Company,

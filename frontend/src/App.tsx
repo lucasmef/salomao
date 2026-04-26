@@ -778,6 +778,7 @@ function AppRuntime() {
   const [cashflow, setCashflow] = useState<CashflowOverview>(emptyCashflow);
   const [purchasePlanning, setPurchasePlanning] = useState<PurchasePlanningOverview>(emptyPurchasePlanning);
   const [purchaseReturns, setPurchaseReturns] = useState<PurchaseReturn[]>([]);
+  const [linxBrandNames, setLinxBrandNames] = useState<string[]>([]);
   const [reconciliation, setReconciliation] = useState<ReconciliationWorklist>(emptyReconciliation);
   const [reports, setReports] = useState<ReportsOverview>(emptyReports);
   const [users, setUsers] = useState<AuthUser[]>([]);
@@ -1107,16 +1108,20 @@ function AppRuntime() {
             ...getPurchasePlanningRequestFilters(effectivePurchaseFilters, planningMode),
             mode: planningMode,
           });
-          const [planningData, returnsData] = await Promise.all([
+          const [planningData, returnsData, linxBrandData] = await Promise.all([
             fetchJson<PurchasePlanningOverview>(`/purchase-planning/overview?${planningQuery}`, {
               token: activeSession.token,
             }),
             fetchJson<PurchaseReturn[]>("/purchase-returns?limit=500", {
               token: activeSession.token,
-            })
+            }),
+            fetchJson<string[]>("/linx-products/brands", {
+              token: activeSession.token,
+            }),
           ]);
           setPurchasePlanning(planningData);
           setPurchaseReturns(returnsData);
+          setLinxBrandNames(linxBrandData);
           setPurchasePlanningLoadedMode(planningMode);
           break;
         }
@@ -2698,6 +2703,7 @@ function AppRuntime() {
   const purchasePageProps = {
     embedded: true,
     brands,
+    linxBrandNames,
     collections,
     purchaseSuppliers,
     filters: purchasePlanningFilters,
