@@ -6302,6 +6302,20 @@ textarea {
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
 }
 
+.purchase-orders-modal-card {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.purchase-orders-table-shell input,
+.purchase-orders-table-shell textarea {
+  width: 100%;
+}
+
+.purchase-orders-table-shell textarea {
+  min-height: 42px;
+  resize: vertical;
+}
+
 .brand-modal-status-toggle {
   width: 100%;
   min-height: 36px;

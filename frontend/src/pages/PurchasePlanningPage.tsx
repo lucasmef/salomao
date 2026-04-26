@@ -144,6 +144,19 @@ type CollectionObservationModalState = {
   notes: string;
 };
 
+type CollectionOrderDraft = {
+  planId: string | null;
+  title: string;
+  amount: string;
+  notes: string;
+};
+
+type CollectionOrdersModalState = {
+  brandKey: string;
+  collectionId: string;
+  drafts: CollectionOrderDraft[];
+};
+
 type PlanningInlineEditState = {
   brand_key: string;
   collection_id: string;
@@ -884,6 +897,8 @@ export function PurchasePlanningPage({
   );
   const [collectionObservationModal, setCollectionObservationModal] =
     useState<CollectionObservationModalState | null>(null);
+  const [collectionOrdersModal, setCollectionOrdersModal] =
+    useState<CollectionOrdersModalState | null>(null);
   const [purchaseReturnModal, setPurchaseReturnModal] =
     useState<PurchaseReturnModalState>(emptyPurchaseReturnModal(today));
   const [purchaseReturnFilter, setPurchaseReturnFilter] = useState("");
@@ -1764,6 +1779,10 @@ export function PurchasePlanningPage({
     setCollectionObservationModal(null);
   }
 
+  function closeCollectionOrdersModal() {
+    setCollectionOrdersModal(null);
+  }
+
   function openBrandModal(brand?: PurchaseBrand) {
     setCollectionObservationModal(null);
     setBrandModal(
@@ -1792,6 +1811,34 @@ export function PurchasePlanningPage({
       brandKey: snapshot.key,
       collectionId: collection.id,
       notes: getCollectionObservationText(collectionSnapshot),
+    });
+  }
+
+  function openCollectionOrdersModal(
+    snapshot: PlanningBrandSnapshot,
+    collection: CollectionSeason,
+  ) {
+    const collectionSnapshot = snapshot.collections.get(collection.id);
+    const drafts =
+      collectionSnapshot?.plans.length
+        ? collectionSnapshot.plans.map((plan) => ({
+            planId: plan.id,
+            title: plan.title || snapshot.brandName,
+            amount: toInputAmount(plan.purchased_amount),
+            notes: plan.notes ?? "",
+          }))
+        : [
+            {
+              planId: null,
+              title: snapshot.brandName,
+              amount: zeroMoneyInput,
+              notes: "",
+            },
+          ];
+    setCollectionOrdersModal({
+      brandKey: snapshot.key,
+      collectionId: collection.id,
+      drafts,
     });
   }
 
@@ -2364,6 +2411,86 @@ export function PurchasePlanningPage({
     }
   }
 
+  function updateCollectionOrderDraft(
+    index: number,
+    updates: Partial<CollectionOrderDraft>,
+  ) {
+    setCollectionOrdersModal((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        drafts: current.drafts.map((draft, draftIndex) =>
+          draftIndex === index ? { ...draft, ...updates } : draft,
+        ),
+      };
+    });
+  }
+
+  function addCollectionOrderDraft() {
+    if (!collectionOrdersModal) return;
+    const snapshot = planningBrands.find(
+      (item) => item.key === collectionOrdersModal.brandKey,
+    );
+    setCollectionOrdersModal((current) =>
+      current
+        ? {
+            ...current,
+            drafts: [
+              ...current.drafts,
+              {
+                planId: null,
+                title: snapshot?.brandName ?? "Pedido",
+                amount: zeroMoneyInput,
+                notes: "",
+              },
+            ],
+          }
+        : current,
+    );
+  }
+
+  async function handleSaveCollectionOrders() {
+    if (!collectionOrdersModal) return;
+    const snapshot = planningBrands.find(
+      (item) => item.key === collectionOrdersModal.brandKey,
+    );
+    const collection = collectionMap.get(collectionOrdersModal.collectionId);
+    if (!snapshot || !collection) {
+      closeCollectionOrdersModal();
+      return;
+    }
+
+    for (const draft of collectionOrdersModal.drafts) {
+      const amount = normalizePtBrMoneyInput(draft.amount);
+      const notes = normalizeDisplayText(draft.notes).trim() || null;
+      const title =
+        normalizeDisplayText(draft.title).trim() || snapshot.brandName;
+      if (draft.planId) {
+        const plan = snapshot.collections
+          .get(collection.id)
+          ?.plans.find((item) => item.id === draft.planId);
+        if (!plan) continue;
+        await onUpdatePlan(
+          plan.id,
+          buildCollectionPlanPayload(snapshot, collection, plan, {
+            title,
+            purchased_amount: amount,
+            notes,
+          }),
+        );
+      } else {
+        await onCreatePlan(
+          buildNewCollectionPlanPayload(snapshot, collection, {
+            title,
+            purchased_amount: amount,
+            notes,
+          }),
+        );
+      }
+    }
+    closeCollectionOrdersModal();
+  }
+
   function updateInvoiceDraftField<Key extends keyof PurchaseInvoiceDraft>(
     field: Key,
     value: PurchaseInvoiceDraft[Key],
@@ -2708,8 +2835,8 @@ export function PurchasePlanningPage({
               <button
                 className="table-button icon-button cockpit-btn ml-1"
                 type="button"
-                onClick={() => startInlinePlanEdit(snapshot, collection)}
-                title="Editar valor planejado"
+                onClick={() => openCollectionOrdersModal(snapshot, collection)}
+                title="Editar pedidos da coleção"
               >
                 <EditIcon />
               </button>
@@ -4663,6 +4790,107 @@ export function PurchasePlanningPage({
     );
   }
 
+  function renderCollectionOrdersModal() {
+    if (!collectionOrdersModal) return null;
+    const snapshot = planningBrands.find(
+      (item) => item.key === collectionOrdersModal.brandKey,
+    );
+    const collection = collectionMap.get(collectionOrdersModal.collectionId);
+    if (!snapshot || !collection) return null;
+
+    return (
+      <div className="modal-backdrop" role="presentation">
+        <div className="modal-card purchase-modal-card purchase-orders-modal-card">
+          <div className="purchase-panel-heading">
+            <h3>Pedidos da coleção</h3>
+            <ModalCloseButton onClick={closeCollectionOrdersModal} />
+          </div>
+          <div className="summary-list inactive-brands-summary">
+            <div className="summary-row">
+              <span>Marca</span>
+              <strong>{snapshot.brandName}</strong>
+            </div>
+            <div className="summary-row">
+              <span>Coleção</span>
+              <strong>{collection.season_label || collection.name}</strong>
+            </div>
+          </div>
+          <div className="table-shell purchase-orders-table-shell">
+            <table className="erp-table compact-table">
+              <thead>
+                <tr>
+                  <th>Pedido</th>
+                  <th className="numeric-cell">Valor</th>
+                  <th>Observação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {collectionOrdersModal.drafts.map((draft, index) => (
+                  <tr key={draft.planId ?? `new-${index}`}>
+                    <td>
+                      <input
+                        value={draft.title}
+                        onChange={(event) =>
+                          updateCollectionOrderDraft(index, {
+                            title: event.target.value,
+                          })
+                        }
+                      />
+                    </td>
+                    <td>
+                      <MoneyInput
+                        className="planning-inline-input"
+                        value={draft.amount}
+                        onValueChange={(value) =>
+                          updateCollectionOrderDraft(index, { amount: value })
+                        }
+                      />
+                    </td>
+                    <td>
+                      <textarea
+                        value={draft.notes}
+                        onChange={(event) =>
+                          updateCollectionOrderDraft(index, {
+                            notes: event.target.value,
+                          })
+                        }
+                        placeholder="Observação do pedido"
+                        rows={2}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="action-row">
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={addCollectionOrderDraft}
+            >
+              Novo pedido
+            </button>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => void handleSaveCollectionOrders()}
+            >
+              Salvar pedidos
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={closeCollectionOrdersModal}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function renderInactiveBrandsModal() {
     if (!inactiveBrandsModalOpen) return null;
 
@@ -5262,6 +5490,7 @@ export function PurchasePlanningPage({
       {renderInvoiceModal()}
       {renderBrandModal()}
       {renderCollectionObservationModal()}
+      {renderCollectionOrdersModal()}
       {renderInactiveBrandsModal()}
       {renderUnassignedSuppliersModal()}
       {renderSupplierModal()}
