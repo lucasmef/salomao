@@ -198,7 +198,9 @@ def test_supplier_can_be_linked_to_multiple_brand_basis_plannings(db_session: Se
     assert len(links) == 2
 
 
-def test_brand_basis_uses_product_brand_and_does_not_create_supplier_row(db_session: Session) -> None:
+def test_supplier_match_wins_over_product_brand_and_does_not_duplicate_rows(
+    db_session: Session,
+) -> None:
     company, user = create_company_context(db_session)
     collection = create_collection(db_session, company, "Inverno 2026")
     veste = create_supplier(db_session, company.id, "Veste")
@@ -302,15 +304,16 @@ def test_brand_basis_uses_product_brand_and_does_not_create_supplier_row(db_sess
     overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters(year=2026), mode="planning")
     rows_by_brand = {row.brand_name: row for row in overview.rows}
 
-    assert rows_by_brand["John John"].sold_total == Decimal("300.00")
-    assert rows_by_brand["John John"].returns_total == Decimal("50.00")
-    assert rows_by_brand["Dudalina"].sold_total == Decimal("200.00")
-    assert rows_by_brand["Dudalina"].returns_total == Decimal("70.00")
-    assert "Veste" not in rows_by_brand
+    assert rows_by_brand["Veste"].sold_total == Decimal("500.00")
+    assert rows_by_brand["Veste"].returns_total == Decimal("120.00")
+    assert rows_by_brand["John John"].sold_total == Decimal("0.00")
+    assert rows_by_brand["John John"].returns_total == Decimal("0.00")
+    assert rows_by_brand["Dudalina"].sold_total == Decimal("0.00")
+    assert rows_by_brand["Dudalina"].returns_total == Decimal("0.00")
     assert "Não classificados" not in rows_by_brand
 
 
-def test_brand_basis_unmatched_product_brand_supplier_does_not_create_supplier_row(
+def test_supplier_match_classifies_unmatched_product_brand_as_supplier(
     db_session: Session,
 ) -> None:
     company, user = create_company_context(db_session)
@@ -354,8 +357,210 @@ def test_brand_basis_unmatched_product_brand_supplier_does_not_create_supplier_r
     )
     rows_by_brand = {row.brand_name: row for row in overview.rows}
 
-    assert "Veste" not in rows_by_brand
+    assert rows_by_brand["Veste"].returns_total == Decimal("90.00")
     assert "Não classificados" not in rows_by_brand
+
+
+def test_brand_match_is_used_when_supplier_is_not_registered(db_session: Session) -> None:
+    company, user = create_company_context(db_session)
+    create_collection(db_session, company, "Inverno 2026")
+    create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="John John",
+            planning_basis="brand",
+            linx_brand_names=["John John"],
+        ),
+        user,
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=104,
+        brand_name="John John",
+        supplier_name="Fornecedor Inexistente",
+        collection_name="Inverno 2026",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=104,
+        product_code=104,
+        document_number="104",
+        movement_type="purchase_return",
+        total_amount=Decimal("80.00"),
+        launch_date=date(2026, 7, 10),
+    )
+
+    overview = build_purchase_planning_overview(
+        db_session,
+        company,
+        PurchasePlanningFilters(year=2026),
+        mode="planning",
+    )
+    rows_by_brand = {row.brand_name: row for row in overview.rows}
+
+    assert rows_by_brand["John John"].returns_total == Decimal("80.00")
+    assert "Fornecedor Inexistente" not in rows_by_brand
+    assert "Não classificados" not in rows_by_brand
+
+
+def test_inactive_supplier_wins_over_active_brand_and_goes_to_inactive_group(
+    db_session: Session,
+) -> None:
+    company, user = create_company_context(db_session)
+    create_collection(db_session, company, "Inverno 2026")
+    supplier = create_supplier(db_session, company.id, "Fornecedor Inativo")
+    supplier.is_active = False
+    create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="John John",
+            planning_basis="brand",
+            linx_brand_names=["John John"],
+        ),
+        user,
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=105,
+        brand_name="John John",
+        supplier_name="Fornecedor Inativo",
+        collection_name="Inverno 2026",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=105,
+        product_code=105,
+        document_number="105",
+        movement_type="purchase_return",
+        total_amount=Decimal("70.00"),
+        launch_date=date(2026, 7, 10),
+    )
+
+    overview = build_purchase_planning_overview(
+        db_session,
+        company,
+        PurchasePlanningFilters(year=2026),
+        mode="planning",
+    )
+    rows_by_brand = {row.brand_name: row for row in overview.rows}
+
+    assert rows_by_brand["Marcas desativadas"].returns_total == Decimal("70.00")
+    assert "John John" not in rows_by_brand
+    assert "Não classificados" not in rows_by_brand
+
+
+def test_inactive_brand_is_used_when_supplier_is_not_registered(db_session: Session) -> None:
+    company, user = create_company_context(db_session)
+    create_collection(db_session, company, "Inverno 2026")
+    inactive_brand = create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="John John",
+            planning_basis="brand",
+            linx_brand_names=["John John"],
+            is_active=False,
+        ),
+        user,
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=106,
+        brand_name="John John",
+        supplier_name="Fornecedor Inexistente",
+        collection_name="Inverno 2026",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=106,
+        product_code=106,
+        document_number="106",
+        movement_type="purchase_return",
+        total_amount=Decimal("60.00"),
+        launch_date=date(2026, 7, 10),
+    )
+
+    overview = build_purchase_planning_overview(
+        db_session,
+        company,
+        PurchasePlanningFilters(year=2026),
+        mode="planning",
+    )
+    row = next(row for row in overview.rows if row.brand_name == "John John")
+
+    assert row.brand_id == inactive_brand.id
+    assert row.returns_total == Decimal("60.00")
+    assert all(item.brand_name != "Não classificados" for item in overview.rows)
+
+
+def test_unknown_supplier_and_brand_stays_unclassified(db_session: Session) -> None:
+    company, _user = create_company_context(db_session)
+    create_collection(db_session, company, "Inverno 2026")
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=107,
+        brand_name="Marca Inexistente",
+        supplier_name="Fornecedor Inexistente",
+        collection_name="Inverno 2026",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=107,
+        product_code=107,
+        document_number="107",
+        movement_type="purchase_return",
+        total_amount=Decimal("50.00"),
+        launch_date=date(2026, 7, 10),
+    )
+
+    overview = build_purchase_planning_overview(
+        db_session,
+        company,
+        PurchasePlanningFilters(year=2026),
+        mode="planning",
+    )
+    rows_by_brand = {row.brand_name: row for row in overview.rows}
+
+    assert rows_by_brand["Não classificados"].returns_total == Decimal("50.00")
+    assert rows_by_brand["Não classificados"].supplier_names == ["Fornecedor Inexistente"]
+
+
+def test_linx_brand_alias_can_only_be_used_by_one_planning(db_session: Session) -> None:
+    company, user = create_company_context(db_session)
+    create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="Dudalina",
+            planning_basis="brand",
+            linx_brand_names=["Dudalina"],
+        ),
+        user,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        create_brand(
+            db_session,
+            company,
+            PurchaseBrandCreate(
+                name="Dudalina Duplicada",
+                planning_basis="brand",
+                linx_brand_names=["Dudalina"],
+            ),
+            user,
+        )
+
+    assert exc_info.value.status_code == 409
 
 
 def create_linx_product(
@@ -3127,7 +3332,7 @@ def test_ensure_company_catalog_does_not_run_historical_backfill_automatically(d
 def test_overview_uses_invoice_issue_date_to_match_brand_collection_received_total(db_session: Session) -> None:
     company, user = create_company_context(db_session)
     supplier = create_supplier(db_session, company.id, "Fornecedor Marca")
-    winter_collection = create_collection(
+    create_collection(
         db_session,
         company,
         "Inverno 2026",
@@ -3193,7 +3398,7 @@ def test_overview_uses_invoice_issue_date_to_match_brand_collection_received_tot
 def test_overview_received_total_uses_supplier_entries_issue_date_within_collection_period(db_session: Session) -> None:
     company, _user = create_company_context(db_session)
     supplier = create_supplier(db_session, company.id, "Fornecedor Fatura")
-    winter_collection = create_collection(
+    create_collection(
         db_session,
         company,
         "Inverno 2026",
@@ -3514,7 +3719,7 @@ def test_overview_assigns_purchase_returns_to_current_collection_without_changin
     monkeypatch.setattr(purchase_planning_service, "_today", lambda: date(2026, 3, 31))
     company, user = create_company_context(db_session)
     supplier = create_supplier(db_session, company.id, "Fornecedor Retorno")
-    winter_collection = create_collection(
+    create_collection(
         db_session,
         company,
         "Inverno 2026",
@@ -3604,7 +3809,7 @@ def test_overview_assigns_purchase_returns_to_past_collection_without_changing_r
     monkeypatch.setattr(purchase_planning_service, "_today", lambda: date(2026, 8, 10))
     company, user = create_company_context(db_session)
     supplier = create_supplier(db_session, company.id, "Fornecedor Retorno Passado")
-    winter_collection = create_collection(
+    create_collection(
         db_session,
         company,
         "Inverno 2026",
@@ -3698,7 +3903,7 @@ def test_overview_keeps_purchase_return_visible_for_inactive_brand_in_past_colle
     monkeypatch.setattr(purchase_planning_service, "_today", lambda: date(2026, 8, 10))
     company, user = create_company_context(db_session)
     supplier = create_supplier(db_session, company.id, "Fornecedor LP")
-    winter_collection = create_collection(
+    create_collection(
         db_session,
         company,
         "Inverno 2026",

@@ -96,7 +96,7 @@ type Props = {
   onSyncLinxPurchaseInvoices: () => Promise<string | void>;
 };
 
-type SelectOption = { value: string; label: string };
+type SelectOption = { value: string; label: string; isDisabled?: boolean };
 type SyncFeedbackTone = "info" | "success" | "error";
 
 type SupplierModalState = {
@@ -586,6 +586,14 @@ function normalizeSupplierLookupKey(value: string | null | undefined) {
     .replace(/[^a-z0-9]+/g, "");
 }
 
+function normalizeBrandLookupKey(value: string | null | undefined) {
+  return normalizeDisplayText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
 function normalizeSearchText(value: string | null | undefined) {
   return normalizeDisplayText(value)
     .normalize("NFD")
@@ -985,6 +993,19 @@ export function PurchasePlanningPage({
       ),
     [suppliers],
   );
+  const linxBrandKeysUsedByOtherPlanning = useMemo(() => {
+    const keys = new Set<string>();
+    brands.forEach((brand) => {
+      if (brand.id === brandModal.id) return;
+      (brand.linx_brand_names ?? []).forEach((brandName) => {
+        const key = normalizeBrandLookupKey(brandName);
+        if (key) {
+          keys.add(key);
+        }
+      });
+    });
+    return keys;
+  }, [brandModal.id, brands]);
   const linxBrandOptions = useMemo<SelectOption[]>(
     () =>
       sortByLabel(
@@ -997,9 +1018,17 @@ export function PurchasePlanningPage({
         ).map((brandName) => ({
           value: brandName,
           label: brandName,
+          isDisabled: linxBrandKeysUsedByOtherPlanning.has(
+            normalizeBrandLookupKey(brandName),
+          ),
         })),
       ),
-    [brandModal.linx_brand_names, brands, linxBrandNames],
+    [
+      brandModal.linx_brand_names,
+      brands,
+      linxBrandKeysUsedByOtherPlanning,
+      linxBrandNames,
+    ],
   );
   const purchaseSupplierOptions = useMemo<SelectOption[]>(
     () =>
@@ -2026,6 +2055,15 @@ export function PurchasePlanningPage({
 
   async function handleSaveBrand() {
     if (!brandModal.name.trim()) return;
+    const duplicatedBrandName = brandModal.linx_brand_names.find((brandName) =>
+      linxBrandKeysUsedByOtherPlanning.has(normalizeBrandLookupKey(brandName)),
+    );
+    if (duplicatedBrandName) {
+      window.alert(
+        `A marca ${duplicatedBrandName} ja esta vinculada a outro planejamento.`,
+      );
+      return;
+    }
     const payload = {
       name: brandModal.name.trim(),
       planning_basis: brandModal.planning_basis,

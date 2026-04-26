@@ -309,7 +309,9 @@ class PurchasePlanningUngroupedSupplier(BaseModel):
 
 class PurchasePlanningCostRow(BaseModel):
     collection_name: str
+    brand_id: str | None = None
     brand_name: str | None = None
+    supplier_id: str | None = None
     supplier_name: str
     purchase_cost_total: Decimal
     purchase_return_cost_total: Decimal = Decimal("0.00")

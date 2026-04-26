@@ -153,6 +153,14 @@ class PurchasePlanningOverviewCacheEntry:
     payload: PurchasePlanningOverview
 
 
+@dataclass(slots=True)
+class LinxPurchasePlanningClassification:
+    brand_id: str | None
+    brand_name: str | None
+    supplier_id: str | None
+    supplier_name: str | None
+
+
 _purchase_planning_overview_cache: dict[tuple[str, str, str, str, str, str, str], PurchasePlanningOverviewCacheEntry] = {}
 _purchase_planning_overview_cache_lock = Lock()
 
@@ -459,6 +467,104 @@ def _build_brand_alias_lookup(db: Session, company_id: str) -> dict[str, tuple[s
             if key:
                 lookup.setdefault(key, (str(brand_id), str(brand_name)))
     return lookup
+
+
+def _build_brand_alias_status_lookup(db: Session, company_id: str) -> dict[str, tuple[str, str, bool]]:
+    lookup: dict[str, tuple[str, str, bool]] = {}
+    rows = db.execute(
+        select(
+            PurchaseBrand.id,
+            PurchaseBrand.name,
+            PurchaseBrand.is_active,
+            PurchaseBrandLinxAlias.linx_brand_name,
+        )
+        .select_from(PurchaseBrand)
+        .outerjoin(
+            PurchaseBrandLinxAlias,
+            and_(
+                PurchaseBrandLinxAlias.brand_id == PurchaseBrand.id,
+                PurchaseBrandLinxAlias.company_id == PurchaseBrand.company_id,
+            ),
+        )
+        .where(
+            PurchaseBrand.company_id == company_id,
+            PurchaseBrand.planning_basis == PLANNING_BASIS_BRAND,
+        )
+        .order_by(
+            PurchaseBrand.is_active.desc(),
+            PurchaseBrand.created_at.asc(),
+            PurchaseBrandLinxAlias.created_at.asc().nullslast(),
+        )
+    ).all()
+    for brand_id, brand_name, is_active, alias_name in rows:
+        for candidate in [brand_name, alias_name]:
+            key = normalize_label(candidate)
+            if key:
+                lookup.setdefault(key, (str(brand_id), str(brand_name), bool(is_active)))
+    return lookup
+
+
+def _build_supplier_lookup_by_key(db: Session, company_id: str) -> dict[str, Supplier]:
+    lookup: dict[str, Supplier] = {}
+    suppliers = db.scalars(
+        select(Supplier)
+        .where(Supplier.company_id == company_id)
+        .order_by(
+            Supplier.is_active.desc(),
+            Supplier.ignore_in_purchase_planning.asc(),
+            Supplier.created_at.asc(),
+        )
+    )
+    for supplier in suppliers:
+        for lookup_key in _supplier_lookup_keys(supplier.name):
+            lookup.setdefault(lookup_key, supplier)
+    return lookup
+
+
+def _classify_linx_purchase_planning_movement(
+    *,
+    source_supplier_name: str | None,
+    source_brand_name: str | None,
+    suppliers_by_key: dict[str, Supplier],
+    brand_alias_lookup: dict[str, tuple[str, str, bool]],
+    supplier_brand_lookup: dict[str, tuple[str, str]],
+) -> LinxPurchasePlanningClassification:
+    for supplier_lookup_key in _supplier_lookup_keys(source_supplier_name):
+        supplier = suppliers_by_key.get(supplier_lookup_key)
+        if not supplier or supplier.ignore_in_purchase_planning:
+            continue
+        if supplier.is_active:
+            supplier_brand = supplier_brand_lookup.get(supplier.id)
+            return LinxPurchasePlanningClassification(
+                brand_id=supplier_brand[0] if supplier_brand else None,
+                brand_name=supplier_brand[1] if supplier_brand else supplier.name,
+                supplier_id=supplier.id,
+                supplier_name=supplier.name,
+            )
+        return LinxPurchasePlanningClassification(
+            brand_id=None,
+            brand_name="Marcas desativadas",
+            supplier_id=supplier.id,
+            supplier_name=supplier.name,
+        )
+
+    brand_lookup_key = normalize_label(source_brand_name or "")
+    brand = brand_alias_lookup.get(brand_lookup_key) if brand_lookup_key else None
+    if brand:
+        brand_id, brand_name, _is_active = brand
+        return LinxPurchasePlanningClassification(
+            brand_id=brand_id,
+            brand_name=brand_name,
+            supplier_id=None,
+            supplier_name=source_supplier_name,
+        )
+
+    return LinxPurchasePlanningClassification(
+        brand_id=None,
+        brand_name=None,
+        supplier_id=None,
+        supplier_name=source_supplier_name,
+    )
 
 
 def _build_supplier_basis_brand_lookup(db: Session, company_id: str) -> dict[str, tuple[str, str]]:
@@ -1510,6 +1616,21 @@ def _sync_brand_linx_aliases(
             continue
         seen.add(normalized_name)
         unique_names.append(name)
+
+    conflicting_alias = db.scalar(
+        select(PurchaseBrandLinxAlias)
+        .where(
+            PurchaseBrandLinxAlias.company_id == company_id,
+            PurchaseBrandLinxAlias.brand_id != brand_id,
+            PurchaseBrandLinxAlias.normalized_name.in_(seen),
+        )
+        .limit(1)
+    ) if seen else None
+    if conflicting_alias:
+        raise HTTPException(
+            status_code=409,
+            detail=f'A marca "{conflicting_alias.linx_brand_name}" ja esta vinculada a outro planejamento.',
+        )
 
     existing_aliases = list(
         db.scalars(
@@ -4762,6 +4883,9 @@ def _build_purchase_cost_totals(
     filters: PurchasePlanningFilters,
     company_collections: list[CollectionSeason],
 ) -> list[PurchasePlanningCostRow]:
+    suppliers_by_key = _build_supplier_lookup_by_key(db, company.id)
+    brand_alias_status_lookup = _build_brand_alias_status_lookup(db, company.id)
+    supplier_brand_lookup = _build_supplier_basis_brand_lookup(db, company.id)
     join_condition = and_(
         LinxProduct.company_id == LinxMovement.company_id,
         LinxProduct.linx_code == LinxMovement.product_code,
@@ -4804,7 +4928,7 @@ def _build_purchase_cost_totals(
         if supplier and supplier.company_id == company.id:
             wanted_supplier_keys = _supplier_lookup_keys(supplier.name)
 
-    totals_by_key: dict[tuple[str, str, str], dict[str, Decimal]] = {}
+    totals_by_key: dict[tuple[str, str | None, str, str | None, str], dict[str, Decimal]] = {}
 
     for movement_type, launch_date, issue_date, total_amount, net_amount, brand_name, supplier_name in db.execute(stmt).all():
         reference_date = launch_date or issue_date
@@ -4822,7 +4946,20 @@ def _build_purchase_cost_totals(
         if amount <= 0:
             continue
 
-        group_key = (collection_name, str(brand_name or ""), resolved_supplier_name)
+        classification = _classify_linx_purchase_planning_movement(
+            source_supplier_name=resolved_supplier_name,
+            source_brand_name=brand_name,
+            suppliers_by_key=suppliers_by_key,
+            brand_alias_lookup=brand_alias_status_lookup,
+            supplier_brand_lookup=supplier_brand_lookup,
+        )
+        group_key = (
+            collection_name,
+            classification.brand_id,
+            classification.brand_name or "",
+            classification.supplier_id,
+            classification.supplier_name or resolved_supplier_name,
+        )
         bucket = totals_by_key.setdefault(
             group_key,
             {
@@ -4836,12 +4973,12 @@ def _build_purchase_cost_totals(
             bucket["purchase_return_cost_total"] += amount
 
     rows: list[PurchasePlanningCostRow] = []
-    for (collection_name, brand_name, supplier_name), totals in sorted(
+    for (collection_name, brand_id, brand_name, supplier_id, supplier_name), totals in sorted(
         totals_by_key.items(),
         key=lambda item: (
             item[0][0].lower(),
-            item[0][1].lower(),
-            item[0][2].lower(),
+            (item[0][2] or "").lower(),
+            item[0][4].lower(),
         ),
     ):
         purchase_amount = _money(totals["purchase_cost_total"])
@@ -4851,7 +4988,9 @@ def _build_purchase_cost_totals(
         rows.append(
             PurchasePlanningCostRow(
                 collection_name=collection_name,
+                brand_id=brand_id,
                 brand_name=brand_name or None,
+                supplier_id=supplier_id,
                 supplier_name=supplier_name,
                 purchase_cost_total=purchase_amount,
                 purchase_return_cost_total=purchase_return_amount,
@@ -5118,14 +5257,9 @@ def _query_sales_and_profit_by_brand_collection(
         if collection_match_cases
         else literal("Sem colecao")
     ).label("collection_name")
-    brand_alias_lookup = _build_brand_alias_lookup(db, company_id)
+    brand_alias_status_lookup = _build_brand_alias_status_lookup(db, company_id)
     supplier_brand_lookup = _build_supplier_basis_brand_lookup(db, company_id)
-    supplier_brand_name_lookup = _build_supplier_basis_brand_name_lookup(db, company_id)
-    suppliers_by_key = {
-        lookup_key: supplier
-        for supplier in db.scalars(select(Supplier).where(Supplier.company_id == company_id))
-        for lookup_key in _supplier_lookup_keys(supplier.name)
-    }
+    suppliers_by_key = _build_supplier_lookup_by_key(db, company_id)
     join_condition = and_(
         LinxProduct.company_id == LinxMovement.company_id,
         LinxProduct.linx_code == LinxMovement.product_code,
@@ -5161,29 +5295,16 @@ def _query_sales_and_profit_by_brand_collection(
     ).all()
     result = {}
     for row in rows:
-        brand_lookup_key = normalize_label(row.brand_name)
-        resolved_brand_tuple = brand_alias_lookup.get(brand_lookup_key)
-        if resolved_brand_tuple:
-            resolved_brand = resolved_brand_tuple[1]
-        else:
-            supplier = next(
-                (
-                    suppliers_by_key[lookup_key]
-                    for lookup_key in _supplier_lookup_keys(row.supplier_name)
-                    if lookup_key in suppliers_by_key
-                ),
-                None,
-            )
-            resolved_brand = None
-            for lookup_key in _supplier_lookup_keys(row.supplier_name):
-                if lookup_key in supplier_brand_name_lookup:
-                    resolved_brand = supplier_brand_name_lookup[lookup_key][1]
-                    break
-            if resolved_brand is None and supplier:
-                resolved_brand = supplier_brand_lookup.get(supplier.id, (None, None))[1]
-        if not resolved_brand:
+        classification = _classify_linx_purchase_planning_movement(
+            source_supplier_name=row.supplier_name,
+            source_brand_name=row.brand_name,
+            suppliers_by_key=suppliers_by_key,
+            brand_alias_lookup=brand_alias_status_lookup,
+            supplier_brand_lookup=supplier_brand_lookup,
+        )
+        if not classification.brand_name:
             continue
-        brand = resolved_brand.strip()
+        brand = classification.brand_name.strip()
         collection = (row.collection_name or "Sem colecao").strip()
         
         # Normalization to handle Viviane/Tricot/Veste variants
@@ -5571,22 +5692,10 @@ def build_purchase_planning_overview(
         if filters.collection_id and (collection is None or collection.id != filters.collection_id):
             continue
 
-        supplier = next(
-            (
-                supplier_lookup_by_key[lookup_key]
-                for lookup_key in _supplier_lookup_keys(cost_total.supplier_name)
-                if lookup_key in supplier_lookup_by_key
-            ),
-            None,
-        )
-        supplier_brand_id, supplier_brand_name = resolve_brand_from_linx(
-            cost_total.brand_name,
-            supplier.id if supplier else None,
-            cost_total.supplier_name,
-        )
+        supplier = db.get(Supplier, cost_total.supplier_id) if cost_total.supplier_id else None
+        supplier_brand_id = cost_total.brand_id
+        supplier_brand_name = cost_total.brand_name
         if filters.brand_id and supplier_brand_id != filters.brand_id:
-            continue
-        if supplier_brand_id is None and is_supplier_covered(supplier.id if supplier else None):
             continue
 
         matched_row = False
@@ -5600,7 +5709,7 @@ def build_purchase_planning_overview(
                 continue
             if supplier_brand_id is None and row_brand_id is not None:
                 continue
-            if supplier_brand_id is None and row_brand_name != "Não classificados":
+            if supplier_brand_id is None and row_brand_name != (supplier_brand_name or "Não classificados"):
                 continue
             supplier_names = row["supplier_names"] if isinstance(row["supplier_names"], list) else []
             if supplier_names and not any(_supplier_lookup_keys(name) & _supplier_lookup_keys(cost_total.supplier_name) for name in supplier_names):
@@ -5619,7 +5728,11 @@ def build_purchase_planning_overview(
             collection.season_year,
             collection.season_type,
         )
-        attach_supplier(row, supplier.name if supplier else cost_total.supplier_name, supplier.id if supplier else None)
+        attach_supplier(
+            row,
+            supplier.name if supplier else cost_total.supplier_name,
+            supplier.id if supplier else cost_total.supplier_id,
+        )
         attach_plan_metadata(row, billing_deadline=collection.end_date)
         row["returns_total"] = Decimal(row["returns_total"]) + _money(cost_total.purchase_return_cost_total)
 
