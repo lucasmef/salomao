@@ -529,24 +529,20 @@ def _classify_linx_purchase_planning_movement(
     brand_alias_lookup: dict[str, tuple[str, str, bool]],
     supplier_brand_lookup: dict[str, tuple[str, str]],
 ) -> LinxPurchasePlanningClassification:
+    matched_supplier: Supplier | None = None
     for supplier_lookup_key in _supplier_lookup_keys(source_supplier_name):
         supplier = suppliers_by_key.get(supplier_lookup_key)
         if not supplier or supplier.ignore_in_purchase_planning:
             continue
-        if supplier.is_active:
-            supplier_brand = supplier_brand_lookup.get(supplier.id)
+        if not supplier.is_active:
             return LinxPurchasePlanningClassification(
-                brand_id=supplier_brand[0] if supplier_brand else None,
-                brand_name=supplier_brand[1] if supplier_brand else supplier.name,
+                brand_id=None,
+                brand_name="Marcas desativadas",
                 supplier_id=supplier.id,
                 supplier_name=supplier.name,
             )
-        return LinxPurchasePlanningClassification(
-            brand_id=None,
-            brand_name="Marcas desativadas",
-            supplier_id=supplier.id,
-            supplier_name=supplier.name,
-        )
+        matched_supplier = supplier
+        break
 
     brand_lookup_key = normalize_label(source_brand_name or "")
     brand = brand_alias_lookup.get(brand_lookup_key) if brand_lookup_key else None
@@ -558,6 +554,16 @@ def _classify_linx_purchase_planning_movement(
             supplier_id=None,
             supplier_name=source_supplier_name,
         )
+
+    if matched_supplier:
+        supplier_brand = supplier_brand_lookup.get(matched_supplier.id)
+        if supplier_brand:
+            return LinxPurchasePlanningClassification(
+                brand_id=supplier_brand[0],
+                brand_name=supplier_brand[1],
+                supplier_id=matched_supplier.id,
+                supplier_name=matched_supplier.name,
+            )
 
     return LinxPurchasePlanningClassification(
         brand_id=None,

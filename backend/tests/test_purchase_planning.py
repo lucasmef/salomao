@@ -198,7 +198,7 @@ def test_supplier_can_be_linked_to_multiple_brand_basis_plannings(db_session: Se
     assert len(links) == 2
 
 
-def test_supplier_match_wins_over_product_brand_and_does_not_duplicate_rows(
+def test_brand_basis_uses_product_brand_and_does_not_create_supplier_row(
     db_session: Session,
 ) -> None:
     company, user = create_company_context(db_session)
@@ -304,16 +304,17 @@ def test_supplier_match_wins_over_product_brand_and_does_not_duplicate_rows(
     overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters(year=2026), mode="planning")
     rows_by_brand = {row.brand_name: row for row in overview.rows}
 
-    assert rows_by_brand["Veste"].sold_total == Decimal("500.00")
-    assert rows_by_brand["Veste"].returns_total == Decimal("120.00")
-    assert rows_by_brand["John John"].sold_total == Decimal("0.00")
-    assert rows_by_brand["John John"].returns_total == Decimal("0.00")
-    assert rows_by_brand["Dudalina"].sold_total == Decimal("0.00")
-    assert rows_by_brand["Dudalina"].returns_total == Decimal("0.00")
+    assert rows_by_brand["John John"].sold_total == Decimal("300.00")
+    assert rows_by_brand["John John"].returns_total == Decimal("50.00")
+    assert rows_by_brand["John John"].purchased_total == Decimal("1000.00")
+    assert rows_by_brand["Dudalina"].sold_total == Decimal("200.00")
+    assert rows_by_brand["Dudalina"].returns_total == Decimal("70.00")
+    assert rows_by_brand["Dudalina"].purchased_total == Decimal("800.00")
+    assert "Veste" not in rows_by_brand
     assert "Não classificados" not in rows_by_brand
 
 
-def test_supplier_match_classifies_unmatched_product_brand_as_supplier(
+def test_brand_basis_unmatched_product_brand_supplier_does_not_create_supplier_row(
     db_session: Session,
 ) -> None:
     company, user = create_company_context(db_session)
@@ -326,6 +327,109 @@ def test_supplier_match_classifies_unmatched_product_brand_as_supplier(
             name="John John",
             planning_basis="brand",
             linx_brand_names=["John John"],
+            supplier_ids=[veste.id],
+        ),
+        user,
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=103,
+        brand_name="Marca Sem Mapeamento",
+        supplier_name="Veste",
+        collection_name="Inverno 2026",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=103,
+        product_code=103,
+        document_number="103",
+        movement_type="purchase_return",
+        total_amount=Decimal("90.00"),
+        launch_date=date(2026, 7, 10),
+    )
+
+    overview = build_purchase_planning_overview(
+        db_session,
+        company,
+        PurchasePlanningFilters(year=2026),
+        mode="planning",
+    )
+    rows_by_brand = {row.brand_name: row for row in overview.rows}
+
+    assert "Veste" not in rows_by_brand
+    assert rows_by_brand["Não classificados"].returns_total == Decimal("90.00")
+
+
+def test_brand_match_wins_over_supplier_basis_when_product_brand_is_mapped(
+    db_session: Session,
+) -> None:
+    company, user = create_company_context(db_session)
+    create_collection(db_session, company, "Inverno 2026")
+    veste = create_supplier(db_session, company.id, "Veste")
+    create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="Veste",
+            planning_basis="supplier",
+            supplier_ids=[veste.id],
+        ),
+        user,
+    )
+    create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="John John",
+            planning_basis="brand",
+            linx_brand_names=["John John"],
+        ),
+        user,
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=103,
+        brand_name="John John",
+        supplier_name="Veste",
+        collection_name="Inverno 2026",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=103,
+        product_code=103,
+        document_number="103",
+        movement_type="purchase_return",
+        total_amount=Decimal("90.00"),
+        launch_date=date(2026, 7, 10),
+    )
+
+    overview = build_purchase_planning_overview(
+        db_session,
+        company,
+        PurchasePlanningFilters(year=2026),
+        mode="planning",
+    )
+    rows_by_brand = {row.brand_name: row for row in overview.rows}
+
+    assert rows_by_brand["John John"].returns_total == Decimal("90.00")
+    assert "Veste" not in rows_by_brand
+    assert "Não classificados" not in rows_by_brand
+
+
+def test_supplier_basis_is_used_when_product_brand_is_not_mapped(db_session: Session) -> None:
+    company, user = create_company_context(db_session)
+    create_collection(db_session, company, "Inverno 2026")
+    veste = create_supplier(db_session, company.id, "Veste")
+    create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="Veste",
+            planning_basis="supplier",
             supplier_ids=[veste.id],
         ),
         user,
