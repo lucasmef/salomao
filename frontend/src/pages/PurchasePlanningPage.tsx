@@ -109,6 +109,8 @@ type SupplierModalState = {
 type BrandModalState = {
   id: string | null;
   name: string;
+  planning_basis: "brand" | "supplier";
+  linx_brand_names: string;
   supplier_ids: string[];
   default_payment_term: string;
   notes: string;
@@ -300,6 +302,17 @@ const PURCHASE_RETURN_STATUS_LABELS = Object.fromEntries(
   PURCHASE_RETURN_STATUS_OPTIONS.map((option) => [option.value, option.label]),
 ) as Record<string, string>;
 
+function parseLinxBrandNames(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(/[\n,;]/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
 const emptySupplierModal = (): SupplierModalState => ({
   id: null,
   name: "",
@@ -311,6 +324,8 @@ const emptySupplierModal = (): SupplierModalState => ({
 const emptyBrandModal = (): BrandModalState => ({
   id: null,
   name: "",
+  planning_basis: "supplier",
+  linx_brand_names: "",
   supplier_ids: [],
   default_payment_term: "1x",
   notes: "",
@@ -503,7 +518,7 @@ function buildBrandKey(
   brandName: string | null | undefined,
 ) {
   if (brandId) return `brand:${brandId}`;
-  return `name:${normalizeDisplayText(brandName) || "sem-marca"}`;
+  return `name:${normalizeDisplayText(brandName) || "nao-classificados"}`;
 }
 
 function sortCollectionsChronologically(items: CollectionSeason[]) {
@@ -978,22 +993,9 @@ export function PurchasePlanningPage({
     () => new Set(purchaseSuppliers.map((supplier) => supplier.id)),
     [purchaseSuppliers],
   );
-  const assignedActiveBrandSupplierIds = useMemo(() => {
-    const ids = new Set<string>();
-    brands.forEach((brand) => {
-      if (!brand.is_active || brand.id === brandModal.id) {
-        return;
-      }
-      brand.supplier_ids.forEach((supplierId) => ids.add(supplierId));
-    });
-    return ids;
-  }, [brands, brandModal.id]);
   const brandSupplierOptions = useMemo<SelectOption[]>(() => {
     const options = new Map<string, SelectOption>();
     purchaseSuppliers.forEach((supplier) => {
-      if (assignedActiveBrandSupplierIds.has(supplier.id)) {
-        return;
-      }
       options.set(supplier.id, { value: supplier.id, label: supplier.name });
     });
     brandModal.supplier_ids.forEach((supplierId) => {
@@ -1004,7 +1006,6 @@ export function PurchasePlanningPage({
     });
     return sortByLabel(Array.from(options.values()));
   }, [
-    assignedActiveBrandSupplierIds,
     brandModal.supplier_ids,
     purchaseSuppliers,
     supplierMap,
@@ -1379,7 +1380,7 @@ export function PurchasePlanningPage({
         return {
           brandId: plan.brand_id,
           brandName:
-            explicitBrand?.name ?? plan.brand_name ?? plan.title ?? "Sem marca",
+            explicitBrand?.name ?? plan.brand_name ?? plan.title ?? "Não classificados",
         };
       }
 
@@ -1389,7 +1390,7 @@ export function PurchasePlanningPage({
 
       return {
         brandId: null,
-        brandName: plan.brand_name ?? "Sem marca",
+        brandName: plan.brand_name ?? "Não classificados",
       };
     };
     const ensureBrandSnapshot = ({
@@ -1684,7 +1685,7 @@ export function PurchasePlanningPage({
   const unassignedSuppliersSnapshot = useMemo(
     () =>
       planningBrands.find(
-        (snapshot) => !snapshot.brandId && snapshot.brandName === "Sem marca",
+        (snapshot) => !snapshot.brandId && snapshot.brandName === "Não classificados",
       ) ?? null,
     [planningBrands],
   );
@@ -1760,6 +1761,8 @@ export function PurchasePlanningPage({
         ? {
             id: brand.id,
             name: brand.name,
+            planning_basis: brand.planning_basis ?? "supplier",
+            linx_brand_names: (brand.linx_brand_names ?? []).join("\n"),
             supplier_ids: brand.supplier_ids,
             default_payment_term: brand.default_payment_term ?? "1x",
             notes: brand.notes ?? "",
@@ -1968,6 +1971,8 @@ export function PurchasePlanningPage({
     if (!brandModal.name.trim()) return;
     const payload = {
       name: brandModal.name.trim(),
+      planning_basis: brandModal.planning_basis,
+      linx_brand_names: parseLinxBrandNames(brandModal.linx_brand_names),
       supplier_ids: Array.from(
         new Set(brandModal.supplier_ids.filter(Boolean)),
       ),
@@ -3323,11 +3328,11 @@ export function PurchasePlanningPage({
                                 <EditIcon />
                               </button>
                             ) : !snapshot.brandId &&
-                              snapshot.brandName === "Sem marca" ? (
+                              snapshot.brandName === "Não classificados" ? (
                               <button
-                                aria-label="Editar fornecedores sem marca"
+                                aria-label="Editar não classificados"
                                 className="table-button icon-button"
-                                title="Editar fornecedores sem marca"
+                                title="Editar não classificados"
                                 type="button"
                                 onClick={openUnassignedSuppliersModal}
                               >
@@ -4176,6 +4181,53 @@ export function PurchasePlanningPage({
                   }
                 />
               </label>
+              <div className="brand-modal-field brand-modal-field--basis">
+                <div className="segmented-control compact-segmented-control">
+                  <button
+                    type="button"
+                    className={
+                      brandModal.planning_basis === "brand" ? "active" : ""
+                    }
+                    onClick={() =>
+                      setBrandModal((current) => ({
+                        ...current,
+                        planning_basis: "brand",
+                      }))
+                    }
+                  >
+                    Marca
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      brandModal.planning_basis === "supplier" ? "active" : ""
+                    }
+                    onClick={() =>
+                      setBrandModal((current) => ({
+                        ...current,
+                        planning_basis: "supplier",
+                      }))
+                    }
+                  >
+                    Fornecedor
+                  </button>
+                </div>
+              </div>
+              {brandModal.planning_basis === "brand" && (
+                <label className="brand-modal-field brand-modal-field--linx-brands">
+                  <textarea
+                    placeholder="Marcas da Linx, uma por linha"
+                    value={brandModal.linx_brand_names}
+                    onChange={(event) =>
+                      setBrandModal((current) => ({
+                        ...current,
+                        linx_brand_names: event.target.value,
+                      }))
+                    }
+                    rows={3}
+                  />
+                </label>
+              )}
               <label className="brand-modal-field brand-modal-field--suppliers">
                 <Select<SelectOption, true>
                   options={brandSupplierOptions}
@@ -4188,7 +4240,11 @@ export function PurchasePlanningPage({
                   }
                   isMulti
                   isClearable
-                  placeholder="Fornecedores"
+                  placeholder={
+                    brandModal.planning_basis === "brand"
+                      ? "Fornecedores relacionados"
+                      : "Fornecedores"
+                  }
                   styles={purchaseSelectStyles}
                   menuPortalTarget={portalTarget}
                 />
@@ -4663,20 +4719,20 @@ export function PurchasePlanningPage({
       <div className="modal-backdrop" role="presentation">
         <div className="modal-card purchase-modal-card purchase-inactive-brands-modal-card">
           <div className="purchase-panel-heading">
-            <h3>Fornecedores sem marca</h3>
+            <h3>Não classificados</h3>
             <ModalCloseButton
               onClick={() => setUnassignedSuppliersModalOpen(false)}
             />
           </div>
           <div className="summary-list inactive-brands-summary">
             <div className="summary-row">
-              <span>Fornecedores sem marca</span>
+              <span>Não classificados</span>
               <strong>{unassignedSuppliers.length}</strong>
             </div>
           </div>
           <div className="purchase-unassigned-toolbar">
             <label>
-              Agregar selecionados a marca
+              Agregar selecionados ao planejamento
               <Select
                 options={activeBrandOptions}
                 value={
@@ -4801,7 +4857,7 @@ export function PurchasePlanningPage({
                   })
                 ) : (
                   <tr>
-                    <td colSpan={4}>Nenhum fornecedor sem marca encontrado.</td>
+                    <td colSpan={4}>Nenhum item não classificado encontrado.</td>
                   </tr>
                 )}
               </tbody>

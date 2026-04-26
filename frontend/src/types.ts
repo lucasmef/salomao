@@ -149,6 +149,8 @@ export type Supplier = {
 export type PurchaseBrand = {
   id: string;
   name: string;
+  planning_basis: "brand" | "supplier";
+  linx_brand_names: string[];
   supplier_ids: string[];
   suppliers: Supplier[];
   default_payment_term: string | null;
@@ -737,6 +739,7 @@ export type PurchasePlanningUngroupedSupplier = {
 
 export type PurchasePlanningCostRow = {
   collection_name: string;
+  brand_name: string | null;
   supplier_name: string;
   purchase_cost_total: string;
   purchase_return_cost_total: string;

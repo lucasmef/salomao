@@ -26,9 +26,21 @@ class PurchaseBrand(Base, IdMixin, TimestampMixin):
 
     company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), index=True)
     name: Mapped[str] = mapped_column(String(140), index=True)
+    planning_basis: Mapped[str] = mapped_column(String(20), default="supplier")
     default_payment_term: Mapped[str | None] = mapped_column(String(120), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class PurchaseBrandLinxAlias(Base, IdMixin, TimestampMixin):
+    __tablename__ = "purchase_brand_linx_aliases"
+
+    company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), index=True)
+    brand_id: Mapped[str] = mapped_column(ForeignKey("purchase_brands.id"), index=True)
+    linx_brand_name: Mapped[str] = mapped_column(String(140), index=True)
+    normalized_name: Mapped[str] = mapped_column(String(180), index=True)
+
+    brand = relationship("PurchaseBrand")
 
 
 class PurchaseBrandSupplier(Base, IdMixin, TimestampMixin):

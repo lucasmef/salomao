@@ -23,6 +23,7 @@ from app.db.models.linx import LinxMovement, LinxProduct, PurchasePayableTitle
 from app.db.models.purchasing import (
     CollectionSeason,
     PurchaseBrand,
+    PurchaseBrandLinxAlias,
     PurchaseBrandSupplier,
     PurchaseDelivery,
     PurchaseInstallment,
@@ -49,8 +50,8 @@ from app.schemas.purchase_planning import (
     PurchaseInvoiceDraft,
     PurchaseInvoiceRead,
     PurchasePlanCreate,
-    PurchasePlanningMonthlyProjection,
     PurchasePlanningCostRow,
+    PurchasePlanningMonthlyProjection,
     PurchasePlanningOverview,
     PurchasePlanningRow,
     PurchasePlanningSummary,
@@ -74,8 +75,11 @@ from app.services.import_parsers import (
     parse_decimal_pt_br,
     parse_purchase_payable_rows,
 )
-from app.services.linx import download_linx_purchase_payables_report
-from app.services.linx import LinxApiSettings, load_linx_api_settings
+from app.services.linx import (
+    LinxApiSettings,
+    download_linx_purchase_payables_report,
+    load_linx_api_settings,
+)
 
 TWO_PLACES = Decimal("0.01")
 HISTORICAL_COLLECTION_START_YEAR = 2020
@@ -99,6 +103,8 @@ SEASON_PHASE_LABELS = {
     "main": "Principal",
     "high": "Alto",
 }
+PLANNING_BASIS_BRAND = "brand"
+PLANNING_BASIS_SUPPLIER = "supplier"
 PURCHASE_RETURN_STATUS_FLOW = (
     "request_open",
     "factory_pending",
@@ -348,6 +354,12 @@ def _normalize_collection_lookup_key(value: str | None) -> str:
     return normalized
 
 
+def _normalize_planning_basis(value: str | None) -> str:
+    if normalize_label(value or "") == PLANNING_BASIS_BRAND:
+        return PLANNING_BASIS_BRAND
+    return PLANNING_BASIS_SUPPLIER
+
+
 def _resolve_reporting_collection_by_date(
     collections: list[CollectionSeason],
     reference_date: date | datetime | None,
@@ -414,6 +426,71 @@ def _build_supplier_brand_name_lookup(db: Session, company_id: str) -> dict[str,
         for lookup_key in _supplier_lookup_keys(supplier_name):
             lookup.setdefault(lookup_key, str(brand_name))
     return lookup
+
+
+def _build_brand_alias_lookup(db: Session, company_id: str) -> dict[str, tuple[str, str]]:
+    lookup: dict[str, tuple[str, str]] = {}
+    rows = db.execute(
+        select(
+            PurchaseBrand.id,
+            PurchaseBrand.name,
+            PurchaseBrandLinxAlias.linx_brand_name,
+        )
+        .select_from(PurchaseBrand)
+        .outerjoin(
+            PurchaseBrandLinxAlias,
+            and_(
+                PurchaseBrandLinxAlias.brand_id == PurchaseBrand.id,
+                PurchaseBrandLinxAlias.company_id == PurchaseBrand.company_id,
+            ),
+        )
+        .where(
+            PurchaseBrand.company_id == company_id,
+            PurchaseBrand.planning_basis == PLANNING_BASIS_BRAND,
+        )
+        .order_by(
+            PurchaseBrand.created_at.asc(),
+            PurchaseBrandLinxAlias.created_at.asc().nullslast(),
+        )
+    ).all()
+    for brand_id, brand_name, alias_name in rows:
+        for candidate in [brand_name, alias_name]:
+            key = normalize_label(candidate)
+            if key:
+                lookup.setdefault(key, (str(brand_id), str(brand_name)))
+    return lookup
+
+
+def _build_supplier_basis_brand_lookup(db: Session, company_id: str) -> dict[str, tuple[str, str]]:
+    links_by_supplier: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    rows = db.execute(
+        select(PurchaseBrandSupplier.supplier_id, PurchaseBrand.id, PurchaseBrand.name)
+        .join(PurchaseBrand, PurchaseBrand.id == PurchaseBrandSupplier.brand_id)
+        .where(
+            PurchaseBrandSupplier.company_id == company_id,
+            PurchaseBrand.planning_basis == PLANNING_BASIS_SUPPLIER,
+        )
+        .order_by(PurchaseBrand.created_at.asc(), PurchaseBrandSupplier.created_at.asc())
+    ).all()
+    for supplier_id, brand_id, brand_name in rows:
+        links_by_supplier[str(supplier_id)].append((str(brand_id), str(brand_name)))
+    return {
+        supplier_id: links[0]
+        for supplier_id, links in links_by_supplier.items()
+        if len(links) == 1
+    }
+
+
+def _build_covered_supplier_ids(db: Session, company_id: str) -> set[str]:
+    return set(
+        db.scalars(
+            select(PurchaseBrandSupplier.supplier_id)
+            .join(PurchaseBrand, PurchaseBrand.id == PurchaseBrandSupplier.brand_id)
+            .where(
+                PurchaseBrandSupplier.company_id == company_id,
+            )
+        )
+    )
 
 
 def _normalize_linx_purchase_status(value: str | None) -> str:
@@ -1017,9 +1094,21 @@ def _serialize_brand(db: Session, brand: PurchaseBrand) -> PurchaseBrandRead:
             continue
         supplier_ids.append(supplier.id)
         suppliers.append(_serialize_supplier(supplier))
+    linx_brand_names = list(
+        db.scalars(
+            select(PurchaseBrandLinxAlias.linx_brand_name)
+            .where(
+                PurchaseBrandLinxAlias.company_id == brand.company_id,
+                PurchaseBrandLinxAlias.brand_id == brand.id,
+            )
+            .order_by(PurchaseBrandLinxAlias.linx_brand_name.asc())
+        )
+    )
     return PurchaseBrandRead(
         id=brand.id,
         name=brand.name,
+        planning_basis=_normalize_planning_basis(getattr(brand, "planning_basis", None)),
+        linx_brand_names=linx_brand_names,
         supplier_ids=supplier_ids,
         suppliers=suppliers,
         default_payment_term=brand.default_payment_term,
@@ -1365,23 +1454,6 @@ def _sync_brand_suppliers(db: Session, company_id: str, brand_id: str, supplier_
     existing_by_supplier = {link.supplier_id: link for link in existing_links}
 
     for supplier_id in unique_supplier_ids:
-        conflicting_link = db.scalar(
-            select(PurchaseBrandSupplier).where(
-                PurchaseBrandSupplier.company_id == company_id,
-                PurchaseBrandSupplier.supplier_id == supplier_id,
-                PurchaseBrandSupplier.brand_id != brand_id,
-            )
-        )
-        if conflicting_link:
-            conflicting_brand = db.get(PurchaseBrand, conflicting_link.brand_id)
-            supplier = db.get(Supplier, supplier_id)
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    f'O fornecedor "{supplier.name if supplier else supplier_id}" ja esta vinculado '
-                    f'a marca "{conflicting_brand.name if conflicting_brand else "outra marca"}".'
-                ),
-            )
         if supplier_id in existing_by_supplier:
             continue
         db.add(
@@ -1397,10 +1469,57 @@ def _sync_brand_suppliers(db: Session, company_id: str, brand_id: str, supplier_
             db.delete(link)
 
 
+def _sync_brand_linx_aliases(
+    db: Session,
+    company_id: str,
+    brand_id: str,
+    linx_brand_names: list[str],
+) -> None:
+    unique_names: list[str] = []
+    seen: set[str] = set()
+    for value in linx_brand_names:
+        name = (value or "").strip()
+        normalized_name = normalize_label(name)
+        if not name or not normalized_name or normalized_name in seen:
+            continue
+        seen.add(normalized_name)
+        unique_names.append(name)
+
+    existing_aliases = list(
+        db.scalars(
+            select(PurchaseBrandLinxAlias).where(
+                PurchaseBrandLinxAlias.company_id == company_id,
+                PurchaseBrandLinxAlias.brand_id == brand_id,
+            )
+        )
+    )
+    existing_by_key = {alias.normalized_name: alias for alias in existing_aliases}
+
+    for name in unique_names:
+        normalized_name = normalize_label(name)
+        alias = existing_by_key.get(normalized_name)
+        if alias:
+            alias.linx_brand_name = name
+            continue
+        db.add(
+            PurchaseBrandLinxAlias(
+                company_id=company_id,
+                brand_id=brand_id,
+                linx_brand_name=name,
+                normalized_name=normalized_name,
+            )
+        )
+
+    for alias in existing_aliases:
+        if alias.normalized_name not in seen:
+            db.delete(alias)
+
+
 def create_brand(db: Session, company: Company, payload: PurchaseBrandCreate, actor_user: User) -> PurchaseBrandRead:
     brand = PurchaseBrand(
         company_id=company.id,
         name=payload.name,
+        planning_basis=_normalize_planning_basis(payload.planning_basis),
         default_payment_term=payload.default_payment_term,
         notes=payload.notes,
         is_active=payload.is_active,
@@ -1408,6 +1527,7 @@ def create_brand(db: Session, company: Company, payload: PurchaseBrandCreate, ac
     db.add(brand)
     db.flush()
     _sync_brand_suppliers(db, company.id, brand.id, payload.supplier_ids)
+    _sync_brand_linx_aliases(db, company.id, brand.id, payload.linx_brand_names)
     db.flush()
     write_audit_log(
         db,
@@ -1418,6 +1538,8 @@ def create_brand(db: Session, company: Company, payload: PurchaseBrandCreate, ac
         actor_user=actor_user,
         after_state={
             "name": brand.name,
+            "planning_basis": brand.planning_basis,
+            "linx_brand_names": payload.linx_brand_names,
             "supplier_ids": payload.supplier_ids,
             "default_payment_term": brand.default_payment_term,
         },
@@ -1436,10 +1558,12 @@ def update_brand(
     assert brand is not None
     before_state = _serialize_brand(db, brand).model_dump()
     brand.name = payload.name
+    brand.planning_basis = _normalize_planning_basis(payload.planning_basis)
     brand.default_payment_term = payload.default_payment_term
     brand.notes = payload.notes
     brand.is_active = payload.is_active
     _sync_brand_suppliers(db, company.id, brand.id, payload.supplier_ids)
+    _sync_brand_linx_aliases(db, company.id, brand.id, payload.linx_brand_names)
     db.flush()
     write_audit_log(
         db,
@@ -4623,6 +4747,7 @@ def _build_purchase_cost_totals(
             LinxMovement.issue_date,
             LinxMovement.total_amount,
             LinxMovement.net_amount,
+            LinxProduct.brand_name,
             LinxProduct.supplier_name,
         )
         .select_from(LinxMovement)
@@ -4653,9 +4778,9 @@ def _build_purchase_cost_totals(
         if supplier and supplier.company_id == company.id:
             wanted_supplier_keys = _supplier_lookup_keys(supplier.name)
 
-    totals_by_key: dict[tuple[str, str], dict[str, Decimal]] = {}
+    totals_by_key: dict[tuple[str, str, str], dict[str, Decimal]] = {}
 
-    for movement_type, launch_date, issue_date, total_amount, net_amount, supplier_name in db.execute(stmt).all():
+    for movement_type, launch_date, issue_date, total_amount, net_amount, brand_name, supplier_name in db.execute(stmt).all():
         reference_date = launch_date or issue_date
         reporting_collection = _resolve_reporting_collection_by_date(company_collections, reference_date)
         if wanted_collection_id and (reporting_collection is None or reporting_collection.id != wanted_collection_id):
@@ -4671,7 +4796,7 @@ def _build_purchase_cost_totals(
         if amount <= 0:
             continue
 
-        group_key = (collection_name, resolved_supplier_name)
+        group_key = (collection_name, str(brand_name or ""), resolved_supplier_name)
         bucket = totals_by_key.setdefault(
             group_key,
             {
@@ -4685,11 +4810,12 @@ def _build_purchase_cost_totals(
             bucket["purchase_return_cost_total"] += amount
 
     rows: list[PurchasePlanningCostRow] = []
-    for (collection_name, supplier_name), totals in sorted(
+    for (collection_name, brand_name, supplier_name), totals in sorted(
         totals_by_key.items(),
         key=lambda item: (
             item[0][0].lower(),
             item[0][1].lower(),
+            item[0][2].lower(),
         ),
     ):
         purchase_amount = _money(totals["purchase_cost_total"])
@@ -4699,6 +4825,7 @@ def _build_purchase_cost_totals(
         rows.append(
             PurchasePlanningCostRow(
                 collection_name=collection_name,
+                brand_name=brand_name or None,
                 supplier_name=supplier_name,
                 purchase_cost_total=purchase_amount,
                 purchase_return_cost_total=purchase_return_amount,
@@ -4819,6 +4946,7 @@ def _build_plan_linx_received_totals(
             LinxMovement.issue_date,
             LinxMovement.total_amount,
             LinxMovement.net_amount,
+            LinxProduct.brand_name,
             LinxProduct.supplier_name,
         )
         .select_from(LinxMovement)
@@ -4832,8 +4960,8 @@ def _build_plan_linx_received_totals(
         )
     ).all()
 
-    movement_totals_by_group: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal("0.00"))
-    for movement_type, launch_date, issue_date, total_amount, net_amount, supplier_name in rows:
+    movement_totals_by_group: dict[tuple[str, str, str], Decimal] = defaultdict(lambda: Decimal("0.00"))
+    for movement_type, launch_date, issue_date, total_amount, net_amount, brand_name, supplier_name in rows:
         reference_date = launch_date or issue_date
         reporting_collection = _resolve_reporting_collection_by_date(company_collections, reference_date)
         if reporting_collection is None:
@@ -4844,7 +4972,7 @@ def _build_plan_linx_received_totals(
             continue
         if movement_type != "purchase":
             continue
-        movement_totals_by_group[(reporting_collection.id, resolved_supplier_name)] += amount
+        movement_totals_by_group[(reporting_collection.id, str(brand_name or ""), resolved_supplier_name)] += amount
 
     received_by_plan_id: dict[str, Decimal] = {}
     for plan in eligible_plans:
@@ -4854,15 +4982,33 @@ def _build_plan_linx_received_totals(
             for supplier in _plan_suppliers(plan)
             for lookup_key in _supplier_lookup_keys(supplier.name)
         }
-        if not supplier_keys:
+        brand_keys = {normalize_label(plan.brand.name)} if plan.brand and plan.brand.planning_basis == PLANNING_BASIS_BRAND else set()
+        alias_names = (
+            db.scalars(
+                select(PurchaseBrandLinxAlias.linx_brand_name).where(
+                    PurchaseBrandLinxAlias.company_id == company_id,
+                    PurchaseBrandLinxAlias.brand_id == plan.brand_id,
+                )
+            )
+            if plan.brand_id
+            else []
+        )
+        for alias_name in alias_names:
+            alias_key = normalize_label(alias_name)
+            if alias_key:
+                brand_keys.add(alias_key)
+        if not supplier_keys and not brand_keys:
             received_by_plan_id[plan.id] = Decimal("0.00")
             continue
 
         received_total = Decimal("0.00")
-        for (collection_id, supplier_name), total in movement_totals_by_group.items():
+        for (collection_id, brand_name, supplier_name), total in movement_totals_by_group.items():
             if collection_id != plan.collection.id:
                 continue
-            if _supplier_lookup_keys(supplier_name) & supplier_keys:
+            if brand_keys and normalize_label(brand_name) in brand_keys:
+                received_total += total
+                continue
+            if not brand_keys and _supplier_lookup_keys(supplier_name) & supplier_keys:
                 received_total += total
         received_by_plan_id[plan.id] = _money(max(received_total, Decimal("0.00")))
     return received_by_plan_id
@@ -4946,7 +5092,8 @@ def _query_sales_and_profit_by_brand_collection(
         if collection_match_cases
         else literal("Sem colecao")
     ).label("collection_name")
-    supplier_brand_lookup = _build_supplier_brand_name_lookup(db, company_id)
+    brand_alias_lookup = _build_brand_alias_lookup(db, company_id)
+    supplier_brand_lookup = _build_supplier_basis_brand_lookup(db, company_id)
     join_condition = and_(
         LinxProduct.company_id == LinxMovement.company_id,
         LinxProduct.linx_code == LinxMovement.product_code,
@@ -4954,6 +5101,7 @@ def _query_sales_and_profit_by_brand_collection(
     rows = db.execute(
         select(
             LinxProduct.supplier_name,
+            LinxProduct.brand_name,
             collection_name_expr,
             func.sum(
                 case(
@@ -4977,18 +5125,24 @@ def _query_sales_and_profit_by_brand_collection(
             LinxMovement.canceled.is_(False),
             LinxMovement.excluded.is_(False),
         )
-        .group_by(LinxProduct.supplier_name, collection_name_expr)
+        .group_by(LinxProduct.supplier_name, LinxProduct.brand_name, collection_name_expr)
     ).all()
     result = {}
     for row in rows:
-        resolved_brand = next(
-            (
-                supplier_brand_lookup[lookup_key]
-                for lookup_key in _supplier_lookup_keys(row.supplier_name)
-                if lookup_key in supplier_brand_lookup
-            ),
-            None,
-        )
+        brand_lookup_key = normalize_label(row.brand_name)
+        resolved_brand_tuple = brand_alias_lookup.get(brand_lookup_key)
+        if resolved_brand_tuple:
+            resolved_brand = resolved_brand_tuple[1]
+        else:
+            supplier = next(
+                (
+                    supplier
+                    for supplier in db.scalars(select(Supplier).where(Supplier.company_id == company_id))
+                    if _supplier_lookup_keys(supplier.name) & _supplier_lookup_keys(row.supplier_name)
+                ),
+                None,
+            )
+            resolved_brand = supplier_brand_lookup.get(supplier.id, (None, None))[1] if supplier else None
         if not resolved_brand:
             continue
         brand = resolved_brand.strip()
@@ -5025,16 +5179,9 @@ def build_purchase_planning_overview(
             .order_by(CollectionSeason.start_date.desc(), CollectionSeason.created_at.desc())
         )
     )
-    supplier_brand_lookup: dict[str, tuple[str, str]] = {}
-    for supplier_id, brand_id, brand_name in db.execute(
-        select(PurchaseBrandSupplier.supplier_id, PurchaseBrand.id, PurchaseBrand.name)
-        .join(PurchaseBrand, PurchaseBrand.id == PurchaseBrandSupplier.brand_id)
-        .where(
-            PurchaseBrandSupplier.company_id == company.id,
-        )
-        .order_by(PurchaseBrand.created_at.asc(), PurchaseBrandSupplier.created_at.asc())
-    ):
-        supplier_brand_lookup.setdefault(str(supplier_id), (str(brand_id), str(brand_name)))
+    brand_alias_lookup = _build_brand_alias_lookup(db, company.id)
+    supplier_brand_lookup = _build_supplier_basis_brand_lookup(db, company.id)
+    covered_supplier_ids = _build_covered_supplier_ids(db, company.id)
 
     plan_stmt = _apply_filters_to_plan_stmt(
         select(PurchasePlan)
@@ -5221,6 +5368,20 @@ def build_purchase_planning_overview(
             return supplier_brand_lookup[supplier_id][1]
         return fallback_name
 
+    def resolve_brand_from_linx(
+        linx_brand_name: str | None,
+        supplier_id: str | None = None,
+    ) -> tuple[str | None, str | None]:
+        lookup_key = normalize_label(linx_brand_name or "")
+        if lookup_key and lookup_key in brand_alias_lookup:
+            return brand_alias_lookup[lookup_key]
+        if supplier_id and supplier_id in supplier_brand_lookup:
+            return supplier_brand_lookup[supplier_id]
+        return None, None
+
+    def is_supplier_covered(supplier_id: str | None) -> bool:
+        return bool(supplier_id and supplier_id in covered_supplier_ids)
+
     def resolve_reporting_collection(
         explicit_collection: CollectionSeason | None,
         reference_date: date | None,
@@ -5234,6 +5395,8 @@ def build_purchase_planning_overview(
     for plan in plans:
         linked_suppliers = _plan_suppliers(plan)
         primary_supplier = linked_suppliers[0] if linked_suppliers else None
+        if not plan.brand and primary_supplier and is_supplier_covered(primary_supplier.id):
+            continue
         row = ensure_row(
             plan.brand_id if plan.brand else resolve_brand_id_from_supplier(primary_supplier.id if primary_supplier else plan.supplier_id),
             plan.brand.name if plan.brand else resolve_brand_name_from_supplier(primary_supplier.id if primary_supplier else plan.supplier_id),
@@ -5260,9 +5423,13 @@ def build_purchase_planning_overview(
 
     for delivery in deliveries:
         reporting_collection = resolve_reporting_collection(delivery.collection, delivery.delivery_date)
+        delivery_brand_id = delivery.brand_id if delivery.brand else resolve_brand_id_from_supplier(delivery.supplier_id)
+        delivery_brand_name = delivery.brand.name if delivery.brand else resolve_brand_name_from_supplier(delivery.supplier_id)
+        if delivery_brand_id is None and is_supplier_covered(delivery.supplier_id):
+            continue
         row = ensure_row(
-            delivery.brand_id if delivery.brand else resolve_brand_id_from_supplier(delivery.supplier_id),
-            delivery.brand.name if delivery.brand else resolve_brand_name_from_supplier(delivery.supplier_id),
+            delivery_brand_id,
+            delivery_brand_name,
             reporting_collection.id if reporting_collection else delivery.collection_id,
             _collection_name(reporting_collection) or _collection_name(delivery.collection),
             reporting_collection.season_year if reporting_collection else (delivery.collection.season_year if delivery.collection else None),
@@ -5281,9 +5448,17 @@ def build_purchase_planning_overview(
         entry_supplier_id = entry.supplier_id or (entry.purchase_invoice.supplier_id if entry.purchase_invoice else None)
         entry_supplier_name = entry.supplier.name if entry.supplier else None
         reporting_collection = resolve_reporting_collection(entry.collection, entry.issue_date or entry.competence_date or entry.due_date)
+        entry_brand_id = entry.purchase_invoice.brand_id if entry.purchase_invoice and entry.purchase_invoice.brand_id else resolve_brand_id_from_supplier(entry_supplier_id)
+        entry_brand_name = (
+            entry.purchase_invoice.brand.name
+            if entry.purchase_invoice and entry.purchase_invoice.brand
+            else resolve_brand_name_from_supplier(entry_supplier_id)
+        )
+        if entry_brand_id is None and is_supplier_covered(entry_supplier_id):
+            continue
         row = ensure_row(
-            resolve_brand_id_from_supplier(entry_supplier_id),
-            resolve_brand_name_from_supplier(entry_supplier_id),
+            entry_brand_id,
+            entry_brand_name,
             reporting_collection.id if reporting_collection else entry.collection_id,
             _collection_name(reporting_collection) or _collection_name(entry.collection),
             reporting_collection.season_year if reporting_collection else (entry.collection.season_year if entry.collection else None),
@@ -5295,8 +5470,8 @@ def build_purchase_planning_overview(
         if entry.issue_date is not None:
             received_collection = resolve_reporting_collection(entry.collection, entry.issue_date)
             received_row = ensure_row(
-                resolve_brand_id_from_supplier(entry_supplier_id),
-                resolve_brand_name_from_supplier(entry_supplier_id),
+                entry_brand_id,
+                entry_brand_name,
                 received_collection.id if received_collection else entry.collection_id,
                 _collection_name(received_collection) or _collection_name(entry.collection),
                 received_collection.season_year if received_collection else (received_collection.season_year if received_collection else None),
@@ -5322,9 +5497,13 @@ def build_purchase_planning_overview(
     open_installments: list[PurchaseInstallmentRead] = []
     for invoice in invoices:
         reporting_collection = resolve_reporting_collection(invoice.collection, invoice.issue_date or invoice.entry_date)
+        invoice_brand_id = invoice.brand_id if invoice.brand else resolve_brand_id_from_supplier(invoice.supplier_id)
+        invoice_brand_name = invoice.brand.name if invoice.brand else resolve_brand_name_from_supplier(invoice.supplier_id)
+        if invoice_brand_id is None and is_supplier_covered(invoice.supplier_id):
+            continue
         row = ensure_row(
-            invoice.brand_id if invoice.brand else resolve_brand_id_from_supplier(invoice.supplier_id),
-            invoice.brand.name if invoice.brand else resolve_brand_name_from_supplier(invoice.supplier_id),
+            invoice_brand_id,
+            invoice_brand_name,
             reporting_collection.id if reporting_collection else invoice.collection_id,
             _collection_name(reporting_collection) or _collection_name(invoice.collection),
             reporting_collection.season_year if reporting_collection else (invoice.collection.season_year if invoice.collection else None),
@@ -5357,9 +5536,13 @@ def build_purchase_planning_overview(
             ),
             None,
         )
-        supplier_brand_id = resolve_brand_id_from_supplier(supplier.id if supplier else None)
-        supplier_brand_name = resolve_brand_name_from_supplier(supplier.id if supplier else None)
+        supplier_brand_id, supplier_brand_name = resolve_brand_from_linx(
+            cost_total.brand_name,
+            supplier.id if supplier else None,
+        )
         if filters.brand_id and supplier_brand_id != filters.brand_id:
+            continue
+        if supplier_brand_id is None and is_supplier_covered(supplier.id if supplier else None):
             continue
 
         matched_row = False

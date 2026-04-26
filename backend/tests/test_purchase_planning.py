@@ -14,7 +14,9 @@ from app.db.models import purchasing as purchasing_models  # noqa: F401
 from app.db.models.base import Base
 from app.db.models.purchasing import Supplier
 from app.db.models.security import Company, User
+from app.schemas.financial_entry import FinancialEntryCreate
 from app.schemas.purchase_planning import (
+    PurchaseBrandCreate,
     PurchaseInstallmentDraft,
     PurchaseInvoiceCreate,
     PurchasePlanCreate,
@@ -24,28 +26,32 @@ from app.schemas.purchase_planning import (
     SupplierCreate,
     SupplierUpdate,
 )
-from app.schemas.financial_entry import FinancialEntryCreate
+from app.services.bootstrap import ensure_company_catalog, run_company_data_maintenance
 from app.services.finance_ops import create_entry
 from app.services.purchase_planning import (
     PurchasePlanningFilters,
     build_purchase_planning_overview,
-    create_purchase_return,
-    create_supplier as create_supplier_service,
+    create_brand,
     create_purchase_invoice,
     create_purchase_plan,
-    delete_purchase_return,
+    create_purchase_return,
     delete_purchase_plan,
+    delete_purchase_return,
     ensure_purchase_installment_financial_entries,
     list_purchase_invoice_suppliers,
-    list_purchase_returns,
     list_purchase_plans,
+    list_purchase_returns,
     parse_purchase_invoice_text,
     reconcile_purchase_invoice_links,
-    update_purchase_return,
-    update_supplier as update_supplier_service,
     update_purchase_plan,
+    update_purchase_return,
 )
-from app.services.bootstrap import ensure_company_catalog, run_company_data_maintenance
+from app.services.purchase_planning import (
+    create_supplier as create_supplier_service,
+)
+from app.services.purchase_planning import (
+    update_supplier as update_supplier_service,
+)
 
 
 @pytest.fixture()
@@ -126,6 +132,160 @@ def create_purchase_category(db: Session, company: Company) -> finance_models.Ca
     db.add(category)
     db.flush()
     return category
+
+
+def create_linx_sale(
+    db: Session,
+    company: Company,
+    *,
+    product_code: int,
+    amount: Decimal,
+    issue_date: datetime,
+) -> linx_models.LinxMovement:
+    movement = linx_models.LinxMovement(
+        company_id=company.id,
+        linx_transaction=product_code,
+        movement_group="sale",
+        movement_type="sale",
+        issue_date=issue_date,
+        product_code=product_code,
+        quantity=Decimal("1"),
+        cost_price=Decimal("10.00"),
+        net_amount=amount,
+        total_amount=amount,
+        canceled=False,
+        excluded=False,
+    )
+    db.add(movement)
+    db.flush()
+    return movement
+
+
+def test_supplier_can_be_linked_to_multiple_brand_basis_plannings(db_session: Session) -> None:
+    company, user = create_company_context(db_session)
+    veste = create_supplier(db_session, company.id, "Veste")
+
+    john_john = create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="John John",
+            planning_basis="brand",
+            linx_brand_names=["John John"],
+            supplier_ids=[veste.id],
+        ),
+        user,
+    )
+    dudalina = create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="Dudalina",
+            planning_basis="brand",
+            linx_brand_names=["Dudalina"],
+            supplier_ids=[veste.id],
+        ),
+        user,
+    )
+
+    assert john_john.supplier_ids == [veste.id]
+    assert dudalina.supplier_ids == [veste.id]
+    links = db_session.scalars(
+        select(purchasing_models.PurchaseBrandSupplier).where(
+            purchasing_models.PurchaseBrandSupplier.supplier_id == veste.id,
+        )
+    ).all()
+    assert len(links) == 2
+
+
+def test_brand_basis_uses_product_brand_and_does_not_create_supplier_row(db_session: Session) -> None:
+    company, user = create_company_context(db_session)
+    collection = create_collection(db_session, company, "Inverno 2026")
+    veste = create_supplier(db_session, company.id, "Veste")
+    john_john = create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="John John",
+            planning_basis="brand",
+            linx_brand_names=["John John"],
+            supplier_ids=[veste.id],
+        ),
+        user,
+    )
+    dudalina = create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="Dudalina",
+            planning_basis="brand",
+            linx_brand_names=["Dudalina"],
+            supplier_ids=[veste.id],
+        ),
+        user,
+    )
+    create_purchase_plan(
+        db_session,
+        company,
+        PurchasePlanCreate(
+            brand_id=john_john.id,
+            supplier_ids=[veste.id],
+            collection_id=collection.id,
+            title="Pedido John John",
+            purchased_amount=Decimal("1000.00"),
+        ),
+        user,
+    )
+    create_purchase_plan(
+        db_session,
+        company,
+        PurchasePlanCreate(
+            brand_id=dudalina.id,
+            supplier_ids=[veste.id],
+            collection_id=collection.id,
+            title="Pedido Dudalina",
+            purchased_amount=Decimal("800.00"),
+        ),
+        user,
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=101,
+        brand_name="John John",
+        supplier_name="Veste",
+        collection_name="Inverno 2026",
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=102,
+        brand_name="Dudalina",
+        supplier_name="Veste",
+        collection_name="Inverno 2026",
+    )
+    create_linx_sale(
+        db_session,
+        company,
+        product_code=101,
+        amount=Decimal("300.00"),
+        issue_date=datetime(2026, 7, 10),
+    )
+    create_linx_sale(
+        db_session,
+        company,
+        product_code=102,
+        amount=Decimal("200.00"),
+        issue_date=datetime(2026, 7, 11),
+    )
+
+    overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters(year=2026), mode="planning")
+    rows_by_brand = {row.brand_name: row for row in overview.rows}
+
+    assert rows_by_brand["John John"].sold_total == Decimal("300.00")
+    assert rows_by_brand["Dudalina"].sold_total == Decimal("200.00")
+    assert "Veste" not in rows_by_brand
+    assert "Não classificados" not in rows_by_brand
 
 
 def create_linx_product(

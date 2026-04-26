@@ -6239,8 +6239,16 @@ textarea {
   grid-column: span 3;
 }
 
+.brand-modal-field--basis {
+  grid-column: span 3;
+}
+
+.brand-modal-field--linx-brands {
+  grid-column: span 6;
+}
+
 .brand-modal-field--suppliers {
-  grid-column: span 9;
+  grid-column: span 6;
 }
 
 .brand-modal-field--term {
@@ -6259,8 +6267,39 @@ textarea {
   display: none !important;
 }
 
-.brand-modal-inputs-grid input {
+.brand-modal-inputs-grid input,
+.brand-modal-inputs-grid textarea {
   width: 100%;
+}
+
+.brand-modal-inputs-grid textarea {
+  min-height: 38px;
+  resize: vertical;
+}
+
+.compact-segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 36px;
+  padding: 2px;
+  border: 1px solid #d7e1ef;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.compact-segmented-control button {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #516277;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.compact-segmented-control button.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
 }
 
 .brand-modal-status-toggle {
@@ -6397,6 +6436,8 @@ textarea {
 
 @media (max-width: 900px) {
   .brand-modal-field--name,
+  .brand-modal-field--basis,
+  .brand-modal-field--linx-brands,
   .brand-modal-field--suppliers,
   .brand-modal-field--term,
   .brand-modal-field--notes,

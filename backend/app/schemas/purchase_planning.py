@@ -6,9 +6,9 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.core.statuses import OPEN_STATUS, normalize_open_alias
 
-
 SeasonType = Literal["summer", "winter"]
 SeasonPhase = Literal["main", "high"]
+PlanningBasis = Literal["brand", "supplier"]
 
 
 class SupplierBase(BaseModel):
@@ -36,6 +36,8 @@ class SupplierRead(SupplierBase):
 
 class PurchaseBrandBase(BaseModel):
     name: str = Field(min_length=2, max_length=140)
+    planning_basis: PlanningBasis = "supplier"
+    linx_brand_names: list[str] = Field(default_factory=list)
     supplier_ids: list[str] = Field(default_factory=list)
     default_payment_term: str | None = Field(default=None, max_length=120)
     notes: str | None = None
@@ -307,6 +309,7 @@ class PurchasePlanningUngroupedSupplier(BaseModel):
 
 class PurchasePlanningCostRow(BaseModel):
     collection_name: str
+    brand_name: str | None = None
     supplier_name: str
     purchase_cost_total: Decimal
     purchase_return_cost_total: Decimal = Decimal("0.00")
