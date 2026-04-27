@@ -1,12 +1,12 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import case, extract, func, or_, select
+from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.banking import BankTransaction, Reconciliation, ReconciliationLine
 from app.db.models.finance import FinancialEntry
-from app.db.models.linx import LinxMovement
+from app.db.models.linx import SalesSnapshot
 from app.db.models.security import Company
 from app.schemas.dashboard import (
     DashboardAccountBalance,
@@ -81,31 +81,18 @@ def _query_revenue_totals_by_year_month(
 ) -> dict[tuple[int, int], Decimal]:
     if end_date < start_date:
         return {}
-    movement_date = func.date(func.coalesce(LinxMovement.launch_date, LinxMovement.issue_date))
-    amount_expr = func.coalesce(LinxMovement.total_amount, LinxMovement.net_amount, 0)
-    year_expr = extract("year", movement_date)
-    month_expr = extract("month", movement_date)
+    year_expr = extract("year", SalesSnapshot.snapshot_date)
+    month_expr = extract("month", SalesSnapshot.snapshot_date)
     rows = db.execute(
         select(
             year_expr.label("year"),
             month_expr.label("month"),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (LinxMovement.movement_type == "sale", amount_expr),
-                        (LinxMovement.movement_type == "sale_return", -amount_expr),
-                        else_=0,
-                    )
-                ),
-                0,
-            ).label("amount"),
+            func.coalesce(func.sum(SalesSnapshot.gross_revenue), 0).label("amount"),
         )
         .where(
-            LinxMovement.company_id == company_id,
-            LinxMovement.movement_group == "sale",
-            movement_date.is_not(None),
-            movement_date >= start_date,
-            movement_date <= end_date,
+            SalesSnapshot.company_id == company_id,
+            SalesSnapshot.snapshot_date >= start_date,
+            SalesSnapshot.snapshot_date <= end_date,
         )
         .group_by(year_expr, month_expr)
     ).all()
@@ -136,20 +123,11 @@ def _get_revenue_comparison_totals(
     }
 
     if current_year == reference_day.year:
-        # Historical cache covers stable data: everything before the current month
-        current_month_start = date(reference_day.year, reference_day.month, 1)
-        if current_month_start > date(previous_year, 1, 1):
-            import calendar
-            prev_month = reference_day.month - 1 if reference_day.month > 1 else 12
-            prev_year = reference_day.year if reference_day.month > 1 else reference_day.year - 1
-            cacheable_end = date(prev_year, prev_month, calendar.monthrange(prev_year, prev_month)[1])
-        else:
-            cacheable_end = date(previous_year, 12, 31)
-        # Live data covers the full current month up to today
+        cacheable_end = reference_day - timedelta(days=1)
         live_totals = _query_revenue_totals_by_year_month(
             db,
             company_id,
-            start_date=current_month_start,
+            start_date=reference_day,
             end_date=reference_day,
         )
 

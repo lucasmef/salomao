@@ -117,6 +117,14 @@ def _normalize_optional_text(value: str | None) -> str | None:
     return text or None
 
 
+def _as_utc_datetime(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def _default_charge_sync_start(reference_date: date | None = None) -> date:
     current = reference_date or date.today()
     return current - timedelta(days=INTER_CHARGE_DEFAULT_LOOKBACK_DAYS)
@@ -1250,7 +1258,15 @@ def sync_inter_charges(
             # Rate limit individual refreshes: only check if not updated in the last 4 hours
             # to avoid hitting API limits for old pending boletos on every sync cycle.
             now_utc = datetime.now(timezone.utc)
-            if record.updated_at and (now_utc - record.updated_at).total_seconds() < 4 * 3600:
+            created_at = _as_utc_datetime(record.created_at)
+            updated_at = _as_utc_datetime(record.updated_at)
+            recently_refreshed = (
+                updated_at is not None
+                and created_at is not None
+                and (updated_at - created_at).total_seconds() >= 1
+                and (now_utc - updated_at).total_seconds() < 4 * 3600
+            )
+            if recently_refreshed:
                 continue
                 
             detail = client.get_charge_detail(codigo_solicitacao)

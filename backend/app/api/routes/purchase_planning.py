@@ -331,7 +331,7 @@ def post_purchase_invoice_linx_sync(
 ) -> ImportResult:
     company = get_current_company(db)
     result = sync_linx_purchase_payables(db, company, current_user)
-    _invalidate_purchase_related_caches(db, company)
+    _finalize_purchase_refresh(db, company)
     return result
 
 
