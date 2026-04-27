@@ -287,6 +287,16 @@ def test_brand_basis_uses_product_brand_and_does_not_create_supplier_row(
         linx_transaction=101,
         product_code=101,
         document_number="101",
+        movement_type="purchase",
+        total_amount=Decimal("450.00"),
+        launch_date=date(2026, 7, 12),
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=1011,
+        product_code=101,
+        document_number="101R",
         movement_type="purchase_return",
         total_amount=Decimal("50.00"),
         launch_date=date(2026, 7, 12),
@@ -297,6 +307,16 @@ def test_brand_basis_uses_product_brand_and_does_not_create_supplier_row(
         linx_transaction=102,
         product_code=102,
         document_number="102",
+        movement_type="purchase",
+        total_amount=Decimal("350.00"),
+        launch_date=date(2026, 7, 13),
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=1021,
+        product_code=102,
+        document_number="102R",
         movement_type="purchase_return",
         total_amount=Decimal("70.00"),
         launch_date=date(2026, 7, 13),
@@ -306,9 +326,11 @@ def test_brand_basis_uses_product_brand_and_does_not_create_supplier_row(
     rows_by_brand = {row.brand_name: row for row in overview.rows}
 
     assert rows_by_brand["John John"].sold_total == Decimal("300.00")
+    assert rows_by_brand["John John"].received_total == Decimal("450.00")
     assert rows_by_brand["John John"].returns_total == Decimal("50.00")
     assert rows_by_brand["John John"].purchased_total == Decimal("1000.00")
     assert rows_by_brand["Dudalina"].sold_total == Decimal("200.00")
+    assert rows_by_brand["Dudalina"].received_total == Decimal("350.00")
     assert rows_by_brand["Dudalina"].returns_total == Decimal("70.00")
     assert rows_by_brand["Dudalina"].purchased_total == Decimal("800.00")
     assert "Veste" not in rows_by_brand

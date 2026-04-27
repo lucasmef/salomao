@@ -5722,6 +5722,7 @@ def build_purchase_planning_overview(
             supplier_names = row["supplier_names"] if isinstance(row["supplier_names"], list) else []
             if supplier_names and not any(_supplier_lookup_keys(name) & _supplier_lookup_keys(cost_total.supplier_name) for name in supplier_names):
                 continue
+            row["received_total"] = Decimal(row["received_total"]) + _money(cost_total.purchase_cost_total)
             row["returns_total"] = Decimal(row["returns_total"]) + _money(cost_total.purchase_return_cost_total)
             matched_row = True
 
@@ -5742,6 +5743,7 @@ def build_purchase_planning_overview(
             supplier.id if supplier else cost_total.supplier_id,
         )
         attach_plan_metadata(row, billing_deadline=collection.end_date)
+        row["received_total"] = Decimal(row["received_total"]) + _money(cost_total.purchase_cost_total)
         row["returns_total"] = Decimal(row["returns_total"]) + _money(cost_total.purchase_return_cost_total)
 
     rows: list[PurchasePlanningRow] = []
