@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, time
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, extract, func, or_, select
 from sqlalchemy.orm import Session
-from zoneinfo import ZoneInfo
 
 from app.core.config import get_settings
 from app.db.models.linx import LinxCustomer, LinxMovement
@@ -15,7 +15,7 @@ from app.services.security_alerts import ensure_email_transport_configured, send
 
 BIRTHDAY_ALERT_TIMEZONE = ZoneInfo("America/Sao_Paulo")
 BIRTHDAY_ALERT_START_TIME = time(hour=9, minute=0)
-RECENT_PURCHASE_LOOKBACK_YEARS = 2
+RECENT_PURCHASE_LOOKBACK_YEARS = 5
 
 
 @dataclass(frozen=True)
@@ -135,7 +135,10 @@ def list_birthday_customers_for_dates(
                 last_purchase_at=last_purchase_at,
             )
         )
-    return sorted(items, key=lambda item: (item.birthday_date, item.customer_name.lower(), item.linx_code))
+    return sorted(
+        items,
+        key=lambda item: (item.birthday_date, item.customer_name.lower(), item.linx_code),
+    )
 
 
 def list_birthday_customers_for_date(
@@ -167,7 +170,10 @@ def send_linx_customer_birthday_alert(
         return None
 
     settings = get_settings()
-    recipients = _split_recipients(company.linx_auto_sync_alert_email) or settings.security_alert_recipients
+    recipients = (
+        _split_recipients(company.linx_auto_sync_alert_email)
+        or settings.security_alert_recipients
+    )
     ensure_email_transport_configured()
 
     company_name = company.trade_name or company.legal_name or company.id
@@ -185,7 +191,10 @@ def send_linx_customer_birthday_alert(
             f"Empresa: {company_name}",
             f"Data: {local_now.strftime('%d/%m/%Y')}",
             "",
-            f"Clientes aniversariantes com compra nos ultimos {RECENT_PURCHASE_LOOKBACK_YEARS} anos:",
+            (
+                "Clientes aniversariantes com compra nos ultimos "
+                f"{RECENT_PURCHASE_LOOKBACK_YEARS} anos:"
+            ),
             *customer_lines,
         ]
     )
@@ -214,4 +223,7 @@ def send_linx_customer_birthday_alert(
             ],
         },
     )
-    return f"Alerta de aniversariantes enviado com sucesso. {len(customers)} cliente(s) elegivel(is)."
+    return (
+        "Alerta de aniversariantes enviado com sucesso. "
+        f"{len(customers)} cliente(s) elegivel(is)."
+    )

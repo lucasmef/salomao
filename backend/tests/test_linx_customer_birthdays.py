@@ -34,7 +34,9 @@ def _build_session() -> tuple[Session, Company]:
     return session, company
 
 
-def test_send_linx_customer_birthday_alert_filters_recent_sales_and_dedupes_same_day(monkeypatch) -> None:
+def test_send_linx_customer_birthday_alert_filters_recent_sales_and_dedupes_same_day(
+    monkeypatch,
+) -> None:
     session, company = _build_session()
     email_calls: list[tuple[str, str, list[str] | None]] = []
 
@@ -52,11 +54,20 @@ def test_send_linx_customer_birthday_alert_filters_recent_sales_and_dedupes_same
             LinxCustomer(
                 company_id=company.id,
                 linx_code=1002,
-                legal_name="Cliente Antigo",
+                legal_name="Cliente Cinco Anos",
                 registration_type="C",
                 is_active=True,
                 anonymous_customer=False,
                 birth_date=date(1985, 4, 20),
+            ),
+            LinxCustomer(
+                company_id=company.id,
+                linx_code=1004,
+                legal_name="Cliente Antigo",
+                registration_type="C",
+                is_active=True,
+                anonymous_customer=False,
+                birth_date=date(1984, 4, 20),
             ),
             LinxCustomer(
                 company_id=company.id,
@@ -110,6 +121,19 @@ def test_send_linx_customer_birthday_alert_filters_recent_sales_and_dedupes_same
                 total_amount=Decimal("100.00"),
                 net_amount=Decimal("100.00"),
             ),
+            LinxMovement(
+                company_id=company.id,
+                linx_transaction=4,
+                movement_group="sale",
+                movement_type="sale",
+                customer_code=1004,
+                product_code=13,
+                issue_date=datetime(2021, 4, 19, 10, 0, 0),
+                launch_date=datetime(2021, 4, 19, 10, 0, 0),
+                quantity=Decimal("1"),
+                total_amount=Decimal("100.00"),
+                net_amount=Decimal("100.00"),
+            ),
         ]
     )
     session.commit()
@@ -121,7 +145,9 @@ def test_send_linx_customer_birthday_alert_filters_recent_sales_and_dedupes_same
     get_settings.cache_clear()
     monkeypatch.setattr(
         "app.services.linx_customer_birthdays.send_email",
-        lambda subject, body, *, recipients=None, html_body=None: email_calls.append((subject, body, recipients)),
+        lambda subject, body, *, recipients=None, html_body=None: email_calls.append(
+            (subject, body, recipients)
+        ),
     )
 
     try:
@@ -131,10 +157,14 @@ def test_send_linx_customer_birthday_alert_filters_recent_sales_and_dedupes_same
             now=datetime(2026, 4, 20, 9, 5),
         )
 
-        assert message == "Alerta de aniversariantes enviado com sucesso. 1 cliente(s) elegivel(is)."
+        assert (
+            message
+            == "Alerta de aniversariantes enviado com sucesso. 2 cliente(s) elegivel(is)."
+        )
         assert len(email_calls) == 1
         assert email_calls[0][2] == ["alertas@example.com"]
         assert "Cliente Elegivel" in email_calls[0][1]
+        assert "Cliente Cinco Anos" in email_calls[0][1]
         assert "Cliente Antigo" not in email_calls[0][1]
         assert "Cliente Devolucao" not in email_calls[0][1]
 

@@ -55,7 +55,7 @@ def test_build_dashboard_week_birthdays_lists_only_eligible_customers_for_curren
             LinxCustomer(
                 company_id=company.id,
                 linx_code=1003,
-                legal_name="Carla Antiga",
+                legal_name="Carla Cinco Anos",
                 registration_type="C",
                 is_active=True,
                 anonymous_customer=False,
@@ -69,6 +69,15 @@ def test_build_dashboard_week_birthdays_lists_only_eligible_customers_for_curren
                 is_active=True,
                 anonymous_customer=False,
                 birth_date=date(1987, 4, 28),
+            ),
+            LinxCustomer(
+                company_id=company.id,
+                linx_code=1005,
+                legal_name="Eva Antiga",
+                registration_type="C",
+                is_active=True,
+                anonymous_customer=False,
+                birth_date=date(1986, 4, 23),
             ),
         ]
     )
@@ -126,6 +135,19 @@ def test_build_dashboard_week_birthdays_lists_only_eligible_customers_for_curren
                 total_amount=Decimal("100.00"),
                 net_amount=Decimal("100.00"),
             ),
+            LinxMovement(
+                company_id=company.id,
+                linx_transaction=5,
+                movement_group="sale",
+                movement_type="sale",
+                customer_code=1005,
+                product_code=14,
+                issue_date=datetime(2021, 4, 19, 10, 0, 0),
+                launch_date=datetime(2021, 4, 19, 10, 0, 0),
+                quantity=Decimal("1"),
+                total_amount=Decimal("100.00"),
+                net_amount=Decimal("100.00"),
+            ),
         ]
     )
     session.commit()
@@ -138,8 +160,13 @@ def test_build_dashboard_week_birthdays_lists_only_eligible_customers_for_curren
         )
 
         assert result.week_label == "Seg 20/04 a Dom 26/04"
-        assert [item.customer_name for item in result.items] == ["Ana Semana", "Bruno Semana"]
+        assert [item.customer_name for item in result.items] == [
+            "Ana Semana",
+            "Carla Cinco Anos",
+            "Bruno Semana",
+        ]
         assert result.items[0].birthday_date == date(2026, 4, 21)
-        assert result.items[1].birthday_date == date(2026, 4, 24)
+        assert result.items[1].birthday_date == date(2026, 4, 22)
+        assert result.items[2].birthday_date == date(2026, 4, 24)
     finally:
         session.close()
