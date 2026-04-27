@@ -2003,6 +2003,64 @@ def test_planning_overview_keeps_supplier_ids_for_sem_marca_rows(db_session: Ses
     assert sem_marca_row.supplier_names == ["Fornecedor Sem Marca"]
 
 
+def test_planning_overview_does_not_crash_when_collection_plan_has_no_supplier(
+    db_session: Session,
+) -> None:
+    company, user = create_company_context(db_session)
+    collection = create_collection(db_session, company, "Inverno 2026")
+    supplier = create_supplier(db_session, company.id, "Fornecedor Financeiro")
+    purchase_category = create_purchase_category(db_session, company)
+    brand = create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="Dudalina",
+            planning_basis="brand",
+            linx_brand_names=["Dudalina"],
+        ),
+        user,
+    )
+    create_purchase_plan(
+        db_session,
+        company,
+        PurchasePlanCreate(
+            brand_id=brand.id,
+            collection_id=collection.id,
+            title="Pedido Dudalina",
+            order_date=date(2026, 7, 1),
+            purchased_amount=Decimal("500.00"),
+        ),
+        user,
+    )
+    create_entry(
+        db_session,
+        company,
+        FinancialEntryCreate(
+            category_id=purchase_category.id,
+            supplier_id=supplier.id,
+            collection_id=collection.id,
+            entry_type="expense",
+            status="planned",
+            title="Compra com colecao",
+            issue_date=date(2026, 7, 12),
+            due_date=date(2026, 7, 30),
+            principal_amount=Decimal("220.00"),
+            total_amount=Decimal("220.00"),
+        ),
+        user,
+    )
+    db_session.commit()
+
+    overview = build_purchase_planning_overview(
+        db_session,
+        company,
+        PurchasePlanningFilters(year=2026),
+        mode="planning",
+    )
+
+    assert any(row.brand_name == "Dudalina" for row in overview.rows)
+
+
 def test_planning_overview_ignores_non_purchase_entries_in_sem_marca(db_session: Session) -> None:
     company, user = create_company_context(db_session)
     purchase_supplier = create_supplier(db_session, company.id, "Fornecedor Compra")

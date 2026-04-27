@@ -2485,7 +2485,7 @@ def _build_plan_financial_totals(
                 (
                     plan.id
                     for plan in plans
-                    if plan.collection_id == entry.collection_id
+                    if plan.collection_id == entry.collection_id and plan.id in plan_periods
                 ),
                 None,
             )
@@ -2503,6 +2503,8 @@ def _build_plan_financial_totals(
         if not registered_supplier:
             continue
         if registered_supplier.id in brand_linked_supplier_ids:
+            continue
+        if matching_plan_id not in plan_periods:
             continue
         period_start, period_end = plan_periods[matching_plan_id]
         collection_name = plan_collection_names.get(matching_plan_id)
