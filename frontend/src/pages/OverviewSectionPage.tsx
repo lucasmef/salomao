@@ -8,6 +8,8 @@ import type { MainNavChild } from "../data/navigation";
 import { formatDate, formatDateTime, formatMoney } from "../lib/format";
 import type { DashboardOverview } from "../types";
 
+const DEFAULT_BIRTHDAY_PURCHASE_LOOKBACK_YEARS = 5;
+
 type Props = {
   tabs: MainNavChild[];
   dashboard: DashboardOverview | null;
@@ -99,6 +101,8 @@ export function OverviewSectionPage({
   const [showPeriodPopover, setShowPeriodPopover] = useState(false);
   const [showPresetMenu, setShowPresetMenu] = useState(false);
   const [showBalancePopover, setShowBalancePopover] = useState(false);
+  const birthdayPurchaseLookbackYears =
+    dashboard?.week_birthdays.purchase_lookback_years ?? DEFAULT_BIRTHDAY_PURCHASE_LOOKBACK_YEARS;
 
   useEffect(() => {
     applyFiltersRef.current = onApplyFilters;
@@ -349,7 +353,8 @@ export function OverviewSectionPage({
           <div>
             <h3>Aniversariantes da semana</h3>
             <p className="birthday-week-subtitle">
-              {dashboard?.week_birthdays.week_label ?? "Semana atual"} • clientes com compra nos 2 ultimos anos
+              {dashboard?.week_birthdays.week_label ?? "Semana atual"} • clientes com compra nos{" "}
+              {birthdayPurchaseLookbackYears} ultimos anos
             </p>
           </div>
         </div>

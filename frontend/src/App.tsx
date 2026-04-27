@@ -252,6 +252,7 @@ const emptyDashboard: DashboardOverview = {
   pending_reconciliations: 0,
   week_birthdays: {
     week_label: null,
+    purchase_lookback_years: 5,
     items: [],
   },
   today_sales: null,

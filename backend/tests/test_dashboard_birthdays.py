@@ -160,6 +160,7 @@ def test_build_dashboard_week_birthdays_lists_only_eligible_customers_for_curren
         )
 
         assert result.week_label == "Seg 20/04 a Dom 26/04"
+        assert result.purchase_lookback_years == 5
         assert [item.customer_name for item in result.items] == [
             "Ana Semana",
             "Carla Cinco Anos",
@@ -168,6 +169,53 @@ def test_build_dashboard_week_birthdays_lists_only_eligible_customers_for_curren
         assert result.items[0].birthday_date == date(2026, 4, 21)
         assert result.items[1].birthday_date == date(2026, 4, 22)
         assert result.items[2].birthday_date == date(2026, 4, 24)
+    finally:
+        session.close()
+
+
+def test_build_dashboard_week_birthdays_includes_customers_in_cross_month_week() -> None:
+    session, company = _build_session()
+
+    session.add(
+        LinxCustomer(
+            company_id=company.id,
+            linx_code=2001,
+            legal_name="Marina Maio",
+            registration_type="C",
+            is_active=True,
+            anonymous_customer=False,
+            birth_date=date(1991, 5, 1),
+        )
+    )
+    session.add(
+        LinxMovement(
+            company_id=company.id,
+            linx_transaction=20,
+            movement_group="sale",
+            movement_type="sale",
+            customer_code=2001,
+            product_code=20,
+            issue_date=datetime(2021, 4, 28, 10, 0, 0),
+            launch_date=datetime(2021, 4, 28, 10, 0, 0),
+            quantity=Decimal("1"),
+            total_amount=Decimal("100.00"),
+            net_amount=Decimal("100.00"),
+        )
+    )
+    session.commit()
+
+    try:
+        result = build_dashboard_week_birthdays(
+            session,
+            company,
+            today=date(2026, 4, 27),
+        )
+
+        assert result.week_label == "Seg 27/04 a Dom 03/05"
+        assert result.purchase_lookback_years == 5
+        assert [item.customer_name for item in result.items] == ["Marina Maio"]
+        assert result.items[0].birthday_date == date(2026, 5, 1)
+        assert result.items[0].last_purchase_date == date(2021, 4, 28)
     finally:
         session.close()
 

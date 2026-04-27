@@ -36,7 +36,10 @@ from app.services.analytics_hybrid import (
     write_live_json_cache,
 )
 from app.services.cashflow import get_cached_cashflow_overview
-from app.services.linx_customer_birthdays import list_birthday_customers_for_dates
+from app.services.linx_customer_birthdays import (
+    RECENT_PURCHASE_LOOKBACK_YEARS,
+    list_birthday_customers_for_dates,
+)
 from app.services.reports import get_cached_reports_overview
 
 MONTH_LABELS = ("Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez")
@@ -83,7 +86,10 @@ def _week_range(current_day: date) -> tuple[date, date]:
 
 
 def _format_week_label(start: date, end: date) -> str:
-    return f"{WEEKDAY_LABELS[start.weekday()]} {start.strftime('%d/%m')} a {WEEKDAY_LABELS[end.weekday()]} {end.strftime('%d/%m')}"
+    return (
+        f"{WEEKDAY_LABELS[start.weekday()]} {start.strftime('%d/%m')} a "
+        f"{WEEKDAY_LABELS[end.weekday()]} {end.strftime('%d/%m')}"
+    )
 
 
 def build_dashboard_week_birthdays(
@@ -102,6 +108,7 @@ def build_dashboard_week_birthdays(
     )
     return DashboardWeekBirthdays(
         week_label=_format_week_label(week_start, week_end),
+        purchase_lookback_years=RECENT_PURCHASE_LOOKBACK_YEARS,
         items=[
             DashboardBirthdayItem(
                 linx_code=item.linx_code,
@@ -203,7 +210,11 @@ def _get_revenue_comparison_totals(
             import calendar
             prev_month = reference_day.month - 1 if reference_day.month > 1 else 12
             prev_year = reference_day.year if reference_day.month > 1 else reference_day.year - 1
-            cacheable_end = date(prev_year, prev_month, calendar.monthrange(prev_year, prev_month)[1])
+            cacheable_end = date(
+                prev_year,
+                prev_month,
+                calendar.monthrange(prev_year, prev_month)[1],
+            )
         else:
             cacheable_end = date(previous_year, 12, 31)
         # Live data covers the full current month up to today
@@ -272,8 +283,18 @@ def build_dashboard_overview(
     cashflow_override=None,
     refresh: bool = False,
 ) -> DashboardOverview:
-    reports = reports_override or get_cached_reports_overview(db, company, start=start, end=end)
-    cashflow = cashflow_override or get_cached_cashflow_overview(db, company, start_date=start, end_date=end)
+    reports = reports_override or get_cached_reports_overview(
+        db,
+        company,
+        start=start,
+        end=end,
+    )
+    cashflow = cashflow_override or get_cached_cashflow_overview(
+        db,
+        company,
+        start_date=start,
+        end_date=end,
+    )
 
     gross_revenue = Decimal(reports.dre.gross_revenue)
     net_revenue = Decimal(reports.dre.net_revenue)
@@ -317,10 +338,14 @@ def build_dashboard_overview(
         )
     )
     overdue_payables_count = db.scalar(
-        select(func.count()).select_from(FinancialEntry).where(*overdue_filters, FinancialEntry.entry_type == "expense")
+        select(func.count())
+        .select_from(FinancialEntry)
+        .where(*overdue_filters, FinancialEntry.entry_type == "expense")
     ) or 0
     overdue_receivables_count = db.scalar(
-        select(func.count()).select_from(FinancialEntry).where(*overdue_filters, FinancialEntry.entry_type == "income")
+        select(func.count())
+        .select_from(FinancialEntry)
+        .where(*overdue_filters, FinancialEntry.entry_type == "income")
     ) or 0
 
     pending_reconciliations = db.scalar(
@@ -349,8 +374,14 @@ def build_dashboard_overview(
             DashboardRevenueComparisonPoint(
                 month=month,
                 label=label,
-                current_year_value=revenue_by_year_month.get((current_year, month), Decimal("0.00")),
-                previous_year_value=revenue_by_year_month.get((previous_year, month), Decimal("0.00")),
+                current_year_value=revenue_by_year_month.get(
+                    (current_year, month),
+                    Decimal("0.00"),
+                ),
+                previous_year_value=revenue_by_year_month.get(
+                    (previous_year, month),
+                    Decimal("0.00"),
+                ),
             )
             for month, label in enumerate(MONTH_LABELS, start=1)
         ],
@@ -421,7 +452,13 @@ def get_cached_dashboard_overview(
     if not is_full_month_period(start, end):
         if refresh:
             reports = get_cached_reports_overview(db, company, start=start, end=end, refresh=True)
-            cashflow = get_cached_cashflow_overview(db, company, start_date=start, end_date=end, refresh=True)
+            cashflow = get_cached_cashflow_overview(
+                db,
+                company,
+                start_date=start,
+                end_date=end,
+                refresh=True,
+            )
             return build_dashboard_overview(
                 db,
                 company,
@@ -435,7 +472,13 @@ def get_cached_dashboard_overview(
     if is_historical_period(start, end):
         if refresh:
             reports = get_cached_reports_overview(db, company, start=start, end=end, refresh=True)
-            cashflow = get_cached_cashflow_overview(db, company, start_date=start, end_date=end, refresh=True)
+            cashflow = get_cached_cashflow_overview(
+                db,
+                company,
+                start_date=start,
+                end_date=end,
+                refresh=True,
+            )
             overview = build_dashboard_overview(
                 db,
                 company,
@@ -459,7 +502,13 @@ def get_cached_dashboard_overview(
             company=company,
             kind=ANALYTICS_DASHBOARD_OVERVIEW,
             snapshot_month=start,
-            build_func=lambda: build_dashboard_overview(db, company, start=start, end=end, refresh=refresh),
+            build_func=lambda: build_dashboard_overview(
+                db,
+                company,
+                start=start,
+                end=end,
+                refresh=refresh,
+            ),
         )
     ttl_seconds = _overview_cache_ttl_seconds(start, end)
     if not refresh:
@@ -474,7 +523,13 @@ def get_cached_dashboard_overview(
             return cached
     if refresh:
         reports = get_cached_reports_overview(db, company, start=start, end=end, refresh=True)
-        cashflow = get_cached_cashflow_overview(db, company, start_date=start, end_date=end, refresh=True)
+        cashflow = get_cached_cashflow_overview(
+            db,
+            company,
+            start_date=start,
+            end_date=end,
+            refresh=True,
+        )
         overview = build_dashboard_overview(
             db,
             company,

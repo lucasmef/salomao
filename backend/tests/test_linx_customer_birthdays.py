@@ -163,6 +163,7 @@ def test_send_linx_customer_birthday_alert_filters_recent_sales_and_dedupes_same
         )
         assert len(email_calls) == 1
         assert email_calls[0][2] == ["alertas@example.com"]
+        assert "ultimos 5 anos" in email_calls[0][1]
         assert "Cliente Elegivel" in email_calls[0][1]
         assert "Cliente Cinco Anos" in email_calls[0][1]
         assert "Cliente Antigo" not in email_calls[0][1]

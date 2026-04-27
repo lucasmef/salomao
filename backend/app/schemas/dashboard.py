@@ -66,6 +66,7 @@ class DashboardBirthdayItem(BaseModel):
 
 class DashboardWeekBirthdays(BaseModel):
     week_label: str | None = None
+    purchase_lookback_years: int = 5
     items: list[DashboardBirthdayItem] = Field(default_factory=list)
 
 

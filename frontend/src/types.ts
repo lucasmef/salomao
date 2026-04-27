@@ -977,6 +977,7 @@ export type DashboardBirthdayItem = {
 
 export type DashboardWeekBirthdays = {
   week_label: string | null;
+  purchase_lookback_years: number;
   items: DashboardBirthdayItem[];
 };
 

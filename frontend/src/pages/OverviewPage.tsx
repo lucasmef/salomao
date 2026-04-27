@@ -5,6 +5,8 @@ import { Skeleton } from "../components/Skeleton";
 import { formatMoney } from "../lib/format";
 import type { DashboardOverview } from "../types";
 
+const DEFAULT_BIRTHDAY_PURCHASE_LOOKBACK_YEARS = 5;
+
 type Props = {
   dashboard: DashboardOverview | null;
   filters: { start: string; end: string };
@@ -79,6 +81,9 @@ export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onA
     }
     return value > 0 ? "is-positive" : "is-negative";
   }
+
+  const birthdayPurchaseLookbackYears =
+    dashboard?.week_birthdays.purchase_lookback_years ?? DEFAULT_BIRTHDAY_PURCHASE_LOOKBACK_YEARS;
 
   return (
     <div className="page-layout">
@@ -177,7 +182,9 @@ export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onA
           <div className="panel-title">
             <div>
               <h3>Aniversariantes da semana</h3>
-              <p className="birthday-week-subtitle">Clientes com compra nos 2 ultimos anos</p>
+              <p className="birthday-week-subtitle">
+                Clientes com compra nos {birthdayPurchaseLookbackYears} ultimos anos
+              </p>
             </div>
           </div>
           <div className="birthday-week-list">
@@ -198,7 +205,8 @@ export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onA
             <div>
               <h3>Aniversariantes da semana</h3>
               <p className="birthday-week-subtitle">
-                {dashboard.week_birthdays.week_label ?? "Semana atual"} • clientes com compra nos 2 ultimos anos
+                {dashboard.week_birthdays.week_label ?? "Semana atual"} • clientes com compra nos{" "}
+                {birthdayPurchaseLookbackYears} ultimos anos
               </p>
             </div>
           </div>
