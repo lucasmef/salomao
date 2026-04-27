@@ -1986,6 +1986,8 @@ def _candidate_template_paths() -> list[Path]:
     repo_root = Path(__file__).resolve().parents[3]
     home = Path.home()
     candidates: list[Path] = []
+    # Legacy fallback: the old Inter Excel template is no longer versioned.
+    # If needed, it can be reintroduced manually in one of these locations.
     search_roots = [
         repo_root,
         repo_root / "docs",

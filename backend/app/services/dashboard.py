@@ -204,24 +204,11 @@ def _get_revenue_comparison_totals(
     }
 
     if current_year == reference_day.year:
-        # Historical cache covers stable data: everything before the current month
-        current_month_start = date(reference_day.year, reference_day.month, 1)
-        if current_month_start > date(previous_year, 1, 1):
-            import calendar
-            prev_month = reference_day.month - 1 if reference_day.month > 1 else 12
-            prev_year = reference_day.year if reference_day.month > 1 else reference_day.year - 1
-            cacheable_end = date(
-                prev_year,
-                prev_month,
-                calendar.monthrange(prev_year, prev_month)[1],
-            )
-        else:
-            cacheable_end = date(previous_year, 12, 31)
-        # Live data covers the full current month up to today
+        cacheable_end = reference_day - timedelta(days=1)
         live_totals = _query_revenue_totals_by_year_month(
             db,
             company_id,
-            start_date=current_month_start,
+            start_date=reference_day,
             end_date=reference_day,
         )
 

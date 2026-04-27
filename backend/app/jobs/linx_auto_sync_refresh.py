@@ -66,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
         if run.attempted:
             attempted += 1
         print(f"{run.company_name}: {run.status}")
+        if run.status == "partial_failure":
+            hard_failure_found = True
         if run.inter_statement_message:
             print(f"  extrato inter: {run.inter_statement_message}")
         if run.inter_charges_message:
