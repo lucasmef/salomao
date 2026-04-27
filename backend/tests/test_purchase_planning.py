@@ -3714,6 +3714,81 @@ def test_overview_received_total_uses_supplier_entries_issue_date_within_collect
     assert "Verao 2026" not in row_by_collection
 
 
+def test_overview_does_not_duplicate_received_total_when_linx_purchase_matches_invoice(
+    db_session: Session,
+) -> None:
+    company, user = create_company_context(db_session)
+    supplier = create_supplier(db_session, company.id, "Fornecedor Dudalina")
+    collection = create_collection(
+        db_session,
+        company,
+        "Inverno 2026",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 7, 1),
+    )
+    brand = create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="Dudalina",
+            planning_basis="brand",
+            linx_brand_names=["Dudalina"],
+            supplier_ids=[supplier.id],
+        ),
+        user,
+    )
+    create_purchase_invoice(
+        db_session,
+        company,
+        PurchaseInvoiceCreate(
+            brand_id=brand.id,
+            supplier_id=supplier.id,
+            supplier_name=supplier.name,
+            collection_id=collection.id,
+            create_plan=False,
+            invoice_number="7310",
+            series="1",
+            issue_date=date(2026, 3, 10),
+            entry_date=date(2026, 3, 10),
+            total_amount=Decimal("320.00"),
+            payment_term="1x",
+            installments=[
+                PurchaseInstallmentDraft(
+                    installment_number=1,
+                    installment_label="1/1",
+                    due_date=date(2026, 4, 10),
+                    amount=Decimal("320.00"),
+                ),
+            ],
+        ),
+        user,
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=7310,
+        brand_name="Dudalina",
+        supplier_name=supplier.name,
+        collection_name="Inverno 2026",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=7310,
+        product_code=7310,
+        document_number="7310",
+        movement_type="purchase",
+        total_amount=Decimal("320.00"),
+        launch_date=date(2026, 3, 10),
+    )
+    db_session.commit()
+
+    overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters(), mode="planning")
+
+    row_by_collection = {row.collection_name: row for row in overview.rows if row.brand_name == "Dudalina"}
+    assert row_by_collection["Inverno 2026"].received_total == Decimal("320.00")
+
+
 def test_overview_assigns_sales_to_collection_by_movement_date_instead_of_linx_collection(db_session: Session) -> None:
     company, user = create_company_context(db_session)
     supplier = create_supplier(db_session, company.id, "Fornecedor Venda")

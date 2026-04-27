@@ -5471,6 +5471,7 @@ def build_purchase_planning_overview(
                 "purchased_total": Decimal("0.00"),
                 "returns_total": Decimal("0.00"),
                 "received_total": Decimal("0.00"),
+                "linx_received_total": Decimal("0.00"),
                 "delivered_total": Decimal("0.00"),
                 "launched_financial_total": Decimal("0.00"),
                 "paid_total": Decimal("0.00"),
@@ -5722,7 +5723,7 @@ def build_purchase_planning_overview(
             supplier_names = row["supplier_names"] if isinstance(row["supplier_names"], list) else []
             if supplier_names and not any(_supplier_lookup_keys(name) & _supplier_lookup_keys(cost_total.supplier_name) for name in supplier_names):
                 continue
-            row["received_total"] = Decimal(row["received_total"]) + _money(cost_total.purchase_cost_total)
+            row["linx_received_total"] = Decimal(row["linx_received_total"]) + _money(cost_total.purchase_cost_total)
             row["returns_total"] = Decimal(row["returns_total"]) + _money(cost_total.purchase_return_cost_total)
             matched_row = True
 
@@ -5743,14 +5744,16 @@ def build_purchase_planning_overview(
             supplier.id if supplier else cost_total.supplier_id,
         )
         attach_plan_metadata(row, billing_deadline=collection.end_date)
-        row["received_total"] = Decimal(row["received_total"]) + _money(cost_total.purchase_cost_total)
+        row["linx_received_total"] = Decimal(row["linx_received_total"]) + _money(cost_total.purchase_cost_total)
         row["returns_total"] = Decimal(row["returns_total"]) + _money(cost_total.purchase_return_cost_total)
 
     rows: list[PurchasePlanningRow] = []
     for item in aggregates.values():
         purchased_total = _money(Decimal(item["purchased_total"]))
         returns_total = _money(Decimal(item["returns_total"]))
-        received_total = _money(Decimal(item["received_total"]))
+        financial_received_total = _money(Decimal(item["received_total"]))
+        linx_received_total = _money(Decimal(item["linx_received_total"]))
+        received_total = linx_received_total if linx_received_total > 0 else financial_received_total
         delivered_total = _money(Decimal(item["delivered_total"]))
         launched_total = _money(Decimal(item["launched_financial_total"]))
         paid_total = _money(Decimal(item["paid_total"]))
