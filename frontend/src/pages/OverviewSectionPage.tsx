@@ -5,7 +5,7 @@ import { RefreshIcon } from "../components/RefreshIcon";
 import { RevenueComparisonChart } from "../components/RevenueComparisonChart";
 import { SectionChrome } from "../components/SectionChrome";
 import type { MainNavChild } from "../data/navigation";
-import { formatDate, formatMoney } from "../lib/format";
+import { formatDate, formatDateTime, formatMoney } from "../lib/format";
 import type { DashboardOverview } from "../types";
 
 type Props = {
@@ -343,7 +343,8 @@ export function OverviewSectionPage({
         </div>
       </section>
 
-      <section className="panel-card birthday-week-panel">
+      <section className="overview-insights-grid">
+        <div className="panel-card birthday-week-panel">
         <div className="panel-title">
           <div>
             <h3>Aniversariantes da semana</h3>
@@ -370,6 +371,16 @@ export function OverviewSectionPage({
         ) : (
           <p className="birthday-week-empty">Nenhum aniversariante elegivel nesta semana.</p>
         )}
+        </div>
+
+        <aside className="panel-card overview-today-sales-card" aria-label="Vendas do dia">
+          <span>Vendas do dia</span>
+          <strong>{formatMoney(dashboard?.today_sales?.gross_revenue ?? 0)}</strong>
+          <small>
+            Ultima atualizacao:{" "}
+            {dashboard?.today_sales?.updated_at ? formatDateTime(dashboard.today_sales.updated_at) : "sem atualizacao"}
+          </small>
+        </aside>
       </section>
     </SectionChrome>
   );

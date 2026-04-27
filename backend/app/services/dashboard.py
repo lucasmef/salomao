@@ -19,6 +19,7 @@ from app.schemas.dashboard import (
     DashboardRevenueComparison,
     DashboardRevenueComparisonPoint,
     DashboardSeriesPoint,
+    DashboardTodaySales,
     DashboardWeekBirthdays,
 )
 from app.services.analytics_hybrid import (
@@ -112,6 +113,30 @@ def build_dashboard_week_birthdays(
             for item in birthdays
         ],
     )
+
+
+def build_dashboard_today_sales(
+    db: Session,
+    company: Company,
+    *,
+    today: date | None = None,
+) -> DashboardTodaySales:
+    reference_day = today or _today_in_sao_paulo()
+    summary = db.execute(
+        select(
+            func.coalesce(func.sum(SalesSnapshot.gross_revenue), 0).label("gross_revenue"),
+            func.max(SalesSnapshot.updated_at).label("updated_at"),
+        ).where(
+            SalesSnapshot.company_id == company.id,
+            SalesSnapshot.snapshot_date == reference_day,
+        )
+    ).one()
+    return DashboardTodaySales(
+        sales_date=reference_day,
+        gross_revenue=Decimal(summary.gross_revenue or 0),
+        updated_at=summary.updated_at,
+    )
+
 
 def clear_dashboard_overview_cache(company_id: str | None = None) -> None:
     clear_live_cache(company_id, kinds=[ANALYTICS_DASHBOARD_OVERVIEW])

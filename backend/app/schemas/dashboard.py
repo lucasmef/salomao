@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
@@ -69,6 +69,12 @@ class DashboardWeekBirthdays(BaseModel):
     items: list[DashboardBirthdayItem] = Field(default_factory=list)
 
 
+class DashboardTodaySales(BaseModel):
+    sales_date: date
+    gross_revenue: Decimal = Decimal("0.00")
+    updated_at: datetime | None = None
+
+
 class DashboardOverview(BaseModel):
     period_label: str
     kpis: DashboardKpis
@@ -80,3 +86,4 @@ class DashboardOverview(BaseModel):
     overdue_receivables: list[DashboardPendingItem]
     pending_reconciliations: int
     week_birthdays: DashboardWeekBirthdays = Field(default_factory=DashboardWeekBirthdays)
+    today_sales: DashboardTodaySales | None = None

@@ -756,6 +756,42 @@ textarea {
   background: #7c5ad2;
 }
 
+.overview-insights-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.overview-today-sales-card {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-height: 116px;
+  padding: 14px 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.overview-today-sales-card span {
+  color: #607087;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.overview-today-sales-card strong {
+  color: #18253a;
+  font-size: 1.45rem;
+  line-height: 1.1;
+}
+
+.overview-today-sales-card small {
+  color: #64748b;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
 .compact-toolbar-tight {
   grid-template-columns: minmax(150px, 1.25fr) minmax(108px, 0.72fr) minmax(108px, 0.72fr) minmax(96px, auto);
   gap: 5px 8px;
@@ -5118,6 +5154,10 @@ textarea {
 
   .revenue-comparison-canvas svg {
     height: 180px;
+  }
+
+  .overview-insights-grid {
+    grid-template-columns: 1fr;
   }
 
   .compact-import-card .compact-button,

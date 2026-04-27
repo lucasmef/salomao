@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.db.models.linx import LinxCustomer, LinxMovement
+from app.db.models.linx import LinxCustomer, LinxMovement, SalesSnapshot
 from app.db.models.security import Company
-from app.services.dashboard import build_dashboard_week_birthdays
+from app.services.dashboard import build_dashboard_today_sales, build_dashboard_week_birthdays
 
 
 def _build_session() -> tuple[Session, Company]:
@@ -168,5 +168,40 @@ def test_build_dashboard_week_birthdays_lists_only_eligible_customers_for_curren
         assert result.items[0].birthday_date == date(2026, 4, 21)
         assert result.items[1].birthday_date == date(2026, 4, 22)
         assert result.items[2].birthday_date == date(2026, 4, 24)
+    finally:
+        session.close()
+
+
+def test_build_dashboard_today_sales_reads_today_snapshot_total_and_update_time() -> None:
+    session, company = _build_session()
+    updated_at = datetime(2026, 4, 27, 14, 35, 0)
+    session.add_all(
+        [
+            SalesSnapshot(
+                company_id=company.id,
+                snapshot_date=date(2026, 4, 27),
+                gross_revenue=Decimal("1250.50"),
+                updated_at=updated_at,
+            ),
+            SalesSnapshot(
+                company_id=company.id,
+                snapshot_date=date(2026, 4, 26),
+                gross_revenue=Decimal("900.00"),
+                updated_at=datetime(2026, 4, 27, 15, 0, 0),
+            ),
+        ]
+    )
+    session.commit()
+
+    try:
+        result = build_dashboard_today_sales(
+            session,
+            company,
+            today=date(2026, 4, 27),
+        )
+
+        assert result.sales_date == date(2026, 4, 27)
+        assert result.gross_revenue == Decimal("1250.50")
+        assert result.updated_at == updated_at
     finally:
         session.close()

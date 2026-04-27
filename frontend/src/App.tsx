@@ -254,6 +254,7 @@ const emptyDashboard: DashboardOverview = {
     week_label: null,
     items: [],
   },
+  today_sales: null,
 };
 
 const emptyLookups: CategoryLookups = { group_options: [], subgroup_options: [] };

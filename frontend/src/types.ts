@@ -980,6 +980,12 @@ export type DashboardWeekBirthdays = {
   items: DashboardBirthdayItem[];
 };
 
+export type DashboardTodaySales = {
+  sales_date: string;
+  gross_revenue: string;
+  updated_at: string | null;
+};
+
 export type DashboardOverview = {
   period_label: string;
   kpis: {
@@ -1006,6 +1012,7 @@ export type DashboardOverview = {
   overdue_receivables: DashboardPendingItem[];
   pending_reconciliations: number;
   week_birthdays: DashboardWeekBirthdays;
+  today_sales: DashboardTodaySales | null;
 };
 
 export type UserCreatePayload = {
