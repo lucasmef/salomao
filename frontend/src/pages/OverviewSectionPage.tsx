@@ -365,9 +365,7 @@ export function OverviewSectionPage({
               <article className="birthday-week-item" key={`${item.linx_code}-${item.birthday_date}`}>
                 <div className="birthday-week-copy">
                   <strong>{item.customer_name}</strong>
-                  <span>
-                    Nascimento {formatDate(item.birth_date)} • ultima compra {formatDate(item.last_purchase_date)}
-                  </span>
+                  <span>Ultima compra: {formatDate(item.last_purchase_date)}</span>
                 </div>
                 <div className="birthday-week-date">{formatBirthdayDate(item.birthday_date)}</div>
               </article>

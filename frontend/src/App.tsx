@@ -1777,7 +1777,7 @@ function AppRuntime() {
       const result = await fetchJson<ImportResult>("/imports/linx-customers/sync", {
         method: "POST",
         token: session.token,
-        body: JSON.stringify({}),
+        body: JSON.stringify({ full_refresh: true }),
       });
       setFeedback({ tone: "success", message: result.message });
     }, "Clientes e fornecedores do Linx atualizados.", { sections: ["cadastros", "importacoes"] });

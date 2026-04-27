@@ -419,7 +419,8 @@ html, body {
 
 .birthday-week-panel {
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  align-self: start;
 }
 
 .birthday-week-subtitle {
@@ -430,42 +431,45 @@ html, body {
 
 .birthday-week-list {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .birthday-week-item {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 10px 12px;
+  padding: 7px 10px;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
 }
 
 .birthday-week-copy {
   display: grid;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
 }
 
 .birthday-week-copy strong {
   color: #18253a;
-  font-size: 0.9rem;
+  font-size: 0.84rem;
+  line-height: 1.2;
 }
 
 .birthday-week-copy span {
   color: #64748b;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
+  line-height: 1.25;
 }
 
 .birthday-week-date {
   flex-shrink: 0;
-  padding: 8px 10px;
+  padding: 6px 9px;
   border-radius: 999px;
   background: #eff6ff;
   color: #1d4ed8;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 700;
   text-transform: capitalize;
 }

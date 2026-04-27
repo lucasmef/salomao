@@ -217,9 +217,7 @@ export function OverviewPage({ dashboard, filters, loading, onChangeFilters, onA
                 <article className="birthday-week-item" key={`${item.linx_code}-${item.birthday_date}`}>
                   <div className="birthday-week-copy">
                     <strong>{item.customer_name}</strong>
-                    <span>
-                      Nascimento {formatShortDate(item.birth_date)} • ultima compra {formatShortDate(item.last_purchase_date)}
-                    </span>
+                    <span>Ultima compra: {formatShortDate(item.last_purchase_date)}</span>
                   </div>
                   <div className="birthday-week-date">{formatBirthdayDate(item.birthday_date)}</div>
                 </article>
