@@ -30,6 +30,7 @@ from app.services.bootstrap import ensure_company_catalog, run_company_data_main
 from app.services.finance_ops import create_entry
 from app.services.purchase_planning import (
     PurchasePlanningFilters,
+    build_purchase_planning_cashflow,
     build_purchase_planning_overview,
     create_brand,
     create_purchase_invoice,
@@ -1128,6 +1129,74 @@ def test_delete_purchase_plan_removes_unlinked_plan(db_session: Session) -> None
 
     deleted = db_session.get(purchasing_models.PurchasePlan, plan.id)
     assert deleted is None
+
+
+def test_delete_one_of_multiple_brand_collection_plans_recalculates_overview_and_cashflow(
+    db_session: Session,
+) -> None:
+    company, user = create_company_context(db_session)
+    collection = create_collection(db_session, company, "Inverno 2026")
+    supplier = create_supplier(db_session, company.id, "Veste")
+    brand = create_brand(
+        db_session,
+        company,
+        PurchaseBrandCreate(
+            name="Dudalina",
+            planning_basis="brand",
+            linx_brand_names=["Dudalina"],
+            supplier_ids=[supplier.id],
+            default_payment_term="30/60",
+        ),
+        user,
+    )
+    kept_plan = create_purchase_plan(
+        db_session,
+        company,
+        PurchasePlanCreate(
+            brand_id=brand.id,
+            supplier_ids=[supplier.id],
+            collection_id=collection.id,
+            title="Pedido Dudalina 1",
+            order_date=date(2026, 7, 1),
+            expected_delivery_date=date(2026, 8, 1),
+            purchased_amount=Decimal("600.00"),
+        ),
+        user,
+    )
+    deleted_plan = create_purchase_plan(
+        db_session,
+        company,
+        PurchasePlanCreate(
+            brand_id=brand.id,
+            supplier_ids=[supplier.id],
+            collection_id=collection.id,
+            title="Pedido Dudalina 2",
+            order_date=date(2026, 7, 2),
+            expected_delivery_date=date(2026, 8, 2),
+            purchased_amount=Decimal("400.00"),
+        ),
+        user,
+    )
+
+    delete_purchase_plan(db_session, company, deleted_plan.id, user)
+    db_session.commit()
+
+    overview = build_purchase_planning_overview(
+        db_session,
+        company,
+        PurchasePlanningFilters(year=2026),
+        mode="planning",
+    )
+    row = next(item for item in overview.rows if item.brand_name == "Dudalina")
+    cashflow = build_purchase_planning_cashflow(
+        db_session,
+        company,
+        PurchasePlanningFilters(year=2026),
+    )
+
+    assert row.purchased_total == Decimal("600.00")
+    assert [plan.id for plan in overview.plans if plan.brand_id == brand.id] == [kept_plan.id]
+    assert sum((item.planned_outflows for item in cashflow), Decimal("0.00")) == Decimal("600.00")
 
 
 def test_delete_purchase_plan_rejects_plan_with_linked_invoice(db_session: Session) -> None:

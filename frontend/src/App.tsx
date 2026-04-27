@@ -2420,6 +2420,7 @@ function AppRuntime() {
     await runMutation(async () => {
       await fetchJson("/purchase-plans", { method: "POST", token: session.token, body: JSON.stringify(payload) });
     }, "Posicao de compra criada.", { sections: ["planejamento"] });
+    setLoadedSections((current) => ({ ...current, caixa: false }));
   }
 
   async function updatePurchasePlan(planId: string, payload: Record<string, unknown>) {
@@ -2427,13 +2428,15 @@ function AppRuntime() {
     await runMutation(async () => {
       await fetchJson(`/purchase-plans/${planId}`, { method: "PUT", token: session.token, body: JSON.stringify(payload) });
     }, "Posicao de compra atualizada.", { sections: ["planejamento"] });
+    setLoadedSections((current) => ({ ...current, caixa: false }));
   }
 
   async function deletePurchasePlan(planId: string) {
     if (!session) return;
     await runMutation(async () => {
       await fetchJson(`/purchase-plans/${planId}`, { method: "DELETE", token: session.token });
-    }, "Posicao de compra excluida.", { sections: ["planejamento", "caixa"] });
+    }, "Posicao de compra excluida.", { sections: ["planejamento"] });
+    setLoadedSections((current) => ({ ...current, caixa: false }));
   }
 
   async function createPurchaseReturn(payload: Record<string, unknown>) {
