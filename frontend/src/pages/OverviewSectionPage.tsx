@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
-import { RefreshIcon } from "../components/RefreshIcon";
 import { RevenueComparisonChart } from "../components/RevenueComparisonChart";
 import { SectionChrome } from "../components/SectionChrome";
-import { Button, Card, EmptyState, Input, KpiCard, PeriodChips, StatusPill } from "../components/ui";
+import { Button, Card, EmptyState, Input, KpiCard, PeriodChips } from "../components/ui";
 import type { MainNavChild } from "../data/navigation";
 import { formatDate, formatDateTime, formatMoney } from "../lib/format";
 import type { DashboardOverview, DashboardPendingItem } from "../types";
@@ -18,15 +17,18 @@ type Props = {
   loading: boolean;
   onChangeFilters: (filters: { start: string; end: string }) => void;
   onApplyFilters: (filters?: { start: string; end: string }) => Promise<void>;
-  onRefreshData: () => Promise<void>;
+  onOpenEntriesKind: (kind: "income" | "expense") => Promise<void>;
+  onOpenSalesReport: () => Promise<void>;
 };
 
-type PeriodKey = "month" | "previous" | "year" | "";
+type PeriodKey = "today" | "7d" | "30d" | "mtd" | "ytd" | "";
 
 const PERIOD_OPTIONS = [
-  { key: "month", label: "Mês atual" },
-  { key: "previous", label: "Mês anterior" },
-  { key: "year", label: "Ano atual" },
+  { key: "today", label: "Hoje" },
+  { key: "7d", label: "7d" },
+  { key: "30d", label: "30d" },
+  { key: "mtd", label: "MTD" },
+  { key: "ytd", label: "YTD" },
 ] as const;
 
 function toInput(value: Date) {
@@ -59,6 +61,14 @@ function formatRangeLabel(start: string, end: string) {
   return start ? `${formatDate(start)} - ...` : `... - ${formatDate(end)}`;
 }
 
+function formatOverviewPeriod(start: string, end: string) {
+  const reference = start || end;
+  if (!reference) return "VISÃO GERAL";
+  const date = parseIsoDate(reference);
+  const month = new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(date).toUpperCase();
+  return `VISÃO GERAL · ${month} ${date.getFullYear()}`;
+}
+
 function numeric(value: string | number | null | undefined) {
   return Number(value ?? 0);
 }
@@ -89,21 +99,33 @@ function initials(value: string) {
 
 function buildQuickRange(kind: Exclude<PeriodKey, "">) {
   const now = new Date();
-  if (kind === "month") {
+  if (kind === "today") {
     return {
-      start: toInput(new Date(now.getFullYear(), now.getMonth(), 1)),
-      end: toInput(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+      start: toInput(now),
+      end: toInput(now),
     };
   }
-  if (kind === "previous") {
+  if (kind === "7d") {
     return {
-      start: toInput(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
-      end: toInput(new Date(now.getFullYear(), now.getMonth(), 0)),
+      start: toInput(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)),
+      end: toInput(now),
+    };
+  }
+  if (kind === "30d") {
+    return {
+      start: toInput(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29)),
+      end: toInput(now),
+    };
+  }
+  if (kind === "mtd") {
+    return {
+      start: toInput(new Date(now.getFullYear(), now.getMonth(), 1)),
+      end: toInput(now),
     };
   }
   return {
     start: toInput(new Date(now.getFullYear(), 0, 1)),
-    end: toInput(new Date(now.getFullYear(), 11, 31)),
+    end: toInput(now),
   };
 }
 
@@ -131,7 +153,8 @@ export function OverviewSectionPage({
   loading,
   onChangeFilters,
   onApplyFilters,
-  onRefreshData,
+  onOpenEntriesKind,
+  onOpenSalesReport,
 }: Props) {
   const currentTab = tabs[0];
   const hasMountedAutoApplyRef = useRef(false);
@@ -192,8 +215,8 @@ export function OverviewSectionPage({
   const overdueReceivables = dashboard?.overdue_receivables ?? [];
   const pendingReconciliationItems = dashboard?.pending_reconciliation_items ?? [];
   const consolidatedBalance = totalAccountBalance || numeric(dashboard?.kpis.current_balance);
-  const receivables30d = numeric(dashboard?.kpis.receivables_30d);
-  const payables30d = numeric(dashboard?.kpis.payables_30d);
+  const receivablesPeriod = numeric(dashboard?.kpis.receivables_period ?? dashboard?.kpis.receivables_30d);
+  const payablesPeriod = numeric(dashboard?.kpis.payables_period ?? dashboard?.kpis.payables_30d);
   const delinquencyRate = numeric(dashboard?.kpis.delinquency_rate);
   const overdueReceivablesAmount = numeric(dashboard?.kpis.overdue_receivables_amount);
   const birthdayPurchaseLookbackYears =
@@ -225,6 +248,7 @@ export function OverviewSectionPage({
     },
   ].filter((item) => item.show);
   const hasDashboard = Boolean(dashboard);
+  const overviewPeriod = formatOverviewPeriod(filters.start, filters.end);
 
   return (
     <SectionChrome
@@ -236,21 +260,12 @@ export function OverviewSectionPage({
     >
       <section className={styles.toolbar}>
         <div className={styles.toolbarCopy}>
-          <span className={styles.periodBadge}>{dashboard?.period_label ?? "Leitura consolidada"}</span>
-          <h2 className={styles.headline}>Dashboard executivo com caixa, resultado e prioridades operacionais.</h2>
-          <div className={styles.toolbarMeta}>
-            <StatusPill status={loading ? "idle" : "online"} pulse={loading}>
-              {loading ? "Atualizando" : "Dados sincronizados"}
-            </StatusPill>
-            {dashboard?.today_sales ? (
-              <span className={styles.metaItem}>
-                Vendas hoje: <strong>{formatMoney(dashboard.today_sales.gross_revenue)}</strong>
-              </span>
-            ) : null}
-            {dashboard?.today_sales?.updated_at ? (
-              <span className={styles.metaItem}>Atualizado {formatDateTime(dashboard.today_sales.updated_at)}</span>
-            ) : null}
-          </div>
+          <span className={styles.heroEyebrow}>{overviewPeriod}</span>
+          <h2 className={styles.headline}>Bom dia, <span>Lucas</span>.</h2>
+          <p className={styles.heroSubline}>
+            Você tem <strong>{dashboard?.pending_reconciliations ?? 0} conciliações</strong> e{" "}
+            <strong>{dashboard?.kpis.overdue_receivables ?? 0} recebíveis vencidos</strong> esperando atenção.
+          </p>
         </div>
 
         <div className={styles.toolbarControls}>
@@ -261,9 +276,6 @@ export function OverviewSectionPage({
             customLabel="Personalizado"
             onCustomClick={() => setShowPeriodPopover((current) => !current)}
           />
-          <Button iconLeft={<RefreshIcon />} loading={loading} onClick={() => void onRefreshData()} size="md" variant="secondary">
-            Atualizar
-          </Button>
         </div>
 
         {showPeriodPopover && (
@@ -316,21 +328,25 @@ export function OverviewSectionPage({
             trend={consolidatedBalance >= 0 ? "up" : "down"}
             value={formatMoney(consolidatedBalance)}
           />
-          <KpiCard
-            delta="30 dias"
-            label="A receber (30d)"
-            sparkline={revenueSpark}
-            trend="up"
-            value={formatMoney(receivables30d)}
-          />
-          <KpiCard
-            delta="30 dias"
-            goodTrend={payables30d <= receivables30d}
-            label="A pagar (30d)"
-            sparkline={buildPendingSpark(overduePayables)}
-            trend={payables30d > receivables30d ? "up" : "down"}
-            value={formatMoney(payables30d)}
-          />
+          <button className={styles.kpiButton} type="button" onClick={() => void onOpenEntriesKind("income")}>
+            <KpiCard
+              delta="Período"
+              label="A receber"
+              sparkline={revenueSpark}
+              trend="up"
+              value={formatMoney(receivablesPeriod)}
+            />
+          </button>
+          <button className={styles.kpiButton} type="button" onClick={() => void onOpenEntriesKind("expense")}>
+            <KpiCard
+              delta="Período"
+              goodTrend={payablesPeriod <= receivablesPeriod}
+              label="A pagar"
+              sparkline={buildPendingSpark(overduePayables)}
+              trend={payablesPeriod > receivablesPeriod ? "up" : "down"}
+              value={formatMoney(payablesPeriod)}
+            />
+          </button>
           <KpiCard
             delta={overdueReceivablesAmount ? formatMoney(overdueReceivablesAmount) : "Sem vencidos"}
             goodTrend={delinquencyRate === 0}
@@ -339,14 +355,16 @@ export function OverviewSectionPage({
             trend={delinquencyRate > 0 ? "up" : "flat"}
             value={formatPercent(dashboard?.kpis.delinquency_rate)}
           />
-          <KpiCard
-            hero
-            delta={dashboard?.today_sales?.updated_at ? `Atualizado ${formatDateTime(dashboard.today_sales.updated_at)}` : "Hoje"}
-            label="Vendas do dia"
-            sparkline={revenueSpark.length ? revenueSpark : previousRevenueSpark}
-            trend="up"
-            value={formatMoney(dashboard?.today_sales?.gross_revenue ?? 0)}
-          />
+          <button className={styles.kpiButton} type="button" onClick={() => void onOpenSalesReport()}>
+            <KpiCard
+              hero
+              delta={dashboard?.today_sales?.updated_at ? `Atualizado ${formatDateTime(dashboard.today_sales.updated_at)}` : "Hoje"}
+              label="Vendas do dia"
+              sparkline={revenueSpark.length ? revenueSpark : previousRevenueSpark}
+              trend="up"
+              value={formatMoney(dashboard?.today_sales?.gross_revenue ?? 0)}
+            />
+          </button>
         </section>
       ) : null}
 

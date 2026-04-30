@@ -120,12 +120,17 @@ def list_birthday_customers_for_dates(
     ).all()
 
     items: list[BirthdayCustomerAlertItem] = []
+    seen_birthdays: set[tuple[int, date]] = set()
     for linx_code, legal_name, display_name, birth_date, last_purchase_at in rows:
         if birth_date is None or last_purchase_at is None:
             continue
         birthday_date = birthday_dates_by_month_day.get((birth_date.month, birth_date.day))
         if birthday_date is None:
             continue
+        dedupe_key = (int(linx_code), birthday_date)
+        if dedupe_key in seen_birthdays:
+            continue
+        seen_birthdays.add(dedupe_key)
         items.append(
             BirthdayCustomerAlertItem(
                 linx_code=int(linx_code),

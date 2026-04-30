@@ -1010,6 +1010,8 @@ export type DashboardOverview = {
     remaining_profit: string;
     current_balance: string;
     projected_balance: string;
+    receivables_period: string;
+    payables_period: string;
     receivables_30d: string;
     payables_30d: string;
     overdue_receivables_amount: string;
@@ -1254,4 +1256,36 @@ export type BoletoExportJob = {
   processed_count: number;
   error_message: string | null;
   filename: string | null;
+};
+
+export type LinxSalesReportSummary = {
+  total_invoices: number;
+  total_quantity: string;
+  gross_amount: string;
+  returns_amount: string;
+  net_amount: string;
+};
+
+export type LinxSalesReportItem = {
+  key: string;
+  document_number: string | null;
+  document_series: string | null;
+  customer_code: number | null;
+  customer_name: string | null;
+  issue_date: string | null;
+  launch_date: string | null;
+  item_count: number;
+  quantity: string;
+  gross_amount: string;
+  returns_amount: string;
+  net_amount: string;
+};
+
+export type LinxSalesReport = {
+  generated_at: string;
+  summary: LinxSalesReportSummary;
+  items: LinxSalesReportItem[];
+  total: number;
+  page: number;
+  page_size: number;
 };

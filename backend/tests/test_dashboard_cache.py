@@ -28,6 +28,8 @@ def _sample_overview() -> DashboardOverview:
             remaining_profit=Decimal("12.00"),
             current_balance=Decimal("50.00"),
             projected_balance=Decimal("70.00"),
+            receivables_period=Decimal("200.00"),
+            payables_period=Decimal("120.00"),
             receivables_30d=Decimal("200.00"),
             payables_30d=Decimal("120.00"),
             overdue_receivables_amount=Decimal("20.00"),

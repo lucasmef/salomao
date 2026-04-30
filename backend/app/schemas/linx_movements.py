@@ -47,3 +47,35 @@ class LinxMovementDirectoryRead(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class LinxSalesReportSummaryRead(BaseModel):
+    total_invoices: int
+    total_quantity: Decimal
+    gross_amount: Decimal
+    returns_amount: Decimal
+    net_amount: Decimal
+
+
+class LinxSalesReportItemRead(BaseModel):
+    key: str
+    document_number: str | None = None
+    document_series: str | None = None
+    customer_code: int | None = None
+    customer_name: str | None = None
+    issue_date: datetime | None = None
+    launch_date: datetime | None = None
+    item_count: int
+    quantity: Decimal
+    gross_amount: Decimal
+    returns_amount: Decimal
+    net_amount: Decimal
+
+
+class LinxSalesReportRead(BaseModel):
+    generated_at: datetime
+    summary: LinxSalesReportSummaryRead
+    items: list[LinxSalesReportItemRead]
+    total: int
+    page: int
+    page_size: int

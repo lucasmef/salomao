@@ -5,7 +5,7 @@ import json
 import unicodedata
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -14,13 +14,16 @@ from sqlalchemy import String, and_, case, cast, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.imports import ImportBatch
-from app.db.models.linx import LinxMovement, LinxProduct
+from app.db.models.linx import LinxCustomer, LinxMovement, LinxProduct
 from app.db.models.security import Company
 from app.schemas.imports import ImportResult
 from app.schemas.linx_movements import (
     LinxMovementDirectoryRead,
     LinxMovementDirectorySummaryRead,
     LinxMovementListItemRead,
+    LinxSalesReportItemRead,
+    LinxSalesReportRead,
+    LinxSalesReportSummaryRead,
 )
 from app.services.linx import LinxApiSettings, load_linx_api_settings
 
@@ -305,6 +308,138 @@ def list_linx_movements(
                 linx_row_timestamp=item.linx_row_timestamp,
             )
             for item, product_description, product_reference, collection_name in rows
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+def list_linx_sales_report(
+    db: Session,
+    company: Company,
+    *,
+    page: int = 1,
+    page_size: int = 50,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    search: str | None = None,
+) -> LinxSalesReportRead:
+    page = max(page, 1)
+    page_size = min(max(page_size, 10), 200)
+    movement_date = func.coalesce(LinxMovement.issue_date, LinxMovement.launch_date)
+    base_filters = [
+        LinxMovement.company_id == company.id,
+        LinxMovement.movement_group == "sale",
+        LinxMovement.canceled.is_(False),
+        LinxMovement.excluded.is_(False),
+    ]
+    if start_date:
+        base_filters.append(func.date(movement_date) >= start_date)
+    if end_date:
+        base_filters.append(func.date(movement_date) <= end_date)
+
+    customer_join = and_(
+        LinxCustomer.company_id == LinxMovement.company_id,
+        LinxCustomer.linx_code == LinxMovement.customer_code,
+    )
+    normalized_search = _clean_text(search)
+    if normalized_search:
+        pattern = f"%{normalized_search}%"
+        base_filters.append(
+            or_(
+                LinxMovement.document_number.ilike(pattern),
+                cast(LinxMovement.customer_code, String).ilike(pattern),
+                LinxCustomer.legal_name.ilike(pattern),
+                LinxCustomer.display_name.ilike(pattern),
+            )
+        )
+
+    gross_expr = func.coalesce(
+        func.sum(
+            case((LinxMovement.movement_type == "sale", LinxMovement.total_amount), else_=0)
+        ),
+        0,
+    )
+    returns_expr = func.coalesce(
+        func.sum(
+            case((LinxMovement.movement_type == "sale_return", LinxMovement.total_amount), else_=0)
+        ),
+        0,
+    )
+    quantity_expr = func.coalesce(func.sum(LinxMovement.quantity), 0)
+    grouped = (
+        select(
+            func.coalesce(LinxMovement.document_number, "").label("document_number"),
+            func.coalesce(LinxMovement.document_series, "").label("document_series"),
+            LinxMovement.customer_code.label("customer_code"),
+            func.min(LinxMovement.issue_date).label("issue_date"),
+            func.min(LinxMovement.launch_date).label("launch_date"),
+            func.count(LinxMovement.id).label("item_count"),
+            quantity_expr.label("quantity"),
+            gross_expr.label("gross_amount"),
+            returns_expr.label("returns_amount"),
+            (gross_expr - returns_expr).label("net_amount"),
+            func.max(func.coalesce(LinxCustomer.display_name, LinxCustomer.legal_name)).label(
+                "customer_name"
+            ),
+        )
+        .select_from(LinxMovement)
+        .outerjoin(LinxCustomer, customer_join)
+        .where(*base_filters)
+        .group_by(
+            func.coalesce(LinxMovement.document_number, ""),
+            func.coalesce(LinxMovement.document_series, ""),
+            LinxMovement.customer_code,
+        )
+    ).subquery()
+
+    total = int(db.scalar(select(func.count()).select_from(grouped)) or 0)
+    rows = db.execute(
+        select(grouped)
+        .order_by(
+            grouped.c.launch_date.desc(),
+            grouped.c.issue_date.desc(),
+            grouped.c.document_number.desc(),
+        )
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).mappings().all()
+    summary_row = db.execute(
+        select(
+            func.count(),
+            func.coalesce(func.sum(grouped.c.quantity), 0),
+            func.coalesce(func.sum(grouped.c.gross_amount), 0),
+            func.coalesce(func.sum(grouped.c.returns_amount), 0),
+            func.coalesce(func.sum(grouped.c.net_amount), 0),
+        ).select_from(grouped)
+    ).one()
+
+    return LinxSalesReportRead(
+        generated_at=datetime.now(timezone.utc),
+        summary=LinxSalesReportSummaryRead(
+            total_invoices=int(summary_row[0] or 0),
+            total_quantity=Decimal(summary_row[1] or 0),
+            gross_amount=Decimal(summary_row[2] or 0),
+            returns_amount=Decimal(summary_row[3] or 0),
+            net_amount=Decimal(summary_row[4] or 0),
+        ),
+        items=[
+            LinxSalesReportItemRead(
+                key=f"{row.document_number}|{row.document_series}|{row.customer_code}",
+                document_number=row.document_number or None,
+                document_series=row.document_series or None,
+                customer_code=row.customer_code,
+                customer_name=row.customer_name,
+                issue_date=row.issue_date,
+                launch_date=row.launch_date,
+                item_count=int(row.item_count or 0),
+                quantity=Decimal(row.quantity or 0),
+                gross_amount=Decimal(row.gross_amount or 0),
+                returns_amount=Decimal(row.returns_amount or 0),
+                net_amount=Decimal(row.net_amount or 0),
+            )
+            for row in rows
         ],
         total=total,
         page=page,

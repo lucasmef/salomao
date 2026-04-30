@@ -585,11 +585,9 @@ textarea {
 
 .revenue-comparison-card {
   display: grid;
-  gap: 14px;
-  padding: 14px 16px 16px;
-  background:
-    radial-gradient(circle at top left, rgba(255, 159, 67, 0.14), transparent 32%),
-    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  gap: 10px;
+  padding: 14px 16px;
+  background: #ffffff;
 }
 
 .revenue-comparison-title {
@@ -598,13 +596,15 @@ textarea {
 
 .revenue-comparison-title h3 {
   margin: 0;
+  font-size: 0.92rem;
 }
 
 .revenue-comparison-legend {
   display: inline-flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   flex-wrap: wrap;
+  margin-top: 8px;
 }
 
 .revenue-comparison-legend span {
@@ -618,9 +618,29 @@ textarea {
 
 .revenue-comparison-legend i {
   display: inline-block;
-  width: 18px;
+  width: 16px;
   height: 3px;
   border-radius: 999px;
+}
+
+.revenue-comparison-metrics {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  text-align: right;
+}
+
+.revenue-comparison-metrics span,
+.revenue-comparison-metrics em {
+  color: #687a93;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.revenue-comparison-metrics strong {
+  color: #152033;
+  font-size: 1.02rem;
 }
 
 .revenue-comparison-legend .current-year i {
@@ -633,13 +653,13 @@ textarea {
 
 .revenue-comparison-canvas {
   position: relative;
-  min-height: 240px;
+  min-height: 188px;
 }
 
 .revenue-comparison-canvas svg {
   display: block;
   width: 100%;
-  height: 240px;
+  height: 188px;
   overflow: visible;
 }
 

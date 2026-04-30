@@ -16,6 +16,8 @@ class DashboardKpis(BaseModel):
     remaining_profit: Decimal
     current_balance: Decimal
     projected_balance: Decimal
+    receivables_period: Decimal = Decimal("0.00")
+    payables_period: Decimal = Decimal("0.00")
     receivables_30d: Decimal = Decimal("0.00")
     payables_30d: Decimal = Decimal("0.00")
     overdue_receivables_amount: Decimal = Decimal("0.00")

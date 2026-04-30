@@ -1,9 +1,12 @@
+from datetime import date
+from typing import Annotated
+
 from fastapi import APIRouter, Query
 
 from app.api.deps import DbSession
-from app.schemas.linx_movements import LinxMovementDirectoryRead
+from app.schemas.linx_movements import LinxMovementDirectoryRead, LinxSalesReportRead
 from app.services.company_context import get_current_company
-from app.services.linx_movements import list_linx_movements
+from app.services.linx_movements import list_linx_movements, list_linx_sales_report
 
 router = APIRouter()
 
@@ -26,4 +29,25 @@ def get_linx_movements(
         search=search,
         group=group,
         movement_type=movement_type,
+    )
+
+
+@router.get("/sales-report", response_model=LinxSalesReportRead)
+def get_linx_sales_report(
+    db: DbSession,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=10, le=200),
+    start: Annotated[date | None, Query()] = None,
+    end: Annotated[date | None, Query()] = None,
+    search: Annotated[str | None, Query()] = None,
+) -> LinxSalesReportRead:
+    company = get_current_company(db)
+    return list_linx_sales_report(
+        db,
+        company,
+        page=page,
+        page_size=page_size,
+        start_date=start,
+        end_date=end,
+        search=search,
     )

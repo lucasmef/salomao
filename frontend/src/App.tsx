@@ -31,6 +31,7 @@ import type {
   InstanceInfo,
   LinxCustomerDirectory,
   LinxMovementDirectory,
+  LinxSalesReport,
   LinxOpenReceivableDirectory,
   LinxProductDirectory,
   LinxProductSearchResult,
@@ -236,6 +237,8 @@ const emptyDashboard: DashboardOverview = {
     remaining_profit: "0.00",
     current_balance: "0.00",
     projected_balance: "0.00",
+    receivables_period: "0.00",
+    payables_period: "0.00",
     receivables_30d: "0.00",
     payables_30d: "0.00",
     overdue_receivables_amount: "0.00",
@@ -468,6 +471,20 @@ const emptyLinxMovementDirectory: LinxMovementDirectory = {
   page: 1,
   page_size: 50,
 };
+const emptyLinxSalesReport: LinxSalesReport = {
+  generated_at: "",
+  summary: {
+    total_invoices: 0,
+    total_quantity: "0.00",
+    gross_amount: "0.00",
+    returns_amount: "0.00",
+    net_amount: "0.00",
+  },
+  items: [],
+  total: 0,
+  page: 1,
+  page_size: 50,
+};
 const emptyLinxOpenReceivableDirectory: LinxOpenReceivableDirectory = {
   generated_at: "",
   summary: {
@@ -520,6 +537,9 @@ const ReconciliationPage = lazy(() =>
 const ReportsPage = lazy(() => import("./pages/ReportsPage").then((module) => ({ default: module.ReportsPage })));
 const ResultsComparativesPage = lazy(() =>
   import("./pages/ResultsComparativesPage").then((module) => ({ default: module.ResultsComparativesPage })),
+);
+const SalesReportPage = lazy(() =>
+  import("./pages/SalesReportPage").then((module) => ({ default: module.SalesReportPage })),
 );
 const SecurityPage = lazy(() => import("./pages/SecurityPage").then((module) => ({ default: module.SecurityPage })));
 const SystemImportsGeneralPage = lazy(() =>
@@ -782,6 +802,7 @@ function AppRuntime() {
   const [globalProductSearchLoading, setGlobalProductSearchLoading] = useState(false);
   const [entryModalRequestKey, setEntryModalRequestKey] = useState(0);
   const [linxMovementDirectory, setLinxMovementDirectory] = useState<LinxMovementDirectory>(emptyLinxMovementDirectory);
+  const [linxSalesReport, setLinxSalesReport] = useState<LinxSalesReport>(emptyLinxSalesReport);
   const [linxOpenReceivableDirectory, setLinxOpenReceivableDirectory] = useState<LinxOpenReceivableDirectory>(
     emptyLinxOpenReceivableDirectory,
   );
@@ -816,6 +837,13 @@ function AppRuntime() {
     search: "",
     group: "all",
     movement_type: "all",
+    page: 1,
+    page_size: 50,
+  });
+  const [linxSalesReportFilters, setLinxSalesReportFilters] = useState({
+    search: "",
+    start: getCurrentMonthRange().start,
+    end: getCurrentMonthRange().end,
     page: 1,
     page_size: 50,
   });
@@ -1056,6 +1084,33 @@ function AppRuntime() {
     setLinxMovementFilters(nextFilters);
   }
 
+  async function fetchLinxSalesReport(
+    activeSession: SessionState,
+    overrides?: Partial<typeof linxSalesReportFilters>,
+  ) {
+    const nextFilters = {
+      ...linxSalesReportFilters,
+      ...overrides,
+    };
+    const query = new URLSearchParams();
+    query.set("page", String(nextFilters.page));
+    query.set("page_size", String(nextFilters.page_size));
+    if (nextFilters.start) {
+      query.set("start", nextFilters.start);
+    }
+    if (nextFilters.end) {
+      query.set("end", nextFilters.end);
+    }
+    if (nextFilters.search.trim()) {
+      query.set("search", nextFilters.search.trim());
+    }
+    const response = await fetchJson<LinxSalesReport>(`/linx-movements/sales-report?${query.toString()}`, {
+      token: activeSession.token,
+    });
+    setLinxSalesReport(response);
+    setLinxSalesReportFilters(nextFilters);
+  }
+
   async function fetchLinxOpenReceivableDirectory(
     activeSession: SessionState,
     overrides?: Partial<typeof linxOpenReceivableFilters>,
@@ -1192,9 +1247,12 @@ function AppRuntime() {
           if (isInitialSectionLoad) {
             setCashflowFilters(effectiveCashflowFilters);
           }
-          const cashflowData = await fetchCashflowSnapshot(activeSession, effectiveCashflowFilters, {
-            refresh: shouldRefreshCurrentMonthCashflow(effectiveCashflowFilters),
-          });
+          const [cashflowData] = await Promise.all([
+            fetchCashflowSnapshot(activeSession, effectiveCashflowFilters, {
+              refresh: shouldRefreshCurrentMonthCashflow(effectiveCashflowFilters),
+            }),
+            fetchLinxSalesReport(activeSession),
+          ]);
           setCashflow(cashflowData);
           break;
         }
@@ -1489,6 +1547,53 @@ function AppRuntime() {
       const response = await fetchJson<FinancialEntryListResponse>(`/entries?${buildQuery(entryFilters)}`, { token: session.token });
       setEntryList(response);
       setFeedback({ tone: "success", message: "Consulta de lançamentos atualizada." });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function openDashboardEntries(kind: "income" | "expense") {
+    if (!session) return;
+    const nextFilters = {
+      ...getDefaultEntryFilters(),
+      entry_type: kind,
+      entry_types: kind,
+      date_field: "due_date",
+      date_from: overviewFilters.start,
+      date_to: overviewFilters.end,
+      page: "1",
+    };
+    setEntryFilters(nextFilters);
+    setSubmitting(true);
+    try {
+      const response = await fetchJson<FinancialEntryListResponse>(`/entries?${buildQuery(nextFilters)}`, {
+        token: session.token,
+      });
+      setEntryList(response);
+      setLoadedSections((current) => ({ ...current, lancamentos: true }));
+      navigate("/financeiro/lancamentos");
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function openDashboardSales() {
+    if (!session) return;
+    const nextFilters = {
+      ...linxSalesReportFilters,
+      start: toDateInput(new Date()),
+      end: toDateInput(new Date()),
+      page: 1,
+    };
+    setSubmitting(true);
+    try {
+      await fetchLinxSalesReport(session, nextFilters);
+      setLoadedSections((current) => ({ ...current, caixa: true }));
+      navigate("/caixa-resultados/vendas");
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });
     } finally {
@@ -1846,6 +1951,42 @@ function AppRuntime() {
     setSubmitting(true);
     try {
       await fetchLinxMovementDirectory(session, { ...filters, page: 1 });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function applyLinxSalesReportFilters(filters: { search: string; start: string; end: string }) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxSalesReport(session, { ...filters, page: 1 });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changeLinxSalesReportPage(page: number) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxSalesReport(session, { page });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function changeLinxSalesReportPageSize(pageSize: number) {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchLinxSalesReport(session, { page_size: pageSize, page: 1 });
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });
     } finally {
@@ -2852,7 +2993,8 @@ function AppRuntime() {
                 loading={submitting}
                 onApplyFilters={applyOverviewFilters}
                 onChangeFilters={setOverviewFilters}
-                onRefreshData={refreshAnalyticsData}
+                onOpenEntriesKind={openDashboardEntries}
+                onOpenSalesReport={openDashboardSales}
                 tabs={overviewNavigation.children}
               />
             }
@@ -3048,6 +3190,27 @@ function AppRuntime() {
               tabs={resultsNavigation.children}
               title={resultsNavigation.children[1].title}
             >
+              <SalesReportPage
+                filters={linxSalesReportFilters}
+                loading={submitting}
+                onApplyFilters={applyLinxSalesReportFilters}
+                onChangePage={changeLinxSalesReportPage}
+                onChangePageSize={changeLinxSalesReportPageSize}
+                report={linxSalesReport}
+              />
+            </SectionChrome>
+          }
+          path="/caixa-resultados/vendas"
+        />
+        <Route
+          element={
+            <SectionChrome
+              description={resultsNavigation.children[2].description}
+              sectionLabel="Resultados"
+              tabLabel={resultsNavigation.children[2].label}
+              tabs={resultsNavigation.children}
+              title={resultsNavigation.children[2].title}
+            >
               <ReportsPage
                 embedded
                 forcedTab="dre"
@@ -3070,11 +3233,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={resultsNavigation.children[2].description}
+              description={resultsNavigation.children[3].description}
               sectionLabel="Resultados"
-              tabLabel={resultsNavigation.children[2].label}
+              tabLabel={resultsNavigation.children[3].label}
               tabs={resultsNavigation.children}
-              title={resultsNavigation.children[2].title}
+              title={resultsNavigation.children[3].title}
             >
               <ReportsPage
                 embedded
@@ -3098,11 +3261,11 @@ function AppRuntime() {
         <Route
           element={
             <SectionChrome
-              description={resultsNavigation.children[3].description}
+              description={resultsNavigation.children[4].description}
               sectionLabel="Resultados"
-              tabLabel={resultsNavigation.children[3].label}
+              tabLabel={resultsNavigation.children[4].label}
               tabs={resultsNavigation.children}
-              title={resultsNavigation.children[3].title}
+              title={resultsNavigation.children[4].title}
             >
               <OperationsPage
                 embedded

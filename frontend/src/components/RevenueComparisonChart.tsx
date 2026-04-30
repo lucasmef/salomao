@@ -26,8 +26,8 @@ export function RevenueComparisonChart({ title, comparison, formatValue = format
   const [activePointIndex, setActivePointIndex] = useState<number | null>(null);
   const points = comparison.points ?? [];
   const width = 620;
-  const height = 240;
-  const padding = { top: 28, right: 26, bottom: 34, left: 56 };
+  const height = 188;
+  const padding = { top: 20, right: 22, bottom: 30, left: 42 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
   const values = points.flatMap((point) => [
@@ -56,6 +56,9 @@ export function RevenueComparisonChart({ title, comparison, formatValue = format
   const previousPath = buildLinePath(chartPoints.map((point) => ({ x: point.x, y: point.previousY })));
   const activePoint = activePointIndex === null ? null : chartPoints[activePointIndex];
   const hasPoints = chartPoints.length > 0;
+  const currentTotal = points.reduce((total, point) => total + Number(point.current_year_value ?? 0), 0);
+  const previousTotal = points.reduce((total, point) => total + Number(point.previous_year_value ?? 0), 0);
+  const totalDelta = previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : null;
 
   const getHoverZone = (index: number) => {
     const point = chartPoints[index];
@@ -78,16 +81,23 @@ export function RevenueComparisonChart({ title, comparison, formatValue = format
   return (
     <article className="panel revenue-comparison-card">
       <div className="panel-title revenue-comparison-title">
-        <h3>{title}</h3>
-        <div className="revenue-comparison-legend" aria-label="Legenda do grafico">
-          <span className="current-year">
-            <i />
-            {comparison.current_year}
-          </span>
-          <span className="previous-year">
-            <i />
-            {comparison.previous_year}
-          </span>
+        <div>
+          <h3>{title}</h3>
+          <div className="revenue-comparison-legend" aria-label="Legenda do grafico">
+            <span className="current-year">
+              <i />
+              {comparison.current_year}
+            </span>
+            <span className="previous-year">
+              <i />
+              {comparison.previous_year}
+            </span>
+          </div>
+        </div>
+        <div className="revenue-comparison-metrics">
+          <span>YTD</span>
+          <strong>{formatValue(String(currentTotal))}</strong>
+          <em>{totalDelta === null ? "sem base" : `${totalDelta >= 0 ? "+" : ""}${totalDelta.toFixed(1)}% vs ${comparison.previous_year}`}</em>
         </div>
       </div>
 

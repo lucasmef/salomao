@@ -138,6 +138,13 @@ export const mainNavigation: MainNavItem[] = [
         description: "Saldos, leitura do período e projeção por horizonte.",
       },
       {
+        key: "vendas",
+        label: "Vendas",
+        path: "/caixa-resultados/vendas",
+        title: "Vendas",
+        description: "Relatório de vendas Linx agrupado por nota, cliente e período.",
+      },
+      {
         key: "dre",
         label: "DRE",
         path: "/caixa-resultados/dre",

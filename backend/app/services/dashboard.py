@@ -313,10 +313,10 @@ def build_dashboard_overview(
         *unsettled_filters,
         FinancialEntry.due_date < today,
     ]
-    next_30d_filters = [
+    period_filters = [
         *unsettled_filters,
-        FinancialEntry.due_date >= today,
-        FinancialEntry.due_date <= today + timedelta(days=30),
+        FinancialEntry.due_date >= start,
+        FinancialEntry.due_date <= end,
     ]
     outstanding_amount = FinancialEntry.total_amount - FinancialEntry.paid_amount
 
@@ -354,10 +354,10 @@ def build_dashboard_overview(
         .select_from(FinancialEntry)
         .where(*overdue_filters, FinancialEntry.entry_type == "income")
     ) or 0
-    receivables_30d = sum_outstanding("income", next_30d_filters)
-    payables_30d = sum_outstanding("expense", next_30d_filters)
+    receivables_period = sum_outstanding("income", period_filters)
+    payables_period = sum_outstanding("expense", period_filters)
     overdue_receivables_amount = sum_outstanding("income", overdue_filters)
-    delinquency_base = overdue_receivables_amount + receivables_30d
+    delinquency_base = overdue_receivables_amount + receivables_period
     delinquency_rate = (
         (overdue_receivables_amount / delinquency_base) * Decimal("100")
         if delinquency_base
@@ -446,8 +446,10 @@ def build_dashboard_overview(
             remaining_profit=remaining_profit,
             current_balance=cashflow.current_balance,
             projected_balance=cashflow.projected_ending_balance,
-            receivables_30d=receivables_30d,
-            payables_30d=payables_30d,
+            receivables_period=receivables_period,
+            payables_period=payables_period,
+            receivables_30d=receivables_period,
+            payables_30d=payables_period,
             overdue_receivables_amount=overdue_receivables_amount,
             delinquency_rate=delinquency_rate,
             overdue_payables=overdue_payables_count,

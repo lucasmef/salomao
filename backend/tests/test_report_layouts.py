@@ -19,6 +19,7 @@ from app.db.models.reporting import ReportLayoutLine
 from app.db.models.security import Company, User
 from app.schemas.reports import ReportConfigLine, ReportConfigUpdate, ReportGroupSelection
 from app.services.dashboard import build_dashboard_overview
+from app.services.linx_movements import list_linx_sales_report
 from app.services.report_layouts import get_or_create_report_config, update_report_config
 from app.services.reports import build_reports_overview
 
@@ -154,14 +155,20 @@ class ReportLayoutTestCase(unittest.TestCase):
         total_amount: str,
         quantity: str = "1.00",
         cost_price: str = "0.00",
+        document_number: str | None = None,
+        document_series: str | None = None,
+        customer_code: int | None = None,
     ) -> LinxMovement:
         movement = LinxMovement(
             company_id=self.company.id,
             linx_transaction=int(datetime.combine(movement_date, datetime.min.time()).timestamp()),
+            document_number=document_number,
+            document_series=document_series,
             movement_group="sale",
             movement_type=movement_type,
             launch_date=datetime.combine(movement_date, datetime.min.time()),
             issue_date=datetime.combine(movement_date, datetime.min.time()),
+            customer_code=customer_code,
             quantity=Decimal(quantity),
             cost_price=Decimal(cost_price),
             total_amount=Decimal(total_amount),
@@ -282,6 +289,57 @@ class ReportLayoutTestCase(unittest.TestCase):
         self.assertEqual(overview.dre.net_profit, Decimal("400.00"))
         self.assertEqual(overview.dre.statement[0].percent, Decimal("100.00"))
 
+    def test_linx_sales_report_groups_movements_by_invoice(self) -> None:
+        self._add_movement(
+            movement_date=date(2026, 3, 10),
+            movement_type="sale",
+            total_amount="1000.00",
+            quantity="2.00",
+            document_number="123",
+            document_series="1",
+            customer_code=99,
+        )
+        self._add_movement(
+            movement_date=date(2026, 3, 10),
+            movement_type="sale",
+            total_amount="250.00",
+            quantity="1.00",
+            document_number="123",
+            document_series="1",
+            customer_code=99,
+        )
+        self._add_movement(
+            movement_date=date(2026, 3, 10),
+            movement_type="sale_return",
+            total_amount="50.00",
+            quantity="1.00",
+            document_number="123",
+            document_series="1",
+            customer_code=99,
+        )
+        self._add_movement(
+            movement_date=date(2026, 4, 10),
+            movement_type="sale",
+            total_amount="999.00",
+            quantity="1.00",
+            document_number="999",
+        )
+
+        report = list_linx_sales_report(
+            self.db,
+            self.company,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 3, 31),
+        )
+
+        self.assertEqual(report.total, 1)
+        self.assertEqual(report.summary.total_invoices, 1)
+        self.assertEqual(report.summary.gross_amount, Decimal("1250.0000"))
+        self.assertEqual(report.summary.returns_amount, Decimal("50.0000"))
+        self.assertEqual(report.summary.net_amount, Decimal("1200.0000"))
+        self.assertEqual(report.items[0].document_number, "123")
+        self.assertEqual(report.items[0].item_count, 3)
+
     def test_dashboard_uses_dre_dashboard_cards_with_configured_names(self) -> None:
         config = get_or_create_report_config(self.db, self.company, "dre")
         lines = [line.model_copy(deep=True) for line in config.lines]
@@ -343,7 +401,7 @@ class ReportLayoutTestCase(unittest.TestCase):
         self.assertEqual(april_point.current_year_value, Decimal("0.00"))
         self.assertEqual(april_point.previous_year_value, Decimal("0.00"))
 
-    def test_dashboard_exposes_variation_a_cash_kpis(self) -> None:
+    def test_dashboard_exposes_variation_a_cash_kpis_for_filtered_period(self) -> None:
         account = self._add_account("Banco")
         receivable_category = self._add_category(
             name="Receita venda",
@@ -396,8 +454,15 @@ class ReportLayoutTestCase(unittest.TestCase):
             due_date=today + timedelta(days=40),
         )
 
-        dashboard = build_dashboard_overview(self.db, self.company, start=today, end=today)
+        dashboard = build_dashboard_overview(
+            self.db,
+            self.company,
+            start=today - timedelta(days=1),
+            end=today + timedelta(days=30),
+        )
 
+        self.assertEqual(dashboard.kpis.receivables_period, Decimal("1000.00"))
+        self.assertEqual(dashboard.kpis.payables_period, Decimal("300.00"))
         self.assertEqual(dashboard.kpis.receivables_30d, Decimal("1000.00"))
         self.assertEqual(dashboard.kpis.payables_30d, Decimal("300.00"))
         self.assertEqual(dashboard.kpis.overdue_receivables_amount, Decimal("200.00"))
