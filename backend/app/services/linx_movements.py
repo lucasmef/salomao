@@ -396,7 +396,19 @@ def list_linx_sales_report(
 
     total = int(db.scalar(select(func.count()).select_from(grouped)) or 0)
     rows = db.execute(
-        select(grouped)
+        select(
+            grouped.c.document_number,
+            grouped.c.document_series,
+            grouped.c.customer_code,
+            grouped.c.issue_date,
+            grouped.c.launch_date,
+            grouped.c.item_count,
+            grouped.c.quantity,
+            grouped.c.gross_amount,
+            grouped.c.returns_amount,
+            grouped.c.net_amount,
+            grouped.c.customer_name,
+        )
         .order_by(
             grouped.c.launch_date.desc(),
             grouped.c.issue_date.desc(),

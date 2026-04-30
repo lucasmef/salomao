@@ -63,7 +63,6 @@ export function KpiCard({ label, value, delta, trend = "up", goodTrend, sparklin
           </div>
         )}
       </div>
-      {hero && <div className={styles.heroBlur} aria-hidden="true" />}
     </div>
   );
 }

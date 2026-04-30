@@ -36,6 +36,7 @@ from app.services.analytics_hybrid import (
     write_live_cache,
     write_live_json_cache,
 )
+from app.services.boletos import _load_all_receivable_items, _receivable_status_bucket
 from app.services.cashflow import get_cached_cashflow_overview
 from app.services.linx_customer_birthdays import (
     RECENT_PURCHASE_LOOKBACK_YEARS,
@@ -349,15 +350,33 @@ def build_dashboard_overview(
         .select_from(FinancialEntry)
         .where(*overdue_filters, FinancialEntry.entry_type == "expense")
     ) or 0
-    overdue_receivables_count = db.scalar(
-        select(func.count())
-        .select_from(FinancialEntry)
-        .where(*overdue_filters, FinancialEntry.entry_type == "income")
-    ) or 0
     receivables_period = sum_outstanding("income", period_filters)
     payables_period = sum_outstanding("expense", period_filters)
-    overdue_receivables_amount = sum_outstanding("income", overdue_filters)
-    delinquency_base = overdue_receivables_amount + receivables_period
+    invoice_items = _load_all_receivable_items(db, company.id)
+    period_invoice_items = [
+        item
+        for item in invoice_items
+        if item.due_date and start <= item.due_date <= end
+    ]
+    delinquency_invoice_items = [
+        item
+        for item in period_invoice_items
+        if _receivable_status_bucket(item.status, item.due_date, today=today) == "overdue"
+    ]
+    active_invoice_items = [
+        item
+        for item in period_invoice_items
+        if _receivable_status_bucket(item.status, item.due_date, today=today) in {"open", "overdue"}
+    ]
+    overdue_receivables_count = len(delinquency_invoice_items)
+    overdue_receivables_amount = sum(
+        (Decimal(item.amount or 0) for item in delinquency_invoice_items),
+        Decimal("0.00"),
+    )
+    delinquency_base = sum(
+        (Decimal(item.amount or 0) for item in active_invoice_items),
+        Decimal("0.00"),
+    )
     delinquency_rate = (
         (overdue_receivables_amount / delinquency_base) * Decimal("100")
         if delinquency_base

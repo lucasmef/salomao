@@ -1601,6 +1601,20 @@ function AppRuntime() {
     }
   }
 
+  async function openDashboardDelinquency() {
+    if (!session) return;
+    setSubmitting(true);
+    try {
+      await fetchBoletoDashboard(session);
+      setLoadedSections((current) => ({ ...current, boletos: true }));
+      navigate("/financeiro/cobranca/faturas");
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function changeEntryPage(page: number) {
     setEntryFilters((current) => ({ ...current, page: String(page) }));
     if (!session) return;
@@ -2993,6 +3007,7 @@ function AppRuntime() {
                 loading={submitting}
                 onApplyFilters={applyOverviewFilters}
                 onChangeFilters={setOverviewFilters}
+                onOpenDelinquency={openDashboardDelinquency}
                 onOpenEntriesKind={openDashboardEntries}
                 onOpenSalesReport={openDashboardSales}
                 tabs={overviewNavigation.children}

@@ -674,48 +674,24 @@ textarea {
   font-weight: 600;
 }
 
-.revenue-line {
-  fill: none;
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.revenue-line.current-year {
-  stroke: #f59e0b;
-}
-
-.revenue-line.previous-year {
-  stroke: #5b3fa3;
-  stroke-dasharray: 0;
-}
-
-.revenue-point {
-  stroke: #ffffff;
-  stroke-width: 2;
+.revenue-bar {
   transition:
-    r 0.18s ease,
-    stroke-width 0.18s ease,
+    opacity 0.18s ease,
     filter 0.18s ease;
 }
 
-.revenue-point.current-year {
+.revenue-bar.current-year {
   fill: #f59e0b;
 }
 
-.revenue-point.previous-year {
+.revenue-bar.previous-year {
   fill: #5b3fa3;
+  opacity: 0.72;
 }
 
-.revenue-point.is-active {
-  stroke-width: 3;
-  filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.22));
-}
-
-.revenue-hover-line {
-  stroke: rgba(96, 112, 135, 0.28);
-  stroke-width: 1;
-  stroke-dasharray: 4 4;
+.revenue-bar.is-active {
+  filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.18));
+  opacity: 1;
 }
 
 .revenue-hover-target {

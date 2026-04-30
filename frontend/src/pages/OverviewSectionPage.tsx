@@ -5,7 +5,7 @@ import { SectionChrome } from "../components/SectionChrome";
 import { Button, Card, EmptyState, Input, KpiCard, PeriodChips } from "../components/ui";
 import type { MainNavChild } from "../data/navigation";
 import { formatDate, formatDateTime, formatMoney } from "../lib/format";
-import type { DashboardOverview, DashboardPendingItem } from "../types";
+import type { DashboardOverview } from "../types";
 import styles from "./OverviewSectionPage.module.css";
 
 const DEFAULT_BIRTHDAY_PURCHASE_LOOKBACK_YEARS = 5;
@@ -18,6 +18,7 @@ type Props = {
   onChangeFilters: (filters: { start: string; end: string }) => void;
   onApplyFilters: (filters?: { start: string; end: string }) => Promise<void>;
   onOpenEntriesKind: (kind: "income" | "expense") => Promise<void>;
+  onOpenDelinquency: () => Promise<void>;
   onOpenSalesReport: () => Promise<void>;
 };
 
@@ -139,13 +140,6 @@ function detectPeriod(filters: { start: string; end: string }): PeriodKey {
   return "";
 }
 
-function buildPendingSpark(items: DashboardPendingItem[]) {
-  return items
-    .slice(0, 6)
-    .map((item) => numeric(item.amount))
-    .reverse();
-}
-
 export function OverviewSectionPage({
   tabs,
   dashboard,
@@ -154,6 +148,7 @@ export function OverviewSectionPage({
   onChangeFilters,
   onApplyFilters,
   onOpenEntriesKind,
+  onOpenDelinquency,
   onOpenSalesReport,
 }: Props) {
   const currentTab = tabs[0];
@@ -161,6 +156,7 @@ export function OverviewSectionPage({
   const applyFiltersRef = useRef(onApplyFilters);
   const periodPopoverRef = useRef<HTMLDivElement | null>(null);
   const [showPeriodPopover, setShowPeriodPopover] = useState(false);
+  const [showAccountBalances, setShowAccountBalances] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>(() => detectPeriod(filters));
 
   useEffect(() => {
@@ -208,11 +204,7 @@ export function OverviewSectionPage({
     (total, account) => (account.exclude_from_balance ? total : total + numeric(account.current_balance)),
     0,
   );
-  const revenueSpark = dashboard?.revenue_comparison.points.map((point) => numeric(point.current_year_value)) ?? [];
-  const previousRevenueSpark =
-    dashboard?.revenue_comparison.points.map((point) => numeric(point.previous_year_value)) ?? [];
   const overduePayables = dashboard?.overdue_payables ?? [];
-  const overdueReceivables = dashboard?.overdue_receivables ?? [];
   const pendingReconciliationItems = dashboard?.pending_reconciliation_items ?? [];
   const consolidatedBalance = totalAccountBalance || numeric(dashboard?.kpis.current_balance);
   const receivablesPeriod = numeric(dashboard?.kpis.receivables_period ?? dashboard?.kpis.receivables_30d);
@@ -320,52 +312,83 @@ export function OverviewSectionPage({
       ) : null}
 
       {hasDashboard ? (
-        <section className={styles.kpiStrip}>
-          <KpiCard
-            goodTrend={consolidatedBalance >= 0}
-            label="Saldo consolidado"
-            sparkline={accountBalances.map((account) => numeric(account.current_balance))}
-            trend={consolidatedBalance >= 0 ? "up" : "down"}
-            value={formatMoney(consolidatedBalance)}
-          />
-          <button className={styles.kpiButton} type="button" onClick={() => void onOpenEntriesKind("income")}>
-            <KpiCard
-              delta="Período"
-              label="A receber"
-              sparkline={revenueSpark}
-              trend="up"
-              value={formatMoney(receivablesPeriod)}
-            />
-          </button>
-          <button className={styles.kpiButton} type="button" onClick={() => void onOpenEntriesKind("expense")}>
-            <KpiCard
-              delta="Período"
-              goodTrend={payablesPeriod <= receivablesPeriod}
-              label="A pagar"
-              sparkline={buildPendingSpark(overduePayables)}
-              trend={payablesPeriod > receivablesPeriod ? "up" : "down"}
-              value={formatMoney(payablesPeriod)}
-            />
-          </button>
-          <KpiCard
-            delta={overdueReceivablesAmount ? formatMoney(overdueReceivablesAmount) : "Sem vencidos"}
-            goodTrend={delinquencyRate === 0}
-            label="Inadimplência"
-            sparkline={buildPendingSpark(overdueReceivables)}
-            trend={delinquencyRate > 0 ? "up" : "flat"}
-            value={formatPercent(dashboard?.kpis.delinquency_rate)}
-          />
-          <button className={styles.kpiButton} type="button" onClick={() => void onOpenSalesReport()}>
-            <KpiCard
-              hero
-              delta={dashboard?.today_sales?.updated_at ? `Atualizado ${formatDateTime(dashboard.today_sales.updated_at)}` : "Hoje"}
-              label="Vendas do dia"
-              sparkline={revenueSpark.length ? revenueSpark : previousRevenueSpark}
-              trend="up"
-              value={formatMoney(dashboard?.today_sales?.gross_revenue ?? 0)}
-            />
-          </button>
-        </section>
+        <>
+          <section className={styles.kpiStrip}>
+            <button
+              className={styles.kpiButton}
+              type="button"
+              aria-expanded={showAccountBalances}
+              onClick={() => setShowAccountBalances((current) => !current)}
+            >
+              <KpiCard
+                delta={showAccountBalances ? "Ocultar contas" : "Ver contas"}
+                goodTrend={consolidatedBalance >= 0}
+                label="Saldo consolidado"
+                trend={consolidatedBalance >= 0 ? "up" : "down"}
+                value={formatMoney(consolidatedBalance)}
+              />
+            </button>
+            <button className={styles.kpiButton} type="button" onClick={() => void onOpenEntriesKind("income")}>
+              <KpiCard
+                delta="Período"
+                label="A receber"
+                trend="up"
+                value={formatMoney(receivablesPeriod)}
+              />
+            </button>
+            <button className={styles.kpiButton} type="button" onClick={() => void onOpenEntriesKind("expense")}>
+              <KpiCard
+                delta="Período"
+                goodTrend={payablesPeriod <= receivablesPeriod}
+                label="A pagar"
+                trend={payablesPeriod > receivablesPeriod ? "up" : "down"}
+                value={formatMoney(payablesPeriod)}
+              />
+            </button>
+            <button className={styles.kpiButton} type="button" onClick={() => void onOpenDelinquency()}>
+              <KpiCard
+                delta={overdueReceivablesAmount ? formatMoney(overdueReceivablesAmount) : "Sem vencidos"}
+                goodTrend={delinquencyRate === 0}
+                label="Inadimplência"
+                trend={delinquencyRate > 0 ? "up" : "flat"}
+                value={formatPercent(dashboard?.kpis.delinquency_rate)}
+              />
+            </button>
+            <button className={styles.kpiButton} type="button" onClick={() => void onOpenSalesReport()}>
+              <KpiCard
+                hero
+                delta={dashboard?.today_sales?.updated_at ? `Atualizado ${formatDateTime(dashboard.today_sales.updated_at)}` : "Hoje"}
+                label="Vendas do dia"
+                trend="up"
+                value={formatMoney(dashboard?.today_sales?.gross_revenue ?? 0)}
+              />
+            </button>
+          </section>
+          {showAccountBalances ? (
+            <Card className={styles.accountBreakdown}>
+              <div className={styles.accountBreakdownHeader}>
+                <strong>Saldo por conta</strong>
+                <span>{accountBalances.length} contas</span>
+              </div>
+              <div className={styles.accountBreakdownList}>
+                {accountBalances.map((account) => (
+                  <div key={account.account_id} className={styles.accountBreakdownRow}>
+                    <span>
+                      {account.account_name}
+                      {account.exclude_from_balance ? <em>Fora do saldo</em> : null}
+                    </span>
+                    <strong className={numeric(account.current_balance) >= 0 ? styles.positiveAmount : ""}>
+                      {formatMoney(account.current_balance)}
+                    </strong>
+                  </div>
+                ))}
+                {!accountBalances.length ? (
+                  <EmptyState title="Sem contas" message="Nenhuma conta retornou saldo para o período." />
+                ) : null}
+              </div>
+            </Card>
+          ) : null}
+        </>
       ) : null}
 
       {dashboard ? (
@@ -478,12 +501,22 @@ export function OverviewSectionPage({
                   </div>
                 </div>
                 <div className={styles.dreList}>
-                  {dashboard.dre_chart.slice(0, 5).map((item) => (
-                    <div key={item.label} className={styles.dreRow}>
-                      <span>{item.label}</span>
-                      <strong className={numeric(item.value) >= 0 ? styles.positiveAmount : ""}>{formatMoney(item.value)}</strong>
-                    </div>
-                  ))}
+                  {(() => {
+                    const dreBase = Math.abs(numeric(dashboard.kpis.gross_revenue)) || 1;
+                    return dashboard.dre_chart.slice(0, 5).map((item) => {
+                      const amount = numeric(item.value);
+                      const percent = (amount / dreBase) * 100;
+                      return (
+                        <div key={item.label} className={styles.dreRow}>
+                          <span>{item.label}</span>
+                          <div className={styles.dreMetric}>
+                            <strong className={amount >= 0 ? styles.positiveAmount : ""}>{formatMoney(item.value)}</strong>
+                            <em>{formatPercent(percent)}</em>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                   {!dashboard.dre_chart.length ? (
                     <EmptyState title="DRE indisponível" message="Configure as linhas do relatório para preencher este quadro." />
                   ) : null}

@@ -138,6 +138,60 @@
   outline-offset: 3px;
 }
 
+.accountBreakdown {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.accountBreakdownHeader,
+.accountBreakdownRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.accountBreakdownHeader strong {
+  font-size: var(--text-sm);
+}
+
+.accountBreakdownHeader span {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.accountBreakdownList {
+  display: grid;
+}
+
+.accountBreakdownRow {
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.accountBreakdownRow span {
+  display: grid;
+  gap: 2px;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.accountBreakdownRow em {
+  color: var(--color-text-muted);
+  font-size: var(--text-xxs);
+  font-style: normal;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.accountBreakdownRow strong {
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+}
+
 .approvedMainGrid,
 .approvedBottomGrid {
   display: grid;
@@ -338,6 +392,20 @@
 .reconciliationItem > strong {
   flex-shrink: 0;
   font-size: var(--text-sm);
+}
+
+.dreMetric {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.dreMetric em {
+  color: var(--color-text-muted);
+  font-size: var(--text-xxs);
+  font-style: normal;
+  font-weight: 800;
 }
 
 @media (max-width: 1200px) {

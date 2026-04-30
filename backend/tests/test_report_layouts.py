@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.db.base import Base
 from app.db.models.banking import BankTransaction
 from app.db.models.finance import Account, Category, FinancialEntry
-from app.db.models.linx import LinxMovement, SalesSnapshot
+from app.db.models.linx import LinxMovement, LinxOpenReceivable, SalesSnapshot
 from app.db.models.reporting import ReportLayoutLine
 from app.db.models.security import Company, User
 from app.schemas.reports import ReportConfigLine, ReportConfigUpdate, ReportGroupSelection
@@ -465,8 +465,54 @@ class ReportLayoutTestCase(unittest.TestCase):
         self.assertEqual(dashboard.kpis.payables_period, Decimal("300.00"))
         self.assertEqual(dashboard.kpis.receivables_30d, Decimal("1000.00"))
         self.assertEqual(dashboard.kpis.payables_30d, Decimal("300.00"))
+        self.assertEqual(dashboard.kpis.overdue_receivables_amount, Decimal("0.00"))
+        self.assertEqual(dashboard.kpis.delinquency_rate, Decimal("0.00"))
+
+    def test_dashboard_delinquency_uses_filtered_invoice_month(self) -> None:
+        today = date.today()
+        self.db.add_all(
+            [
+                LinxOpenReceivable(
+                    company_id=self.company.id,
+                    linx_code=1001,
+                    customer_name="Cliente vencido",
+                    issue_date=datetime.combine(today - timedelta(days=30), datetime.min.time()),
+                    due_date=datetime.combine(today - timedelta(days=5), datetime.min.time()),
+                    amount=Decimal("200.00"),
+                    document_number="1001",
+                ),
+                LinxOpenReceivable(
+                    company_id=self.company.id,
+                    linx_code=1002,
+                    customer_name="Cliente aberto",
+                    issue_date=datetime.combine(today, datetime.min.time()),
+                    due_date=datetime.combine(today + timedelta(days=10), datetime.min.time()),
+                    amount=Decimal("800.00"),
+                    document_number="1002",
+                ),
+                LinxOpenReceivable(
+                    company_id=self.company.id,
+                    linx_code=1003,
+                    customer_name="Cliente fora do filtro",
+                    issue_date=datetime.combine(today, datetime.min.time()),
+                    due_date=datetime.combine(today - timedelta(days=40), datetime.min.time()),
+                    amount=Decimal("500.00"),
+                    document_number="1003",
+                ),
+            ]
+        )
+        self.db.commit()
+
+        dashboard = build_dashboard_overview(
+            self.db,
+            self.company,
+            start=today - timedelta(days=10),
+            end=today + timedelta(days=30),
+        )
+
+        self.assertEqual(dashboard.kpis.overdue_receivables, 1)
         self.assertEqual(dashboard.kpis.overdue_receivables_amount, Decimal("200.00"))
-        self.assertEqual(dashboard.kpis.delinquency_rate, Decimal("16.67"))
+        self.assertEqual(dashboard.kpis.delinquency_rate, Decimal("20.00"))
 
     def test_dashboard_exposes_pending_reconciliation_items(self) -> None:
         account = self._add_account("Banco Inter")
