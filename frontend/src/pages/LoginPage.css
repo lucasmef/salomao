@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
-
 :root {
   --lp-primary: #3b82f6;
   --lp-primary-hover: #2563eb;
@@ -31,29 +29,9 @@
   bottom: 0;
   z-index: 0;
   pointer-events: none;
-}
-
-.landing-orb {
-  position: absolute;
-  filter: blur(100px);
-  opacity: 0.15;
-  border-radius: 50%;
-}
-
-.orb-1 {
-  top: -10%;
-  left: -10%;
-  width: 500px;
-  height: 500px;
-  background: var(--lp-primary);
-}
-
-.orb-2 {
-  bottom: -10%;
-  right: -10%;
-  width: 600px;
-  height: 600px;
-  background: var(--lp-accent);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(59, 130, 246, 0.14), transparent 34%),
+    radial-gradient(circle at 82% 78%, rgba(245, 158, 11, 0.10), transparent 36%);
 }
 
 .landing-grid {
@@ -164,7 +142,7 @@
   backdrop-filter: blur(20px);
   border: 1px solid var(--lp-glass-border);
   padding: 3rem;
-  border-radius: 2rem;
+  border-radius: 8px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
@@ -198,6 +176,12 @@
   gap: 1.5rem;
 }
 
+.landing-form label {
+  color: var(--lp-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -218,6 +202,25 @@
   color: white;
   font-size: 1rem;
   transition: all 0.2s ease;
+}
+
+.landing-input {
+  min-height: 50px;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 1rem;
+  border-radius: 8px;
+}
+
+.landing-input:focus {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--lp-primary);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+}
+
+.landing-input::placeholder {
+  color: rgba(248, 250, 252, 0.52);
 }
 
 .form-input:focus {
@@ -251,6 +254,34 @@
   transform: none;
 }
 
+.landing-submit.landing-submit {
+  width: 100%;
+  min-height: 50px;
+  margin-top: 0.5rem;
+  border-radius: 8px;
+  background: var(--lp-primary);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.landing-submit.landing-submit:hover:not(:disabled) {
+  background: var(--lp-primary-hover);
+}
+
+.landing-secondary.landing-secondary {
+  min-height: 50px;
+  flex: 0.5;
+  border-radius: 8px;
+  border-color: var(--lp-glass-border);
+  background: transparent;
+  color: #fff;
+}
+
+.landing-secondary.landing-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 /* MFA Card Specifics */
 .mfa-container {
   display: flex;
@@ -277,10 +308,33 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+.mfa-setup-box p {
+  margin-bottom: 8px;
+  font-size: 0.8rem;
+}
+
 .mfa-setup-box code {
   color: var(--lp-accent);
   font-family: monospace;
   word-break: break-all;
+}
+
+.remember-device {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--lp-text-muted);
+  font-size: 0.85rem;
+}
+
+.mfa-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.mfa-actions .landing-submit {
+  flex: 1;
 }
 
 /* Floating Elements (Decorative) */

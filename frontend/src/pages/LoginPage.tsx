@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { Button, Field, Input } from "../components/ui";
 import salomaoLogo from "../assets/salomao-logo.png";
 import type { AuthUser, MfaSetup } from "../types";
 import "./LoginPage.css";
@@ -48,8 +49,6 @@ export function LoginPage({ loading, challenge, onLogin, onVerifyMfa, onConfirmM
   return (
     <div className="landing-shell">
       <div className="landing-backdrop">
-        <div className="landing-orb orb-1" />
-        <div className="landing-orb orb-2" />
         <div className="landing-grid" />
       </div>
 
@@ -77,44 +76,46 @@ export function LoginPage({ loading, challenge, onLogin, onVerifyMfa, onConfirmM
             <div className="auth-header">
               <h2>{challenge ? "Verificação" : "Boas-vindas"}</h2>
               <p>
-                {challenge 
-                  ? "Sua conta está protegida por MFA. Por favor, valide sua identidade." 
+                {challenge
+                  ? "Sua conta está protegida por MFA. Por favor, valide sua identidade."
                   : "Acesse sua conta para gerenciar sua operação."}
               </p>
             </div>
 
             {!challenge ? (
               <form className="landing-form" onSubmit={handleSubmit}>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="email">Email</label>
-                  <input
-                    autoCapitalize="none"
-                    autoComplete="username"
-                    className="form-input"
-                    id="email"
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="exemplo@empresa.com"
-                    required
-                    type="email"
-                    value={email}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="password">Senha</label>
-                  <input
-                    autoComplete="current-password"
-                    className="form-input"
-                    id="password"
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    type="password"
-                    value={password}
-                  />
-                </div>
-                <button className="submit-btn" disabled={loading} type="submit">
+                <Field label="Email" htmlFor="email" required>
+                  {(id) => (
+                    <Input
+                      autoCapitalize="none"
+                      autoComplete="username"
+                      className="landing-input"
+                      id={id}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="exemplo@empresa.com"
+                      required
+                      type="email"
+                      value={email}
+                    />
+                  )}
+                </Field>
+                <Field label="Senha" htmlFor="password" required>
+                  {(id) => (
+                    <Input
+                      autoComplete="current-password"
+                      className="landing-input"
+                      id={id}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="********"
+                      required
+                      type="password"
+                      value={password}
+                    />
+                  )}
+                </Field>
+                <Button className="landing-submit" disabled={loading} loading={loading} size="md" type="submit">
                   {loading ? "Entrando..." : "Acessar Sistema"}
-                </button>
+                </Button>
               </form>
             ) : (
               <form className="landing-form" onSubmit={handleMfaSubmit}>
@@ -125,27 +126,29 @@ export function LoginPage({ loading, challenge, onLogin, onVerifyMfa, onConfirmM
 
                   {challenge.status === "mfa_setup_required" && challenge.mfaSetup && (
                     <div className="mfa-setup-box">
-                      <p style={{ fontSize: '0.8rem', marginBottom: '8px' }}>Ative o MFA escaneando ou inserindo a chave:</p>
+                      <p>Ative o MFA escaneando ou inserindo a chave:</p>
                       <code>{challenge.mfaSetup.secret}</code>
                     </div>
                   )}
 
-                  <div className="form-group">
-                    <label className="form-label">Código do Autenticador</label>
-                    <input
-                      autoComplete="one-time-code"
-                      className="form-input"
-                      inputMode="numeric"
-                      maxLength={6}
-                      onChange={(e) => setMfaCode(e.target.value)}
-                      placeholder="000000"
-                      required
-                      type="text"
-                      value={mfaCode}
-                    />
-                  </div>
+                  <Field label="Código do autenticador" required>
+                    {(id) => (
+                      <Input
+                        autoComplete="one-time-code"
+                        className="landing-input"
+                        id={id}
+                        inputMode="numeric"
+                        maxLength={6}
+                        onChange={(e) => setMfaCode(e.target.value)}
+                        placeholder="000000"
+                        required
+                        type="text"
+                        value={mfaCode}
+                      />
+                    )}
+                  </Field>
 
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--lp-text-muted)' }}>
+                  <label className="remember-device">
                     <input
                       checked={rememberDevice}
                       onChange={(e) => setRememberDevice(e.target.checked)}
@@ -154,19 +157,20 @@ export function LoginPage({ loading, challenge, onLogin, onVerifyMfa, onConfirmM
                     Lembrar deste dispositivo por 15 dias
                   </label>
 
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <button className="submit-btn" disabled={loading} style={{ flex: 1 }} type="submit">
+                  <div className="mfa-actions">
+                    <Button className="landing-submit" disabled={loading} loading={loading} size="md" type="submit">
                       {loading ? "Validando..." : "Confirmar"}
-                    </button>
-                    <button 
-                      className="submit-btn" 
-                      disabled={loading} 
-                      onClick={onCancelChallenge} 
-                      style={{ background: 'transparent', border: '1px solid var(--lp-glass-border)', flex: 0.5 }} 
+                    </Button>
+                    <Button
+                      className="landing-secondary"
+                      disabled={loading}
+                      onClick={onCancelChallenge}
+                      size="md"
                       type="button"
+                      variant="secondary"
                     >
                       Voltar
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </form>
