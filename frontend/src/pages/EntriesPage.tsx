@@ -2,10 +2,9 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Select, { type MultiValue, type SingleValue } from "react-select";
 import { useConfirm } from "../components/ConfirmContext";
 import { MoneyInput } from "../components/MoneyInput";
-import { ModalCloseButton } from "../components/ModalCloseButton";
 import { PageHeader } from "../components/PageHeader";
 import { TablePagination } from "../components/TablePagination";
-import { Button, Input, Select as UiSelect } from "../components/ui";
+import { Button, Input, Modal, Select as UiSelect } from "../components/ui";
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
 import { formatPtBrMoneyInput, normalizePtBrMoneyInput } from "../lib/money";
 import type { Account, Category, FinancialEntry, FinancialEntryListResponse, Supplier } from "../types";
@@ -1719,34 +1718,34 @@ export function EntriesPage({
           </table>
         </div>
       </section>
-      {showEntryModal && (
-        <div className="modal-backdrop">
-          <div className="modal-card compact-entry-modal">
-            <div className="entry-modal-topbar">
-              <div className="entry-status-toggle" aria-label="Status do lançamento">
-                <button
-                  className={form.status === "open" ? "is-active" : ""}
-                  onClick={() => setForm({ ...form, status: "open" })}
-                  type="button"
-                >
-                  Em aberto
-                </button>
-                <button
-                  className={form.status === "settled" ? "is-active" : ""}
-                  onClick={() => setForm({ ...form, status: "settled" })}
-                  type="button"
-                >
-                  Pago
-                </button>
-              </div>
-              <ModalCloseButton
-                onClick={() => {
-                  setShowEntryModal(false);
-                  setEditingId(null);
-                  setForm(emptyForm);
-                }}
-              />
-            </div>
+      <Modal
+        open={showEntryModal}
+        size="lg"
+        ariaLabel={editingId ? "Editar lançamento" : "Novo lançamento"}
+        onClose={() => {
+          setShowEntryModal(false);
+          setEditingId(null);
+          setForm(emptyForm);
+        }}
+        title={
+          <div className="entry-status-toggle" aria-label="Status do lançamento">
+            <button
+              className={form.status === "open" ? "is-active" : ""}
+              onClick={() => setForm({ ...form, status: "open" })}
+              type="button"
+            >
+              Em aberto
+            </button>
+            <button
+              className={form.status === "settled" ? "is-active" : ""}
+              onClick={() => setForm({ ...form, status: "settled" })}
+              type="button"
+            >
+              Pago
+            </button>
+          </div>
+        }
+      >
             <form className="form-grid dense wide entry-form-grid entry-form-layout" onSubmit={handleSubmit}>
               <section className="entry-form-section">
                 <div className="entry-form-section-title">
@@ -1816,10 +1815,18 @@ export function EntriesPage({
               </label>
               <label>
                 Conta
-                <select value={form.account_id} onChange={(event) => setForm({ ...form, account_id: event.target.value })} required>
+                <UiSelect
+                  required
+                  value={form.account_id}
+                  onChange={(event) => setForm({ ...form, account_id: event.target.value })}
+                >
                   <option value="">Selecionar</option>
-                  {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                </select>
+                  {accounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </UiSelect>
               </label>
                 </div>
               </section>
@@ -1849,40 +1856,37 @@ export function EntriesPage({
               <label className="span-three entry-form-observation">Observação<textarea rows={4} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value, description: "" })} /></label>
               </section>
               <div className="action-row">
-                <button className={`primary-button ${submitting ? "is-loading" : ""}`} disabled={submitting} type="submit">{editingId ? "Salvar alterações" : "Criar lançamento"}</button>
-                <button
-                  className="ghost-button"
+                <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
+                  {editingId ? "Salvar alterações" : "Criar lançamento"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
                   onClick={() => {
                     setShowEntryModal(false);
                     setEditingId(null);
                     setForm({ ...emptyForm });
                   }}
-                  type="button"
                 >
                   Cancelar
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
 
-      {showTransferModal && (
-        <div className="modal-backdrop">
-          <div className="modal-card compact-entry-modal">
-            <div className="panel-title compact-title-row">
-              <h3>Transferir entre contas</h3>
-              <ModalCloseButton
-                onClick={() => {
-                  setShowTransferModal(false);
-                  setTransferForm(emptyTransferForm);
-                }}
-              />
-            </div>
+      <Modal
+        open={showTransferModal}
+        size="md"
+        title="Transferir entre contas"
+        onClose={() => {
+          setShowTransferModal(false);
+          setTransferForm(emptyTransferForm);
+        }}
+      >
             <form className="form-grid dense wide" onSubmit={handleTransferSubmit}>
               <label>
                 Conta origem
-                <select
+                <UiSelect
                   required
                   value={transferForm.source_account_id}
                   onChange={(event) => setTransferForm((current) => ({ ...current, source_account_id: event.target.value }))}
@@ -1893,11 +1897,11 @@ export function EntriesPage({
                       {account.name}
                     </option>
                   ))}
-                </select>
+                </UiSelect>
               </label>
               <label>
                 Conta destino
-                <select
+                <UiSelect
                   required
                   value={transferForm.destination_account_id}
                   onChange={(event) => setTransferForm((current) => ({ ...current, destination_account_id: event.target.value }))}
@@ -1908,7 +1912,7 @@ export function EntriesPage({
                       {account.name}
                     </option>
                   ))}
-                </select>
+                </UiSelect>
               </label>
               <label>
                 Data
@@ -1936,46 +1940,42 @@ export function EntriesPage({
                 />
               </label>
               <div className="action-row">
-                <button
-                  className={`primary-button ${submitting ? "is-loading" : ""}`}
+                <Button
+                  type="submit"
+                  variant="primary"
+                  loading={submitting}
                   disabled={
                     submitting ||
                     !transferForm.source_account_id ||
                     !transferForm.destination_account_id ||
                     transferForm.source_account_id === transferForm.destination_account_id
                   }
-                  type="submit"
                 >
                   Salvar transferência
-                </button>
-                <button
-                  className="ghost-button"
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
                   onClick={() => {
                     setShowTransferModal(false);
                     setTransferForm(emptyTransferForm);
                   }}
-                  type="button"
                 >
                   Cancelar
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
 
-      {showSettlementPrompt && (
-        <div className="modal-backdrop">
-          <div className="modal-card compact-entry-modal">
-            <div className="panel-title compact-title-row">
-              <h3>Selecione a conta para baixar</h3>
-              <ModalCloseButton
-                onClick={() => {
-                  setShowSettlementPrompt(false);
-                  setSettlementPrompt(emptySettlementPrompt);
-                }}
-              />
-            </div>
+      <Modal
+        open={showSettlementPrompt}
+        size="sm"
+        title="Selecione a conta para baixar"
+        onClose={() => {
+          setShowSettlementPrompt(false);
+          setSettlementPrompt(emptySettlementPrompt);
+        }}
+      >
             <form
               className="form-grid dense"
               onSubmit={(event) => {
@@ -1993,7 +1993,7 @@ export function EntriesPage({
               </label>
               <label>
                 Conta *
-                <select
+                <UiSelect
                   required
                   value={settlementPrompt.account_id}
                   onChange={(event) => setSettlementPrompt((current) => ({ ...current, account_id: event.target.value }))}
@@ -2004,27 +2004,30 @@ export function EntriesPage({
                       {account.name}
                     </option>
                   ))}
-                </select>
+                </UiSelect>
               </label>
               <div className="action-row">
-                <button className={`primary-button ${submitting ? "is-loading" : ""}`} disabled={submitting || !settlementPrompt.account_id} type="submit">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  loading={submitting}
+                  disabled={submitting || !settlementPrompt.account_id}
+                >
                   Confirmar baixa
-                </button>
-                <button
-                  className="ghost-button"
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
                   onClick={() => {
                     setShowSettlementPrompt(false);
                     setSettlementPrompt(emptySettlementPrompt);
                   }}
-                  type="button"
                 >
                   Cancelar
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }
