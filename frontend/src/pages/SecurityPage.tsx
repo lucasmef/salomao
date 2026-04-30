@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { PageHeader } from "../components/PageHeader";
+import { Button } from "../components/ui";
 import { formatDate } from "../lib/format";
 import type {
   AuthUser,
@@ -192,9 +193,9 @@ export function SecurityPage({
                   placeholder="Deixe em branco para manter a atual"
                 />
               </label>
-              <button className="primary-button" disabled={submitting} type="submit">
+              <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
                 Salvar acesso
-              </button>
+              </Button>
             </form>
           </article>
         )}
@@ -324,9 +325,9 @@ export function SecurityPage({
                   Ultima falha: {linxSettings.auto_sync_last_error}
                 </p>
               )}
-              <button className="primary-button" disabled={submitting} type="submit">
+              <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
                 Salvar configuracao Linx
-              </button>
+              </Button>
             </form>
           </article>
         )}
@@ -346,9 +347,15 @@ export function SecurityPage({
                     ? "O MFA já está ativo para este usuário."
                     : "Ative o MFA agora para deixar a conta pronta para o ambiente online."}
                 </p>
-                <button className="primary-button" disabled={submitting} onClick={() => void onStartMfaEnrollment()} type="button">
+                <Button
+                  type="button"
+                  variant="primary"
+                  loading={submitting}
+                  disabled={submitting}
+                  onClick={() => void onStartMfaEnrollment()}
+                >
                   {mfaStatus?.enabled ? "Regenerar configuracao" : "Iniciar configuracao"}
-                </button>
+                </Button>
               </>
             ) : (
               <form className="form-grid single" onSubmit={handleConfirmMfa}>
@@ -374,9 +381,9 @@ export function SecurityPage({
                     value={mfaCode}
                   />
                 </label>
-                <button className="primary-button" disabled={submitting} type="submit">
+                <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
                   Confirmar MFA
-                </button>
+                </Button>
               </form>
             )}
           </article>
@@ -411,9 +418,9 @@ export function SecurityPage({
                   <option value="consulta">Consulta</option>
                 </select>
               </label>
-              <button className="primary-button" disabled={submitting} type="submit">
+              <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
                 Criar usuario
-              </button>
+              </Button>
             </form>
           </article>
 
@@ -433,14 +440,14 @@ export function SecurityPage({
                   <div className="entry-aside">
                     <strong>{user.role}</strong>
                     {user.id !== currentUser.id && user.is_active && (
-                      <button className="ghost-button compact" disabled={submitting} onClick={() => void onDeactivateUser(user.id)} type="button">
+                      <Button type="button" variant="ghost" size="sm" disabled={submitting} onClick={() => void onDeactivateUser(user.id)}>
                         Desativar
-                      </button>
+                      </Button>
                     )}
                     {user.mfa_enabled && (
-                      <button className="ghost-button compact" disabled={submitting} onClick={() => void onResetMfa(user.id)} type="button">
+                      <Button type="button" variant="ghost" size="sm" disabled={submitting} onClick={() => void onResetMfa(user.id)}>
                         Resetar MFA
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>

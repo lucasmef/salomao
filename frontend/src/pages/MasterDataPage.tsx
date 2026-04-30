@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 
 import { PageHeader } from "../components/PageHeader";
+import { Button } from "../components/ui";
 import { formatMoney } from "../lib/format";
 import type { Account, Category, CategoryLookups } from "../types";
 
@@ -411,20 +412,20 @@ export function MasterDataPage({
                 />
               </label>
               <div className="action-row">
-                <button className="primary-button" disabled={submitting} type="submit">
+                <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
                   {editingAccountId ? "Salvar alteracoes" : "Criar conta"}
-                </button>
+                </Button>
                 {editingAccountId && (
-                  <button
-                    className="ghost-button"
+                  <Button
+                    type="button"
+                    variant="ghost"
                     onClick={() => {
                       setEditingAccountId(null);
                       setAccountForm(emptyAccount);
                     }}
-                    type="button"
                   >
                     Cancelar edicao
-                  </button>
+                  </Button>
                 )}
               </div>
             </form>
@@ -525,20 +526,20 @@ export function MasterDataPage({
               Categoria ativa
             </label>
             <div className="action-row">
-              <button className="primary-button" disabled={submitting} type="submit">
+              <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
                 {editingCategoryId ? "Salvar alteracoes" : "Criar categoria"}
-              </button>
+              </Button>
               {editingCategoryId && (
-                <button
-                  className="ghost-button"
+                <Button
+                  type="button"
+                  variant="ghost"
                   onClick={() => {
                     setEditingCategoryId(null);
                     setCategoryForm(emptyCategory);
                   }}
-                  type="button"
                 >
                   Cancelar edicao
-                </button>
+                </Button>
               )}
             </div>
             </form>
@@ -743,9 +744,9 @@ export function MasterDataPage({
                       >
                         Editar
                       </button>
-                      <button className="ghost-button" type="button" onClick={() => void handleDeleteCategory(category.id)}>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => void handleDeleteCategory(category.id)}>
                         Excluir
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}

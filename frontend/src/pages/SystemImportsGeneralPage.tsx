@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import { SectionChrome } from "../components/SectionChrome";
+import { Button } from "../components/ui";
 import type { MainNavChild } from "../data/navigation";
 import { formatDateTime, formatEntryStatus } from "../lib/format";
 import type { Account, ImportBatch, ImportSummary } from "../types";
@@ -127,15 +128,17 @@ export function SystemImportsGeneralPage({
             <div className="compact-import-card billing-import-card">
               <div className="billing-import-header">
                 <strong>Faturas Linx API</strong>
-                <button
-                  className="primary-button compact-action-button"
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  loading={submitting}
                   disabled={submitting}
                   onClick={() => void onSyncReceivables()}
                   title="Atualizar faturas em aberto da API Linx"
-                  type="button"
                 >
                   Atualizar
-                </button>
+                </Button>
               </div>
               <div className="billing-import-meta">
                 {renderBatchMeta(latestLinxReceivablesImport)}
@@ -146,15 +149,17 @@ export function SystemImportsGeneralPage({
             <div className="compact-import-card billing-import-card">
               <div className="billing-import-header">
                 <strong>Clientes Linx API</strong>
-                <button
-                  className="primary-button compact-action-button"
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  loading={submitting}
                   disabled={submitting}
                   onClick={() => void onSyncCustomers()}
                   title="Atualizar clientes do Linx"
-                  type="button"
                 >
                   Atualizar
-                </button>
+                </Button>
               </div>
               <div className="billing-import-meta">
                 {renderBatchMeta(latestLinxCustomersImport)}
@@ -165,15 +170,17 @@ export function SystemImportsGeneralPage({
             <div className="compact-import-card billing-import-card">
               <div className="billing-import-header">
                 <strong>Atualiza dados clientes</strong>
-                <button
-                  className="primary-button compact-action-button"
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  loading={submitting}
                   disabled={submitting || !customerDataFile}
                   onClick={() => void handleUploadCustomerData()}
                   title="Importar dados dos clientes"
-                  type="button"
                 >
                   Importar
-                </button>
+                </Button>
               </div>
               <input
                 id="system-boletos-customer-data-file"
@@ -206,15 +213,17 @@ export function SystemImportsGeneralPage({
             <div className="compact-import-card billing-import-card">
               <div className="billing-import-header">
                 <strong>Faturas de compra Linx API</strong>
-                <button
-                  className="primary-button compact-action-button"
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  loading={submitting}
                   disabled={submitting}
                   onClick={() => void onSyncPurchaseInvoices()}
                   title="Atualizar faturas de compra da API Linx"
-                  type="button"
                 >
                   Atualizar
-                </button>
+                </Button>
               </div>
               <div className="billing-import-meta">
                 {renderBatchMeta(latestLinxPurchaseInvoicesImport)}
@@ -228,24 +237,28 @@ export function SystemImportsGeneralPage({
               <div className="billing-import-header">
                 <strong>Relatorio C6</strong>
                 <div className="billing-import-actions">
-                  <button
-                    className="secondary-button compact-action-button"
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    loading={submitting}
                     disabled={submitting}
                     onClick={() => void onRunLinxSettlement()}
                     title="Forcar baixa automatica de todos os boletos pagos sem baixa no Linx"
-                    type="button"
                   >
                     Forcar baixa geral
-                  </button>
-                  <button
-                    className="primary-button compact-action-button"
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    loading={submitting}
                     disabled={submitting || !c6File}
                     onClick={() => void handleUploadC6Report()}
                     title="Importar relatorio C6"
-                    type="button"
                   >
                     Importar
-                  </button>
+                  </Button>
                 </div>
               </div>
               <input
@@ -279,15 +292,17 @@ export function SystemImportsGeneralPage({
             <div className="compact-import-card billing-import-card">
               <div className="billing-import-header">
                 <strong>Relatorio Inter</strong>
-                <button
-                  className="primary-button compact-action-button"
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  loading={submitting}
                   disabled={submitting || !interFile}
                   onClick={() => void handleUploadInterReport()}
                   title="Importar relatorio Inter"
-                  type="button"
                 >
                   Importar
-                </button>
+                </Button>
               </div>
               <input
                 id="system-boletos-inter-file"
@@ -320,15 +335,17 @@ export function SystemImportsGeneralPage({
             <div className="compact-import-card billing-import-card">
               <div className="billing-import-header">
                 <strong>Inter</strong>
-                <button
-                  className="primary-button compact-action-button"
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  loading={submitting}
                   disabled={submitting || !hasInterAccount}
                   onClick={() => void onSyncInterCharges()}
                   title="Atualizar cobrancas do Inter"
-                  type="button"
                 >
                   Atualizar
-                </button>
+                </Button>
               </div>
               <div className="billing-import-meta">
                 {renderBatchMeta(latestInterChargeSync, "Ultima sincronizacao: nenhuma")}
@@ -354,14 +371,16 @@ export function SystemImportsGeneralPage({
                 ? `Ultima importacao: ${latestHistoricalImport.filename} em ${formatDateTime(latestHistoricalImport.created_at)}`
                 : "Ultima importacao: nenhuma"}
             </div>
-            <button
-              className="primary-button compact-action-button"
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              loading={submitting}
               disabled={submitting || !historicalFile}
               onClick={() => historicalFile && void onUploadHistorical(historicalFile)}
-              type="button"
             >
               Importar
-            </button>
+            </Button>
           </div>
         </article>
 
@@ -377,14 +396,16 @@ export function SystemImportsGeneralPage({
                 ? `Ultima sincronizacao: ${latestInterStatementImport.filename} em ${formatDateTime(latestInterStatementImport.created_at)}`
                 : "Ultima sincronizacao: nenhuma"}
             </div>
-            <button
-              className="primary-button compact-action-button"
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              loading={submitting}
               disabled={submitting || !hasInterAccount}
               onClick={() => void onSyncInterStatement()}
-              type="button"
             >
               Atualizar
-            </button>
+            </Button>
           </div>
         </article>
       </section>

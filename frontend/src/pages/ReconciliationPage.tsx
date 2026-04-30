@@ -4,6 +4,7 @@ import { useConfirm } from "../components/ConfirmContext";
 
 import { ModalCloseButton } from "../components/ModalCloseButton";
 import { MoneyInput } from "../components/MoneyInput";
+import { Button } from "../components/ui";
 import { formatDate, formatMoney, normalizeDisplayText } from "../lib/format";
 import { formatPtBrMoneyInput, normalizePtBrMoneyInput } from "../lib/money";
 import type {
@@ -1125,19 +1126,20 @@ export function ReconciliationPage({
               </label>
             </div>
             <div className="entries-period-footer">
-              <button
-                className="secondary-button compact-button"
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   setDateRange("", "");
                   setShowPeriodPopover(false);
                 }}
-                type="button"
               >
                 Limpar
-              </button>
-              <button className="primary-button compact-button" onClick={() => setShowPeriodPopover(false)} type="button">
+              </Button>
+              <Button type="button" variant="primary" size="sm" onClick={() => setShowPeriodPopover(false)}>
                 Concluir
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -1380,9 +1382,9 @@ export function ReconciliationPage({
                       {formatMoney(Number(selectedReconciliationEntry.total_amount))}
                       {" "} | Total após ajuste {formatMoney(adjustmentPreviewTotal)}
                   </span>
-                  <button className="secondary-button compact-inline-button" type="button" onClick={useBankAmountAsPrincipal}>
+                  <Button type="button" variant="secondary" size="sm" onClick={useBankAmountAsPrincipal}>
                     Usar valor do extrato
-                  </button>
+                  </Button>
                 </div>
               </div>
               <div className="inline-adjustment-selection-metrics">
@@ -1561,14 +1563,15 @@ export function ReconciliationPage({
             </div>
             {!!createEntryValidationMessage && <div className="import-last-meta">{createEntryValidationMessage}</div>}
             <div className="action-row">
-              <button
-                className={`primary-button ${submitting ? "is-loading" : ""}`}
+              <Button
                 type="button"
+                variant="primary"
+                loading={submitting}
                 disabled={!canCreateConsolidatedEntry}
                 onClick={() => void handleCreateEntry()}
               >
                 Criar lançamento consolidado
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1616,14 +1619,15 @@ export function ReconciliationPage({
               <strong>{formatMoney(selectedBankTotal)}</strong>
             </div>
             <div className="action-row">
-              <button
-                className={`primary-button ${submitting ? "is-loading" : ""}`}
+              <Button
                 type="button"
+                variant="primary"
+                loading={submitting}
                 disabled={!createDraft.destination_account_id || !selectedBankIds.length}
                 onClick={() => void handleCreateTransfer()}
               >
                 Criar transferência
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -1665,24 +1669,25 @@ export function ReconciliationPage({
               </datalist>
             </div>
             <div className="action-row">
-              <button
-                className={`primary-button ${creatingCategory ? "is-loading" : ""}`}
+              <Button
                 type="button"
+                variant="primary"
+                loading={creatingCategory}
                 disabled={creatingCategory || !categoryCreationDraft.name.trim() || !categoryCreationDraft.report_group.trim()}
                 onClick={() => void confirmCategoryCreation()}
               >
                 Criar categoria
-              </button>
-              <button
-                className="ghost-button"
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => {
                   setCategoryCreationModalOpen(false);
                   setCategoryCreationDraft(emptyCategoryCreationDraft);
                 }}
               >
                 Cancelar
-              </button>
+              </Button>
             </div>
           </div>
         </div>
