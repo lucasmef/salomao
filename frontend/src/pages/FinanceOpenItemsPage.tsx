@@ -397,18 +397,18 @@ export function FinanceOpenItemsPage({
       <section className="content-grid two-columns">
         <article className="panel">
           <div className="panel-title"><h3>Titulos em aberto</h3></div>
-          <div className="table-shell entries-table-shell finance-open-items-table-shell">
-            <table className="erp-table entries-list-table finance-open-items-table">
+          <div className="table-shell table-shell--scroll entries-table-shell finance-open-items-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table finance-open-items-table" data-mobile-width="compact">
               <colgroup>
                 <col className="finance-open-items-col-title" />
-                <col className="finance-open-items-col-counterparty" />
+                <col className="finance-open-items-col-counterparty col-hide-md" />
                 <col className="finance-open-items-col-due-date" />
                 <col className="finance-open-items-col-balance" />
               </colgroup>
               <thead>
                 <tr>
                   <th>{renderTableHeader("Titulo", "title")}</th>
-                  <th>{renderTableHeader("Cliente/Fornecedor", "counterparty")}</th>
+                  <th className="col-hide-md">{renderTableHeader("Cliente/Fornecedor", "counterparty")}</th>
                   <th>{renderTableHeader("Vencimento", "due_date")}</th>
                   <th className="numeric-cell">{renderTableHeader("Saldo", "balance", true)}</th>
                 </tr>
@@ -419,7 +419,7 @@ export function FinanceOpenItemsPage({
                     <td className="finance-open-items-cell-title">
                       <strong title={entry.title}>{entry.title}</strong>
                     </td>
-                    <td className="finance-open-items-cell-counterparty">
+                    <td className="finance-open-items-cell-counterparty col-hide-md">
                       <span title={entry.counterparty_name ?? "-"}>{entry.counterparty_name ?? "-"}</span>
                     </td>
                     <td>{formatDate(entry.due_date)}</td>

@@ -102,6 +102,10 @@
     table-layout: auto;
   }
 
+  .erp-table--responsive[data-mobile-width="compact"] {
+    min-width: max(100%, 480px);
+  }
+
   .col-hide-md {
     display: none;
   }
@@ -110,6 +114,10 @@
 @media (max-width: 640px) {
   .erp-table--responsive {
     min-width: max(100%, 640px);
+  }
+
+  .erp-table--responsive[data-mobile-width="compact"] {
+    min-width: max(100%, 420px);
   }
 
   .col-hide-sm {

@@ -4126,23 +4126,6 @@ textarea {
   min-height: 360px;
 }
 
-.finance-open-items-table {
-  table-layout: fixed;
-}
-
-.finance-open-items-table th,
-.finance-open-items-table td {
-  padding-top: 5px;
-  padding-bottom: 5px;
-  line-height: 1.1;
-  vertical-align: middle;
-}
-
-.finance-open-items-table thead th {
-  padding-top: 6px;
-  padding-bottom: 6px;
-}
-
 .finance-open-items-table .table-sort-button {
   min-height: 24px;
   gap: 4px;
