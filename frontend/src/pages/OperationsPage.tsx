@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 
 import { MoneyInput } from "../components/MoneyInput";
 import { PageHeader } from "../components/PageHeader";
+import { Button } from "../components/ui";
 import { formatDate, formatMoney } from "../lib/format";
 import { formatPtBrMoneyInput, normalizePtBrMoneyInput } from "../lib/money";
 import type { Account, Category, LoanContract, RecurrenceRule, Transfer } from "../types";
@@ -195,15 +196,21 @@ export function OperationsPage({
               Juros
               <MoneyInput value={recurrenceForm.interest_amount} onValueChange={(value) => setRecurrenceForm({ ...recurrenceForm, interest_amount: value })} />
             </label>
-            <button className="primary-button" disabled={submitting} type="submit">
+            <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
               Salvar recorrência
-            </button>
+            </Button>
           </form>
           <div className="inline-tools">
             <input type="date" value={untilDate} onChange={(event) => setUntilDate(event.target.value)} />
-            <button className="secondary-button" disabled={submitting || !untilDate} onClick={() => void onGenerateRecurrences(untilDate)} type="button">
+            <Button
+              type="button"
+              variant="secondary"
+              loading={submitting}
+              disabled={submitting || !untilDate}
+              onClick={() => void onGenerateRecurrences(untilDate)}
+            >
               Gerar até a data
-            </button>
+            </Button>
           </div>
         </article>
       </section>
@@ -280,9 +287,9 @@ export function OperationsPage({
               Juros total
               <MoneyInput value={loanForm.interest_total} onValueChange={(value) => setLoanForm({ ...loanForm, interest_total: value })} />
             </label>
-            <button className="primary-button" disabled={submitting} type="submit">
+            <Button type="submit" variant="primary" loading={submitting} disabled={submitting}>
               Criar contrato
-            </button>
+            </Button>
           </form>
         </article>
       </section>

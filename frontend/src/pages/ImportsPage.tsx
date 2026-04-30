@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { formatDate, formatEntryStatus } from "../lib/format";
+import { Button } from "../components/ui";
 import type { Account, ImportBatch, ImportSummary } from "../types";
 
 type Props = {
@@ -61,14 +62,16 @@ export function ImportsPage({ submitting, accounts, importSummary, onUpload }: P
           <div className="compact-upload-box">
             <input type="file" accept=".xls,.html" onChange={(event) => setSalesFile(event.target.files?.[0] ?? null)} />
             {renderLastImport(latestImports.sales)}
-            <button
-              className="primary-button compact-action-button"
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              loading={submitting}
               disabled={submitting || !salesFile}
               onClick={() => salesFile && void onUpload("/imports/linx-sales", salesFile)}
-              type="button"
             >
               Importar
-            </button>
+            </Button>
           </div>
         </article>
 
@@ -80,14 +83,16 @@ export function ImportsPage({ submitting, accounts, importSummary, onUpload }: P
           <div className="compact-upload-box">
             <input type="file" accept=".xls,.xlsx,.html,.zip" onChange={(event) => setReceivablesFile(event.target.files?.[0] ?? null)} />
             {renderLastImport(latestImports.receivables)}
-            <button
-              className="primary-button compact-action-button"
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              loading={submitting}
               disabled={submitting || !receivablesFile}
               onClick={() => receivablesFile && void onUpload("/imports/linx-receivables", receivablesFile)}
-              type="button"
             >
               Importar
-            </button>
+            </Button>
           </div>
         </article>
 
@@ -99,14 +104,16 @@ export function ImportsPage({ submitting, accounts, importSummary, onUpload }: P
           <div className="compact-upload-box">
             <input type="file" accept=".xlsx" onChange={(event) => setHistoricalCashbookFile(event.target.files?.[0] ?? null)} />
             {renderLastImport(latestImports.historical)}
-            <button
-              className="primary-button compact-action-button"
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              loading={submitting}
               disabled={submitting || !historicalCashbookFile}
               onClick={() => historicalCashbookFile && void onUpload("/imports/historical-cashbook", historicalCashbookFile)}
-              type="button"
             >
               Importar
-            </button>
+            </Button>
           </div>
         </article>
 
@@ -129,14 +136,16 @@ export function ImportsPage({ submitting, accounts, importSummary, onUpload }: P
             )}
             <input type="file" accept=".ofx" onChange={(event) => setOfxFile(event.target.files?.[0] ?? null)} />
             {renderLastImport(latestImports.ofx)}
-            <button
-              className="primary-button compact-action-button"
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              loading={submitting}
               disabled={submitting || !ofxFile || !ofxAccountId}
               onClick={() => ofxFile && void onUpload("/imports/ofx", ofxFile, { account_id: ofxAccountId })}
-              type="button"
             >
               Importar
-            </button>
+            </Button>
           </div>
         </article>
       </section>

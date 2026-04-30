@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SectionChrome } from "../components/SectionChrome";
+import { Button } from "../components/ui";
 import type { MainNavChild } from "../data/navigation";
 import { formatDate, formatMoney } from "../lib/format";
 import type { Account, FinancialEntry, FinancialEntryListResponse } from "../types";
@@ -299,16 +300,12 @@ export function FinanceOpenItemsPage({
                   )}
                 </div>
                 <div className="entries-column-filter-popover-actions">
-                  <button
-                    className="secondary-button compact-button"
-                    onClick={() => toggleAllCounterpartyFilters(true)}
-                    type="button"
-                  >
+                  <Button type="button" variant="secondary" size="sm" onClick={() => toggleAllCounterpartyFilters(true)}>
                     Restaurar
-                  </button>
-                  <button className="ghost-button compact" onClick={() => setShowCounterpartyFilter(false)} type="button">
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowCounterpartyFilter(false)}>
                     Fechar
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : null}
@@ -372,9 +369,9 @@ export function FinanceOpenItemsPage({
               ))}
             </select>
           </label>
-          <button className="primary-button" type="submit">
+          <Button type="submit" variant="primary">
             Atualizar
-          </button>
+          </Button>
         </form>
       </section>
 

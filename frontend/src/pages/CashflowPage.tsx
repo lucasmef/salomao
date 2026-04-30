@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { PageHeader } from "../components/PageHeader";
 import { RefreshIcon } from "../components/RefreshIcon";
+import { Button } from "../components/ui";
 import { formatDate, formatMoneyNumber } from "../lib/format";
 import type { Account, CashflowOverview } from "../types";
 
@@ -216,22 +217,28 @@ export function CashflowPage({
               </label>
             </div>
             <div className="entries-period-footer">
-              <button
-                className="secondary-button compact-button"
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   setDateRange("", "");
                   setShowPeriodPopover(false);
                 }}
+              >
+                Limpar
+              </Button>
+              <Button
                 type="button"
-                >
-                  Limpar
-                </button>
-              <button className="primary-button compact-button" onClick={() => {
-                setShowPeriodPopover(false);
-                void applyDraftFilters();
-              }} type="button">
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setShowPeriodPopover(false);
+                  void applyDraftFilters();
+                }}
+              >
                 Aplicar
-              </button>
+              </Button>
             </div>
           </div>
         )}

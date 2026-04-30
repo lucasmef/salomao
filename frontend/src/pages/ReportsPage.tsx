@@ -3,6 +3,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { ReportConfigModal } from "../components/ReportConfigModal";
 import { RefreshIcon } from "../components/RefreshIcon";
 import { PageHeader } from "../components/PageHeader";
+import { Button } from "../components/ui";
 import { formatDate, formatMoneyNumber } from "../lib/format";
 import type {
   ImportSummary,
@@ -317,22 +318,28 @@ export function ReportsPage({
                 </label>
               </div>
               <div className="entries-period-footer">
-              <button
-                className="secondary-button compact-button"
-                onClick={() => {
-                  setDateRange("", "");
-                  setShowPeriodPopover(false);
-                  }}
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setDateRange("", "");
+                    setShowPeriodPopover(false);
+                  }}
                 >
                   Limpar
-                </button>
-                <button className="primary-button compact-button" onClick={() => {
-                  setShowPeriodPopover(false);
-                  void applyDraftFilters();
-                }} type="button">
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    setShowPeriodPopover(false);
+                    void applyDraftFilters();
+                  }}
+                >
                   Aplicar
-                </button>
+                </Button>
               </div>
             </div>
           )}
