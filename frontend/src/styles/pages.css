@@ -585,9 +585,10 @@ textarea {
 
 .revenue-comparison-card {
   display: grid;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: 12px;
+  padding: 22px 18px 16px;
   background: #ffffff;
+  border-radius: 14px;
 }
 
 .revenue-comparison-title {
@@ -596,7 +597,7 @@ textarea {
 
 .revenue-comparison-title h3 {
   margin: 0;
-  font-size: 0.92rem;
+  font-size: 1.08rem;
 }
 
 .revenue-comparison-legend {
@@ -604,7 +605,7 @@ textarea {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  margin-top: 8px;
+  margin-top: 0;
 }
 
 .revenue-comparison-legend span {
@@ -644,22 +645,22 @@ textarea {
 }
 
 .revenue-comparison-legend .current-year i {
-  background: #f59e0b;
+  background: #2563eb;
 }
 
 .revenue-comparison-legend .previous-year i {
-  background: #5b3fa3;
+  background: #b58af3;
 }
 
 .revenue-comparison-canvas {
   position: relative;
-  min-height: 188px;
+  min-height: 220px;
 }
 
 .revenue-comparison-canvas svg {
   display: block;
   width: 100%;
-  height: 188px;
+  height: 220px;
   overflow: visible;
 }
 
@@ -672,6 +673,45 @@ textarea {
   fill: #687a93;
   font-size: 11px;
   font-weight: 600;
+}
+
+.revenue-area-gradient {
+  fill: url("#revenue-gradient");
+}
+
+.revenue-line {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.revenue-line.current-year {
+  stroke: #2563eb;
+}
+
+.revenue-line.previous-year {
+  stroke: #b58af3;
+}
+
+.revenue-point {
+  stroke: #ffffff;
+  stroke-width: 2;
+  transition:
+    r 0.18s ease,
+    filter 0.18s ease;
+}
+
+.revenue-point.current-year {
+  fill: #2563eb;
+}
+
+.revenue-point.previous-year {
+  fill: #b58af3;
+}
+
+.revenue-point.is-active {
+  filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.18));
 }
 
 .revenue-bar {

@@ -32,6 +32,21 @@ class DashboardSeriesPoint(BaseModel):
     value: Decimal
 
 
+class DashboardKpiSparklines(BaseModel):
+    balance: list[Decimal] = Field(default_factory=list)
+    receivables: list[Decimal] = Field(default_factory=list)
+    payables: list[Decimal] = Field(default_factory=list)
+    delinquency: list[Decimal] = Field(default_factory=list)
+    sales: list[Decimal] = Field(default_factory=list)
+
+
+class DashboardDreLine(BaseModel):
+    label: str
+    value: Decimal
+    percent: Decimal = Decimal("0.00")
+    comparison_percent: Decimal | None = None
+
+
 class DashboardRevenueComparisonPoint(BaseModel):
     month: int
     label: str
@@ -96,6 +111,8 @@ class DashboardOverview(BaseModel):
     kpis: DashboardKpis
     dre_cards: list[DashboardSeriesPoint]
     dre_chart: list[DashboardSeriesPoint]
+    dre_lines: list[DashboardDreLine] = Field(default_factory=list)
+    kpi_sparklines: DashboardKpiSparklines = Field(default_factory=DashboardKpiSparklines)
     revenue_comparison: DashboardRevenueComparison
     account_balances: list[DashboardAccountBalance]
     overdue_payables: list[DashboardPendingItem]

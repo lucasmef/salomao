@@ -249,6 +249,14 @@ const emptyDashboard: DashboardOverview = {
   },
   dre_cards: [],
   dre_chart: [],
+  dre_lines: [],
+  kpi_sparklines: {
+    balance: [],
+    receivables: [],
+    payables: [],
+    delinquency: [],
+    sales: [],
+  },
   revenue_comparison: {
     current_year: new Date().getFullYear(),
     previous_year: new Date().getFullYear() - 1,

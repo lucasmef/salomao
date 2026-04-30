@@ -70,6 +70,15 @@ function formatOverviewPeriod(start: string, end: string) {
   return `VISÃO GERAL · ${month} ${date.getFullYear()}`;
 }
 
+function formatCompactMonth(value: string) {
+  if (!value) return "";
+  const date = parseIsoDate(value);
+  const month = new Intl.DateTimeFormat("pt-BR", { month: "short" })
+    .format(date)
+    .replace(".", "");
+  return `${month.charAt(0).toUpperCase()}${month.slice(1)}/${String(date.getFullYear()).slice(-2)}`;
+}
+
 function numeric(value: string | number | null | undefined) {
   return Number(value ?? 0);
 }
@@ -80,6 +89,17 @@ function formatPercent(value: string | number | null | undefined) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number.isFinite(parsed) ? parsed : 0)}%`;
+}
+
+function formatSignedPercent(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return "—";
+  const parsed = numeric(value);
+  const formatted = formatPercent(Math.abs(parsed));
+  return `${parsed >= 0 ? "+" : "-"}${formatted}`;
+}
+
+function toSparkline(values: Array<string | number> | undefined) {
+  return values?.map((value) => numeric(value)).filter((value) => Number.isFinite(value)) ?? [];
 }
 
 function formatSignedMoney(value: string | number | null | undefined) {
@@ -211,6 +231,7 @@ export function OverviewSectionPage({
   const payablesPeriod = numeric(dashboard?.kpis.payables_period ?? dashboard?.kpis.payables_30d);
   const delinquencyRate = numeric(dashboard?.kpis.delinquency_rate);
   const overdueReceivablesAmount = numeric(dashboard?.kpis.overdue_receivables_amount);
+  const kpiSparklines = dashboard?.kpi_sparklines;
   const birthdayPurchaseLookbackYears =
     dashboard?.week_birthdays.purchase_lookback_years ?? DEFAULT_BIRTHDAY_PURCHASE_LOOKBACK_YEARS;
   const operationalAlerts = [
@@ -324,6 +345,7 @@ export function OverviewSectionPage({
                 delta={showAccountBalances ? "Ocultar contas" : "Ver contas"}
                 goodTrend={consolidatedBalance >= 0}
                 label="Saldo consolidado"
+                sparkline={toSparkline(kpiSparklines?.balance)}
                 trend={consolidatedBalance >= 0 ? "up" : "down"}
                 value={formatMoney(consolidatedBalance)}
               />
@@ -332,6 +354,7 @@ export function OverviewSectionPage({
               <KpiCard
                 delta="Período"
                 label="A receber"
+                sparkline={toSparkline(kpiSparklines?.receivables)}
                 trend="up"
                 value={formatMoney(receivablesPeriod)}
               />
@@ -341,6 +364,7 @@ export function OverviewSectionPage({
                 delta="Período"
                 goodTrend={payablesPeriod <= receivablesPeriod}
                 label="A pagar"
+                sparkline={toSparkline(kpiSparklines?.payables)}
                 trend={payablesPeriod > receivablesPeriod ? "up" : "down"}
                 value={formatMoney(payablesPeriod)}
               />
@@ -350,6 +374,7 @@ export function OverviewSectionPage({
                 delta={overdueReceivablesAmount ? formatMoney(overdueReceivablesAmount) : "Sem vencidos"}
                 goodTrend={delinquencyRate === 0}
                 label="Inadimplência"
+                sparkline={toSparkline(kpiSparklines?.delinquency)}
                 trend={delinquencyRate > 0 ? "up" : "flat"}
                 value={formatPercent(dashboard?.kpis.delinquency_rate)}
               />
@@ -359,6 +384,7 @@ export function OverviewSectionPage({
                 hero
                 delta={dashboard?.today_sales?.updated_at ? `Atualizado ${formatDateTime(dashboard.today_sales.updated_at)}` : "Hoje"}
                 label="Vendas do dia"
+                sparkline={toSparkline(kpiSparklines?.sales)}
                 trend="up"
                 value={formatMoney(dashboard?.today_sales?.gross_revenue ?? 0)}
               />
@@ -496,28 +522,31 @@ export function OverviewSectionPage({
               <Card className={styles.panelCard}>
                 <div className={styles.panelHeader}>
                   <div>
-                    <h3>DRE</h3>
-                    <p>Leitura compacta do resultado no período.</p>
+                    <h3>DRE — {formatCompactMonth(filters.end || filters.start)}</h3>
                   </div>
+                  <span className={styles.dreVsLabel}>vs. {formatCompactMonth(filters.start ? toInput(new Date(parseIsoDate(filters.start).getFullYear(), parseIsoDate(filters.start).getMonth() - 1, 1)) : "")}</span>
                 </div>
                 <div className={styles.dreList}>
-                  {(() => {
-                    const dreBase = Math.abs(numeric(dashboard.kpis.gross_revenue)) || 1;
-                    return dashboard.dre_chart.slice(0, 5).map((item) => {
-                      const amount = numeric(item.value);
-                      const percent = (amount / dreBase) * 100;
-                      return (
-                        <div key={item.label} className={styles.dreRow}>
-                          <span>{item.label}</span>
-                          <div className={styles.dreMetric}>
-                            <strong className={amount >= 0 ? styles.positiveAmount : ""}>{formatMoney(item.value)}</strong>
-                            <em>{formatPercent(percent)}</em>
-                          </div>
+                  {(dashboard.dre_lines.length ? dashboard.dre_lines : dashboard.dre_chart.map((item) => ({
+                    ...item,
+                    percent: "0.00",
+                    comparison_percent: null,
+                  }))).slice(0, 5).map((item) => {
+                    const amount = numeric(item.value);
+                    const comparison = item.comparison_percent;
+                    return (
+                      <div key={item.label} className={styles.dreRow}>
+                        <span>{item.label}</span>
+                        <div className={styles.dreMetric}>
+                          <strong className={amount >= 0 ? styles.positiveAmount : ""}>{formatMoney(item.value)}</strong>
+                          <em className={numeric(comparison) < 0 ? styles.negativePercent : styles.positivePercent}>
+                            {formatSignedPercent(comparison)}
+                          </em>
                         </div>
-                      );
-                    });
-                  })()}
-                  {!dashboard.dre_chart.length ? (
+                      </div>
+                    );
+                  })}
+                  {!dashboard.dre_lines.length && !dashboard.dre_chart.length ? (
                     <EmptyState title="DRE indisponível" message="Configure as linhas do relatório para preencher este quadro." />
                   ) : null}
                 </div>

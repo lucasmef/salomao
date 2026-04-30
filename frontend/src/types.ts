@@ -937,6 +937,21 @@ export type DashboardSeriesPoint = {
   value: string;
 };
 
+export type DashboardDreLine = {
+  label: string;
+  value: string;
+  percent: string;
+  comparison_percent: string | null;
+};
+
+export type DashboardKpiSparklines = {
+  balance: string[];
+  receivables: string[];
+  payables: string[];
+  delinquency: string[];
+  sales: string[];
+};
+
 export type DashboardRevenueComparisonPoint = {
   month: number;
   label: string;
@@ -1022,6 +1037,8 @@ export type DashboardOverview = {
   };
   dre_cards: DashboardSeriesPoint[];
   dre_chart: DashboardSeriesPoint[];
+  dre_lines: DashboardDreLine[];
+  kpi_sparklines: DashboardKpiSparklines;
   revenue_comparison: DashboardRevenueComparison;
   account_balances: DashboardAccountBalance[];
   overdue_payables: DashboardPendingItem[];

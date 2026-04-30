@@ -18,6 +18,10 @@ type ChartPoint = {
   previousValue: number;
 };
 
+function buildLinePath(points: Array<{ x: number; y: number }>) {
+  return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+}
+
 export function RevenueComparisonChart({ title, comparison, formatValue = formatMoney }: Props) {
   const [activePointIndex, setActivePointIndex] = useState<number | null>(null);
   const points = comparison.points ?? [];
@@ -50,6 +54,8 @@ export function RevenueComparisonChart({ title, comparison, formatValue = format
 
   const activePoint = activePointIndex === null ? null : chartPoints[activePointIndex];
   const hasPoints = chartPoints.length > 0;
+  const currentPath = buildLinePath(chartPoints.map((point) => ({ x: point.x, y: point.currentY })));
+  const previousPath = buildLinePath(chartPoints.map((point) => ({ x: point.x, y: point.previousY })));
   const currentTotal = points.reduce((total, point) => total + Number(point.current_year_value ?? 0), 0);
   const previousTotal = points.reduce((total, point) => total + Number(point.previous_year_value ?? 0), 0);
   const totalDelta = previousTotal ? ((currentTotal - previousTotal) / previousTotal) * 100 : null;
@@ -156,31 +162,26 @@ export function RevenueComparisonChart({ title, comparison, formatValue = format
             </text>
           ))}
 
-          {chartPoints.map((point) => {
-            const groupWidth = Math.min(30, chartWidth / Math.max(chartPoints.length, 1) - 12);
-            const barWidth = Math.max(groupWidth / 2 - 2, 6);
-            const baseline = padding.top + chartHeight;
-            return (
-              <g key={`bars-${point.label}`}>
-                <rect
-                  className={`revenue-bar previous-year${activePoint?.label === point.label ? " is-active" : ""}`}
-                  x={point.x - barWidth - 2}
-                  y={point.previousY}
-                  width={barWidth}
-                  height={Math.max(baseline - point.previousY, 2)}
-                  rx={4}
-                />
-                <rect
-                  className={`revenue-bar current-year${activePoint?.label === point.label ? " is-active" : ""}`}
-                  x={point.x + 2}
-                  y={point.currentY}
-                  width={barWidth}
-                  height={Math.max(baseline - point.currentY, 2)}
-                  rx={4}
-                />
-              </g>
-            );
-          })}
+          <path className="revenue-area-gradient" d={`${currentPath} L ${chartPoints[chartPoints.length - 1].x} ${padding.top + chartHeight} L ${chartPoints[0].x} ${padding.top + chartHeight} Z`} />
+          <path className="revenue-line previous-year" d={previousPath} />
+          <path className="revenue-line current-year" d={currentPath} />
+
+          {chartPoints.map((point) => (
+            <g key={`point-${point.label}`}>
+              <circle
+                className={`revenue-point previous-year${activePoint?.label === point.label ? " is-active" : ""}`}
+                cx={point.x}
+                cy={point.previousY}
+                r={activePoint?.label === point.label ? 5 : 3.5}
+              />
+              <circle
+                className={`revenue-point current-year${activePoint?.label === point.label ? " is-active" : ""}`}
+                cx={point.x}
+                cy={point.currentY}
+                r={activePoint?.label === point.label ? 5 : 3.5}
+              />
+            </g>
+          ))}
 
           {chartPoints.map((point, index) => {
             const hoverZone = getHoverZone(index);

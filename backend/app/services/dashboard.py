@@ -13,7 +13,9 @@ from app.db.models.security import Company
 from app.schemas.dashboard import (
     DashboardAccountBalance,
     DashboardBirthdayItem,
+    DashboardDreLine,
     DashboardKpis,
+    DashboardKpiSparklines,
     DashboardOverview,
     DashboardPendingItem,
     DashboardReconciliationItem,
@@ -94,6 +96,33 @@ def _format_week_label(start: date, end: date) -> str:
     )
 
 
+def _bucket_ranges(start: date, end: date, *, max_points: int = 8) -> list[tuple[date, date]]:
+    if end < start:
+        return []
+    total_days = (end - start).days + 1
+    bucket_days = max(1, (total_days + max_points - 1) // max_points)
+    ranges: list[tuple[date, date]] = []
+    cursor = start
+    while cursor <= end:
+        bucket_end = min(end, cursor + timedelta(days=bucket_days - 1))
+        ranges.append((cursor, bucket_end))
+        cursor = bucket_end + timedelta(days=1)
+    return ranges
+
+
+def _quantize_money(value: Decimal) -> Decimal:
+    return Decimal(value or 0).quantize(Decimal("0.01"))
+
+
+def _variation_percent(current: Decimal, previous: Decimal) -> Decimal | None:
+    previous = Decimal(previous or 0)
+    if previous == 0:
+        return None
+    return ((Decimal(current or 0) - previous) / abs(previous) * Decimal("100")).quantize(
+        Decimal("0.01")
+    )
+
+
 def build_dashboard_week_birthdays(
     db: Session,
     company: Company,
@@ -144,6 +173,118 @@ def build_dashboard_today_sales(
         sales_date=reference_day,
         gross_revenue=Decimal(summary.gross_revenue or 0),
         updated_at=summary.updated_at,
+    )
+
+
+def _build_kpi_sparklines(
+    db: Session,
+    company: Company,
+    *,
+    start: date,
+    end: date,
+    current_balance: Decimal,
+    period_invoice_items: list[object],
+) -> DashboardKpiSparklines:
+    buckets = _bucket_ranges(start, end)
+    if not buckets:
+        return DashboardKpiSparklines()
+
+    entry_rows = list(
+        db.execute(
+            select(
+                FinancialEntry.entry_type,
+                FinancialEntry.status,
+                FinancialEntry.due_date,
+                FinancialEntry.settled_at,
+                FinancialEntry.total_amount,
+                FinancialEntry.paid_amount,
+            ).where(
+                FinancialEntry.company_id == company.id,
+                FinancialEntry.is_deleted.is_(False),
+                or_(
+                    FinancialEntry.due_date.between(start, end),
+                    func.date(FinancialEntry.settled_at).between(start, end),
+                ),
+            )
+        )
+    )
+    sales_rows = list(
+        db.execute(
+            select(SalesSnapshot.snapshot_date, SalesSnapshot.gross_revenue).where(
+                SalesSnapshot.company_id == company.id,
+                SalesSnapshot.snapshot_date >= start,
+                SalesSnapshot.snapshot_date <= end,
+            )
+        )
+    )
+
+    balance_deltas: list[Decimal] = []
+    receivables: list[Decimal] = []
+    payables: list[Decimal] = []
+    delinquency: list[Decimal] = []
+    sales: list[Decimal] = []
+    today = _today_in_sao_paulo()
+
+    for bucket_start, bucket_end in buckets:
+        settled_delta = Decimal("0.00")
+        receivable_total = Decimal("0.00")
+        payable_total = Decimal("0.00")
+        for row in entry_rows:
+            entry_type, status, due_date, settled_at, total_amount, paid_amount = row
+            outstanding = Decimal(total_amount or 0) - Decimal(paid_amount or 0)
+            if due_date and bucket_start <= due_date <= bucket_end:
+                if entry_type == "income" and status in UNSETTLED_STATUS_QUERY_VALUES:
+                    receivable_total += outstanding
+                if entry_type == "expense" and status in UNSETTLED_STATUS_QUERY_VALUES:
+                    payable_total += outstanding
+            if settled_at and bucket_start <= settled_at.date() <= bucket_end:
+                paid = Decimal(paid_amount or total_amount or 0)
+                settled_delta += paid if entry_type == "income" else -paid
+
+        balance_deltas.append(settled_delta)
+        receivables.append(_quantize_money(receivable_total))
+        payables.append(_quantize_money(payable_total))
+        delinquency.append(
+            _quantize_money(
+                sum(
+                    (
+                        Decimal(getattr(item, "amount", 0) or 0)
+                        for item in period_invoice_items
+                        if getattr(item, "due_date", None)
+                        and bucket_start <= item.due_date <= bucket_end
+                        and _receivable_status_bucket(item.status, item.due_date, today=today)
+                        == "overdue"
+                    ),
+                    Decimal("0.00"),
+                )
+            )
+        )
+        sales.append(
+            _quantize_money(
+                sum(
+                    (
+                        Decimal(amount or 0)
+                        for snapshot_date, amount in sales_rows
+                        if bucket_start <= snapshot_date <= bucket_end
+                    ),
+                    Decimal("0.00"),
+                )
+            )
+        )
+
+    period_delta = sum(balance_deltas, Decimal("0.00"))
+    running_balance = Decimal(current_balance or 0) - period_delta
+    balance: list[Decimal] = []
+    for delta in balance_deltas:
+        running_balance += delta
+        balance.append(_quantize_money(running_balance))
+
+    return DashboardKpiSparklines(
+        balance=balance,
+        receivables=receivables,
+        payables=payables,
+        delinquency=delinquency,
+        sales=sales,
     )
 
 
@@ -277,6 +418,15 @@ def build_dashboard_overview(
         company,
         start=start,
         end=end,
+    )
+    period_days = max((end - start).days + 1, 1)
+    previous_end = start - timedelta(days=1)
+    previous_start = previous_end - timedelta(days=period_days - 1)
+    previous_reports = get_cached_reports_overview(
+        db,
+        company,
+        start=previous_start,
+        end=previous_end,
     )
     cashflow = cashflow_override or get_cached_cashflow_overview(
         db,
@@ -440,6 +590,31 @@ def build_dashboard_overview(
         for card in reports.dre.dashboard_cards
     ]
     dre_chart = list(dre_cards)
+    previous_cards_by_label = {
+        card.label: Decimal(card.amount)
+        for card in previous_reports.dre.dashboard_cards
+    }
+    dre_base = abs(gross_revenue) or Decimal("1.00")
+    dre_lines = [
+        DashboardDreLine(
+            label=card.label,
+            value=Decimal(card.amount),
+            percent=(Decimal(card.amount) / dre_base * Decimal("100")).quantize(Decimal("0.01")),
+            comparison_percent=_variation_percent(
+                Decimal(card.amount),
+                previous_cards_by_label.get(card.label, Decimal("0.00")),
+            ),
+        )
+        for card in reports.dre.dashboard_cards
+    ]
+    kpi_sparklines = _build_kpi_sparklines(
+        db,
+        company,
+        start=start,
+        end=end,
+        current_balance=cashflow.current_balance,
+        period_invoice_items=period_invoice_items,
+    )
 
     def pending_item(entry: FinancialEntry) -> DashboardPendingItem:
         return DashboardPendingItem(
@@ -477,6 +652,8 @@ def build_dashboard_overview(
         ),
         dre_cards=dre_cards,
         dre_chart=dre_chart,
+        dre_lines=dre_lines,
+        kpi_sparklines=kpi_sparklines,
         revenue_comparison=revenue_comparison,
         account_balances=[
             DashboardAccountBalance(
