@@ -2288,13 +2288,6 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
-.compact-entry-modal {
-  width: min(1240px, calc(100vw - 32px));
-  max-height: calc(100vh - 32px);
-  overflow: visible;
-  padding: 12px;
-}
-
 .form-grid.wide.entry-form-grid {
   grid-template-columns: repeat(12, minmax(0, 1fr));
 }
@@ -2314,14 +2307,6 @@ textarea {
 
 .entry-form-section-title {
   display: none;
-}
-
-.entry-modal-topbar {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 10px;
 }
 
 .entry-status-toggle {
