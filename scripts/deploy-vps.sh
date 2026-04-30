@@ -110,7 +110,9 @@ service_is_active() {
 dump_service_diagnostics() {
   echo "==> Diagnostico do servico $SERVICE_NAME"
   echo "-- systemctl status --"
-  sudo systemctl status "$SERVICE_NAME" --no-pager || true
+  systemctl status "$SERVICE_NAME" --no-pager 2>/dev/null \
+    || sudo -n systemctl status "$SERVICE_NAME" --no-pager \
+    || true
 
   echo "-- listeners na porta $SERVICE_PORT --"
   ss -ltnp "( sport = :$SERVICE_PORT )" 2>/dev/null \
@@ -118,7 +120,9 @@ dump_service_diagnostics() {
     || true
 
   echo "-- journal recente --"
-  sudo journalctl -u "$SERVICE_NAME" --no-pager -n 120 || true
+  journalctl -u "$SERVICE_NAME" --no-pager -n 120 2>/dev/null \
+    || sudo -n journalctl -u "$SERVICE_NAME" --no-pager -n 120 \
+    || true
 
   echo "-- curl verbose do healthcheck --"
   curl --verbose --max-time 10 "$HEALTHCHECK_URL" || true
