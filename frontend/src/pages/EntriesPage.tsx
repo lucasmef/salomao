@@ -1058,20 +1058,22 @@ export function EntriesPage({
                   )}
                 </div>
                 <div className="entries-column-filter-popover-actions">
-                  <button
-                    className="secondary-button compact-button"
-                    onClick={() => toggleAllCategoryFilters(true)}
+                  <Button
                     type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => toggleAllCategoryFilters(true)}
                   >
                     Restaurar
-                  </button>
-                  <button
-                    className="ghost-button compact"
-                    onClick={() => setShowCategoryFilter(false)}
+                  </Button>
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCategoryFilter(false)}
                   >
                     Fechar
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -1242,23 +1244,25 @@ export function EntriesPage({
                   </label>
                 </div>
                 <div className="entries-period-footer">
-                  <button
-                    className="secondary-button compact-button"
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
                     onClick={() => {
                       setDateRange("", "");
                       setShowPeriodPopover(false);
                     }}
-                    type="button"
                   >
                     Limpar
-                  </button>
-                  <button
-                    className="primary-button compact-button"
-                    onClick={() => setShowPeriodPopover(false)}
+                  </Button>
+                  <Button
                     type="button"
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setShowPeriodPopover(false)}
                   >
                     Concluir
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

@@ -1209,10 +1209,10 @@ export function BoletosPage({
               <thead>
                 <tr>
                   <th>{renderSortButton("Cliente", "client_name", overdueSort, overdueSortDirection, () => toggleOverdueSort("client_name"))}</th>
-                  <th>{renderSortButton("Modo", "mode", overdueSort, overdueSortDirection, () => toggleOverdueSort("mode"))}</th>
-                  <th>{renderSortButton("Banco", "bank", overdueSort, overdueSortDirection, () => toggleOverdueSort("bank"))}</th>
+                  <th className="col-hide-md">{renderSortButton("Modo", "mode", overdueSort, overdueSortDirection, () => toggleOverdueSort("mode"))}</th>
+                  <th className="col-hide-md">{renderSortButton("Banco", "bank", overdueSort, overdueSortDirection, () => toggleOverdueSort("bank"))}</th>
                   <th>{renderSortButton("Vencimento", "due_date", overdueSort, overdueSortDirection, () => toggleOverdueSort("due_date"))}</th>
-                  <th>{renderSortButton("Atraso", "days_overdue", overdueSort, overdueSortDirection, () => toggleOverdueSort("days_overdue"))}</th>
+                  <th className="col-hide-md">{renderSortButton("Atraso", "days_overdue", overdueSort, overdueSortDirection, () => toggleOverdueSort("days_overdue"))}</th>
                   <th className="numeric-cell">{renderSortButton("Valor", "amount", overdueSort, overdueSortDirection, () => toggleOverdueSort("amount"), true)}</th>
                   <th>{renderSortButton("Status", "status", overdueSort, overdueSortDirection, () => toggleOverdueSort("status"))}</th>
                   <th>{renderSortButton("Faturas", "receivables", overdueSort, overdueSortDirection, () => toggleOverdueSort("receivables"))}</th>
@@ -1223,10 +1223,10 @@ export function BoletosPage({
                 {visibleOverdueBoletos.map((item, index) => (
                   <tr key={index}>
                     <td>{item.client_name}</td>
-                    <td>{item.mode || "-"}</td>
-                    <td>{item.bank || "-"}</td>
+                    <td className="col-hide-md">{item.mode || "-"}</td>
+                    <td className="col-hide-md">{item.bank || "-"}</td>
                     <td>{formatDate(item.due_date)}</td>
-                    <td>{item.days_overdue}</td>
+                    <td className="col-hide-md">{item.days_overdue}</td>
                     <td className="numeric-cell">{formatMoney(item.amount)}</td>
                     <td>{renderStatusBadge(item.status)}</td>
                     <td>{renderReceivableDetails(item)}</td>
@@ -1265,9 +1265,9 @@ export function BoletosPage({
               </colgroup>
               <thead>
                 <tr>
-                  <th>{renderSortButton("Tipo", "type", paidPendingSort, paidPendingSortDirection, () => togglePaidPendingSort("type"))}</th>
+                  <th className="col-hide-md">{renderSortButton("Tipo", "type", paidPendingSort, paidPendingSortDirection, () => togglePaidPendingSort("type"))}</th>
                   <th>{renderSortButton("Cliente", "client_name", paidPendingSort, paidPendingSortDirection, () => togglePaidPendingSort("client_name"))}</th>
-                  <th>{renderSortButton("Modo", "mode", paidPendingSort, paidPendingSortDirection, () => togglePaidPendingSort("mode"))}</th>
+                  <th className="col-hide-md">{renderSortButton("Modo", "mode", paidPendingSort, paidPendingSortDirection, () => togglePaidPendingSort("mode"))}</th>
                   <th>{renderSortButton("Competência", "competence", paidPendingSort, paidPendingSortDirection, () => togglePaidPendingSort("competence"))}</th>
                   <th className="numeric-cell">{renderSortButton("Valor", "amount", paidPendingSort, paidPendingSortDirection, () => togglePaidPendingSort("amount"), true)}</th>
                   <th>{renderSortButton("Faturas", "receivables", paidPendingSort, paidPendingSortDirection, () => togglePaidPendingSort("receivables"))}</th>
@@ -1277,9 +1277,9 @@ export function BoletosPage({
               <tbody>
                 {visiblePaidPending.map((item, index) => (
                   <tr key={`${item.client_name}-${item.competence}-${index}`}>
-                    <td>{item.type}</td>
+                    <td className="col-hide-md">{item.type}</td>
                     <td>{item.client_name}</td>
-                    <td>{item.mode || "-"}</td>
+                    <td className="col-hide-md">{item.mode || "-"}</td>
                     <td>{item.competence || "-"}</td>
                     <td className="numeric-cell">{formatMoney(item.amount)}</td>
                     <td>{renderReceivableDetails(item)}</td>
@@ -1320,10 +1320,10 @@ export function BoletosPage({
               </colgroup>
               <thead>
                 <tr>
-                  <th>{renderSortButton("Tipo", "type", excessSort, excessSortDirection, () => toggleExcessSort("type"))}</th>
+                  <th className="col-hide-md">{renderSortButton("Tipo", "type", excessSort, excessSortDirection, () => toggleExcessSort("type"))}</th>
                   <th>{renderSortButton("Cliente", "client_name", excessSort, excessSortDirection, () => toggleExcessSort("client_name"))}</th>
-                  <th>{renderSortButton("Modo", "mode", excessSort, excessSortDirection, () => toggleExcessSort("mode"))}</th>
-                  <th>{renderSortButton("Competência", "competence", excessSort, excessSortDirection, () => toggleExcessSort("competence"))}</th>
+                  <th className="col-hide-md">{renderSortButton("Modo", "mode", excessSort, excessSortDirection, () => toggleExcessSort("mode"))}</th>
+                  <th className="col-hide-md">{renderSortButton("Competência", "competence", excessSort, excessSortDirection, () => toggleExcessSort("competence"))}</th>
                   <th>{renderSortButton("Vencimento", "due_date", excessSort, excessSortDirection, () => toggleExcessSort("due_date"))}</th>
                   <th className="numeric-cell">{renderSortButton("Valor", "amount", excessSort, excessSortDirection, () => toggleExcessSort("amount"), true)}</th>
                   <th>{renderSortButton("Status", "status", excessSort, excessSortDirection, () => toggleExcessSort("status"))}</th>
@@ -1334,10 +1334,10 @@ export function BoletosPage({
               <tbody>
                 {visibleExcessBoletos.map((item, index) => (
                   <tr key={`${item.client_name}-${item.competence}-${index}`}>
-                    <td>{item.type}</td>
+                    <td className="col-hide-md">{item.type}</td>
                     <td>{item.client_name}</td>
-                    <td>{item.mode || "-"}</td>
-                    <td>{item.competence || "-"}</td>
+                    <td className="col-hide-md">{item.mode || "-"}</td>
+                    <td className="col-hide-md">{item.competence || "-"}</td>
                     <td>{formatDate(item.due_date)}</td>
                     <td className="numeric-cell">{formatMoney(item.amount)}</td>
                     <td>{renderStatusBadge(item.status)}</td>
