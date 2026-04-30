@@ -19,6 +19,7 @@ frontend/dist/
 *.log
 *.pid
 deploy-evidence/
+.claude/
 
 .env
 .env.*

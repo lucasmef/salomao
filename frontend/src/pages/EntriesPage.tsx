@@ -36,6 +36,8 @@ type Props = {
   onReverseEntry: (entryId: string) => Promise<void>;
   onChangePage: (page: number) => Promise<void>;
   onChangePageSize: (pageSize: number) => Promise<void>;
+  entryModalRequestKey?: number;
+  onEntryModalRequestHandled?: () => void;
   embedded?: boolean;
 };
 
@@ -384,6 +386,8 @@ export function EntriesPage({
   onReverseEntry,
   onChangePage,
   onChangePageSize,
+  entryModalRequestKey = 0,
+  onEntryModalRequestHandled,
   embedded = false,
 }: Props) {
   const hasMountedAutoApplyRef = useRef(false);
@@ -576,6 +580,15 @@ export function EntriesPage({
     // Reset focus when filters change or data is reloaded
     setFocusedRowIndex(-1);
   }, [filters, entryList]);
+
+  useEffect(() => {
+    if (!entryModalRequestKey) {
+      return;
+    }
+    openEntryModal();
+    onEntryModalRequestHandled?.();
+  }, [entryModalRequestKey, onEntryModalRequestHandled]);
+
   const selectedEntryKind = useMemo(() => {
     if (!selectedEntries.length) {
       return "";

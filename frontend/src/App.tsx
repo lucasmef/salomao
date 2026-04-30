@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 import { AppShell } from "./components/AppShell";
 import { BoletoExportProgressModal } from "./components/BoletoExportProgressModal";
@@ -7,6 +7,7 @@ import { ConfirmModal } from "./components/ConfirmModal";
 import { GlobalProductSearchModal } from "./components/GlobalProductSearchModal";
 import { RouteLoadingFallback } from "./components/RouteLoadingFallback";
 import { SectionChrome } from "./components/SectionChrome";
+import { ErrorBoundary } from "./components/ui";
 import { findChildNavItem, legacySectionPathMap, mainNavigation, overviewNavigationItem } from "./data/navigation";
 import { downloadFile, fetchJson } from "./lib/api";
 import { parseApiError } from "./lib/format";
@@ -715,17 +716,20 @@ import { ConfirmProvider } from "./components/ConfirmContext";
 
 function App() {
   return (
-    <BrowserRouter>
-      <ConfirmProvider>
-        <DevBanner />
-        <AppRuntime />
-      </ConfirmProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <ConfirmProvider>
+          <DevBanner />
+          <AppRuntime />
+        </ConfirmProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 
 function AppRuntime() {
   const location = useLocation();
+  const navigate = useNavigate();
   const autoLoadingSectionKeysRef = useRef<Set<string>>(new Set());
   const [session, setSession] = useState<SessionState | null>(null);
   const [pendingAuth, setPendingAuth] = useState<PendingAuthState | null>(null);
@@ -771,6 +775,7 @@ function AppRuntime() {
   );
   const [globalProductSearchModalOpen, setGlobalProductSearchModalOpen] = useState(false);
   const [globalProductSearchLoading, setGlobalProductSearchLoading] = useState(false);
+  const [entryModalRequestKey, setEntryModalRequestKey] = useState(0);
   const [linxMovementDirectory, setLinxMovementDirectory] = useState<LinxMovementDirectory>(emptyLinxMovementDirectory);
   const [linxOpenReceivableDirectory, setLinxOpenReceivableDirectory] = useState<LinxOpenReceivableDirectory>(
     emptyLinxOpenReceivableDirectory,
@@ -2748,6 +2753,24 @@ function AppRuntime() {
       : loading
         ? "Atualizando dados..."
         : "";
+  const navBadges: Record<string, { tone?: "neutral" | "urgent" | "info"; count: number }> = {};
+  if (loadedSections.lancamentos && entryList.total > 0) {
+    navBadges.lancamentos = { tone: "info", count: entryList.total };
+  }
+  if (loadedSections.conciliacao && reconciliation.overall_unreconciled_count > 0) {
+    navBadges.conciliacao = { tone: "urgent", count: reconciliation.overall_unreconciled_count };
+  }
+  if (loadedSections.boletos) {
+    const billingIssues =
+      boletoDashboard.summary.overdue_boleto_count +
+      boletoDashboard.summary.overdue_invoice_client_count +
+      boletoDashboard.summary.paid_pending_count +
+      boletoDashboard.summary.missing_boleto_count +
+      boletoDashboard.summary.excess_boleto_count;
+    if (billingIssues > 0) {
+      navBadges.cobranca = { tone: "urgent", count: billingIssues };
+    }
+  }
 
   if (authLoading) {
     return (
@@ -2798,6 +2821,13 @@ function AppRuntime() {
         void searchProductsGlobally(globalProductSearchInput);
       }}
       onLogout={() => void handleLogout()}
+      onNewEntry={() => {
+        setEntryModalRequestKey((current) => current + 1);
+        if (location.pathname !== "/financeiro/lancamentos") {
+          navigate("/financeiro/lancamentos");
+        }
+      }}
+      navBadges={navBadges}
       busy={shellBusy}
       busyLabel={shellBusyLabel}
     >
@@ -2837,11 +2867,12 @@ function AppRuntime() {
                 title={entriesNavigation.children[0].title}
               >
                 <EntriesPage
-                embedded
-                accounts={accounts}
-                suppliers={suppliers}
-                categories={categories}
-                entryList={entryList}
+                  embedded
+                  accounts={accounts}
+                  suppliers={suppliers}
+                  categories={categories}
+                  entryList={entryList}
+                  entryModalRequestKey={entryModalRequestKey}
                   filters={entryFilters}
                   submitting={submitting}
                   onCancelEntry={cancelEntry}
@@ -2859,7 +2890,8 @@ function AppRuntime() {
                   onUpdateEntry={updateEntry}
                   onBulkUpdateCategory={bulkUpdateEntryCategory}
                   onApplyFilters={applyEntryFilters}
-                  />
+                  onEntryModalRequestHandled={() => setEntryModalRequestKey(0)}
+                />
               </SectionChrome>
             }
             path="/financeiro/lancamentos"
