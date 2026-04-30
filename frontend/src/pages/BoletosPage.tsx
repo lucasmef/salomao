@@ -1164,8 +1164,8 @@ export function BoletosPage({
               <span>{openReceivables.length}</span>
             </div>
           </div>
-          <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-            <table className="erp-table entries-list-table billing-open-receivables-table">
+          <div className="table-shell table-shell--scroll billing-table-shell billing-table-shell--expanded entries-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-open-receivables-table">
               <thead>
                 <tr>
                   <th>{renderSortButton("Vencimento", "due_date", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("due_date"))}</th>
@@ -1204,8 +1204,8 @@ export function BoletosPage({
             <h3>Boletos atrasados</h3>
             <span>{visibleOverdueBoletos.length}</span>
           </div>
-          <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-            <table className="erp-table entries-list-table billing-alert-table">
+          <div className="table-shell table-shell--scroll billing-table-shell billing-table-shell--expanded entries-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table">
               <thead>
                 <tr>
                   <th>{renderSortButton("Cliente", "client_name", overdueSort, overdueSortDirection, () => toggleOverdueSort("client_name"))}</th>
@@ -1252,8 +1252,8 @@ export function BoletosPage({
             <h3>Pagas sem baixa</h3>
             <span>{visiblePaidPending.length}</span>
           </div>
-          <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-            <table className="erp-table entries-list-table billing-alert-table">
+          <div className="table-shell table-shell--scroll billing-table-shell billing-table-shell--expanded entries-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table">
               <colgroup>
                 <col className="billing-alert-col-type" />
                 <col className="billing-alert-col-client" />
@@ -1305,8 +1305,8 @@ export function BoletosPage({
             <h3>Boletos em excesso</h3>
             <span>{visibleExcessBoletos.length}</span>
           </div>
-          <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-            <table className="erp-table entries-list-table billing-alert-table">
+          <div className="table-shell table-shell--scroll billing-table-shell billing-table-shell--expanded entries-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table">
               <colgroup>
                 <col className="billing-alert-col-type" />
                 <col className="billing-alert-col-client" />
@@ -1457,7 +1457,7 @@ export function BoletosPage({
             </div>
           </div>
           <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell billing-open-boletos-table-shell">
-            <table className="erp-table entries-list-table billing-open-boletos-table">
+            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-open-boletos-table">
               <colgroup>
                 <col className="billing-open-boletos-col-select" />
                 <col className="billing-open-boletos-col-client" />
@@ -1637,7 +1637,7 @@ export function BoletosPage({
           </div>
         </div>
         <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-          <table className="erp-table entries-list-table billing-alert-table">
+          <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table">
             <colgroup>
               <col className="billing-alert-col-select" />
               <col className="billing-alert-col-client" />
@@ -1964,8 +1964,8 @@ export function BoletosPage({
                 <span>{visibleStandaloneBoletos.length}</span>
               </div>
             </div>
-            <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-              <table className="erp-table entries-list-table billing-alert-table">
+            <div className="table-shell table-shell--scroll billing-table-shell billing-table-shell--expanded entries-table-shell">
+              <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table">
                 <colgroup>
                   <col className="billing-alert-col-client" />
                   <col className="billing-alert-col-document" />

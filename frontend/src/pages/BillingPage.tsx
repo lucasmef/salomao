@@ -1608,8 +1608,8 @@ export function BillingPage({
           </div>
         </div>
 
-        <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-          <table className="erp-table entries-list-table billing-alert-table billing-open-receivables-table billing-invoices-table">
+        <div className="table-shell table-shell--scroll billing-table-shell billing-table-shell--expanded entries-table-shell">
+          <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table billing-open-receivables-table billing-invoices-table">
             <colgroup>
               <col className="billing-alert-col-client" />
               <col className="billing-alert-col-document" />
@@ -1650,7 +1650,7 @@ export function BillingPage({
                     : null}
                 </th>
                 <th>{renderSortButton("Titulo", invoiceSortKey === "title", invoiceSortDirection, () => toggleInvoiceSort("title"))}</th>
-                <th className="billing-filter-header-cell">
+                <th className="billing-filter-header-cell col-hide-md">
                   {renderHeaderFilterButton(
                     "Emissao",
                     invoicePopover === "issue_date",
@@ -1715,7 +1715,7 @@ export function BillingPage({
                   <td className="billing-invoice-col-title" title={item.title}>
                     <strong>{item.title}</strong>
                   </td>
-                  <td className="billing-invoice-col-issue-date">
+                  <td className="billing-invoice-col-issue-date col-hide-md">
                     <span className="billing-date-desktop">{formatDate(item.issue_date)}</span>
                     <span className="billing-date-mobile">{formatBillingShortDate(item.issue_date)}</span>
                   </td>
@@ -1916,8 +1916,8 @@ export function BillingPage({
           </div>
         </div>
 
-        <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-          <table className="erp-table entries-list-table billing-alert-table billing-open-boletos-table billing-boletos-table">
+        <div className="table-shell table-shell--scroll billing-table-shell billing-table-shell--expanded entries-table-shell">
+          <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table billing-open-boletos-table billing-boletos-table">
             <colgroup>
               <col className="billing-alert-col-select" />
               <col className="billing-alert-col-client" />
@@ -1993,9 +1993,9 @@ export function BillingPage({
                       )
                     : null}
                 </th>
-                <th>{renderSortButton("Documento", boletoSortKey === "document_id", boletoSortDirection, () => toggleBoletoSort("document_id"))}</th>
-                <th>{renderSortButton("Descricao", boletoSortKey === "description", boletoSortDirection, () => toggleBoletoSort("description"))}</th>
-                <th className="billing-filter-header-cell">
+                <th className="col-hide-md">{renderSortButton("Documento", boletoSortKey === "document_id", boletoSortDirection, () => toggleBoletoSort("document_id"))}</th>
+                <th className="col-hide-md">{renderSortButton("Descricao", boletoSortKey === "description", boletoSortDirection, () => toggleBoletoSort("description"))}</th>
+                <th className="billing-filter-header-cell col-hide-md">
                   {renderHeaderFilterButton(
                     "Emissao",
                     boletoPopover === "issue_date",
@@ -2095,11 +2095,11 @@ export function BillingPage({
                     </div>
                   </td>
                   <td className="billing-boleto-col-client" title={row.client_name}>{row.client_name}</td>
-                  <td className="billing-boleto-col-document" title={row.document_id}>
+                  <td className="billing-boleto-col-document col-hide-md" title={row.document_id}>
                     <strong>{row.document_id || "-"}</strong>
                   </td>
-                  <td className="billing-boleto-col-description" title={row.description}>{row.description || "-"}</td>
-                  <td className="billing-boleto-col-issue-date">
+                  <td className="billing-boleto-col-description col-hide-md" title={row.description}>{row.description || "-"}</td>
+                  <td className="billing-boleto-col-issue-date col-hide-md">
                     <span className="billing-date-desktop">{formatDate(row.issue_date)}</span>
                     <span className="billing-date-mobile">{formatBillingShortDate(row.issue_date)}</span>
                   </td>
@@ -2289,8 +2289,8 @@ export function BillingPage({
             </div>
           </div>
 
-          <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-            <table className="erp-table entries-list-table billing-clients-table">
+          <div className="table-shell table-shell--scroll billing-table-shell billing-table-shell--expanded entries-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-clients-table">
               <colgroup>
                 <col className="billing-clients-col-client" />
                 <col className="billing-clients-col-count" />

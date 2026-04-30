@@ -1258,8 +1258,8 @@ export function ReconciliationPage({
               </button>
             </div>
           </div>
-          <div className="table-shell reconciliation-table-shell">
-            <table className="erp-table compact-table reconciliation-bank-table reconciliation-bank-table--mobile-friendly">
+          <div className="table-shell table-shell--scroll reconciliation-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive compact-table reconciliation-bank-table reconciliation-bank-table--mobile-friendly">
               <thead>
                 <tr>
                   <th className="checkbox-cell">
@@ -1436,8 +1436,8 @@ export function ReconciliationPage({
             </div>
           )}
 
-          <div className="table-shell reconciliation-table-shell">
-            <table className="erp-table compact-table reconciliation-entry-table reconciliation-entry-table--mobile-friendly">
+          <div className="table-shell table-shell--scroll reconciliation-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive compact-table reconciliation-entry-table reconciliation-entry-table--mobile-friendly">
               <thead>
                 <tr>
                   <th className="checkbox-cell">
