@@ -12,3 +12,4 @@ export { KpiCard } from "./KpiCard";
 export { StatusPill } from "./StatusPill";
 export { Badge } from "./Badge";
 export { PeriodChips, type PeriodKey } from "./PeriodChips";
+export { DropdownMenu, type DropdownItem } from "./DropdownMenu";

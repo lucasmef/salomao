@@ -4,7 +4,7 @@ import { useConfirm } from "../components/ConfirmContext";
 import { MoneyInput } from "../components/MoneyInput";
 import { PageHeader } from "../components/PageHeader";
 import { TablePagination } from "../components/TablePagination";
-import { Button, Input, Modal, Select as UiSelect } from "../components/ui";
+import { Button, DropdownMenu, Input, Modal, Select as UiSelect } from "../components/ui";
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
 import { formatPtBrMoneyInput, normalizePtBrMoneyInput } from "../lib/money";
 import type { Account, Category, FinancialEntry, FinancialEntryListResponse, Supplier } from "../types";
@@ -397,7 +397,6 @@ export function EntriesPage({
   const selectAllCategoryCheckboxRef = useRef<HTMLInputElement | null>(null);
   const presetMenuRef = useRef<HTMLDivElement | null>(null);
   const bulkMenuRef = useRef<HTMLDivElement | null>(null);
-  const rowMenuRef = useRef<HTMLDivElement | null>(null);
   const [focusedRowIndex, setFocusedRowIndex] = useState<number>(-1);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -416,7 +415,6 @@ export function EntriesPage({
   const [showCategoryFilter, setShowCategoryFilter] = useState(false);
   const [selectedCategoryFilterKeys, setSelectedCategoryFilterKeys] = useState<string[]>([]);
   const [bulkCategoryId, setBulkCategoryId] = useState("");
-  const [activeRowMenuId, setActiveRowMenuId] = useState<string | null>(null);
   const portalTarget = typeof document !== "undefined" ? document.body : null;
 
   const availableCategories = useMemo(
@@ -546,7 +544,6 @@ export function EntriesPage({
         setShowTransferModal(false);
         setShowBulkActions(false);
         setShowCategoryFilter(false);
-        setActiveRowMenuId(null);
         return;
       }
 
@@ -752,14 +749,11 @@ export function EntriesPage({
       if (showBulkActions && bulkMenuRef.current && !bulkMenuRef.current.contains(target)) {
         setShowBulkActions(false);
       }
-      if (activeRowMenuId && rowMenuRef.current && !rowMenuRef.current.contains(target)) {
-        setActiveRowMenuId(null);
-      }
     }
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [activeRowMenuId, showBulkActions, showCategoryFilter, showPeriodPopover, showPresetMenu]);
+  }, [showBulkActions, showCategoryFilter, showPeriodPopover, showPresetMenu]);
 
   function normalizeText(value: string) {
     return value
@@ -910,7 +904,6 @@ export function EntriesPage({
       return;
     }
 
-    setActiveRowMenuId(null);
     await onDeleteTransfer(entry.transfer_id);
   }
 
@@ -1593,80 +1586,48 @@ export function EntriesPage({
                   <td className="numeric-cell">{formatEntryTableAmount(entry.total_amount)}</td>
                   <td className="entries-row-actions-cell">
                     {!isTransferEntry(entry) ? (
-                      <div className="entries-row-menu-wrap" ref={activeRowMenuId === entry.id ? rowMenuRef : undefined}>
-                        <button
-                          aria-expanded={activeRowMenuId === entry.id}
-                          aria-label={`Ações do lançamento ${entry.title}`}
-                          className="entries-row-menu-trigger"
-                          onClick={() => setActiveRowMenuId((current) => (current === entry.id ? null : entry.id))}
-                          type="button"
-                        >
-                          <MoreVerticalIcon />
-                        </button>
-                        {activeRowMenuId === entry.id && (
-                          <div className="entries-row-menu">
-                            <button
-                              className="entries-row-menu-item"
-                              onClick={() => {
-                                setActiveRowMenuId(null);
-                                startEditing(entry);
-                              }}
-                              type="button"
-                            >
-                              Editar
-                            </button>
-                            {entry.status !== "settled" ? (
-                              <button
-                                className="entries-row-menu-item"
-                                onClick={() => {
-                                  setActiveRowMenuId(null);
-                                  void requestSettlement(entry);
-                                }}
-                                type="button"
-                              >
-                                Baixar
-                              </button>
-                            ) : (
-                              <button
-                                className="entries-row-menu-item"
-                                onClick={() => {
-                                  setActiveRowMenuId(null);
-                                  void onReverseEntry(entry.id);
-                                }}
-                                type="button"
-                              >
-                                Estornar
-                              </button>
-                            )}
-                            {canDeleteEntry(entry) && (
-                              <button
-                                className="entries-row-menu-item is-danger"
-                                onClick={() => {
-                                  setActiveRowMenuId(null);
-                                  if (window.confirm("Excluir este lançamento em aberto?")) {
-                                    void onDeleteEntry(entry.id);
-                                  }
-                                }}
-                                type="button"
-                              >
-                                Excluir
-                              </button>
-                            )}
-                            {!isPurchaseInvoiceEntry(entry) && ((entry.status === "open" || entry.status === "planned") || entry.status === "partial") && (
-                              <button
-                                className="entries-row-menu-item is-danger"
-                                onClick={() => {
-                                  setActiveRowMenuId(null);
-                                  void onCancelEntry(entry.id);
-                                }}
-                                type="button"
-                              >
-                                Cancelar
-                              </button>
-                            )}
-                          </div>
+                      <DropdownMenu
+                        align="right"
+                        ariaLabel={`Ações do lançamento ${entry.title}`}
+                        items={[
+                          {
+                            label: "Editar",
+                            onSelect: () => startEditing(entry),
+                          },
+                          entry.status !== "settled"
+                            ? { label: "Baixar", onSelect: () => void requestSettlement(entry) }
+                            : { label: "Estornar", onSelect: () => void onReverseEntry(entry.id) },
+                          {
+                            label: "Excluir",
+                            tone: "danger",
+                            hidden: !canDeleteEntry(entry),
+                            onSelect: () => {
+                              if (window.confirm("Excluir este lançamento em aberto?")) {
+                                void onDeleteEntry(entry.id);
+                              }
+                            },
+                          },
+                          {
+                            label: "Cancelar",
+                            tone: "danger",
+                            hidden:
+                              isPurchaseInvoiceEntry(entry) ||
+                              !((entry.status === "open" || entry.status === "planned") || entry.status === "partial"),
+                            onSelect: () => void onCancelEntry(entry.id),
+                          },
+                        ]}
+                        trigger={({ open, toggle }) => (
+                          <button
+                            aria-expanded={open}
+                            aria-label={`Ações do lançamento ${entry.title}`}
+                            className="entries-row-menu-trigger"
+                            onClick={toggle}
+                            type="button"
+                          >
+                            <MoreVerticalIcon />
+                          </button>
                         )}
-                      </div>
+                      />
                     ) : (
                       <button
                         className="text-action-button is-danger"
