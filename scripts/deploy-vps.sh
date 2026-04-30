@@ -107,6 +107,23 @@ service_is_active() {
     || sudo systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null
 }
 
+dump_service_diagnostics() {
+  echo "==> Diagnostico do servico $SERVICE_NAME"
+  echo "-- systemctl status --"
+  sudo systemctl status "$SERVICE_NAME" --no-pager || true
+
+  echo "-- listeners na porta $SERVICE_PORT --"
+  ss -ltnp "( sport = :$SERVICE_PORT )" 2>/dev/null \
+    || sudo ss -ltnp "( sport = :$SERVICE_PORT )" 2>/dev/null \
+    || true
+
+  echo "-- journal recente --"
+  sudo journalctl -u "$SERVICE_NAME" --no-pager -n 120 || true
+
+  echo "-- curl verbose do healthcheck --"
+  curl --verbose --max-time 10 "$HEALTHCHECK_URL" || true
+}
+
 cleanup_orphan_listener() {
   local port="$1"
   local main_pid
@@ -218,6 +235,7 @@ done
 
 if [[ "$HEALTHCHECK_OK" != "true" ]]; then
   echo "Healthcheck falhou apos 10 tentativas"
+  dump_service_diagnostics
   exit 1
 fi
 echo "Healthcheck ok: $HEALTHCHECK_URL"
