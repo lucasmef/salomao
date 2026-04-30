@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { MoneyInput } from "../components/MoneyInput";
 import { ModalCloseButton } from "../components/ModalCloseButton";
+import { Button } from "../components/ui";
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
 import { normalizePtBrMoneyInput } from "../lib/money";
 import type { Account, BoletoAlertItem, BoletoClient, BoletoDashboard } from "../types";
@@ -1158,9 +1159,9 @@ export function BoletosPage({
                   </div>
                 ) : null}
               </div>
-              <button className="primary-button compact-button" disabled={submitting} onClick={applyOpenReceivableDateFilters} type="button">
+              <Button type="button" variant="primary" size="sm" loading={submitting} disabled={submitting} onClick={applyOpenReceivableDateFilters}>
                 Aplicar
-              </button>
+              </Button>
               <span>{openReceivables.length}</span>
             </div>
           </div>
@@ -1442,17 +1443,18 @@ export function BoletosPage({
                   </div>
                 ) : null}
               </div>
-              <button className="primary-button compact-button" disabled={submitting} onClick={applyOpenBoletoDateFilters} type="button">
+              <Button type="button" variant="primary" size="sm" loading={submitting} disabled={submitting} onClick={applyOpenBoletoDateFilters}>
                 Aplicar
-              </button>
-              <button
-                className="secondary-button"
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                loading={submitting}
                 disabled={submitting || !selectedOpenBoletoIds.length}
                 onClick={() => void onDownloadInterBoletoPdfBatch(selectedOpenBoletoIds)}
-                type="button"
               >
                 Baixar selecionados
-              </button>
+              </Button>
               <span className="billing-open-boletos-count">{filteredOpenBoletos.length}</span>
             </div>
           </div>
@@ -1600,12 +1602,12 @@ export function BoletosPage({
             <small className="compact-muted">{selectedMissingKeys.length} selecionado(s)</small>
           </div>
           <div className="action-row">
-            <button className="secondary-button" disabled={submitting} onClick={() => setClientsModalOpen(true)} type="button">
+            <Button type="button" variant="secondary" disabled={submitting} onClick={() => setClientsModalOpen(true)}>
               Clientes
-            </button>
-            <button className="secondary-button" disabled={submitting} onClick={() => setC6ModalOpen(true)} type="button">
+            </Button>
+            <Button type="button" variant="secondary" disabled={submitting} onClick={() => setC6ModalOpen(true)}>
               Relatório C6
-            </button>
+            </Button>
             <label className="checkbox-line compact-inline">
               <input
                 checked={showAllMonthlyMissingBoletos}
@@ -1616,23 +1618,26 @@ export function BoletosPage({
               <span>Exibe todos boletos de clientes mensal</span>
             </label>
             {showMissingExportFallback ? (
-              <button
-                className="ghost-button billing-secondary-action"
+              <Button
+                type="button"
+                variant="ghost"
+                className="billing-secondary-action"
+                loading={submitting}
                 disabled={submitting || !selectedMissingKeys.length}
                 onClick={() => void onExportMissingBoletos(selectedMissingKeys)}
-                type="button"
               >
                 Gerar XLSX
-              </button>
+              </Button>
             ) : null}
-            <button
-              className="primary-button"
+            <Button
+              type="button"
+              variant="primary"
+              loading={submitting}
               disabled={submitting || !selectedMissingKeys.length || !hasInterApiAccount}
               onClick={() => void handleIssueMissingBoletos()}
-              type="button"
             >
               Emitir no Inter
-            </button>
+            </Button>
             <span>{visibleMissingBoletos.length}</span>
           </div>
         </div>
@@ -1759,15 +1764,16 @@ export function BoletosPage({
             </label>
           </div>
           <div className="action-row">
-            <button
-              className="primary-button"
+            <Button
+              type="button"
+              variant="primary"
+              loading={submitting}
               disabled={submitting || !standaloneBoletoDraft.client_name || !standaloneBoletoDraft.amount}
               onClick={() => void handleCreateStandaloneBoleto()}
-              type="button"
             >
               Emitir
-            </button>
-            <button className="ghost-button" onClick={closeStandaloneBoletoModal}>Cancelar</button>
+            </Button>
+            <Button type="button" variant="ghost" onClick={closeStandaloneBoletoModal}>Cancelar</Button>
           </div>
         </div>
       </div>
@@ -1794,15 +1800,16 @@ export function BoletosPage({
             </label>
           </div>
           <div className="action-row">
-            <button
-              className="primary-button"
+            <Button
+              type="button"
+              variant="primary"
+              loading={submitting}
               disabled={submitting || !customerDataFile}
               onClick={() => void handleUploadCustomerData()}
-              type="button"
             >
               Importar
-            </button>
-            <button className="ghost-button" onClick={closeCustomerDataModal}>Cancelar</button>
+            </Button>
+            <Button type="button" variant="ghost" onClick={closeCustomerDataModal}>Cancelar</Button>
           </div>
         </div>
       </div>
@@ -1829,15 +1836,16 @@ export function BoletosPage({
             </label>
           </div>
           <div className="action-row">
-            <button
-              className="primary-button"
+            <Button
+              type="button"
+              variant="primary"
+              loading={submitting}
               disabled={submitting || !c6File}
               onClick={() => void handleUploadC6()}
-              type="button"
             >
               Importar
-            </button>
-            <button className="ghost-button" onClick={closeC6Modal}>Cancelar</button>
+            </Button>
+            <Button type="button" variant="ghost" onClick={closeC6Modal}>Cancelar</Button>
           </div>
         </div>
       </div>
@@ -1854,8 +1862,8 @@ export function BoletosPage({
             <ModalCloseButton onClick={() => setClientsModalOpen(false)} />
           </div>
           <div className="billing-modal-actions action-row">
-            <button className="secondary-button" onClick={() => setCustomerDataModalOpen(true)}>Importar XLSX</button>
-            <button className="primary-button" onClick={() => void handleSaveClients()}>Salvar</button>
+            <Button type="button" variant="secondary" onClick={() => setCustomerDataModalOpen(true)}>Importar XLSX</Button>
+            <Button type="button" variant="primary" onClick={() => void handleSaveClients()}>Salvar</Button>
           </div>
           <div className="table-shell billing-modal-table-shell">
             <table className="erp-table">
@@ -1945,22 +1953,24 @@ export function BoletosPage({
                     <option value="all">Todos</option>
                   </select>
                 </label>
-                <button
-                  className="secondary-button"
+                <Button
+                  type="button"
+                  variant="secondary"
+                  loading={submitting}
                   disabled={submitting || !hasInterApiAccount}
                   onClick={() => void onSyncStandaloneBoletos()}
-                  type="button"
                 >
                   Atualizar Inter
-                </button>
-                <button
-                  className="primary-button"
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  loading={submitting}
                   disabled={submitting}
                   onClick={openStandaloneBoletoModal}
-                  type="button"
                 >
                   Novo boleto avulso
-                </button>
+                </Button>
                 <span>{visibleStandaloneBoletos.length}</span>
               </div>
             </div>

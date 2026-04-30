@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { MoneyInput } from "../components/MoneyInput";
 import { ModalCloseButton } from "../components/ModalCloseButton";
+import { Button } from "../components/ui";
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
 import { normalizePtBrMoneyInput } from "../lib/money";
 import type { Account, BoletoAlertItem, BoletoClient, BoletoDashboard } from "../types";
@@ -1366,9 +1367,9 @@ export function BillingPage({
           ))}
         </div>
         <div className="entries-column-filter-popover-actions">
-          <button className="ghost-button" onClick={onReset} type="button">
+          <Button type="button" variant="ghost" size="sm" onClick={onReset}>
             Limpar
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -1399,9 +1400,9 @@ export function BillingPage({
           ))}
         </div>
         <div className="entries-column-filter-popover-actions">
-          <button className="ghost-button" onClick={() => setBoletoPaymentFilters([])} type="button">
+          <Button type="button" variant="ghost" size="sm" onClick={() => setBoletoPaymentFilters([])}>
             Limpar
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -1436,9 +1437,9 @@ export function BillingPage({
           {!visibleValues.length ? <p className="entries-category-filter-empty">Nenhum cliente encontrado.</p> : null}
         </div>
         <div className="entries-column-filter-popover-actions">
-          <button className="ghost-button" onClick={onReset} type="button">
+          <Button type="button" variant="ghost" size="sm" onClick={onReset}>
             Limpar
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -1466,12 +1467,12 @@ export function BillingPage({
           </label>
         </div>
         <div className="entries-column-filter-popover-actions">
-          <button className="ghost-button" onClick={onClear} type="button">
+          <Button type="button" variant="ghost" size="sm" onClick={onClear}>
             Limpar
-          </button>
-          <button className="primary-button" onClick={onApply} type="button">
+          </Button>
+          <Button type="button" variant="primary" size="sm" onClick={onApply}>
             Aplicar
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -1492,16 +1493,17 @@ export function BillingPage({
           />
         </div>
         <div className="entries-column-filter-popover-actions">
-          <button
-            className="ghost-button"
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => {
               setClientConfigSearch("");
               setClientPopover(null);
             }}
-            type="button"
           >
             Limpar
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -1555,15 +1557,15 @@ export function BillingPage({
               <option value="-1">Todos</option>
             </select>
           </label>
-          <button className="secondary-button" disabled={page <= 1} onClick={() => onPageChange(page - 1)} type="button">
+          <Button type="button" variant="secondary" size="sm" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
             Anterior
-          </button>
+          </Button>
           <span className="compact-muted">
             {page}/{totalPages}
           </span>
-          <button className="secondary-button" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} type="button">
+          <Button type="button" variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
             Proxima
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -1826,9 +1828,17 @@ export function BillingPage({
     if (row.kind === "missing" && row.selection_key) {
       return (
         <div className="billing-boleto-row-actions billing-boleto-row-actions--compact">
-          <button className="secondary-button billing-secondary-action" disabled={submitting || !hasInterApiAccount} onClick={() => void handleIssueInterCharges([row.selection_key!])} type="button">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="billing-secondary-action"
+            loading={submitting}
+            disabled={submitting || !hasInterApiAccount}
+            onClick={() => void handleIssueInterCharges([row.selection_key!])}
+          >
             Emitir
-          </button>
+          </Button>
         </div>
       );
     }
@@ -1846,68 +1856,74 @@ export function BillingPage({
         <div className="billing-section-header">
           <div className="billing-section-toolbar">
             <div className="billing-section-actions">
-            <button
+            <Button
+              type="button"
+              variant="secondary"
               aria-label="Clientes"
-              className="secondary-button icon-only-button billing-toolbar-icon-button"
+              className="icon-only-button billing-toolbar-icon-button"
               disabled={submitting}
               onClick={() => setClientsModalOpen(true)}
               title="Clientes"
-              type="button"
             >
               <UsersIcon />
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
               aria-label="Mostrar todos os boletos mensais"
               aria-pressed={showAllMonthlyMissingBoletos}
-              className={`secondary-button icon-only-button billing-toolbar-icon-button billing-toolbar-toggle-button${showAllMonthlyMissingBoletos ? " is-active" : ""}`}
+              className={`icon-only-button billing-toolbar-icon-button billing-toolbar-toggle-button${showAllMonthlyMissingBoletos ? " is-active" : ""}`}
               disabled={submitting}
               onClick={() => void onToggleAllMonthlyMissingBoletos(!showAllMonthlyMissingBoletos)}
               title="Mostrar todos os boletos mensais"
-              type="button"
             >
               <CalendarIcon />
-            </button>
+            </Button>
             {showMissingExportFallback ? null : null}
-            <button
+            <Button
+              type="button"
+              variant="secondary"
               aria-label="Baixar selecionados"
-              className="secondary-button icon-only-button billing-toolbar-icon-button"
+              className="icon-only-button billing-toolbar-icon-button"
               disabled={submitting || !selectedDownloadableBoletoIds.length}
               onClick={() => void onDownloadInterBoletoPdfBatch(selectedDownloadableBoletoIds)}
               title="Baixar selecionados"
-              type="button"
             >
               <DownloadIcon />
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
               aria-label="Emitir no Inter"
-              className="primary-button icon-only-button billing-toolbar-icon-button"
+              className="icon-only-button billing-toolbar-icon-button"
               disabled={submitting || !selectedMissingKeys.length || !hasInterApiAccount}
               onClick={() => void handleIssueInterCharges(selectedMissingKeys)}
               title="Emitir no Inter"
-              type="button"
             >
               <SendIcon />
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
               aria-label="Atualizar cobrança"
-              className="secondary-button icon-only-button billing-toolbar-icon-button"
+              className="icon-only-button billing-toolbar-icon-button"
               disabled={submitting}
               onClick={() => void onRefreshBillingModule()}
               title="Atualizar cobrança"
-              type="button"
             >
               <RefreshIcon />
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
               aria-label="Novo boleto avulso"
-              className="primary-button icon-only-button billing-toolbar-icon-button"
+              className="icon-only-button billing-toolbar-icon-button"
               disabled={submitting}
               onClick={openStandaloneBoletoModal}
               title="Novo boleto avulso"
-              type="button"
             >
               <PlusIcon />
-            </button>
+            </Button>
             </div>
 
             <div className="billing-section-pagination">
@@ -2209,17 +2225,18 @@ export function BillingPage({
           </div>
 
           <div className="action-row">
-            <button
-              className="primary-button"
+            <Button
+              type="button"
+              variant="primary"
+              loading={submitting}
               disabled={submitting || !interAccounts.length || !standaloneBoletoDraft.client_name.trim() || !standaloneBoletoDraft.amount.trim() || !standaloneBoletoDraft.due_date}
               onClick={() => void handleCreateStandaloneBoleto()}
-              type="button"
             >
               Emitir boleto
-            </button>
-            <button className="ghost-button" onClick={closeStandaloneBoletoModal} type="button">
+            </Button>
+            <Button type="button" variant="ghost" onClick={closeStandaloneBoletoModal}>
               Cancelar
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -2259,12 +2276,12 @@ export function BillingPage({
           </div>
 
           <div className="action-row">
-            <button className="primary-button" disabled={submitting || !c6File} onClick={() => void handleUploadC6()} type="button">
+            <Button type="button" variant="primary" loading={submitting} disabled={submitting || !c6File} onClick={() => void handleUploadC6()}>
               Importar arquivo
-            </button>
-            <button className="ghost-button" onClick={closeC6Modal} type="button">
+            </Button>
+            <Button type="button" variant="ghost" onClick={closeC6Modal}>
               Cancelar
-            </button>
+            </Button>
           </div>
         </div>
       </div>
