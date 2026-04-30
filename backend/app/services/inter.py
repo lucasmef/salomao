@@ -1376,7 +1376,7 @@ def sync_inter_charges(
             updated_at = _as_utc_datetime(record.updated_at)
             recently_refreshed = (
                 record.source_batch_id is not None
-                updated_at is not None
+                and updated_at is not None
                 and created_at is not None
                 and (updated_at - created_at).total_seconds() >= 1
                 and (now_utc - updated_at).total_seconds() < 4 * 3600
