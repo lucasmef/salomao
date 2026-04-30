@@ -3,6 +3,7 @@ import Select, { type MultiValue, type SingleValue } from "react-select";
 
 import { MoneyInput } from "../components/MoneyInput";
 import { ModalCloseButton } from "../components/ModalCloseButton";
+import { Button } from "../components/ui";
 import {
   formatDate,
   formatEntryStatus,
@@ -2785,27 +2786,15 @@ export function PurchasePlanningPage({
             <input value={String(collections.length)} disabled />
           </label>
           <div className="action-row">
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => openBrandModal()}
-            >
+            <Button type="button" variant="secondary" onClick={() => openBrandModal()}>
               Nova marca
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => openSupplierModal()}
-            >
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => openSupplierModal()}>
               Novo fornecedor
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => openCollectionModal()}
-            >
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => openCollectionModal()}>
               Nova coleção
-            </button>
+            </Button>
           </div>
         </div>
       </section>
@@ -3563,11 +3552,13 @@ export function PurchasePlanningPage({
                                 >
                                   <EditIcon />
                                 </button>
-                                <button
-                                  aria-label={`Excluir marca ${snapshot.brandName}`}
-                                  className="ghost-button icon-button danger-text-action"
-                                  title="Excluir marca"
+                                <Button
                                   type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="icon-button danger-text-action"
+                                  aria-label={`Excluir marca ${snapshot.brandName}`}
+                                  title="Excluir marca"
                                   onClick={() =>
                                     void handleDeleteBrand(
                                       snapshot.brandId as string,
@@ -3575,7 +3566,7 @@ export function PurchasePlanningPage({
                                   }
                                 >
                                   <DeleteIcon />
-                                </button>
+                                </Button>
                               </>
                             ) : (
                               <span>-</span>
@@ -3741,13 +3732,9 @@ export function PurchasePlanningPage({
           <article className="panel-card">
             <div className="purchase-panel-heading">
               <h3>Coleções</h3>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => openCollectionModal()}
-              >
+              <Button type="button" variant="secondary" onClick={() => openCollectionModal()}>
                 Nova coleção
-              </button>
+              </Button>
             </div>
             <div className="table-shell purchase-collections-table-shell">
               <table className="erp-table purchase-collections-table purchase-collections-mobile-table">
@@ -3785,15 +3772,16 @@ export function PurchasePlanningPage({
                             >
                               Editar
                             </button>
-                            <button
-                              className="ghost-button"
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="sm"
                               onClick={() =>
                                 void handleDeleteCollection(collection.id)
                               }
                             >
                               Excluir
-                            </button>
+                            </Button>
                           </div>
                         </td>
                       </tr>
@@ -3854,13 +3842,9 @@ export function PurchasePlanningPage({
         <article className="panel-card">
           <div className="purchase-panel-heading">
             <h3>Fornecedores</h3>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => openSupplierModal()}
-            >
+            <Button type="button" variant="secondary" onClick={() => openSupplierModal()}>
               Novo fornecedor
-            </button>
+            </Button>
           </div>
           <div className="table-shell tall">
               <table className="erp-table compact-table purchase-suppliers-table">
@@ -3888,15 +3872,16 @@ export function PurchasePlanningPage({
                           >
                             Editar
                           </button>
-                          <button
-                            className="ghost-button"
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="sm"
                             onClick={() =>
                               void handleDeleteSupplier(supplier.id)
                             }
                           >
                             Excluir
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -3971,13 +3956,9 @@ export function PurchasePlanningPage({
               />
             </div>
             <div className="action-row">
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => openPurchaseReturnModal()}
-              >
+              <Button type="button" variant="secondary" onClick={() => openPurchaseReturnModal()}>
                 Nova devolução
-              </button>
+              </Button>
             </div>
           </div>
         </section>
@@ -4031,17 +4012,19 @@ export function PurchasePlanningPage({
                           >
                             <EditIcon />
                           </button>
-                          <button
-                            aria-label={`Excluir devolução de ${purchaseReturn.supplier_name || "fornecedor"}`}
-                            className="ghost-button icon-button danger-text-action"
-                            title="Excluir devolução"
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="icon-button danger-text-action"
+                            aria-label={`Excluir devolução de ${purchaseReturn.supplier_name || "fornecedor"}`}
+                            title="Excluir devolução"
                             onClick={() =>
                               void handleDeletePurchaseReturn(purchaseReturn.id)
                             }
                           >
                             <DeleteIcon />
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -4090,17 +4073,18 @@ export function PurchasePlanningPage({
                 </div>
               )}
               <div className="action-row">
-                <button
-                  className="primary-button"
+                <Button
                   type="button"
-                  onClick={() => void handleSyncLinxPurchaseInvoices()}
+                  variant="primary"
+                  loading={syncingLinxInvoices}
                   disabled={syncingLinxInvoices}
                   aria-busy={syncingLinxInvoices}
+                  onClick={() => void handleSyncLinxPurchaseInvoices()}
                 >
                   {syncingLinxInvoices
                     ? "Sincronizando faturas de compra..."
                     : "Atualizar faturas de compra"}
-                </button>
+                </Button>
               </div>
             </section>
 
@@ -4115,14 +4099,14 @@ export function PurchasePlanningPage({
                 />
               </label>
               <div className="action-row">
-                <button
-                  className="secondary-button"
+                <Button
+                  variant="secondary"
                   type="button"
                   onClick={() => void handleExtractInvoice()}
                   disabled={!invoiceText.trim()}
                 >
                   Extrair texto
-                </button>
+                </Button>
                 <label
                   className="ghost-button"
                   style={{ cursor: uploadingXml ? "wait" : "pointer" }}
@@ -4312,20 +4296,20 @@ export function PurchasePlanningPage({
             </section>
 
             <div className="action-row">
-              <button
-                className="primary-button"
+              <Button
+                variant="primary"
                 type="button"
                 onClick={() => void handleSaveInvoice()}
               >
                 Salvar nota
-              </button>
-              <button
-                className="ghost-button"
+              </Button>
+              <Button
+                variant="ghost"
                 type="button"
                 onClick={closeInvoiceModal}
               >
                 Cancelar
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -4774,20 +4758,20 @@ export function PurchasePlanningPage({
             )}
           </div>
           <div className="action-row">
-            <button
-              className="primary-button"
+            <Button
+              variant="primary"
               type="button"
               onClick={() => void handleSaveBrand()}
             >
               Salvar marca
-            </button>
-            <button
-              className="ghost-button"
+            </Button>
+            <Button
+              variant="ghost"
               type="button"
               onClick={closeBrandModal}
             >
               Cancelar
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -4833,20 +4817,20 @@ export function PurchasePlanningPage({
             />
           </div>
           <div className="action-row">
-            <button
-              className="primary-button"
+            <Button
+              variant="primary"
               type="button"
               onClick={() => void handleSaveCollectionObservation()}
             >
               Salvar observação
-            </button>
-            <button
-              className="ghost-button"
+            </Button>
+            <Button
+              variant="ghost"
               type="button"
               onClick={closeCollectionObservationModal}
             >
               Cancelar
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -4923,13 +4907,14 @@ export function PurchasePlanningPage({
                       />
                     </td>
                     <td>
-                      <button
-                        className="ghost-button danger-text-action"
+                      <Button
+                        variant="ghost"
+                        className="danger-text-action"
                         type="button"
                         onClick={() => void deleteCollectionOrderDraft(index)}
                       >
                         Excluir
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -4937,27 +4922,27 @@ export function PurchasePlanningPage({
             </table>
           </div>
           <div className="action-row">
-            <button
-              className="secondary-button"
+            <Button
+              variant="secondary"
               type="button"
               onClick={addCollectionOrderDraft}
             >
               Novo pedido
-            </button>
-            <button
-              className="primary-button"
+            </Button>
+            <Button
+              variant="primary"
               type="button"
               onClick={() => void handleSaveCollectionOrders()}
             >
               Salvar pedidos
-            </button>
-            <button
-              className="secondary-button"
+            </Button>
+            <Button
+              variant="secondary"
               type="button"
               onClick={closeCollectionOrdersModal}
             >
               Cancelar
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -5072,8 +5057,8 @@ export function PurchasePlanningPage({
               />
             </label>
             <div className="action-row">
-              <button
-                className="secondary-button"
+              <Button
+                variant="secondary"
                 type="button"
                 onClick={() => void handleBulkAssignUnassignedSuppliers()}
                 disabled={
@@ -5082,15 +5067,16 @@ export function PurchasePlanningPage({
                 }
               >
                 Vincular selecionados
-              </button>
-              <button
-                className="ghost-button danger-text-action"
+              </Button>
+              <Button
+                variant="ghost"
+                className="danger-text-action"
                 type="button"
                 onClick={() => void handleBulkIgnoreUnassignedSuppliers()}
                 disabled={!selectedUnassignedSupplierIds.length}
               >
                 Desconsiderar selecionados
-              </button>
+              </Button>
             </div>
           </div>
           <div className="table-shell">
@@ -5156,8 +5142,9 @@ export function PurchasePlanningPage({
                             >
                               Vincular
                             </button>
-                            <button
-                              className="ghost-button danger-text-action"
+                            <Button
+                              variant="ghost"
+                              className="danger-text-action"
                               type="button"
                               onClick={() =>
                                 void onUpdateSupplier(supplier.id, {
@@ -5171,7 +5158,7 @@ export function PurchasePlanningPage({
                               }
                             >
                               Desconsiderar
-                            </button>
+                            </Button>
                           </div>
                         </td>
                       </tr>
@@ -5259,20 +5246,20 @@ export function PurchasePlanningPage({
             </label>
           </div>
           <div className="action-row">
-            <button
-              className="primary-button"
+            <Button
+              variant="primary"
               type="button"
               onClick={() => void handleSaveSupplier()}
             >
               Salvar fornecedor
-            </button>
-            <button
-              className="ghost-button"
+            </Button>
+            <Button
+              variant="ghost"
               type="button"
               onClick={() => setSupplierModalOpen(false)}
             >
               Cancelar
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -5391,15 +5378,15 @@ export function PurchasePlanningPage({
             </label>
           </div>
           <div className="action-row">
-            <button
-              className="primary-button"
+            <Button
+              variant="primary"
               type="button"
               onClick={() => void handleSavePurchaseReturn()}
             >
               Salvar devolução
-            </button>
-            <button
-              className="ghost-button"
+            </Button>
+            <Button
+              variant="ghost"
               type="button"
               onClick={() => {
                 setPurchaseReturnModalOpen(false);
@@ -5407,7 +5394,7 @@ export function PurchasePlanningPage({
               }}
             >
               Cancelar
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -5530,20 +5517,20 @@ export function PurchasePlanningPage({
             </label>
           </div>
           <div className="action-row">
-            <button
-              className="primary-button"
+            <Button
+              variant="primary"
               type="button"
               onClick={() => void handleSaveCollection()}
             >
               Salvar coleção
-            </button>
-            <button
-              className="ghost-button"
+            </Button>
+            <Button
+              variant="ghost"
               type="button"
               onClick={() => setCollectionModalOpen(false)}
             >
               Cancelar
-            </button>
+            </Button>
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Select, { type SingleValue } from "react-select";
 
 import { ModalCloseButton } from "./ModalCloseButton";
+import { Button } from "./ui";
 import { parseApiError } from "../lib/format";
 import type { ReportConfig, ReportConfigLine, ReportGroupSelection } from "../types";
 
@@ -316,9 +317,9 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
                 <strong>{draft.lines.length} linhas configuradas</strong>
                 <p>Use linhas agrupadoras para juntar grupos e componentes da API Linx. Use linhas totalizadoras para montar subtotais com linhas anteriores.</p>
               </div>
-              <button className="secondary-button" onClick={addLine} type="button">
+              <Button variant="secondary" onClick={addLine} type="button">
                 Adicionar linha no fim
-              </button>
+              </Button>
             </div>
 
             <div className="report-config-lines">
@@ -366,26 +367,27 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
                         <span className="report-config-line-badge">{line.line_type === "source" ? "Linha agrupadora" : "Linha totalizadora"}</span>
                         {!line.is_active && <span className="report-config-line-badge muted">Inativa</span>}
                         {line.is_hidden && <span className="report-config-line-badge muted">Oculta</span>}
-                        <button className="secondary-button compact-inline-button" disabled={index === 0} onClick={() => moveLine(line.id, "up")} type="button">
+                        <Button variant="secondary" className="compact-inline-button" disabled={index === 0} onClick={() => moveLine(line.id, "up")} type="button">
                           Subir
-                        </button>
-                        <button
-                          className="secondary-button compact-inline-button"
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="compact-inline-button"
                           disabled={index === draft.lines.length - 1}
                           onClick={() => moveLine(line.id, "down")}
                           type="button"
                         >
                           Descer
-                        </button>
-                        <button className="secondary-button compact-inline-button" onClick={() => addLineRelative(line.id, "before")} type="button">
+                        </Button>
+                        <Button variant="secondary" className="compact-inline-button" onClick={() => addLineRelative(line.id, "before")} type="button">
                           + Antes
-                        </button>
-                        <button className="secondary-button compact-inline-button" onClick={() => addLineRelative(line.id, "after")} type="button">
+                        </Button>
+                        <Button variant="secondary" className="compact-inline-button" onClick={() => addLineRelative(line.id, "after")} type="button">
                           + Depois
-                        </button>
-                        <button className="ghost-button danger-text-action" onClick={() => removeLine(line.id)} type="button">
+                        </Button>
+                        <Button variant="ghost" className="danger-text-action" onClick={() => removeLine(line.id)} type="button">
                           Excluir
-                        </button>
+                        </Button>
                       </div>
                     </div>
 
@@ -576,14 +578,14 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
                                   Cada grupo ou subgrupo pode somar ou diminuir de forma independente, igual a uma linha totalizadora.
                                 </p>
                               </div>
-                              <button
-                                className="secondary-button"
+                              <Button
+                                variant="secondary"
                                 disabled={groupOptions.length === 0}
                                 onClick={() => addGroupSelection(line.id)}
                                 type="button"
                               >
                                 Adicionar grupo
-                              </button>
+                              </Button>
                             </div>
 
                             {line.category_groups.length === 0 ? (
@@ -628,13 +630,14 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
                                         />
                                       </label>
 
-                                      <button
-                                        className="ghost-button danger-text-action"
+                                      <Button
+                                        variant="ghost"
+                                        className="danger-text-action"
                                         onClick={() => removeGroupSelection(line.id, groupIndex)}
                                         type="button"
                                       >
                                         Remover
-                                      </button>
+                                      </Button>
                                     </div>
                                   );
                                 })}
@@ -652,8 +655,8 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
                                 <strong>Linhas anteriores que entram no subtotal</strong>
                                 <p className="report-config-inline-copy">A totalizadora pode usar linhas agrupadoras e totalizadoras anteriores.</p>
                               </div>
-                              <button
-                                className="secondary-button"
+                              <Button
+                                variant="secondary"
                                 disabled={referenceOptions.length === 0}
                                 onClick={() =>
                                   updateLine(line.id, (current) => ({
@@ -664,7 +667,7 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
                                 type="button"
                               >
                                 Adicionar linha
-                              </button>
+                              </Button>
                             </div>
 
                             {line.formula.length === 0 ? (
@@ -713,8 +716,9 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
                                         />
                                       </label>
 
-                                      <button
-                                        className="ghost-button danger-text-action"
+                                      <Button
+                                        variant="ghost"
+                                        className="danger-text-action"
                                         onClick={() =>
                                           updateLine(line.id, (current) => ({
                                             ...current,
@@ -724,7 +728,7 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
                                         type="button"
                                       >
                                         Remover
-                                      </button>
+                                      </Button>
                                     </div>
                                   );
                                 })}
@@ -745,15 +749,15 @@ export function ReportConfigModal({ config, kind, loading, saving, onClose, onSa
                 <span>Voce pode arrastar, subir/descer ou inserir linha antes/depois.</span>
               </div>
               <div className="action-row">
-                <button className="secondary-button" onClick={addLine} type="button">
+                <Button variant="secondary" onClick={addLine} type="button">
                   Adicionar linha no fim
-                </button>
-                <button className="ghost-button" onClick={onClose} type="button">
+                </Button>
+                <Button variant="ghost" onClick={onClose} type="button">
                   Cancelar
-                </button>
-                <button className="primary-button" disabled={saving} onClick={() => void handleSave()} type="button">
+                </Button>
+                <Button variant="primary" loading={saving} disabled={saving} onClick={() => void handleSave()} type="button">
                   {saving ? "Salvando..." : "Salvar configuracao"}
-                </button>
+                </Button>
               </div>
             </div>
           </>

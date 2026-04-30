@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatMoney } from "../lib/format";
 import type { LinxProductListItem, LinxProductSearchResult } from "../types";
 import { ModalCloseButton } from "./ModalCloseButton";
+import { Button } from "./ui";
 
 type Props = {
   open: boolean;
@@ -363,12 +364,12 @@ export function GlobalProductSearchModal({
                   )}
                 </div>
                 <div className="entries-column-filter-popover-actions">
-                  <button className="secondary-button compact-button" onClick={() => toggleAllBrandFilters(true)} type="button">
+                  <Button variant="secondary" className="compact-button" onClick={() => toggleAllBrandFilters(true)} type="button">
                     Restaurar
-                  </button>
-                  <button className="ghost-button compact" onClick={() => setShowBrandFilter(false)} type="button">
+                  </Button>
+                  <Button variant="ghost" className="compact" onClick={() => setShowBrandFilter(false)} type="button">
                     Fechar
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : null}
@@ -416,12 +417,12 @@ export function GlobalProductSearchModal({
                   ))}
                 </div>
                 <div className="entries-column-filter-popover-actions">
-                  <button className="secondary-button compact-button" onClick={() => setSelectedStockKeys(["positive"])} type="button">
+                  <Button variant="secondary" className="compact-button" onClick={() => setSelectedStockKeys(["positive"])} type="button">
                     So com saldo
-                  </button>
-                  <button className="ghost-button compact" onClick={() => setShowStockFilter(false)} type="button">
+                  </Button>
+                  <Button variant="ghost" className="compact" onClick={() => setShowStockFilter(false)} type="button">
                     Fechar
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : null}

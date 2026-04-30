@@ -1,4 +1,5 @@
 import "./ConfirmModal.css";
+import { Button } from "./ui";
 
 type Props = {
   open: boolean;
@@ -33,15 +34,15 @@ export function ConfirmModal({
           <p>{message}</p>
         </div>
         <div className="confirm-footer">
-          <button className="secondary-button" onClick={onCancel}>
+          <Button variant="secondary" onClick={onCancel}>
             {cancelLabel}
-          </button>
-          <button 
-            className={`primary-button ${tone === "danger" ? "danger-button" : ""}`} 
+          </Button>
+          <Button
+            variant={tone === "danger" ? "danger" : "primary"}
             onClick={onConfirm}
           >
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchJson, downloadFile } from '../lib/api';
 import { BoletoExportJob } from '../types';
+import { Button } from './ui';
 import './BoletoExportProgressModal.css';
 
 interface Props {
@@ -73,13 +74,13 @@ export const BoletoExportProgressModal: React.FC<Props> = ({ jobId, onClose }) =
         )}
 
         <div className="export-footer">
-          <button 
+          <Button
             type="button"
-            className="secondary-button" 
+            variant="secondary"
             onClick={onClose}
           >
             {job?.status === 'failed' ? 'Fechar' : 'Cancelar'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
