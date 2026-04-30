@@ -1001,6 +1001,10 @@ export type DashboardOverview = {
     remaining_profit: string;
     current_balance: string;
     projected_balance: string;
+    receivables_30d: string;
+    payables_30d: string;
+    overdue_receivables_amount: string;
+    delinquency_rate: string;
     overdue_payables: number;
     overdue_receivables: number;
     pending_reconciliations: number;

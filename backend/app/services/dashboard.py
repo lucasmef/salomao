@@ -293,12 +293,12 @@ def build_dashboard_overview(
     profit_distribution = Decimal(reports.dre.profit_distribution)
     remaining_profit = Decimal(reports.dre.remaining_profit)
 
-    overdue_filters = [
+    today = _today_in_sao_paulo()
+    unsettled_filters = [
         FinancialEntry.company_id == company.id,
         FinancialEntry.is_deleted.is_(False),
         FinancialEntry.status.in_(UNSETTLED_STATUS_QUERY_VALUES),
         FinancialEntry.due_date.is_not(None),
-        FinancialEntry.due_date < date.today(),
         or_(
             FinancialEntry.external_source.is_(None),
             FinancialEntry.external_source != "historical_cashbook",
@@ -308,6 +308,25 @@ def build_dashboard_overview(
             FinancialEntry.source_system != "linx_sales_control",
         ),
     ]
+    overdue_filters = [
+        *unsettled_filters,
+        FinancialEntry.due_date < today,
+    ]
+    next_30d_filters = [
+        *unsettled_filters,
+        FinancialEntry.due_date >= today,
+        FinancialEntry.due_date <= today + timedelta(days=30),
+    ]
+    outstanding_amount = FinancialEntry.total_amount - FinancialEntry.paid_amount
+
+    def sum_outstanding(entry_type: str, filters: list[object]) -> Decimal:
+        return db.scalar(
+            select(func.coalesce(func.sum(outstanding_amount), Decimal("0.00"))).where(
+                *filters,
+                FinancialEntry.entry_type == entry_type,
+            )
+        ) or Decimal("0.00")
+
     overdue_payables_entries = list(
         db.scalars(
             select(FinancialEntry)
@@ -334,6 +353,15 @@ def build_dashboard_overview(
         .select_from(FinancialEntry)
         .where(*overdue_filters, FinancialEntry.entry_type == "income")
     ) or 0
+    receivables_30d = sum_outstanding("income", next_30d_filters)
+    payables_30d = sum_outstanding("expense", next_30d_filters)
+    overdue_receivables_amount = sum_outstanding("income", overdue_filters)
+    delinquency_base = overdue_receivables_amount + receivables_30d
+    delinquency_rate = (
+        (overdue_receivables_amount / delinquency_base) * Decimal("100")
+        if delinquency_base
+        else Decimal("0.00")
+    ).quantize(Decimal("0.01"))
 
     pending_reconciliations = db.scalar(
         select(func.count())
@@ -405,6 +433,10 @@ def build_dashboard_overview(
             remaining_profit=remaining_profit,
             current_balance=cashflow.current_balance,
             projected_balance=cashflow.projected_ending_balance,
+            receivables_30d=receivables_30d,
+            payables_30d=payables_30d,
+            overdue_receivables_amount=overdue_receivables_amount,
+            delinquency_rate=delinquency_rate,
             overdue_payables=overdue_payables_count,
             overdue_receivables=overdue_receivables_count,
             pending_reconciliations=pending_reconciliations,

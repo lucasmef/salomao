@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -341,6 +341,66 @@ class ReportLayoutTestCase(unittest.TestCase):
         self.assertEqual(march_point.previous_year_value, Decimal("250.00"))
         self.assertEqual(april_point.current_year_value, Decimal("0.00"))
         self.assertEqual(april_point.previous_year_value, Decimal("0.00"))
+
+    def test_dashboard_exposes_variation_a_cash_kpis(self) -> None:
+        account = self._add_account("Banco")
+        receivable_category = self._add_category(
+            name="Receita venda",
+            code="1.1.1",
+            entry_kind="income",
+            report_group="Receitas",
+        )
+        payable_category = self._add_category(
+            name="Despesa",
+            code="2.1.1",
+            entry_kind="expense",
+            report_group="Despesas",
+        )
+        today = date.today()
+
+        self._add_entry_custom_dates(
+            account=account,
+            category=receivable_category,
+            entry_type="income",
+            total_amount="1000.00",
+            issue_date=today,
+            competence_date=today,
+            due_date=today + timedelta(days=10),
+        )
+        self._add_entry_custom_dates(
+            account=account,
+            category=payable_category,
+            entry_type="expense",
+            total_amount="300.00",
+            issue_date=today,
+            competence_date=today,
+            due_date=today + timedelta(days=20),
+        )
+        self._add_entry_custom_dates(
+            account=account,
+            category=receivable_category,
+            entry_type="income",
+            total_amount="200.00",
+            issue_date=today,
+            competence_date=today,
+            due_date=today - timedelta(days=5),
+        )
+        self._add_entry_custom_dates(
+            account=account,
+            category=receivable_category,
+            entry_type="income",
+            total_amount="500.00",
+            issue_date=today,
+            competence_date=today,
+            due_date=today + timedelta(days=40),
+        )
+
+        dashboard = build_dashboard_overview(self.db, self.company, start=today, end=today)
+
+        self.assertEqual(dashboard.kpis.receivables_30d, Decimal("1000.00"))
+        self.assertEqual(dashboard.kpis.payables_30d, Decimal("300.00"))
+        self.assertEqual(dashboard.kpis.overdue_receivables_amount, Decimal("200.00"))
+        self.assertEqual(dashboard.kpis.delinquency_rate, Decimal("16.67"))
 
     def test_grouped_children_percent_uses_parent_total(self) -> None:
         account = self._add_account("Banco")

@@ -28,6 +28,10 @@ def _sample_overview() -> DashboardOverview:
             remaining_profit=Decimal("12.00"),
             current_balance=Decimal("50.00"),
             projected_balance=Decimal("70.00"),
+            receivables_30d=Decimal("200.00"),
+            payables_30d=Decimal("120.00"),
+            overdue_receivables_amount=Decimal("20.00"),
+            delinquency_rate=Decimal("9.09"),
             overdue_payables=1,
             overdue_receivables=2,
             pending_reconciliations=3,
@@ -142,9 +146,9 @@ def test_revenue_comparison_reuses_historical_cache_but_queries_today_live(monke
 
     assert first == second
     assert query_calls == [
-        (date(2026, 4, 1), date(2026, 4, 10)),
-        (date(2025, 1, 1), date(2026, 3, 31)),
-        (date(2026, 4, 1), date(2026, 4, 10)),
+        (date(2026, 4, 10), date(2026, 4, 10)),
+        (date(2025, 1, 1), date(2026, 4, 9)),
+        (date(2026, 4, 10), date(2026, 4, 10)),
     ]
 
 

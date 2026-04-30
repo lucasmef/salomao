@@ -64,6 +64,14 @@ function numeric(value: string | number | null | undefined) {
   return Number(value ?? 0);
 }
 
+function formatPercent(value: string | number | null | undefined) {
+  const parsed = numeric(value);
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(parsed) ? parsed : 0) + "%";
+}
+
 function buildQuickRange(kind: Exclude<PeriodKey, "">) {
   const now = new Date();
   if (kind === "month") {
@@ -207,6 +215,11 @@ export function OverviewSectionPage({
   const dreSpark = dashboard?.dre_chart.map((point) => numeric(point.value)) ?? [];
   const overduePayables = dashboard?.overdue_payables ?? [];
   const overdueReceivables = dashboard?.overdue_receivables ?? [];
+  const consolidatedBalance = totalAccountBalance || numeric(dashboard?.kpis.current_balance);
+  const receivables30d = numeric(dashboard?.kpis.receivables_30d);
+  const payables30d = numeric(dashboard?.kpis.payables_30d);
+  const delinquencyRate = numeric(dashboard?.kpis.delinquency_rate);
+  const overdueReceivablesAmount = numeric(dashboard?.kpis.overdue_receivables_amount);
   const birthdayPurchaseLookbackYears =
     dashboard?.week_birthdays.purchase_lookback_years ?? DEFAULT_BIRTHDAY_PURCHASE_LOOKBACK_YEARS;
   const hasDashboard = Boolean(dashboard);
@@ -293,44 +306,45 @@ export function OverviewSectionPage({
       ) : null}
 
       {hasDashboard ? (
-        <section className={styles.heroGrid}>
-        <Card className={styles.heroCard}>
-          <div className={styles.heroHeader}>
-            <div>
-              <span className={styles.heroEyebrow}>Caixa consolidado</span>
-              <h3>Saldo de leitura gerencial</h3>
-            </div>
-            <StatusPill status={numeric(dashboard?.kpis.projected_balance) >= 0 ? "online" : "idle"}>
-              {numeric(dashboard?.kpis.projected_balance) >= 0 ? "Projetado saudável" : "Pressão no caixa"}
-            </StatusPill>
-          </div>
-            <div className={styles.heroValue}>{formatMoney(String(totalAccountBalance || (dashboard?.kpis.current_balance ?? 0)))}</div>
-          <div className={styles.heroStats}>
-            <div className={styles.heroStat}>
-              <span>Saldo projetado</span>
-              <strong>{formatMoney(dashboard?.kpis.projected_balance ?? 0)}</strong>
-            </div>
-            <div className={styles.heroStat}>
-              <span>Lucro remanescente</span>
-              <strong>{formatMoney(dashboard?.kpis.remaining_profit ?? 0)}</strong>
-            </div>
-            <div className={styles.heroStat}>
-              <span>Conciliações pendentes</span>
-              <strong>{dashboard?.pending_reconciliations ?? 0}</strong>
-            </div>
-          </div>
-        </Card>
-
-        <div className={styles.kpiGrid}>
-          <KpiCard hero label="Receita bruta" sparkline={revenueSpark} value={formatMoney(dashboard?.kpis.gross_revenue ?? 0)} />
-          <KpiCard label="Receita líquida" sparkline={revenueSpark} value={formatMoney(dashboard?.kpis.net_revenue ?? 0)} />
-          <KpiCard goodTrend={numeric(dashboard?.kpis.net_profit) >= 0} label="Lucro líquido" sparkline={dreSpark} trend={numeric(dashboard?.kpis.net_profit) >= 0 ? "up" : "down"} value={formatMoney(dashboard?.kpis.net_profit ?? 0)} />
-          <KpiCard goodTrend={false} label="CMV" sparkline={dreSpark.map((value) => Math.abs(value))} trend="down" value={formatMoney(dashboard?.kpis.cmv ?? 0)} />
-          <KpiCard goodTrend={false} label="Despesas operacionais" sparkline={buildPendingSpark(overduePayables)} trend="down" value={formatMoney(dashboard?.kpis.operating_expenses ?? 0)} />
-          <KpiCard label="Vendas hoje" sparkline={revenueSpark.length ? revenueSpark : previousRevenueSpark} value={formatMoney(dashboard?.today_sales?.gross_revenue ?? 0)} />
-          <KpiCard goodTrend={false} label="A receber vencido" trend={overdueReceivables.length ? "down" : "flat"} value={String(dashboard?.kpis.overdue_receivables ?? 0)} />
-          <KpiCard goodTrend={false} label="A pagar vencido" trend={overduePayables.length ? "down" : "flat"} value={String(dashboard?.kpis.overdue_payables ?? 0)} />
-        </div>
+        <section className={styles.kpiStrip}>
+          <KpiCard
+            goodTrend={consolidatedBalance >= 0}
+            label="Saldo consolidado"
+            sparkline={accountBalances.map((account) => numeric(account.current_balance))}
+            trend={consolidatedBalance >= 0 ? "up" : "down"}
+            value={formatMoney(consolidatedBalance)}
+          />
+          <KpiCard
+            delta="30 dias"
+            label="A receber (30d)"
+            sparkline={revenueSpark}
+            trend="up"
+            value={formatMoney(receivables30d)}
+          />
+          <KpiCard
+            delta="30 dias"
+            goodTrend={payables30d <= receivables30d}
+            label="A pagar (30d)"
+            sparkline={buildPendingSpark(overduePayables)}
+            trend={payables30d > receivables30d ? "up" : "down"}
+            value={formatMoney(payables30d)}
+          />
+          <KpiCard
+            delta={overdueReceivablesAmount ? formatMoney(overdueReceivablesAmount) : "Sem vencidos"}
+            goodTrend={delinquencyRate === 0}
+            label="Inadimplência"
+            sparkline={buildPendingSpark(overdueReceivables)}
+            trend={delinquencyRate > 0 ? "up" : "flat"}
+            value={formatPercent(dashboard?.kpis.delinquency_rate)}
+          />
+          <KpiCard
+            hero
+            delta={dashboard?.today_sales?.updated_at ? `Atualizado ${formatDateTime(dashboard.today_sales.updated_at)}` : "Hoje"}
+            label="Vendas do dia"
+            sparkline={revenueSpark.length ? revenueSpark : previousRevenueSpark}
+            trend="up"
+            value={formatMoney(dashboard?.today_sales?.gross_revenue ?? 0)}
+          />
         </section>
       ) : null}
 
