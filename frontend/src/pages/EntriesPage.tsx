@@ -5,6 +5,7 @@ import { MoneyInput } from "../components/MoneyInput";
 import { ModalCloseButton } from "../components/ModalCloseButton";
 import { PageHeader } from "../components/PageHeader";
 import { TablePagination } from "../components/TablePagination";
+import { Button, Input, Select as UiSelect } from "../components/ui";
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
 import { formatPtBrMoneyInput, normalizePtBrMoneyInput } from "../lib/money";
 import type { Account, Category, FinancialEntry, FinancialEntryListResponse, Supplier } from "../types";
@@ -1325,7 +1326,7 @@ export function EntriesPage({
           </div>
 
           <label className="entries-toolbar-search">
-            <input
+            <Input
               aria-label="Busca textual"
               placeholder="Buscar título, documento ou contraparte"
               value={String(filters.search ?? "")}
@@ -1381,7 +1382,7 @@ export function EntriesPage({
                   </div>
                   <div className="entries-bulk-panel-body">
                     <div className="bulk-entry-category">
-                      <select
+                      <UiSelect
                         aria-label="Categoria para alteração em lote"
                         disabled={!selectedEntryIds.length || !selectedEntryKind || submitting}
                         value={bulkCategoryId}
@@ -1393,25 +1394,25 @@ export function EntriesPage({
                             {category.name}
                           </option>
                         ))}
-                      </select>
+                      </UiSelect>
                     </div>
                     <div className="entries-bulk-panel-actions">
-                      <button
-                        className="secondary-button"
+                      <Button
+                        variant="secondary"
                         disabled={!selectedDeletableEntries.length || selectedNonDeletableCount > 0 || submitting}
                         onClick={() => void handleBulkDelete()}
                         type="button"
                       >
                         Excluir em lote
-                      </button>
-                      <button
-                        className="primary-button"
+                      </Button>
+                      <Button
                         disabled={!selectedEntryIds.length || !bulkCategoryId || !selectedEntryKind || submitting}
+                        loading={submitting}
                         onClick={() => void handleBulkCategoryUpdate()}
                         type="button"
                       >
                         Alterar categoria
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -1449,50 +1450,50 @@ export function EntriesPage({
           <form className="form-grid dense entries-filter-grid" onSubmit={handleFilterSubmit}>
             <label>
               Conta
-              <select value={String(filters.account_id ?? "")} onChange={(event) => onChangeFilters({ ...filters, account_id: event.target.value, page: "1" })}>
+              <UiSelect value={String(filters.account_id ?? "")} onChange={(event) => onChangeFilters({ ...filters, account_id: event.target.value, page: "1" })}>
                 <option value="">Todas</option>
                 {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-              </select>
+              </UiSelect>
             </label>
             <label>
               Categoria
-              <select value={String(filters.category_id ?? "")} onChange={(event) => onChangeFilters({ ...filters, category_id: event.target.value, page: "1" })}>
+              <UiSelect value={String(filters.category_id ?? "")} onChange={(event) => onChangeFilters({ ...filters, category_id: event.target.value, page: "1" })}>
                 <option value="">Todas</option>
                 {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-              </select>
+              </UiSelect>
             </label>
             <label>
               Grupo
-              <select value={String(filters.report_group ?? "")} onChange={(event) => onChangeFilters({ ...filters, report_group: event.target.value, page: "1" })}>
+              <UiSelect value={String(filters.report_group ?? "")} onChange={(event) => onChangeFilters({ ...filters, report_group: event.target.value, page: "1" })}>
                 <option value="">Todos</option>
                 {categoryGroups.map((group) => <option key={group} value={group}>{group}</option>)}
-              </select>
+              </UiSelect>
             </label>
             <label>
               Origem
-              <select value={String(filters.source_system ?? "")} onChange={(event) => onChangeFilters({ ...filters, source_system: event.target.value, page: "1" })}>
+              <UiSelect value={String(filters.source_system ?? "")} onChange={(event) => onChangeFilters({ ...filters, source_system: event.target.value, page: "1" })}>
                 <option value="">Todas</option>
                 <option value="manual">Manual</option>
                 <option value="historical_cashbook">Histórico</option>
                 <option value="loan">Empréstimo</option>
                 <option value="recurrence">Recorrência</option>
-              </select>
+              </UiSelect>
             </label>
             <label>
               Considerar data por
-              <select value={String(filters.date_field ?? "due_date")} onChange={(event) => onChangeFilters({ ...filters, date_field: event.target.value, page: "1" })}>
+              <UiSelect value={String(filters.date_field ?? "due_date")} onChange={(event) => onChangeFilters({ ...filters, date_field: event.target.value, page: "1" })}>
                 <option value="due_date">Vencimento</option>
                 <option value="issue_date">Emissão</option>
-              </select>
+              </UiSelect>
             </label>
-            <label>De<input type="date" value={String(filters.date_from ?? "")} onChange={(event) => onChangeFilters({ ...filters, date_from: event.target.value, page: "1" })} /></label>
-            <label>Ate<input type="date" value={String(filters.date_to ?? "")} onChange={(event) => onChangeFilters({ ...filters, date_to: event.target.value, page: "1" })} /></label>
+            <label>De<Input type="date" value={String(filters.date_from ?? "")} onChange={(event) => onChangeFilters({ ...filters, date_from: event.target.value, page: "1" })} /></label>
+            <label>Ate<Input type="date" value={String(filters.date_to ?? "")} onChange={(event) => onChangeFilters({ ...filters, date_to: event.target.value, page: "1" })} /></label>
             <label className="checkbox-line">
               <input type="checkbox" checked={Boolean(filters.include_legacy)} onChange={(event) => onChangeFilters({ ...filters, include_legacy: event.target.checked, page: "1" })} />
               Mostrar histórico antigo
             </label>
             <div className="action-row">
-              <button className="primary-button" disabled={submitting} type="submit">Aplicar filtros</button>
+              <Button disabled={submitting} loading={submitting} type="submit">Aplicar filtros</Button>
             </div>
           </form>
         </section>
