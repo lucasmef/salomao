@@ -1,0 +1,307 @@
+.toolbar {
+  position: relative;
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 248, 243, 0.96)),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 36%);
+}
+
+.toolbarCopy {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.periodBadge {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.headline {
+  margin: 0;
+  max-width: 820px;
+  font-family: var(--font-display);
+  font-style: var(--font-display-style);
+  font-size: clamp(24px, 3vw, 38px);
+  line-height: 1.05;
+  color: var(--color-text);
+}
+
+.toolbarMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.metaItem {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.metaItem strong {
+  color: var(--color-text);
+}
+
+.toolbarControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.periodPopoverWrap {
+  position: absolute;
+  right: var(--space-8);
+  top: calc(100% - var(--space-4));
+  z-index: 20;
+  width: min(100%, 420px);
+}
+
+.periodPopover {
+  box-shadow: var(--shadow-lg);
+}
+
+.periodFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.periodFields label {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.periodActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.periodHint {
+  margin: var(--space-4) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.heroGrid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.1fr) minmax(0, 1.4fr);
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+}
+
+.heroCard {
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-8);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(42, 67, 101, 0.94)),
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.12), transparent 30%);
+  color: #fff;
+}
+
+.heroHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.heroHeader h3 {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-lg);
+  line-height: 1.15;
+}
+
+.heroEyebrow {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.heroValue {
+  font-size: clamp(32px, 4vw, 46px);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.heroStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.heroStat {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.heroStat span {
+  color: rgba(255, 255, 255, 0.74);
+  font-size: var(--text-xs);
+}
+
+.heroStat strong {
+  font-size: var(--text-md);
+}
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.chartGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.95fr);
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+}
+
+.opsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+}
+
+.panelCard {
+  display: grid;
+  gap: var(--space-5);
+  min-height: 100%;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.panelHeader h3 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.panelHeader p {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.list,
+.balanceList {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.listItem,
+.balanceItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.listItem:first-child,
+.balanceItem:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.listCopy,
+.balanceCopy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.listCopy strong,
+.balanceCopy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+
+.listCopy span,
+.balanceCopy span {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.listMeta,
+.balanceMeta {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.listMeta em,
+.balanceMeta em {
+  color: var(--color-text-muted);
+  font-style: normal;
+  font-size: var(--text-xs);
+}
+
+.listMeta strong,
+.balanceMeta strong {
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 1200px) {
+  .heroGrid,
+  .chartGrid,
+  .opsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .toolbar {
+    padding: var(--space-6);
+  }
+
+  .toolbarControls {
+    align-items: stretch;
+  }
+
+  .periodPopoverWrap {
+    position: static;
+    width: 100%;
+  }
+
+  .periodFields,
+  .heroStats,
+  .kpiGrid,
+  .opsGrid {
+    grid-template-columns: 1fr;
+  }
+}

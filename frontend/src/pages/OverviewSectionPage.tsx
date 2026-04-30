@@ -4,9 +4,11 @@ import { BarChart } from "../components/BarChart";
 import { RefreshIcon } from "../components/RefreshIcon";
 import { RevenueComparisonChart } from "../components/RevenueComparisonChart";
 import { SectionChrome } from "../components/SectionChrome";
+import { Button, Card, EmptyState, Input, KpiCard, PeriodChips, StatusPill } from "../components/ui";
 import type { MainNavChild } from "../data/navigation";
 import { formatDate, formatDateTime, formatMoney } from "../lib/format";
-import type { DashboardOverview } from "../types";
+import type { DashboardOverview, DashboardPendingItem } from "../types";
+import styles from "./OverviewSectionPage.module.css";
 
 const DEFAULT_BIRTHDAY_PURCHASE_LOOKBACK_YEARS = 5;
 
@@ -20,23 +22,28 @@ type Props = {
   onRefreshData: () => Promise<void>;
 };
 
+type PeriodKey = "month" | "previous" | "year" | "";
+
+const PERIOD_OPTIONS = [
+  { key: "month", label: "Mês atual" },
+  { key: "previous", label: "Mês anterior" },
+  { key: "year", label: "Ano atual" },
+] as const;
+
 function toInput(value: Date) {
   return value.toISOString().slice(0, 10);
-}
-
-function formatRangeLabel(start: string, end: string) {
-  if (!start && !end) {
-    return "Selecionar periodo";
-  }
-  if (start && end) {
-    return `${formatDate(start)} - ${formatDate(end)}`;
-  }
-  return start ? `${formatDate(start)} - ...` : `... - ${formatDate(end)}`;
 }
 
 function parseIsoDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
   return new Date(year, (month || 1) - 1, day || 1);
+}
+
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+  }).format(parseIsoDate(value));
 }
 
 function formatBirthdayDate(value: string) {
@@ -47,34 +54,89 @@ function formatBirthdayDate(value: string) {
   }).format(parseIsoDate(value));
 }
 
-function CalendarRangeIcon() {
-  return (
-    <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 16 16" width="14">
-      <path d="M4 1.75a.75.75 0 0 1 1.5 0V3h5V1.75a.75.75 0 0 1 1.5 0V3h.75A2.25 2.25 0 0 1 15 5.25v7.5A2.25 2.25 0 0 1 12.75 15h-9.5A2.25 2.25 0 0 1 1 12.75v-7.5A2.25 2.25 0 0 1 3.25 3H4V1.75ZM2.5 6.5v6.25c0 .414.336.75.75.75h9.5a.75.75 0 0 0 .75-.75V6.5h-11Zm11-1.5v-.75a.75.75 0 0 0-.75-.75h-.75v.5a.75.75 0 0 1-1.5 0v-.5h-5v.5a.75.75 0 0 1-1.5 0v-.5h-.75a.75.75 0 0 0-.75.75V5h11Z" />
-    </svg>
-  );
+function formatRangeLabel(start: string, end: string) {
+  if (!start && !end) return "Período personalizado";
+  if (start && end) return `${formatDate(start)} - ${formatDate(end)}`;
+  return start ? `${formatDate(start)} - ...` : `... - ${formatDate(end)}`;
 }
 
-function FilterFunnelIcon() {
-  return (
-    <svg aria-hidden="true" fill="currentColor" height="14" viewBox="0 0 16 16" width="14">
-      <path d="M2 3.25C2 2.56 2.56 2 3.25 2h9.5a1.25 1.25 0 0 1 .965 2.045L10 8.56v3.19a1.25 1.25 0 0 1-.553 1.036l-1.75 1.167A.75.75 0 0 1 6.5 13.33V8.56L2.285 4.045A1.24 1.24 0 0 1 2 3.25Zm1.545.25L7.882 8.15a.75.75 0 0 1 .203.512v3.266L8.5 11.65V8.662a.75.75 0 0 1 .203-.512L12.455 3.5h-8.91Z" />
-    </svg>
-  );
+function numeric(value: string | number | null | undefined) {
+  return Number(value ?? 0);
 }
 
-function ChevronDownIcon({ expanded }: { expanded: boolean }) {
+function buildQuickRange(kind: Exclude<PeriodKey, "">) {
+  const now = new Date();
+  if (kind === "month") {
+    return {
+      start: toInput(new Date(now.getFullYear(), now.getMonth(), 1)),
+      end: toInput(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+    };
+  }
+  if (kind === "previous") {
+    return {
+      start: toInput(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+      end: toInput(new Date(now.getFullYear(), now.getMonth(), 0)),
+    };
+  }
+  return {
+    start: toInput(new Date(now.getFullYear(), 0, 1)),
+    end: toInput(new Date(now.getFullYear(), 11, 31)),
+  };
+}
+
+function detectPeriod(filters: { start: string; end: string }): PeriodKey {
+  for (const option of PERIOD_OPTIONS) {
+    const range = buildQuickRange(option.key);
+    if (range.start === filters.start && range.end === filters.end) {
+      return option.key;
+    }
+  }
+  return "";
+}
+
+function buildPendingSpark(items: DashboardPendingItem[]) {
+  return items
+    .slice(0, 6)
+    .map((item) => numeric(item.amount))
+    .reverse();
+}
+
+function SummaryList({
+  title,
+  items,
+  empty,
+}: {
+  title: string;
+  items: DashboardPendingItem[];
+  empty: string;
+}) {
   return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      height="14"
-      viewBox="0 0 16 16"
-      width="14"
-      style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.16s ease" }}
-    >
-      <path d="m4 6 4 4 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
-    </svg>
+    <Card className={styles.panelCard}>
+      <div className={styles.panelHeader}>
+        <div>
+          <h3>{title}</h3>
+          <p>{items.length ? `${items.length} itens críticos no período.` : empty}</p>
+        </div>
+      </div>
+      {items.length ? (
+        <div className={styles.list}>
+          {items.slice(0, 5).map((item) => (
+            <article key={item.id} className={styles.listItem}>
+              <div className={styles.listCopy}>
+                <strong title={item.title}>{item.title}</strong>
+                <span>{item.counterparty_name ?? item.account_name ?? "Sem contraparte"}</span>
+              </div>
+              <div className={styles.listMeta}>
+                <em>{item.due_date ? formatShortDate(item.due_date) : "-"}</em>
+                <strong>{formatMoney(item.amount)}</strong>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="Sem pendências" message={empty} />
+      )}
+    </Card>
   );
 }
 
@@ -91,18 +153,8 @@ export function OverviewSectionPage({
   const hasMountedAutoApplyRef = useRef(false);
   const applyFiltersRef = useRef(onApplyFilters);
   const periodPopoverRef = useRef<HTMLDivElement | null>(null);
-  const presetMenuRef = useRef<HTMLDivElement | null>(null);
-  const balancePopoverRef = useRef<HTMLDivElement | null>(null);
-  const accountBalances = dashboard?.account_balances ?? [];
-  const totalAccountBalance = accountBalances.reduce(
-    (total, account) => (account.exclude_from_balance ? total : total + Number(account.current_balance ?? 0)),
-    0,
-  );
   const [showPeriodPopover, setShowPeriodPopover] = useState(false);
-  const [showPresetMenu, setShowPresetMenu] = useState(false);
-  const [showBalancePopover, setShowBalancePopover] = useState(false);
-  const birthdayPurchaseLookbackYears =
-    dashboard?.week_birthdays.purchase_lookback_years ?? DEFAULT_BIRTHDAY_PURCHASE_LOOKBACK_YEARS;
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>(() => detectPeriod(filters));
 
   useEffect(() => {
     applyFiltersRef.current = onApplyFilters;
@@ -117,50 +169,47 @@ export function OverviewSectionPage({
   }, [filters.end, filters.start]);
 
   useEffect(() => {
+    setSelectedPeriod(detectPeriod(filters));
+  }, [filters.end, filters.start]);
+
+  useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
       if (showPeriodPopover && periodPopoverRef.current && !periodPopoverRef.current.contains(target)) {
         setShowPeriodPopover(false);
       }
-      if (showPresetMenu && presetMenuRef.current && !presetMenuRef.current.contains(target)) {
-        setShowPresetMenu(false);
-      }
-      if (showBalancePopover && balancePopoverRef.current && !balancePopoverRef.current.contains(target)) {
-        setShowBalancePopover(false);
-      }
     }
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showBalancePopover, showPeriodPopover, showPresetMenu]);
+  }, [showPeriodPopover]);
 
   function setDateRange(start: string, end: string) {
+    setSelectedPeriod("");
     onChangeFilters({ start, end });
   }
 
-  async function applyQuickRange(kind: "month" | "previous" | "year") {
-    const now = new Date();
-    let nextFilters = filters;
-
-    if (kind === "month") {
-      nextFilters = {
-        start: toInput(new Date(now.getFullYear(), now.getMonth(), 1)),
-        end: toInput(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
-      };
-    } else if (kind === "previous") {
-      nextFilters = {
-        start: toInput(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
-        end: toInput(new Date(now.getFullYear(), now.getMonth(), 0)),
-      };
-    } else {
-      nextFilters = {
-        start: toInput(new Date(now.getFullYear(), 0, 1)),
-        end: toInput(new Date(now.getFullYear(), 11, 31)),
-      };
-    }
-
-    onChangeFilters(nextFilters);
+  function handleQuickRange(key: string) {
+    const next = buildQuickRange(key as Exclude<PeriodKey, "">);
+    setSelectedPeriod(key as PeriodKey);
+    setShowPeriodPopover(false);
+    onChangeFilters(next);
   }
+
+  const accountBalances = dashboard?.account_balances ?? [];
+  const totalAccountBalance = accountBalances.reduce(
+    (total, account) => (account.exclude_from_balance ? total : total + numeric(account.current_balance)),
+    0,
+  );
+  const revenueSpark = dashboard?.revenue_comparison.points.map((point) => numeric(point.current_year_value)) ?? [];
+  const previousRevenueSpark =
+    dashboard?.revenue_comparison.points.map((point) => numeric(point.previous_year_value)) ?? [];
+  const dreSpark = dashboard?.dre_chart.map((point) => numeric(point.value)) ?? [];
+  const overduePayables = dashboard?.overdue_payables ?? [];
+  const overdueReceivables = dashboard?.overdue_receivables ?? [];
+  const birthdayPurchaseLookbackYears =
+    dashboard?.week_birthdays.purchase_lookback_years ?? DEFAULT_BIRTHDAY_PURCHASE_LOOKBACK_YEARS;
+  const hasDashboard = Boolean(dashboard);
 
   return (
     <SectionChrome
@@ -170,221 +219,190 @@ export function OverviewSectionPage({
       description={currentTab.description}
       tabs={tabs}
     >
-      <section className="section-toolbar-panel entries-top-panel overview-top-panel">
-        <div className="entries-toolbar-bar overview-toolbar-bar">
-          <div className="entries-period-group" ref={periodPopoverRef}>
-            <button
-              aria-expanded={showPeriodPopover}
-              aria-label="Selecionar período"
-              className={`entries-period-trigger ${showPeriodPopover ? "is-active" : ""}`}
-              disabled={loading}
-              onClick={() => {
-                setShowPresetMenu(false);
-                setShowPeriodPopover((current) => !current);
-              }}
-              type="button"
-            >
-              <CalendarRangeIcon />
-              <span>{formatRangeLabel(filters.start, filters.end)}</span>
-            </button>
-            {showPeriodPopover && (
-              <div className="entries-floating-panel entries-period-popover">
-                <div className="entries-period-fields">
-                  <label>
-                    Início
-                    <input
-                      disabled={loading}
-                      type="date"
-                      value={filters.start}
-                      onChange={(event) => setDateRange(event.target.value, filters.end)}
-                    />
-                  </label>
-                  <label>
-                    Fim
-                    <input
-                      disabled={loading}
-                      type="date"
-                      value={filters.end}
-                      onChange={(event) => setDateRange(filters.start, event.target.value)}
-                    />
-                  </label>
-                </div>
-                <div className="entries-period-footer">
-                  <button
-                    className="secondary-button compact-button"
-                    onClick={() => {
-                      setDateRange("", "");
-                      setShowPeriodPopover(false);
-                    }}
-                    type="button"
-                  >
-                    Limpar
-                  </button>
-                  <button
-                    className="primary-button compact-button"
-                    onClick={() => setShowPeriodPopover(false)}
-                    type="button"
-                  >
-                    Concluir
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="entries-toolbar-icon-wrap" ref={presetMenuRef}>
-            <button
-              aria-expanded={showPresetMenu}
-              aria-label="Filtros pré-definidos de data"
-              className={`entries-toolbar-icon ${showPresetMenu ? "is-active" : ""}`}
-              disabled={loading}
-              onClick={() => {
-                setShowPeriodPopover(false);
-                setShowPresetMenu((current) => !current);
-              }}
-              title="Períodos pré-definidos"
-              type="button"
-            >
-              <FilterFunnelIcon />
-              <span className="entries-toolbar-icon-label">Atalhos</span>
-            </button>
-            {showPresetMenu && (
-              <div className="entries-floating-panel entries-icon-menu">
-                <button
-                  className="entries-icon-menu-item"
-                  onClick={() => {
-                    void applyQuickRange("month");
-                    setShowPresetMenu(false);
-                  }}
-                  type="button"
-                >
-                  Mês atual
-                </button>
-                <button
-                  className="entries-icon-menu-item"
-                  onClick={() => {
-                    void applyQuickRange("previous");
-                    setShowPresetMenu(false);
-                  }}
-                  type="button"
-                >
-                  Mês anterior
-                </button>
-                <button
-                  className="entries-icon-menu-item"
-                  onClick={() => {
-                    void applyQuickRange("year");
-                    setShowPresetMenu(false);
-                  }}
-                  type="button"
-                >
-                  Ano atual
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="entries-toolbar-icon-wrap">
-            <button
-              aria-label="Atualizar dados analiticos"
-              className={`entries-toolbar-icon ${loading ? "is-loading" : ""}`}
-              disabled={loading}
-              onClick={() => void onRefreshData()}
-              title="Atualizar dados analiticos"
-              type="button"
-            >
-              <RefreshIcon />
-              <span className="entries-toolbar-icon-label">Atualizar</span>
-            </button>
-          </div>
-
-          <div className="reconciliation-balance-wrap overview-balance-wrap" ref={balancePopoverRef}>
-            <button
-              aria-expanded={showBalancePopover}
-              className={`reconciliation-balance-trigger ${showBalancePopover ? "is-active" : ""}`}
-              onClick={() => setShowBalancePopover((current) => !current)}
-              type="button"
-            >
-              <span>Saldo total</span>
-              <strong>{formatMoney(totalAccountBalance)}</strong>
-              <ChevronDownIcon expanded={showBalancePopover} />
-            </button>
-            {showBalancePopover && (
-              <div className="reconciliation-balance-popover">
-                {accountBalances.map((account) => (
-                  <div className={`reconciliation-balance-row ${account.exclude_from_balance ? "is-ignored-account" : ""}`} key={account.account_id}>
-                    <span title={account.account_name}>
-                      {account.account_name}
-                      {account.exclude_from_balance && <span className="ignored-badge"> (Ignorado)</span>}
-                    </span>
-                    <strong>{formatMoney(account.current_balance)}</strong>
-                  </div>
-                ))}
-                {!accountBalances.length && (
-                  <div className="reconciliation-balance-empty">Nenhum saldo disponivel.</div>
-                )}
-              </div>
-            )}
+      <section className={styles.toolbar}>
+        <div className={styles.toolbarCopy}>
+          <span className={styles.periodBadge}>{dashboard?.period_label ?? "Leitura consolidada"}</span>
+          <h2 className={styles.headline}>Dashboard executivo com caixa, resultado e prioridades operacionais.</h2>
+          <div className={styles.toolbarMeta}>
+            <StatusPill status={loading ? "idle" : "online"} pulse={loading}>
+              {loading ? "Atualizando" : "Dados sincronizados"}
+            </StatusPill>
+            {dashboard?.today_sales ? (
+              <span className={styles.metaItem}>
+                Vendas hoje: <strong>{formatMoney(dashboard.today_sales.gross_revenue)}</strong>
+              </span>
+            ) : null}
+            {dashboard?.today_sales?.updated_at ? (
+              <span className={styles.metaItem}>Atualizado {formatDateTime(dashboard.today_sales.updated_at)}</span>
+            ) : null}
           </div>
         </div>
-      </section>
 
-      <section className="content-grid two-columns overview-grid">
-        <div className="overview-dre-column">
-          <BarChart title="DRE resumido" data={dashboard?.dre_chart ?? []} tone="success" />
-        </div>
-        <div className="overview-side-column">
-          <RevenueComparisonChart
-            title="Comparacao de Ano x Ano em Vendas"
-            comparison={
-              dashboard?.revenue_comparison ?? {
-                current_year: new Date().getFullYear(),
-                previous_year: new Date().getFullYear() - 1,
-                points: [],
-              }
-            }
+        <div className={styles.toolbarControls}>
+          <PeriodChips
+            options={PERIOD_OPTIONS.map((option) => ({ key: option.key, label: option.label }))}
+            value={selectedPeriod}
+            onChange={handleQuickRange}
+            customLabel="Personalizado"
+            onCustomClick={() => setShowPeriodPopover((current) => !current)}
           />
-        </div>
-      </section>
-
-      <section className="overview-insights-grid">
-        <div className="panel-card birthday-week-panel">
-        <div className="panel-title">
-          <div>
-            <h3>Aniversariantes da semana</h3>
-            <p className="birthday-week-subtitle">
-              {dashboard?.week_birthdays.week_label ?? "Semana atual"} • clientes com compra nos{" "}
-              {birthdayPurchaseLookbackYears} ultimos anos
-            </p>
-          </div>
+          <Button iconLeft={<RefreshIcon />} loading={loading} onClick={() => void onRefreshData()} size="md" variant="secondary">
+            Atualizar
+          </Button>
         </div>
 
-        {dashboard?.week_birthdays.items.length ? (
-          <div className="birthday-week-list">
-            {dashboard.week_birthdays.items.map((item) => (
-              <article className="birthday-week-item" key={`${item.linx_code}-${item.birthday_date}`}>
-                <div className="birthday-week-copy">
-                  <strong>{item.customer_name}</strong>
-                  <span>Ultima compra: {formatDate(item.last_purchase_date)}</span>
-                </div>
-                <div className="birthday-week-date">{formatBirthdayDate(item.birthday_date)}</div>
-              </article>
-            ))}
+        {showPeriodPopover && (
+          <div className={styles.periodPopoverWrap} ref={periodPopoverRef}>
+            <Card className={styles.periodPopover}>
+              <div className={styles.periodFields}>
+              <label>
+                Início
+                <Input disabled={loading} type="date" value={filters.start} onChange={(event) => setDateRange(event.target.value, filters.end)} />
+              </label>
+              <label>
+                Fim
+                <Input disabled={loading} type="date" value={filters.end} onChange={(event) => setDateRange(filters.start, event.target.value)} />
+              </label>
+            </div>
+            <div className={styles.periodActions}>
+              <Button
+                size="md"
+                variant="ghost"
+                onClick={() => {
+                  setDateRange("", "");
+                  setShowPeriodPopover(false);
+                }}
+              >
+                Limpar
+              </Button>
+              <Button size="md" onClick={() => setShowPeriodPopover(false)}>
+                Concluir
+              </Button>
+              </div>
+              <p className={styles.periodHint}>{formatRangeLabel(filters.start, filters.end)}</p>
+            </Card>
           </div>
-        ) : (
-          <p className="birthday-week-empty">Nenhum aniversariante elegivel nesta semana.</p>
         )}
-        </div>
-
-        <aside className="panel-card overview-today-sales-card" aria-label="Vendas do dia">
-          <span>Vendas do dia</span>
-          <strong>{formatMoney(dashboard?.today_sales?.gross_revenue ?? 0)}</strong>
-          <small>
-            Ultima atualizacao:{" "}
-            {dashboard?.today_sales?.updated_at ? formatDateTime(dashboard.today_sales.updated_at) : "sem atualizacao"}
-          </small>
-        </aside>
       </section>
+
+      {!dashboard && !loading ? (
+        <EmptyState
+          title="Dashboard vazio"
+          message="Configure as categorias do DRE para começar a acompanhar os indicadores principais aqui."
+        />
+      ) : null}
+
+      {hasDashboard ? (
+        <section className={styles.heroGrid}>
+        <Card className={styles.heroCard}>
+          <div className={styles.heroHeader}>
+            <div>
+              <span className={styles.heroEyebrow}>Caixa consolidado</span>
+              <h3>Saldo de leitura gerencial</h3>
+            </div>
+            <StatusPill status={numeric(dashboard?.kpis.projected_balance) >= 0 ? "online" : "idle"}>
+              {numeric(dashboard?.kpis.projected_balance) >= 0 ? "Projetado saudável" : "Pressão no caixa"}
+            </StatusPill>
+          </div>
+            <div className={styles.heroValue}>{formatMoney(String(totalAccountBalance || (dashboard?.kpis.current_balance ?? 0)))}</div>
+          <div className={styles.heroStats}>
+            <div className={styles.heroStat}>
+              <span>Saldo projetado</span>
+              <strong>{formatMoney(dashboard?.kpis.projected_balance ?? 0)}</strong>
+            </div>
+            <div className={styles.heroStat}>
+              <span>Lucro remanescente</span>
+              <strong>{formatMoney(dashboard?.kpis.remaining_profit ?? 0)}</strong>
+            </div>
+            <div className={styles.heroStat}>
+              <span>Conciliações pendentes</span>
+              <strong>{dashboard?.pending_reconciliations ?? 0}</strong>
+            </div>
+          </div>
+        </Card>
+
+        <div className={styles.kpiGrid}>
+          <KpiCard hero label="Receita bruta" sparkline={revenueSpark} value={formatMoney(dashboard?.kpis.gross_revenue ?? 0)} />
+          <KpiCard label="Receita líquida" sparkline={revenueSpark} value={formatMoney(dashboard?.kpis.net_revenue ?? 0)} />
+          <KpiCard goodTrend={numeric(dashboard?.kpis.net_profit) >= 0} label="Lucro líquido" sparkline={dreSpark} trend={numeric(dashboard?.kpis.net_profit) >= 0 ? "up" : "down"} value={formatMoney(dashboard?.kpis.net_profit ?? 0)} />
+          <KpiCard goodTrend={false} label="CMV" sparkline={dreSpark.map((value) => Math.abs(value))} trend="down" value={formatMoney(dashboard?.kpis.cmv ?? 0)} />
+          <KpiCard goodTrend={false} label="Despesas operacionais" sparkline={buildPendingSpark(overduePayables)} trend="down" value={formatMoney(dashboard?.kpis.operating_expenses ?? 0)} />
+          <KpiCard label="Vendas hoje" sparkline={revenueSpark.length ? revenueSpark : previousRevenueSpark} value={formatMoney(dashboard?.today_sales?.gross_revenue ?? 0)} />
+          <KpiCard goodTrend={false} label="A receber vencido" trend={overdueReceivables.length ? "down" : "flat"} value={String(dashboard?.kpis.overdue_receivables ?? 0)} />
+          <KpiCard goodTrend={false} label="A pagar vencido" trend={overduePayables.length ? "down" : "flat"} value={String(dashboard?.kpis.overdue_payables ?? 0)} />
+        </div>
+        </section>
+      ) : null}
+
+      {dashboard ? (
+        <>
+          <section className={styles.chartGrid}>
+            <RevenueComparisonChart title="Receita comparada mês a mês" comparison={dashboard.revenue_comparison} />
+            <BarChart data={dashboard.dre_chart} title="Leitura do DRE no período" />
+          </section>
+
+          <section className={styles.opsGrid}>
+            <Card className={styles.panelCard}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <h3>Saldos por conta</h3>
+                  <p>{accountBalances.length} contas acompanhadas na leitura gerencial.</p>
+                </div>
+              </div>
+              {accountBalances.length ? (
+                <div className={styles.balanceList}>
+                  {accountBalances.slice(0, 6).map((account) => (
+                    <article key={account.account_id} className={styles.balanceItem}>
+                      <div className={styles.balanceCopy}>
+                        <strong>{account.account_name}</strong>
+                        <span>{account.account_type}</span>
+                      </div>
+                      <div className={styles.balanceMeta}>
+                        {account.exclude_from_balance ? <em>Fora do consolidado</em> : null}
+                        <strong>{formatMoney(account.current_balance)}</strong>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="Sem contas consolidadas" message="Cadastre contas ou sincronize saldos para exibir este quadro." />
+              )}
+            </Card>
+
+            <SummaryList empty="Não há recebíveis vencidos nesta leitura." items={overdueReceivables} title="Recebíveis vencidos" />
+            <SummaryList empty="Não há pagamentos vencidos nesta leitura." items={overduePayables} title="Pagáveis vencidos" />
+
+            <Card className={styles.panelCard}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <h3>Aniversariantes da semana</h3>
+                  <p>
+                    {dashboard.week_birthdays.week_label ?? "Semana atual"} com compra nos últimos{" "}
+                    {birthdayPurchaseLookbackYears} anos.
+                  </p>
+                </div>
+              </div>
+              {dashboard.week_birthdays.items.length ? (
+                <div className={styles.list}>
+                  {dashboard.week_birthdays.items.slice(0, 5).map((item) => (
+                    <article key={`${item.linx_code}-${item.birthday_date}`} className={styles.listItem}>
+                      <div className={styles.listCopy}>
+                        <strong>{item.customer_name}</strong>
+                        <span>Última compra em {formatShortDate(item.last_purchase_date)}</span>
+                      </div>
+                      <div className={styles.listMeta}>
+                        <em>{formatBirthdayDate(item.birthday_date)}</em>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="Sem aniversariantes" message="Nenhum cliente elegível aparece nesta semana." />
+              )}
+            </Card>
+          </section>
+        </>
+      ) : null}
     </SectionChrome>
   );
 }
