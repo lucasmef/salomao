@@ -1525,13 +1525,13 @@ export function EntriesPage({
             {selectedNonDeletableCount} item(ns) selecionado(s) não podem ser excluídos em lote porque já foram baixados, conciliados ou estão vinculados a outro processo.
           </p>
         )}
-        <div className="table-shell entries-table-shell">
-          <table className="erp-table entries-list-table">
+        <div className="table-shell table-shell--scroll entries-table-shell">
+          <table className="erp-table erp-table--compact erp-table--responsive entries-list-table">
             <colgroup>
               <col className="entries-col-select" />
               <col className="entries-col-title" />
               <col className="entries-col-flow" />
-              <col className="entries-col-account" />
+              <col className="entries-col-account col-hide-md" />
               <col className="entries-col-category" />
               <col className="entries-col-status" />
               <col className="entries-col-due-date" />
@@ -1550,7 +1550,7 @@ export function EntriesPage({
                 </th>
                 <th>{renderTableHeader(entryTableColumnLabels.title, "title")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.flow, "flow")}</th>
-                <th className="entries-th-account">{renderTableHeader(entryTableColumnLabels.account, "account")}</th>
+                <th className="entries-th-account col-hide-md">{renderTableHeader(entryTableColumnLabels.account, "account")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.category, "category")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.status, "status")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.due_date, "due_date")}</th>
@@ -1575,7 +1575,7 @@ export function EntriesPage({
                     </div>
                   </td>
                   <td>{renderFlowBadge(entry)}</td>
-                  <td className="entries-td-account">{entry.account_name ?? "-"}</td>
+                  <td className="entries-td-account col-hide-md">{entry.account_name ?? "-"}</td>
                   <td className="entries-cell-category">
                     <div className="cell-stack">
                       <strong>{entry.category_name ?? "-"}</strong>

@@ -1716,23 +1716,6 @@ textarea {
   min-height: 360px;
 }
 
-.entries-list-table {
-  table-layout: fixed;
-}
-
-.entries-list-table th,
-.entries-list-table td {
-  vertical-align: middle;
-  padding-top: 5px;
-  padding-bottom: 5px;
-  line-height: 1.1;
-}
-
-.entries-list-table thead th {
-  padding-top: 6px;
-  padding-bottom: 6px;
-}
-
 .entries-list-table .table-sort-button {
   min-height: 24px;
   gap: 4px;
@@ -4795,12 +4778,6 @@ textarea {
   .compact-detail-line,
   .compact-muted {
     font-size: 0.62rem;
-  }
-
-  .entries-list-table .entries-col-account,
-  .entries-list-table .entries-th-account,
-  .entries-list-table .entries-td-account {
-    display: none;
   }
 
   .entries-flow-badge {

@@ -64,6 +64,59 @@
   flex-wrap: wrap;
 }
 
+.table-shell--scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-gutter: stable both-edges;
+  -webkit-overflow-scrolling: touch;
+}
+
+.erp-table--compact {
+  table-layout: fixed;
+}
+
+.erp-table--compact th,
+.erp-table--compact td {
+  min-height: var(--row-height-compact);
+  padding: 5px var(--cell-padding-x);
+  vertical-align: middle;
+  line-height: 1.1;
+}
+
+.erp-table--compact thead th {
+  height: var(--table-header-height);
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+@media (max-width: 768px) {
+  .table-shell--scroll {
+    min-height: 0;
+  }
+
+  .erp-table--responsive {
+    width: max-content;
+    min-width: max(100%, 720px);
+    table-layout: auto;
+  }
+
+  .col-hide-md {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .erp-table--responsive {
+    min-width: max(100%, 640px);
+  }
+
+  .col-hide-sm {
+    display: none;
+  }
+}
+
 .pagination-size {
   display: inline-flex;
   align-items: center;
