@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { TablePagination } from "../components/TablePagination";
 import { SectionChrome } from "../components/SectionChrome";
+import { Button } from "../components/ui";
 import { findNavChildByKey, type MainNavChild } from "../data/navigation";
 import { formatDate, formatMoney } from "../lib/format";
 import type { ImportSummary, LinxProductDirectory } from "../types";
@@ -73,22 +74,23 @@ export function CadastrosProductsPage({
               <option value="inactive">Inativos</option>
             </select>
           </label>
-          <button
-            className="ghost-button"
+          <Button
+            type="button"
+            variant="ghost"
             disabled={loading}
             onClick={() => void onApplyFilters({ search: searchInput, status: statusInput })}
-            type="button"
           >
             Buscar
-          </button>
-          <button
-            className="primary-button"
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            loading={loading}
             disabled={loading}
             onClick={() => void onSyncLinxProducts()}
-            type="button"
           >
             {loading ? "Atualizando..." : "Atualizar Linx"}
-          </button>
+          </Button>
         </div>
         <div className="section-toolbar-content">
           <div className="import-last-meta">

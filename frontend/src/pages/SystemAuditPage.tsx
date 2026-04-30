@@ -1,4 +1,5 @@
 import { SectionChrome } from "../components/SectionChrome";
+import { Button } from "../components/ui";
 import type { MainNavChild } from "../data/navigation";
 import { formatDate } from "../lib/format";
 import type { BackupRead, ImportSummary } from "../types";
@@ -35,9 +36,9 @@ export function SystemAuditPage({ tabs, importSummary, backups }: Props) {
             Evento
             <input placeholder="Importação, backup..." />
           </label>
-          <button className="primary-button" type="button">
+          <Button type="button" variant="primary">
             Atualizar
-          </button>
+          </Button>
         </div>
       </section>
 

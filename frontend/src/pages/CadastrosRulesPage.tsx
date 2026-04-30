@@ -1,4 +1,5 @@
 import { SectionChrome } from "../components/SectionChrome";
+import { Button } from "../components/ui";
 import type { MainNavChild } from "../data/navigation";
 import { formatDate, formatMoney } from "../lib/format";
 import type { LoanContract, RecurrenceRule } from "../types";
@@ -30,9 +31,9 @@ export function CadastrosRulesPage({ tabs, recurrences, loans }: Props) {
               <option value="emprestimo">Emprestimo</option>
             </select>
           </label>
-          <button className="primary-button" type="button">
+          <Button type="button" variant="primary">
             Atualizar
-          </button>
+          </Button>
         </div>
       </section>
 

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { SectionChrome } from "../components/SectionChrome";
+import { Button } from "../components/ui";
 import { findNavChildByKey, type MainNavChild } from "../data/navigation";
 import { formatDate, normalizeDisplayText } from "../lib/format";
 import type { ImportSummary, LinxCustomerDirectory } from "../types";
@@ -111,14 +112,15 @@ export function CadastrosClientsPage({
               <option value="no">Não</option>
             </select>
           </label>
-          <button
-            className="primary-button"
+          <Button
+            type="button"
+            variant="primary"
+            loading={loading}
             disabled={loading}
             onClick={() => void onSyncLinxCustomers()}
-            type="button"
           >
             {loading ? "Atualizando..." : "Atualizar Linx"}
-          </button>
+          </Button>
         </div>
         <div className="section-toolbar-content">
           <div className="import-last-meta">

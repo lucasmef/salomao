@@ -1,6 +1,7 @@
 import { BarChart } from "../components/BarChart";
 import { RevenueComparisonChart } from "../components/RevenueComparisonChart";
 import { SectionChrome } from "../components/SectionChrome";
+import { Button } from "../components/ui";
 import type { MainNavChild } from "../data/navigation";
 import { formatMoneyNumber } from "../lib/format";
 import type { DashboardOverview } from "../types";
@@ -64,9 +65,9 @@ export function ResultsComparativesPage({ tabs, dashboard }: Props) {
               <option value="">Todas</option>
             </select>
           </label>
-          <button className="primary-button" type="button">
+          <Button type="button" variant="primary">
             Atualizar
-          </button>
+          </Button>
         </div>
       </section>
 
