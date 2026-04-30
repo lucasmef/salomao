@@ -52,6 +52,15 @@ class DashboardPendingItem(BaseModel):
     account_name: str | None
 
 
+class DashboardReconciliationItem(BaseModel):
+    id: str
+    bank_name: str | None
+    posted_at: date
+    description: str
+    amount: Decimal
+    account_name: str | None
+
+
 class DashboardAccountBalance(BaseModel):
     account_id: str
     account_name: str
@@ -90,5 +99,6 @@ class DashboardOverview(BaseModel):
     overdue_payables: list[DashboardPendingItem]
     overdue_receivables: list[DashboardPendingItem]
     pending_reconciliations: int
+    pending_reconciliation_items: list[DashboardReconciliationItem] = Field(default_factory=list)
     week_birthdays: DashboardWeekBirthdays = Field(default_factory=DashboardWeekBirthdays)
     today_sales: DashboardTodaySales | None = None

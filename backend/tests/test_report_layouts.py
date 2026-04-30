@@ -12,6 +12,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.base import Base
+from app.db.models.banking import BankTransaction
 from app.db.models.finance import Account, Category, FinancialEntry
 from app.db.models.linx import LinxMovement, SalesSnapshot
 from app.db.models.reporting import ReportLayoutLine
@@ -401,6 +402,32 @@ class ReportLayoutTestCase(unittest.TestCase):
         self.assertEqual(dashboard.kpis.payables_30d, Decimal("300.00"))
         self.assertEqual(dashboard.kpis.overdue_receivables_amount, Decimal("200.00"))
         self.assertEqual(dashboard.kpis.delinquency_rate, Decimal("16.67"))
+
+    def test_dashboard_exposes_pending_reconciliation_items(self) -> None:
+        account = self._add_account("Banco Inter")
+        transaction = BankTransaction(
+            company_id=self.company.id,
+            account_id=account.id,
+            bank_name="Inter",
+            bank_code="077",
+            posted_at=date(2026, 3, 15),
+            trn_type="credit",
+            amount=Decimal("4280.00"),
+            fit_id="fit-dashboard-1",
+            memo="PIX recebido - cliente",
+        )
+        self.db.add(transaction)
+        self.db.commit()
+
+        dashboard = build_dashboard_overview(self.db, self.company, start=date(2026, 3, 1), end=date(2026, 3, 31))
+
+        self.assertEqual(dashboard.pending_reconciliations, 1)
+        self.assertEqual(len(dashboard.pending_reconciliation_items), 1)
+        item = dashboard.pending_reconciliation_items[0]
+        self.assertEqual(item.bank_name, "Inter")
+        self.assertEqual(item.description, "PIX recebido - cliente")
+        self.assertEqual(item.amount, Decimal("4280.00"))
+        self.assertEqual(item.account_name, "Banco Inter")
 
     def test_grouped_children_percent_uses_parent_total(self) -> None:
         account = self._add_account("Banco")

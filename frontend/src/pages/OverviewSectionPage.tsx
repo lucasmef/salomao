@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 
-import { BarChart } from "../components/BarChart";
 import { RefreshIcon } from "../components/RefreshIcon";
 import { RevenueComparisonChart } from "../components/RevenueComparisonChart";
 import { SectionChrome } from "../components/SectionChrome";
@@ -66,10 +65,26 @@ function numeric(value: string | number | null | undefined) {
 
 function formatPercent(value: string | number | null | undefined) {
   const parsed = numeric(value);
-  return new Intl.NumberFormat("pt-BR", {
+  return `${new Intl.NumberFormat("pt-BR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(Number.isFinite(parsed) ? parsed : 0) + "%";
+  }).format(Number.isFinite(parsed) ? parsed : 0)}%`;
+}
+
+function formatSignedMoney(value: string | number | null | undefined) {
+  const parsed = numeric(value);
+  const formatted = formatMoney(Math.abs(parsed));
+  return parsed > 0 ? `+${formatted}` : parsed < 0 ? `-${formatted}` : formatted;
+}
+
+function initials(value: string) {
+  return value
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
 }
 
 function buildQuickRange(kind: Exclude<PeriodKey, "">) {
@@ -107,45 +122,6 @@ function buildPendingSpark(items: DashboardPendingItem[]) {
     .slice(0, 6)
     .map((item) => numeric(item.amount))
     .reverse();
-}
-
-function SummaryList({
-  title,
-  items,
-  empty,
-}: {
-  title: string;
-  items: DashboardPendingItem[];
-  empty: string;
-}) {
-  return (
-    <Card className={styles.panelCard}>
-      <div className={styles.panelHeader}>
-        <div>
-          <h3>{title}</h3>
-          <p>{items.length ? `${items.length} itens críticos no período.` : empty}</p>
-        </div>
-      </div>
-      {items.length ? (
-        <div className={styles.list}>
-          {items.slice(0, 5).map((item) => (
-            <article key={item.id} className={styles.listItem}>
-              <div className={styles.listCopy}>
-                <strong title={item.title}>{item.title}</strong>
-                <span>{item.counterparty_name ?? item.account_name ?? "Sem contraparte"}</span>
-              </div>
-              <div className={styles.listMeta}>
-                <em>{item.due_date ? formatShortDate(item.due_date) : "-"}</em>
-                <strong>{formatMoney(item.amount)}</strong>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <EmptyState title="Sem pendências" message={empty} />
-      )}
-    </Card>
-  );
 }
 
 export function OverviewSectionPage({
@@ -212,9 +188,9 @@ export function OverviewSectionPage({
   const revenueSpark = dashboard?.revenue_comparison.points.map((point) => numeric(point.current_year_value)) ?? [];
   const previousRevenueSpark =
     dashboard?.revenue_comparison.points.map((point) => numeric(point.previous_year_value)) ?? [];
-  const dreSpark = dashboard?.dre_chart.map((point) => numeric(point.value)) ?? [];
   const overduePayables = dashboard?.overdue_payables ?? [];
   const overdueReceivables = dashboard?.overdue_receivables ?? [];
+  const pendingReconciliationItems = dashboard?.pending_reconciliation_items ?? [];
   const consolidatedBalance = totalAccountBalance || numeric(dashboard?.kpis.current_balance);
   const receivables30d = numeric(dashboard?.kpis.receivables_30d);
   const payables30d = numeric(dashboard?.kpis.payables_30d);
@@ -222,6 +198,32 @@ export function OverviewSectionPage({
   const overdueReceivablesAmount = numeric(dashboard?.kpis.overdue_receivables_amount);
   const birthdayPurchaseLookbackYears =
     dashboard?.week_birthdays.purchase_lookback_years ?? DEFAULT_BIRTHDAY_PURCHASE_LOOKBACK_YEARS;
+  const operationalAlerts = [
+    {
+      key: "reconciliation",
+      tone: "urgent",
+      label: `${dashboard?.pending_reconciliations ?? 0} conciliações pendentes`,
+      detail: pendingReconciliationItems[0]?.description ?? "Extratos aguardando vínculo com lançamentos.",
+      action: "Revisar",
+      show: Boolean(dashboard?.pending_reconciliations),
+    },
+    {
+      key: "receivables",
+      tone: "urgent",
+      label: `${dashboard?.kpis.overdue_receivables ?? 0} recebíveis vencidos`,
+      detail: overdueReceivablesAmount ? formatMoney(overdueReceivablesAmount) : "Sem valor vencido.",
+      action: "Cobrar",
+      show: Boolean(dashboard?.kpis.overdue_receivables),
+    },
+    {
+      key: "payables",
+      tone: "info",
+      label: `${dashboard?.kpis.overdue_payables ?? 0} pagamentos vencidos`,
+      detail: overduePayables[0]?.title ?? "Sem pagamentos vencidos.",
+      action: "Pagar",
+      show: Boolean(dashboard?.kpis.overdue_payables),
+    },
+  ].filter((item) => item.show);
   const hasDashboard = Boolean(dashboard);
 
   return (
@@ -268,29 +270,29 @@ export function OverviewSectionPage({
           <div className={styles.periodPopoverWrap} ref={periodPopoverRef}>
             <Card className={styles.periodPopover}>
               <div className={styles.periodFields}>
-              <label>
-                Início
-                <Input disabled={loading} type="date" value={filters.start} onChange={(event) => setDateRange(event.target.value, filters.end)} />
-              </label>
-              <label>
-                Fim
-                <Input disabled={loading} type="date" value={filters.end} onChange={(event) => setDateRange(filters.start, event.target.value)} />
-              </label>
-            </div>
-            <div className={styles.periodActions}>
-              <Button
-                size="md"
-                variant="ghost"
-                onClick={() => {
-                  setDateRange("", "");
-                  setShowPeriodPopover(false);
-                }}
-              >
-                Limpar
-              </Button>
-              <Button size="md" onClick={() => setShowPeriodPopover(false)}>
-                Concluir
-              </Button>
+                <label>
+                  Início
+                  <Input disabled={loading} type="date" value={filters.start} onChange={(event) => setDateRange(event.target.value, filters.end)} />
+                </label>
+                <label>
+                  Fim
+                  <Input disabled={loading} type="date" value={filters.end} onChange={(event) => setDateRange(filters.start, event.target.value)} />
+                </label>
+              </div>
+              <div className={styles.periodActions}>
+                <Button
+                  size="md"
+                  variant="ghost"
+                  onClick={() => {
+                    setDateRange("", "");
+                    setShowPeriodPopover(false);
+                  }}
+                >
+                  Limpar
+                </Button>
+                <Button size="md" onClick={() => setShowPeriodPopover(false)}>
+                  Concluir
+                </Button>
               </div>
               <p className={styles.periodHint}>{formatRangeLabel(filters.start, filters.end)}</p>
             </Card>
@@ -350,42 +352,7 @@ export function OverviewSectionPage({
 
       {dashboard ? (
         <>
-          <section className={styles.chartGrid}>
-            <RevenueComparisonChart title="Receita comparada mês a mês" comparison={dashboard.revenue_comparison} />
-            <BarChart data={dashboard.dre_chart} title="Leitura do DRE no período" />
-          </section>
-
-          <section className={styles.opsGrid}>
-            <Card className={styles.panelCard}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <h3>Saldos por conta</h3>
-                  <p>{accountBalances.length} contas acompanhadas na leitura gerencial.</p>
-                </div>
-              </div>
-              {accountBalances.length ? (
-                <div className={styles.balanceList}>
-                  {accountBalances.slice(0, 6).map((account) => (
-                    <article key={account.account_id} className={styles.balanceItem}>
-                      <div className={styles.balanceCopy}>
-                        <strong>{account.account_name}</strong>
-                        <span>{account.account_type}</span>
-                      </div>
-                      <div className={styles.balanceMeta}>
-                        {account.exclude_from_balance ? <em>Fora do consolidado</em> : null}
-                        <strong>{formatMoney(account.current_balance)}</strong>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState title="Sem contas consolidadas" message="Cadastre contas ou sincronize saldos para exibir este quadro." />
-              )}
-            </Card>
-
-            <SummaryList empty="Não há recebíveis vencidos nesta leitura." items={overdueReceivables} title="Recebíveis vencidos" />
-            <SummaryList empty="Não há pagamentos vencidos nesta leitura." items={overduePayables} title="Pagáveis vencidos" />
-
+          <section className={styles.approvedMainGrid}>
             <Card className={styles.panelCard}>
               <div className={styles.panelHeader}>
                 <div>
@@ -395,25 +362,116 @@ export function OverviewSectionPage({
                     {birthdayPurchaseLookbackYears} anos.
                   </p>
                 </div>
+                <span className={styles.countBadge}>{dashboard.week_birthdays.items.length}</span>
               </div>
               {dashboard.week_birthdays.items.length ? (
                 <div className={styles.list}>
-                  {dashboard.week_birthdays.items.slice(0, 5).map((item) => (
-                    <article key={`${item.linx_code}-${item.birthday_date}`} className={styles.listItem}>
-                      <div className={styles.listCopy}>
-                        <strong>{item.customer_name}</strong>
-                        <span>Última compra em {formatShortDate(item.last_purchase_date)}</span>
-                      </div>
-                      <div className={styles.listMeta}>
-                        <em>{formatBirthdayDate(item.birthday_date)}</em>
-                      </div>
-                    </article>
-                  ))}
+                  {dashboard.week_birthdays.items.slice(0, 5).map((item) => {
+                    const todayBirthday = item.birthday_date === new Date().toISOString().slice(0, 10);
+                    return (
+                      <article key={`${item.linx_code}-${item.birthday_date}`} className={styles.birthdayItem}>
+                        <div className={`${styles.avatar} ${todayBirthday ? styles.avatarActive : ""}`}>
+                          {initials(item.customer_name)}
+                        </div>
+                        <div className={styles.listCopy}>
+                          <strong>{item.customer_name}</strong>
+                          <span>Última compra em {formatShortDate(item.last_purchase_date)}</span>
+                        </div>
+                        <div className={styles.listMeta}>
+                          <em>{formatBirthdayDate(item.birthday_date)}</em>
+                          {todayBirthday ? <span className={styles.todayBadge}>Hoje</span> : null}
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
               ) : (
                 <EmptyState title="Sem aniversariantes" message="Nenhum cliente elegível aparece nesta semana." />
               )}
             </Card>
+
+            <div className={styles.comparisonPanel}>
+              <RevenueComparisonChart title="Comparativo · Ano × Ano" comparison={dashboard.revenue_comparison} />
+            </div>
+          </section>
+
+          <section className={styles.approvedBottomGrid}>
+            <Card className={styles.panelCard}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <h3>Pendências operacionais</h3>
+                  <p>Itens que precisam de ação no financeiro.</p>
+                </div>
+              </div>
+              {operationalAlerts.length ? (
+                <div className={styles.alertList}>
+                  {operationalAlerts.map((item) => (
+                    <article key={item.key} className={styles.alertItem}>
+                      <span className={`${styles.alertDot} ${item.tone === "urgent" ? styles.alertDotUrgent : ""}`} />
+                      <div className={styles.listCopy}>
+                        <strong>{item.label}</strong>
+                        <span>{item.detail}</span>
+                      </div>
+                      <Button type="button" variant="ghost">
+                        {item.action}
+                      </Button>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="Sem pendências" message="Nenhuma ação crítica para o período selecionado." />
+              )}
+            </Card>
+
+            <div className={styles.sideStack}>
+              <Card className={styles.panelCard}>
+                <div className={styles.panelHeader}>
+                  <div>
+                    <h3>Conciliação</h3>
+                    <p>{dashboard.pending_reconciliations} transações aguardando revisão.</p>
+                  </div>
+                  <span className={styles.countBadge}>{dashboard.pending_reconciliations}</span>
+                </div>
+                {pendingReconciliationItems.length ? (
+                  <div className={styles.list}>
+                    {pendingReconciliationItems.map((item) => (
+                      <article key={item.id} className={styles.reconciliationItem}>
+                        <div className={styles.bankMark}>{(item.bank_name ?? "Banco").slice(0, 3).toUpperCase()}</div>
+                        <div className={styles.listCopy}>
+                          <strong title={item.description}>{item.description}</strong>
+                          <span>{item.account_name ?? "Conta não informada"} · {formatShortDate(item.posted_at)}</span>
+                        </div>
+                        <strong className={numeric(item.amount) >= 0 ? styles.positiveAmount : ""}>
+                          {formatSignedMoney(item.amount)}
+                        </strong>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState title="Sem conciliações pendentes" message="Todas as transações recentes estão conciliadas." />
+                )}
+              </Card>
+
+              <Card className={styles.panelCard}>
+                <div className={styles.panelHeader}>
+                  <div>
+                    <h3>DRE</h3>
+                    <p>Leitura compacta do resultado no período.</p>
+                  </div>
+                </div>
+                <div className={styles.dreList}>
+                  {dashboard.dre_chart.slice(0, 5).map((item) => (
+                    <div key={item.label} className={styles.dreRow}>
+                      <span>{item.label}</span>
+                      <strong className={numeric(item.value) >= 0 ? styles.positiveAmount : ""}>{formatMoney(item.value)}</strong>
+                    </div>
+                  ))}
+                  {!dashboard.dre_chart.length ? (
+                    <EmptyState title="DRE indisponível" message="Configure as linhas do relatório para preencher este quadro." />
+                  ) : null}
+                </div>
+              </Card>
+            </div>
           </section>
         </>
       ) : null}

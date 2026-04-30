@@ -61,6 +61,7 @@ def _sample_overview() -> DashboardOverview:
         overdue_payables=[],
         overdue_receivables=[],
         pending_reconciliations=3,
+        pending_reconciliation_items=[],
     )
 
 

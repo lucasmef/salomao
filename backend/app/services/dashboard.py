@@ -16,6 +16,7 @@ from app.schemas.dashboard import (
     DashboardKpis,
     DashboardOverview,
     DashboardPendingItem,
+    DashboardReconciliationItem,
     DashboardRevenueComparison,
     DashboardRevenueComparisonPoint,
     DashboardSeriesPoint,
@@ -372,6 +373,18 @@ def build_dashboard_overview(
             ~BankTransaction.id.in_(select(ReconciliationLine.bank_transaction_id)),
         )
     ) or 0
+    pending_reconciliation_transactions = list(
+        db.scalars(
+            select(BankTransaction)
+            .where(
+                BankTransaction.company_id == company.id,
+                ~BankTransaction.id.in_(select(Reconciliation.bank_transaction_id)),
+                ~BankTransaction.id.in_(select(ReconciliationLine.bank_transaction_id)),
+            )
+            .order_by(BankTransaction.posted_at.desc(), BankTransaction.created_at.desc())
+            .limit(3)
+        )
+    )
 
     current_year = end.year
     previous_year = current_year - 1
@@ -457,6 +470,17 @@ def build_dashboard_overview(
         overdue_payables=[pending_item(entry) for entry in overdue_payables_entries],
         overdue_receivables=[pending_item(entry) for entry in overdue_receivables_entries],
         pending_reconciliations=pending_reconciliations,
+        pending_reconciliation_items=[
+            DashboardReconciliationItem(
+                id=transaction.id,
+                bank_name=transaction.bank_name,
+                posted_at=transaction.posted_at,
+                description=transaction.memo or transaction.name or transaction.fit_id,
+                amount=transaction.amount,
+                account_name=transaction.account.name if transaction.account else None,
+            )
+            for transaction in pending_reconciliation_transactions
+        ],
     )
 
 

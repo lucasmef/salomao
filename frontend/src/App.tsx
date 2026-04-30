@@ -255,6 +255,7 @@ const emptyDashboard: DashboardOverview = {
   overdue_payables: [],
   overdue_receivables: [],
   pending_reconciliations: 0,
+  pending_reconciliation_items: [],
   week_birthdays: {
     week_label: null,
     purchase_lookback_years: 5,

@@ -959,6 +959,15 @@ export type DashboardPendingItem = {
   account_name: string | null;
 };
 
+export type DashboardReconciliationItem = {
+  id: string;
+  bank_name: string | null;
+  posted_at: string;
+  description: string;
+  amount: string;
+  account_name: string | null;
+};
+
 export type DashboardAccountBalance = {
   account_id: string;
   account_name: string;
@@ -1016,6 +1025,7 @@ export type DashboardOverview = {
   overdue_payables: DashboardPendingItem[];
   overdue_receivables: DashboardPendingItem[];
   pending_reconciliations: number;
+  pending_reconciliation_items: DashboardReconciliationItem[];
   week_birthdays: DashboardWeekBirthdays;
   today_sales: DashboardTodaySales | null;
 };
