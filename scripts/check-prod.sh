@@ -347,6 +347,37 @@ check_firewall_and_bans() {
   fi
 }
 
+read_static_sshd_policy() {
+  local files=("/etc/ssh/sshd_config")
+  local include_file
+
+  while IFS= read -r include_file; do
+    files+=("$include_file")
+  done < <(find /etc/ssh/sshd_config.d -maxdepth 1 -type f -name '*.conf' 2>/dev/null | sort)
+
+  local file
+  for file in "${files[@]}"; do
+    if [[ ! -r "$file" ]]; then
+      continue
+    fi
+    awk '
+      /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+      {
+        key=tolower($1)
+        if (
+          key == "permitrootlogin" ||
+          key == "passwordauthentication" ||
+          key == "pubkeyauthentication" ||
+          key == "kbdinteractiveauthentication"
+        ) {
+          value=tolower($2)
+          print key " " value
+        }
+      }
+    ' "$file"
+  done
+}
+
 check_ssh_policy() {
   section "SSH"
 
@@ -363,12 +394,16 @@ check_ssh_policy() {
 
   local sshd_output sshd_error
   sshd_error="$(mktemp)"
-  sshd_output="$(sudo "$sshd_bin" -T -C user=salomao,host=localhost,addr=127.0.0.1 2>"$sshd_error" || true)"
+  sshd_output="$(sudo -n "$sshd_bin" -T 2>"$sshd_error" || true)"
   if [[ -z "$sshd_output" ]]; then
-    fail "Nao foi possivel ler a configuracao efetiva do sshd com $sshd_bin"
+    warn "Nao foi possivel ler a configuracao efetiva do sshd com $sshd_bin; usando fallback estatico"
     if [[ -s "$sshd_error" ]]; then
       sed 's/^/  /' "$sshd_error"
     fi
+    sshd_output="$(read_static_sshd_policy)"
+  fi
+  if [[ -z "$sshd_output" ]]; then
+    fail "Nao foi possivel resolver a politica SSH por sshd -T nem pelos arquivos legiveis"
     rm -f "$sshd_error"
     return
   fi
