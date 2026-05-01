@@ -364,12 +364,7 @@ read_static_sshd_policy() {
       /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
       {
         key=tolower($1)
-        if (
-          key == "permitrootlogin" ||
-          key == "passwordauthentication" ||
-          key == "pubkeyauthentication" ||
-          key == "kbdinteractiveauthentication"
-        ) {
+        if (key == "permitrootlogin" || key == "passwordauthentication" || key == "pubkeyauthentication" || key == "kbdinteractiveauthentication") {
           value=tolower($2)
           print key " " value
         }
