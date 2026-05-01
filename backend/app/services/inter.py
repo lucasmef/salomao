@@ -50,6 +50,8 @@ INTER_CHARGE_FULL_SYNC_START = date(2025, 1, 1)
 INTER_CHARGE_FULL_SYNC_DUE_END = date(2027, 12, 31)
 INTER_CHARGE_DEFAULT_LOOKBACK_DAYS = 90
 INTER_CHARGE_INCREMENTAL_LOOKBACK_DAYS = 7
+INTER_CHARGE_FINE_PERCENT = Decimal("2")
+INTER_CHARGE_MONTHLY_INTEREST_PERCENT = Decimal("1")
 INTER_SAFE_REQUEST_METHODS = {"GET", "HEAD", "OPTIONS"}
 INTER_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 INTER_MAX_RETRY_ATTEMPTS = 3
@@ -1431,11 +1433,20 @@ def _resolve_standalone_customer(db: Session, *, company_id: str, client_name: s
     return resolved
 
 
-def _build_inter_charge_payload(item: Any, config: BoletoCustomerConfig, *, today: date) -> dict[str, Any]:
+def _build_inter_charge_payload(
+    item: Any,
+    config: BoletoCustomerConfig,
+    *,
+    today: date,
+) -> dict[str, Any]:
     due_date = _resolve_export_due_date(item, config, today)
     tax_id = _digits_only(config.tax_id)
     payload = {
-        "seuNumero": _build_export_charge_code(item, config.client_code, bool(config.include_interest)),
+        "seuNumero": _build_export_charge_code(
+            item,
+            config.client_code,
+            bool(config.include_interest),
+        ),
         "valorNominal": format(Decimal(item.amount).quantize(Decimal("0.01")), "f"),
         "dataVencimento": due_date.isoformat(),
         "numDiasAgenda": 30,
@@ -1453,6 +1464,15 @@ def _build_inter_charge_payload(item: Any, config: BoletoCustomerConfig, *, toda
             "cep": _digits_only(config.zip_code)[:8],
         },
     }
+    if config.include_interest:
+        payload["multa"] = {
+            "codigo": "PERCENTUAL",
+            "taxa": float(INTER_CHARGE_FINE_PERCENT),
+        }
+        payload["mora"] = {
+            "codigo": "TAXAMENSAL",
+            "taxa": float(INTER_CHARGE_MONTHLY_INTEREST_PERCENT),
+        }
     return payload
 
 
@@ -1720,7 +1740,12 @@ def issue_inter_charges(
             validation_errors.append(f"{item.client_name}: {', '.join(missing_fields)}")
             continue
         assert customer_config is not None
-        prepared_payloads.append((item, _build_inter_charge_payload(item, customer_config, today=today)))
+        prepared_payloads.append(
+            (
+                item,
+                _build_inter_charge_payload(item, customer_config, today=today),
+            )
+        )
 
     if validation_errors:
         raise ValueError(
