@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 from threading import Lock
-from time import monotonic
 
 from sqlalchemy import desc, or_, select
 from sqlalchemy.orm import Session
@@ -25,7 +24,10 @@ from app.services.analytics_hybrid import (
     upsert_monthly_snapshot,
     write_live_cache,
 )
-from app.services.purchase_planning import PurchasePlanningFilters, build_purchase_planning_cashflow_events
+from app.services.purchase_planning import (
+    PurchasePlanningFilters,
+    build_purchase_planning_cashflow_events,
+)
 
 RECEIVABLES_CONTROL_ACCOUNT_TYPE = "receivables_control"
 RECEIVABLES_CONTROL_SOURCE = "linx_sales_control"
