@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import date
 from decimal import Decimal
 
@@ -160,6 +161,9 @@ def test_issue_inter_charges_creates_boleto_from_missing_item() -> None:
         assert result.batch.source_type == "inter_charge_issue"
         assert created_payloads
         assert b'"formasRecebimento":["BOLETO"]' in created_payloads[0]
+        created_payload = json.loads(created_payloads[0])
+        assert created_payload["multa"] == {"codigo": "PERCENTUAL", "taxa": 2.0}
+        assert created_payload["mora"] == {"codigo": "TAXAMENSAL", "taxa": 1.0}
         assert issued.document_id == "12345"
         assert issued.inter_account_id == account.id
         assert issued.inter_codigo_solicitacao == "SOL-NEW-1"
