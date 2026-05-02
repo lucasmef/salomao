@@ -5368,7 +5368,7 @@ textarea {
   }
 
   .entries-list-table--compact .entries-col-title {
-    width: 92px;
+    width: auto;
   }
 
   .entries-list-table--compact .entries-col-flow,
@@ -5383,11 +5383,11 @@ textarea {
   }
 
   .entries-list-table--compact .entries-col-total {
-    width: 46px;
+    width: 52px;
   }
 
   .entries-list-table--compact .entries-col-actions {
-    width: 22px;
+    width: 24px;
   }
 
   .entries-list-table--compact th,
@@ -5399,7 +5399,7 @@ textarea {
 
   .entries-list-table--compact .entries-title-copy strong {
     display: block;
-    max-width: 86px;
+    max-width: 100%;
     font-size: 0.62rem;
     font-weight: 500;
   }
