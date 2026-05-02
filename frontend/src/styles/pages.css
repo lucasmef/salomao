@@ -1750,6 +1750,10 @@ textarea {
 .entries-table-shell {
   max-height: none;
   min-height: 360px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-panel);
+  box-shadow: none;
 }
 
 .entries-list-table .table-sort-button {
@@ -1773,10 +1777,40 @@ textarea {
   min-height: 24px;
   padding: 0 8px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 0.72rem;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.entries-list-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.entries-list-table thead th {
+  height: 36px;
+  border-bottom: 1px solid var(--color-border);
+  background: #f8fafc;
+  color: var(--color-text-muted);
+  font-size: var(--text-xxs);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.entries-list-table tbody td {
+  height: 42px;
+  border-bottom: 1px solid rgba(215, 225, 239, 0.72);
+  color: var(--color-text);
+}
+
+.entries-list-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.entries-list-table tbody tr.is-keyboard-focused td {
+  background: var(--color-primary-soft);
 }
 
 .entries-flow-badge-icon {
@@ -1793,17 +1827,22 @@ textarea {
   height: 14px;
 }
 
-.entries-flow-badge--expense,
 .entries-flow-badge--income {
   background: #edf9f0;
   border-color: #cfead8;
   color: #1f8a46;
 }
 
+.entries-flow-badge--expense {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #b45309;
+}
+
 .entries-flow-badge--transfer {
-  background: #f3f6fa;
-  border-color: #d9e1ec;
-  color: #6b7a90;
+  background: #f8fafc;
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
 }
 
 .entries-date-mobile {
@@ -2021,7 +2060,11 @@ textarea {
 .entries-top-panel {
   display: grid;
   gap: 12px;
-  padding: 12px 14px;
+  padding: var(--space-3);
+  border-color: var(--color-border);
+  border-radius: var(--radius-md);
+  background: #f8fafc;
+  box-shadow: none;
 }
 
 .entries-overview-toolbar {
@@ -2140,10 +2183,10 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid #d7e1ef;
-  border-radius: 14px;
-  background: #ffffff;
-  color: #24364f;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-panel);
+  color: var(--color-text);
   font-weight: 600;
   text-align: left;
 }
@@ -2160,8 +2203,9 @@ textarea {
 .entries-row-menu-trigger:hover,
 .entries-period-trigger:hover,
 .entries-toolbar-icon:hover {
-  border-color: #bdd0ef;
-  background: #f8fbff;
+  border-color: rgba(47, 91, 231, 0.28);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
 }
 
 .entries-toolbar-search {
@@ -2192,10 +2236,10 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #d7e1ef;
-  border-radius: 12px;
-  background: #ffffff;
-  color: #304254;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-panel);
+  color: var(--color-text-muted);
 }
 
 .entries-toolbar-icon svg {
@@ -2213,8 +2257,8 @@ textarea {
 }
 
 .entries-toolbar-icon-primary {
-  border-color: #2f5be7;
-  background: #2f5be7;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
   color: #ffffff;
 }
 
@@ -2387,8 +2431,8 @@ textarea {
 
 .entries-total-row td {
   padding: 0;
-  background: #f8fbff;
-  border-top: 1px solid #d7e1ef;
+  background: #f8fafc;
+  border-top: 1px solid var(--color-border);
 }
 
 .entries-total-summary {
@@ -2400,7 +2444,7 @@ textarea {
   display: grid;
   gap: 4px;
   padding: 10px 12px;
-  border-right: 1px solid #e3ebf5;
+  border-right: 1px solid var(--color-border);
 }
 
 .entries-total-summary div:last-child {
@@ -2409,14 +2453,14 @@ textarea {
 
 .entries-total-summary span {
   font-size: 0.72rem;
-  color: #607087;
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .entries-total-summary strong {
   font-size: 0.88rem;
-  color: #10233c;
+  color: var(--color-text);
   font-variant-numeric: tabular-nums;
 }
 

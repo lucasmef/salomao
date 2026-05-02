@@ -23,6 +23,7 @@ import type {
   CategoryLookups,
   DashboardOverview,
   FeedbackState,
+  FinancialEntry,
   FinancialEntryBulkDeleteResponse,
   FinancialEntryBulkCategoryUpdateResponse,
   FinancialEntryListResponse,
@@ -563,6 +564,14 @@ function buildQuery(params: Record<string, string | boolean | undefined>) {
     query.set(key, String(value));
   });
   return query.toString();
+}
+
+function countOverdueEntries(items: FinancialEntry[]) {
+  const today = toDateInput(new Date());
+  return items.filter((entry) => {
+    const isOpen = entry.status === "open" || entry.status === "planned" || entry.status === "partial";
+    return isOpen && Boolean(entry.due_date) && String(entry.due_date) < today;
+  }).length;
 }
 
 function buildCashflowQuery(params: {
@@ -2922,8 +2931,12 @@ function AppRuntime() {
         ? "Atualizando dados..."
         : "";
   const navBadges: Record<string, { tone?: "neutral" | "urgent" | "info"; count: number }> = {};
-  if (loadedSections.lancamentos && entryList.total > 0) {
-    navBadges.lancamentos = { tone: "info", count: entryList.total };
+  const overdueEntriesBadgeCount = Math.max(
+    countOverdueEntries(entryList.items),
+    Number(dashboard.kpis.overdue_payables ?? 0) + Number(dashboard.kpis.overdue_receivables ?? 0),
+  );
+  if (overdueEntriesBadgeCount > 0) {
+    navBadges.lancamentos = { tone: "urgent", count: overdueEntriesBadgeCount };
   }
   if (loadedSections.conciliacao && reconciliation.overall_unreconciled_count > 0) {
     navBadges.conciliacao = { tone: "urgent", count: reconciliation.overall_unreconciled_count };
