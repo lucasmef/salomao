@@ -5354,6 +5354,8 @@ textarea {
   }
 
   .entries-list-table--compact {
+    --entries-compact-fixed-width: 106px;
+    --entries-compact-fluid-width: calc(100% - var(--entries-compact-fixed-width));
     width: 100%;
     min-width: 360px;
     table-layout: fixed;
@@ -5368,7 +5370,7 @@ textarea {
   }
 
   .entries-list-table--compact .entries-col-title {
-    width: 92px;
+    width: calc(var(--entries-compact-fluid-width) * 0.5);
   }
 
   .entries-list-table--compact .entries-col-flow,
@@ -5379,11 +5381,11 @@ textarea {
   }
 
   .entries-list-table--compact .entries-col-due-date {
-    width: 38px;
+    width: calc(var(--entries-compact-fluid-width) * 0.22);
   }
 
   .entries-list-table--compact .entries-col-total {
-    width: 46px;
+    width: calc(var(--entries-compact-fluid-width) * 0.28);
   }
 
   .entries-list-table--compact .entries-col-actions {
@@ -5399,7 +5401,7 @@ textarea {
 
   .entries-list-table--compact .entries-title-copy strong {
     display: block;
-    max-width: 86px;
+    max-width: 100%;
     font-size: 0.62rem;
     font-weight: 500;
   }
