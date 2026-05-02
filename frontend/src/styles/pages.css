@@ -4623,14 +4623,8 @@ textarea {
     font-size: 0.72rem;
   }
 
-  .entries-list-table .entries-cell-title .cell-stack {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1px;
-  }
-
   .entries-list-table .entries-cell-title .cell-stack span {
-    font-size: 0.62rem;
+    display: none;
   }
 
   .entries-list-table .entries-row-menu-trigger {
