@@ -431,6 +431,8 @@ export function EntriesPage({
     "compact",
   );
   const portalTarget = typeof document !== "undefined" ? document.body : null;
+  const showComfortColumns = entriesDensity === "comfortable";
+  const entriesTableColumnCount = showComfortColumns ? 9 : 7;
 
   const availableCategories = useMemo(
     () =>
@@ -1584,6 +1586,7 @@ export function EntriesPage({
               <button
                 className={entriesDensity === "compact" ? "is-active" : ""}
                 onClick={() => setEntriesDensity("compact")}
+                title="Menos colunas e linhas mais densas"
                 type="button"
               >
                 Compacto
@@ -1591,6 +1594,7 @@ export function EntriesPage({
               <button
                 className={entriesDensity === "comfortable" ? "is-active" : ""}
                 onClick={() => setEntriesDensity("comfortable")}
+                title="Todas as colunas e linhas com mais espaÃ§o"
                 type="button"
               >
                 Conforto
@@ -1673,9 +1677,9 @@ export function EntriesPage({
               <col className="entries-col-select" />
               <col className="entries-col-title" />
               <col className="entries-col-flow" />
-              <col className="entries-col-account col-hide-md" />
+              {showComfortColumns ? <col className="entries-col-account col-hide-md" /> : null}
               <col className="entries-col-category" />
-              <col className="entries-col-status" />
+              {showComfortColumns ? <col className="entries-col-status" /> : null}
               <col className="entries-col-due-date" />
               <col className="entries-col-total" />
               <col className="entries-col-actions" />
@@ -1692,9 +1696,11 @@ export function EntriesPage({
                 </th>
                 <th>{renderTableHeader(entryTableColumnLabels.title, "title")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.flow, "flow")}</th>
-                <th className="entries-th-account col-hide-md">{renderTableHeader(entryTableColumnLabels.account, "account")}</th>
+                {showComfortColumns ? (
+                  <th className="entries-th-account col-hide-md">{renderTableHeader(entryTableColumnLabels.account, "account")}</th>
+                ) : null}
                 <th>{renderTableHeader(entryTableColumnLabels.category, "category")}</th>
-                <th>{renderTableHeader(entryTableColumnLabels.status, "status")}</th>
+                {showComfortColumns ? <th>{renderTableHeader(entryTableColumnLabels.status, "status")}</th> : null}
                 <th>{renderTableHeader(entryTableColumnLabels.due_date, "due_date")}</th>
                 <th className="numeric-cell">{renderTableHeader(entryTableColumnLabels.total_amount, "total_amount", true)}</th>
                 <th className="entries-actions-column">Ações</th>
@@ -1717,13 +1723,13 @@ export function EntriesPage({
                     </div>
                   </td>
                   <td>{renderFlowBadge(entry)}</td>
-                  <td className="entries-td-account col-hide-md">{entry.account_name ?? "-"}</td>
+                  {showComfortColumns ? <td className="entries-td-account col-hide-md">{entry.account_name ?? "-"}</td> : null}
                   <td className="entries-cell-category">
                     <div className="cell-stack">
                       <strong>{entry.category_name ?? "-"}</strong>
                     </div>
                   </td>
-                  <td>{renderStatusBadge(entry.status)}</td>
+                  {showComfortColumns ? <td>{renderStatusBadge(entry.status)}</td> : null}
                   <td>{renderDueDate(entry)}</td>
                   <td className="numeric-cell">{formatEntryTableAmount(entry.total_amount)}</td>
                   <td className="entries-row-actions-cell">
@@ -1749,7 +1755,7 @@ export function EntriesPage({
                             onSelect: () => startEditing(entry),
                           },
                           entry.status !== "settled"
-                            ? { label: "Baixar", onSelect: () => void requestSettlement(entry) }
+                            ? { label: "Baixar", hidden: true, onSelect: () => void requestSettlement(entry) }
                             : { label: "Estornar", onSelect: () => void onReverseEntry(entry.id) },
                           {
                             label: "Excluir",
@@ -1797,7 +1803,7 @@ export function EntriesPage({
               ))}
               {!visibleEntries.length && (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={entriesTableColumnCount}>
                     <div className="premium-empty-state">
                       <div className="empty-state-icon">
                         <svg aria-hidden="true" fill="none" height="32" viewBox="0 0 24 24" width="32">
@@ -1813,7 +1819,7 @@ export function EntriesPage({
             </tbody>
             <tfoot>
               <tr className="entries-total-row">
-                <td colSpan={9}>
+                <td colSpan={entriesTableColumnCount}>
                   <div className="entries-total-summary">
                     <div>
                       <span>Total visível</span>

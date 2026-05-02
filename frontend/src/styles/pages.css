@@ -1951,6 +1951,26 @@ textarea {
   width: 86px;
 }
 
+.entries-list-table--compact .entries-col-title {
+  width: 42%;
+}
+
+.entries-list-table--compact .entries-col-flow {
+  width: 8%;
+}
+
+.entries-list-table--compact .entries-col-category {
+  width: 18%;
+}
+
+.entries-list-table--compact .entries-col-due-date {
+  width: 10%;
+}
+
+.entries-list-table--compact .entries-col-total {
+  width: 10%;
+}
+
 .entries-table-header {
   position: relative;
   display: flex;
