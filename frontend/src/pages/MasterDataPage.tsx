@@ -1,5 +1,13 @@
 import { FormEvent, useMemo, useState } from "react";
 
+import {
+  CategoryGroupIcon,
+  categoryGroupIconOptions,
+  makeCategoryGroupIconKey,
+  readCategoryGroupIconMap,
+  writeCategoryGroupIconConfig,
+  type CategoryGroupIconName,
+} from "../components/CategoryGroupIcon";
 import { PageHeader } from "../components/PageHeader";
 import { Button } from "../components/ui";
 import { formatMoney } from "../lib/format";
@@ -81,7 +89,11 @@ export function MasterDataPage({
   const [categorySubgroupFilter, setCategorySubgroupFilter] = useState("");
   const [categorySortKey, setCategorySortKey] = useState<CategorySortKey | null>(null);
   const [categorySortDirection, setCategorySortDirection] = useState<CategorySortDirection>("asc");
+  const [categoryIconVersion, setCategoryIconVersion] = useState(0);
   const masterDataSectionClass = view === "all" ? "content-grid two-columns" : "content-grid single-column";
+  const categoryGroupIcons = useMemo(() => readCategoryGroupIconMap(), [categoryIconVersion]);
+  const activeCategoryGroupIconKey = makeCategoryGroupIconKey(categoryForm.entry_kind, categoryForm.report_group);
+  const activeCategoryGroupIcon = categoryGroupIcons[activeCategoryGroupIconKey];
 
   const availableGroups = useMemo(
     () => (lookups?.group_options ?? []).filter((item) => item.entry_kind === categoryForm.entry_kind),
@@ -179,6 +191,26 @@ export function MasterDataPage({
       return "↕";
     }
     return categorySortDirection === "asc" ? "↑" : "↓";
+  }
+
+  function updateCategoryGroupIcon(icon: CategoryGroupIconName) {
+    if (!categoryForm.report_group.trim()) {
+      return;
+    }
+    writeCategoryGroupIconConfig(activeCategoryGroupIconKey, { icon });
+    setCategoryIconVersion((current) => current + 1);
+  }
+
+  function uploadCategoryGroupIcon(file: File | null) {
+    if (!file || !categoryForm.report_group.trim()) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      writeCategoryGroupIconConfig(activeCategoryGroupIconKey, { image: String(reader.result ?? "") });
+      setCategoryIconVersion((current) => current + 1);
+    };
+    reader.readAsDataURL(file);
   }
 
   async function handleAccountSubmit(event: FormEvent<HTMLFormElement>) {
@@ -489,6 +521,37 @@ export function MasterDataPage({
                 <option key={`${group.entry_kind}-${group.name}`} value={group.name} />
               ))}
             </datalist>
+            <div className="category-group-icon-editor">
+              <div className="category-group-icon-preview">
+                <span className="entries-cell-icon entries-category-group-icon">
+                  <CategoryGroupIcon config={activeCategoryGroupIcon} group={categoryForm.report_group} />
+                </span>
+                <span>{categoryForm.report_group.trim() || "Informe um grupo"}</span>
+              </div>
+              <div className="category-group-icon-picker" aria-label="Icone do grupo de categoria">
+                {categoryGroupIconOptions.map((option) => (
+                  <button
+                    className={activeCategoryGroupIcon?.icon === option.value ? "is-active" : ""}
+                    disabled={!categoryForm.report_group.trim()}
+                    key={option.value}
+                    onClick={() => updateCategoryGroupIcon(option.value)}
+                    title={option.label}
+                    type="button"
+                  >
+                    <CategoryGroupIcon config={{ icon: option.value }} />
+                  </button>
+                ))}
+              </div>
+              <label className="category-group-icon-upload">
+                Upload do icone
+                <input
+                  accept="image/*"
+                  disabled={!categoryForm.report_group.trim()}
+                  onChange={(event) => uploadCategoryGroupIcon(event.target.files?.[0] ?? null)}
+                  type="file"
+                />
+              </label>
+            </div>
             <label>
               Subgrupo
               <input
@@ -722,7 +785,17 @@ export function MasterDataPage({
                     <td>{category.code ?? "-"}</td>
                     <td>{category.name}</td>
                     <td>{getCategoryKindLabel(category.entry_kind)}</td>
-                    <td>{category.report_group ?? "-"}</td>
+                    <td>
+                      <span className="category-group-cell">
+                        <span className="entries-cell-icon entries-category-group-icon">
+                          <CategoryGroupIcon
+                            config={categoryGroupIcons[makeCategoryGroupIconKey(category.entry_kind, category.report_group)]}
+                            group={category.report_group}
+                          />
+                        </span>
+                        <span>{category.report_group ?? "-"}</span>
+                      </span>
+                    </td>
                     <td>{category.report_subgroup ?? "-"}</td>
                     <td className="numeric-cell">{category.entry_count}</td>
                     <td className="row-actions">

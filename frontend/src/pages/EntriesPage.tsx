@@ -1,5 +1,10 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Select, { type MultiValue, type SingleValue } from "react-select";
+import {
+  CategoryGroupIcon,
+  makeCategoryGroupIconKey,
+  readCategoryGroupIconMap,
+} from "../components/CategoryGroupIcon";
 import { useConfirm } from "../components/ConfirmContext";
 import { MoneyInput } from "../components/MoneyInput";
 import { PageHeader } from "../components/PageHeader";
@@ -149,13 +154,14 @@ type EntryCategoryFilterOption = {
 type EntriesDensity = "compact" | "comfortable";
 type EntryDueState = "overdue" | "today" | "upcoming" | "none";
 type EntryVisualKind = "expense" | "income" | "transfer";
-type EntryPeriodKey = "overdue" | "today" | "7d" | "30d" | "mtd" | "ytd";
+type EntryPeriodKey = "overdue" | "today" | "7d" | "30d" | "mom" | "mtd" | "ytd";
 
 const entryPeriodOptions: { key: EntryPeriodKey; label: string }[] = [
   { key: "overdue", label: "Vencidos" },
   { key: "today", label: "Hoje" },
   { key: "7d", label: "7d" },
   { key: "30d", label: "30d" },
+  { key: "mom", label: "MoM" },
   { key: "mtd", label: "MTD" },
   { key: "ytd", label: "YTD" },
 ];
@@ -325,10 +331,22 @@ function getEntryPeriodRange(key: EntryPeriodKey) {
   if (key === "30d") {
     return { date_from: todayIso, date_to: toIsoInput(addDays(today, 30)) };
   }
-  if (key === "mtd") {
-    return { date_from: toIsoInput(new Date(today.getFullYear(), today.getMonth(), 1)), date_to: todayIso };
+  if (key === "mom") {
+    return {
+      date_from: toIsoInput(new Date(today.getFullYear(), today.getMonth() - 1, 1)),
+      date_to: toIsoInput(new Date(today.getFullYear(), today.getMonth(), 0)),
+    };
   }
-  return { date_from: toIsoInput(new Date(today.getFullYear(), 0, 1)), date_to: todayIso };
+  if (key === "mtd") {
+    return {
+      date_from: toIsoInput(new Date(today.getFullYear(), today.getMonth(), 1)),
+      date_to: toIsoInput(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
+    };
+  }
+  return {
+    date_from: toIsoInput(new Date(today.getFullYear(), 0, 1)),
+    date_to: toIsoInput(new Date(today.getFullYear(), 11, 31)),
+  };
 }
 
 function detectEntryPeriod(filters: Record<string, string | boolean>) {
@@ -381,6 +399,14 @@ function StatusCheckIcon() {
   );
 }
 
+function StatusOpenIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
+      <circle cx="8" cy="8" fill="none" r="4.5" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
 function renderFlowBadge(entry: FinancialEntry) {
   let label = "Transferência";
   let kind: "expense" | "income" | "transfer" = "transfer";
@@ -427,9 +453,9 @@ function renderStatusBadge(status: string) {
   }
 
   return (
-    <span className={`entries-status-badge badge badge-${tone}`}>
+    <span className={`entries-status-badge entries-status-badge--${status} badge badge-${tone}`}>
       <span className="entries-status-badge-icon" aria-hidden="true">
-        <StatusCheckIcon />
+        {status === "settled" || status === "confirmed" ? <StatusCheckIcon /> : <StatusOpenIcon />}
       </span>
       <span className="entries-status-badge-label">{label}</span>
     </span>
@@ -525,13 +551,14 @@ export function EntriesPage({
   const [showCategoryFilter, setShowCategoryFilter] = useState(false);
   const [selectedCategoryFilterKeys, setSelectedCategoryFilterKeys] = useState<string[]>([]);
   const [bulkCategoryId, setBulkCategoryId] = useState("");
+  const [categoryIconVersion, setCategoryIconVersion] = useState(0);
   const [entriesDensity, setEntriesDensity] = usePersistentState<EntriesDensity>(
     "entries-table-density",
     "compact",
   );
   const portalTarget = typeof document !== "undefined" ? document.body : null;
   const showComfortColumns = entriesDensity === "comfortable";
-  const entriesTableColumnCount = showComfortColumns ? 9 : 7;
+  const entriesTableColumnCount = showComfortColumns ? 9 : 8;
 
   const availableCategories = useMemo(
     () =>
@@ -546,6 +573,7 @@ export function EntriesPage({
   );
   const totalPages = Math.max(1, Math.ceil(entryList.total / entryList.page_size));
   const accountsById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
+  const categoryGroupIcons = useMemo(() => readCategoryGroupIconMap(), [categoryIconVersion]);
   const entryPageSizeOptions = useMemo(() => {
     const baseOptions = [
       { value: 50, label: "50" },
@@ -812,6 +840,14 @@ export function EntriesPage({
   }, [allCategoryFilterKeys]);
 
   useEffect(() => {
+    function handleCategoryIconStorage() {
+      setCategoryIconVersion((current) => current + 1);
+    }
+    window.addEventListener("storage", handleCategoryIconStorage);
+    return () => window.removeEventListener("storage", handleCategoryIconStorage);
+  }, []);
+
+  useEffect(() => {
     if (!selectAllCategoryCheckboxRef.current) {
       return;
     }
@@ -999,8 +1035,6 @@ export function EntriesPage({
       <span className={`entries-due-date entries-due-date--${dueState}`}>
         <span className="entries-date-desktop">{formatDate(entry.due_date)}</span>
         <span className="entries-date-mobile">{formatMobileShortDate(entry.due_date)}</span>
-        {dueState === "overdue" ? <small>Vencido</small> : null}
-        {dueState === "today" ? <small>Hoje</small> : null}
       </span>
     );
   }
@@ -1017,7 +1051,6 @@ export function EntriesPage({
   }
 
   function renderTitleCell(entry: FinancialEntry) {
-    const kind = getEntryVisualKind(entry);
     const metaItems = [
       entry.counterparty_name,
       entry.document_number ? `Doc. ${entry.document_number}` : "",
@@ -1027,9 +1060,6 @@ export function EntriesPage({
 
     return (
       <div className="entries-title-cluster">
-        <span className={`entries-ledger-mark entries-ledger-mark--${kind}`}>
-          {kind === "expense" ? <FlowArrowIcon direction="up" /> : kind === "income" ? <FlowArrowIcon direction="down" /> : <TransferIcon />}
-        </span>
         <div className="entries-title-copy">
           <strong>{entry.title}</strong>
           <span>{metaItems.length ? metaItems.join(" Â· ") : "-"}</span>
@@ -1043,8 +1073,12 @@ export function EntriesPage({
     const accountImageUrl = getAccountImageUrl(account);
     const accountLabel = entry.account_name ?? account?.name ?? "-";
 
+    if (entriesDensity === "compact") {
+      return <span className="entries-account-name-only">{accountLabel}</span>;
+    }
+
     return (
-      <span className="entries-icon-cell">
+      <span className="entries-icon-cell entries-icon-cell--icon-only" title={accountLabel}>
         <span className={`entries-cell-icon entries-account-icon ${accountImageUrl ? "has-image" : ""}`}>
           {accountImageUrl ? (
             <img alt="" src={accountImageUrl} />
@@ -1054,20 +1088,21 @@ export function EntriesPage({
             <WalletIcon />
           )}
         </span>
-        <span>{accountLabel}</span>
       </span>
     );
   }
 
   function renderCategoryCell(entry: FinancialEntry) {
+    const iconKey = makeCategoryGroupIconKey(getEntryVisualKind(entry), entry.category_group);
+    const groupIcon = categoryGroupIcons[iconKey];
+
     return (
       <span className="entries-icon-cell entries-icon-cell--stacked">
-        <span className="entries-cell-icon">
-          <TagIcon />
+        <span className="entries-cell-icon entries-category-group-icon" title={entry.category_group ?? "Sem grupo"}>
+          <CategoryGroupIcon config={groupIcon} group={entry.category_group} />
         </span>
         <span>
           <strong>{entry.category_name ?? "-"}</strong>
-          {entry.category_group ? <small>{entry.category_group}</small> : null}
         </span>
       </span>
     );
@@ -1719,7 +1754,7 @@ export function EntriesPage({
               <col className="entries-col-select" />
               <col className="entries-col-title" />
               <col className="entries-col-flow" />
-              {showComfortColumns ? <col className="entries-col-account col-hide-md" /> : null}
+              <col className="entries-col-account col-hide-md" />
               <col className="entries-col-category" />
               {showComfortColumns ? <col className="entries-col-status" /> : null}
               <col className="entries-col-due-date" />
@@ -1738,9 +1773,7 @@ export function EntriesPage({
                 </th>
                 <th>{renderTableHeader(entryTableColumnLabels.title, "title")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.flow, "flow")}</th>
-                {showComfortColumns ? (
-                  <th className="entries-th-account col-hide-md">{renderTableHeader(entryTableColumnLabels.account, "account")}</th>
-                ) : null}
+                <th className="entries-th-account col-hide-md">{renderTableHeader(entryTableColumnLabels.account, "account")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.category, "category")}</th>
                 {showComfortColumns ? <th>{renderTableHeader(entryTableColumnLabels.status, "status")}</th> : null}
                 <th>{renderTableHeader(entryTableColumnLabels.due_date, "due_date")}</th>
@@ -1760,18 +1793,17 @@ export function EntriesPage({
                   </td>
                   <td className="entries-cell-title">{renderTitleCell(entry)}</td>
                   <td>{renderFlowBadge(entry)}</td>
-                  {showComfortColumns ? <td className="entries-td-account col-hide-md">{renderAccountCell(entry)}</td> : null}
+                  <td className="entries-td-account col-hide-md">{renderAccountCell(entry)}</td>
                   <td className="entries-cell-category">{renderCategoryCell(entry)}</td>
                   {showComfortColumns ? <td>{renderStatusBadge(entry.status)}</td> : null}
                   <td>{renderDueDate(entry)}</td>
                   <td className="numeric-cell">{renderEntryAmount(entry)}</td>
                   <td className="entries-row-actions-cell">
-                    {!isTransferEntry(entry) ? (
-                      <div className="entries-row-action-group">
-                        {entry.status !== "settled" ? (
+                    <div className="entries-row-action-group">
+                        {false ? (
                           <button
                             aria-label={`Baixar lanÃ§amento ${entry.title}`}
-                            className="entries-row-settle-button"
+                            className="entries-row-settle-button is-hidden"
                             onClick={() => void requestSettlement(entry)}
                             title="Baixar"
                             type="button"
@@ -1785,15 +1817,16 @@ export function EntriesPage({
                         items={[
                           {
                             label: "Editar",
+                            hidden: isTransferEntry(entry),
                             onSelect: () => startEditing(entry),
                           },
                           entry.status !== "settled"
-                            ? { label: "Baixar", hidden: true, onSelect: () => void requestSettlement(entry) }
-                            : { label: "Estornar", onSelect: () => void onReverseEntry(entry.id) },
+                            ? { label: "Baixar", hidden: isTransferEntry(entry), onSelect: () => void requestSettlement(entry) }
+                            : { label: "Estornar", hidden: isTransferEntry(entry), onSelect: () => void onReverseEntry(entry.id) },
                           {
                             label: "Excluir",
                             tone: "danger",
-                            hidden: !canDeleteEntry(entry),
+                            hidden: isTransferEntry(entry) || !canDeleteEntry(entry),
                             onSelect: () => {
                               if (window.confirm("Excluir este lançamento em aberto?")) {
                                 void onDeleteEntry(entry.id);
@@ -1804,9 +1837,16 @@ export function EntriesPage({
                             label: "Cancelar",
                             tone: "danger",
                             hidden:
+                              isTransferEntry(entry) ||
                               isPurchaseInvoiceEntry(entry) ||
                               !((entry.status === "open" || entry.status === "planned") || entry.status === "partial"),
                             onSelect: () => void onCancelEntry(entry.id),
+                          },
+                          {
+                            label: "Excluir transferencia",
+                            tone: "danger",
+                            hidden: !isTransferEntry(entry),
+                            onSelect: () => void handleDeleteTransfer(entry),
                           },
                         ]}
                         trigger={({ open, toggle }) => (
@@ -1821,16 +1861,7 @@ export function EntriesPage({
                           </button>
                         )}
                       />
-                      </div>
-                    ) : (
-                      <button
-                        className="text-action-button is-danger"
-                        onClick={() => void handleDeleteTransfer(entry)}
-                        type="button"
-                      >
-                        Excluir Transferência
-                      </button>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}
