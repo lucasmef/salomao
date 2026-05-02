@@ -1851,6 +1851,14 @@ textarea {
   gap: 0;
 }
 
+.entries-list-table--compact .entries-title-copy {
+  gap: 0;
+}
+
+.entries-list-table--compact .entries-title-copy span {
+  display: none;
+}
+
 .entries-flow-badge-icon {
   display: inline-flex;
   align-items: center;
@@ -1966,6 +1974,25 @@ textarea {
   color: #607087;
 }
 
+.entries-list-table--compact .entries-status-badge {
+  width: 24px;
+  min-width: 24px;
+  justify-content: center;
+  gap: 0;
+}
+
+.entries-list-table--compact .entries-status-badge-label {
+  display: none;
+}
+
+.entries-list-table--compact .entries-cell-category .entries-icon-cell {
+  display: inline-flex;
+}
+
+.entries-list-table--compact .entries-cell-category .entries-icon-cell > span:last-child {
+  display: none;
+}
+
 .entries-col-select {
   width: 44px;
 }
@@ -2011,11 +2038,15 @@ textarea {
 }
 
 .entries-list-table--compact .entries-col-account {
-  width: 12%;
+  width: 6%;
 }
 
 .entries-list-table--compact .entries-col-category {
-  width: 16%;
+  width: 6%;
+}
+
+.entries-list-table--compact .entries-col-status {
+  width: 6%;
 }
 
 .entries-list-table--compact .entries-col-due-date {
@@ -2271,19 +2302,12 @@ textarea {
   object-fit: cover;
 }
 
-.entries-account-name-only {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text);
-  font-size: 0.74rem;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.entries-list-table--compact .entries-account-display {
+  display: inline-flex;
 }
 
-.entries-icon-cell--icon-only {
-  display: inline-flex;
+.entries-list-table--compact .entries-account-display > span:last-child {
+  display: none;
 }
 
 .entries-category-group-icon svg,

@@ -558,7 +558,7 @@ export function EntriesPage({
   );
   const portalTarget = typeof document !== "undefined" ? document.body : null;
   const showComfortColumns = entriesDensity === "comfortable";
-  const entriesTableColumnCount = showComfortColumns ? 9 : 8;
+  const entriesTableColumnCount = 9;
 
   const availableCategories = useMemo(
     () =>
@@ -1073,12 +1073,8 @@ export function EntriesPage({
     const accountImageUrl = getAccountImageUrl(account);
     const accountLabel = entry.account_name ?? account?.name ?? "-";
 
-    if (entriesDensity === "compact") {
-      return <span className="entries-account-name-only">{accountLabel}</span>;
-    }
-
     return (
-      <span className="entries-icon-cell entries-icon-cell--icon-only" title={accountLabel}>
+      <span className="entries-icon-cell entries-account-display" title={accountLabel}>
         <span className={`entries-cell-icon entries-account-icon ${accountImageUrl ? "has-image" : ""}`}>
           {accountImageUrl ? (
             <img alt="" src={accountImageUrl} />
@@ -1088,6 +1084,7 @@ export function EntriesPage({
             <WalletIcon />
           )}
         </span>
+        {entriesDensity === "comfortable" ? <span>{accountLabel}</span> : null}
       </span>
     );
   }
@@ -1756,7 +1753,7 @@ export function EntriesPage({
               <col className="entries-col-flow" />
               <col className="entries-col-account col-hide-md" />
               <col className="entries-col-category" />
-              {showComfortColumns ? <col className="entries-col-status" /> : null}
+              <col className="entries-col-status" />
               <col className="entries-col-due-date" />
               <col className="entries-col-total" />
               <col className="entries-col-actions" />
@@ -1775,7 +1772,7 @@ export function EntriesPage({
                 <th>{renderTableHeader(entryTableColumnLabels.flow, "flow")}</th>
                 <th className="entries-th-account col-hide-md">{renderTableHeader(entryTableColumnLabels.account, "account")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.category, "category")}</th>
-                {showComfortColumns ? <th>{renderTableHeader(entryTableColumnLabels.status, "status")}</th> : null}
+                <th>{renderTableHeader(entryTableColumnLabels.status, "status")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.due_date, "due_date")}</th>
                 <th className="numeric-cell">{renderTableHeader(entryTableColumnLabels.total_amount, "total_amount", true)}</th>
                 <th className="entries-actions-column">Ações</th>
@@ -1795,7 +1792,7 @@ export function EntriesPage({
                   <td>{renderFlowBadge(entry)}</td>
                   <td className="entries-td-account col-hide-md">{renderAccountCell(entry)}</td>
                   <td className="entries-cell-category">{renderCategoryCell(entry)}</td>
-                  {showComfortColumns ? <td>{renderStatusBadge(entry.status)}</td> : null}
+                  <td>{renderStatusBadge(entry.status)}</td>
                   <td>{renderDueDate(entry)}</td>
                   <td className="numeric-cell">{renderEntryAmount(entry)}</td>
                   <td className="entries-row-actions-cell">
