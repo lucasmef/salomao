@@ -1902,6 +1902,17 @@ textarea {
   display: none;
 }
 
+.entries-list-table--compact .entries-flow-badge {
+  width: 24px;
+  min-width: 24px;
+  justify-content: center;
+  padding: 0;
+}
+
+.entries-list-table--compact .entries-flow-badge-label {
+  display: none;
+}
+
 .entries-date-mobile {
   display: none;
 }
@@ -2034,7 +2045,7 @@ textarea {
 }
 
 .entries-list-table--compact .entries-col-flow {
-  width: 8%;
+  width: 6%;
 }
 
 .entries-list-table--compact .entries-col-account {

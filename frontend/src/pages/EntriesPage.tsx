@@ -144,7 +144,7 @@ const entryTableColumnLabels: Record<EntryTableColumnKey, string> = {
   category: "Categoria",
   status: "Status",
   due_date: "Vencimento",
-  total_amount: "Total",
+  total_amount: "Valor",
 };
 type EntryCategoryFilterOption = {
   key: string;
@@ -1211,17 +1211,21 @@ export function EntriesPage({
     const sortDirection = tableSort?.key === column ? tableSort.direction : null;
     const showCategoryFilterTrigger = column === "category";
     const isCategoryFilterActive = !allCategoriesSelected;
+    const compactIconOnlyHeader =
+      entriesDensity === "compact" && ["flow", "account", "category", "status"].includes(column);
+    const visibleLabel = compactIconOnlyHeader ? "" : label;
     return (
       <div
         className={`entries-table-header ${numeric ? "is-numeric" : ""}`.trim()}
         ref={showCategoryFilterTrigger && showCategoryFilter ? categoryFilterPopoverRef : null}
       >
         <button
+          aria-label={label}
           className={`table-sort-button ${numeric ? "numeric" : ""}`.trim()}
           onClick={() => toggleTableSort(column)}
           type="button"
         >
-          <strong>{label}</strong>
+          <strong>{visibleLabel}</strong>
           {sortDirection ? (
             <span className="table-sort-indicator is-active">
               <SortDirectionIcon direction={sortDirection} />
@@ -1753,8 +1757,8 @@ export function EntriesPage({
               <col className="entries-col-flow" />
               <col className="entries-col-account col-hide-md" />
               <col className="entries-col-category" />
-              <col className="entries-col-status" />
               <col className="entries-col-due-date" />
+              <col className="entries-col-status" />
               <col className="entries-col-total" />
               <col className="entries-col-actions" />
             </colgroup>
@@ -1772,8 +1776,8 @@ export function EntriesPage({
                 <th>{renderTableHeader(entryTableColumnLabels.flow, "flow")}</th>
                 <th className="entries-th-account col-hide-md">{renderTableHeader(entryTableColumnLabels.account, "account")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.category, "category")}</th>
-                <th>{renderTableHeader(entryTableColumnLabels.status, "status")}</th>
                 <th>{renderTableHeader(entryTableColumnLabels.due_date, "due_date")}</th>
+                <th>{renderTableHeader(entryTableColumnLabels.status, "status")}</th>
                 <th className="numeric-cell">{renderTableHeader(entryTableColumnLabels.total_amount, "total_amount", true)}</th>
                 <th className="entries-actions-column">Ações</th>
               </tr>
@@ -1792,8 +1796,8 @@ export function EntriesPage({
                   <td>{renderFlowBadge(entry)}</td>
                   <td className="entries-td-account col-hide-md">{renderAccountCell(entry)}</td>
                   <td className="entries-cell-category">{renderCategoryCell(entry)}</td>
-                  <td>{renderStatusBadge(entry.status)}</td>
                   <td>{renderDueDate(entry)}</td>
+                  <td>{renderStatusBadge(entry.status)}</td>
                   <td className="numeric-cell">{renderEntryAmount(entry)}</td>
                   <td className="entries-row-actions-cell">
                     <div className="entries-row-action-group">
