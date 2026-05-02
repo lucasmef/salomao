@@ -673,6 +673,16 @@ export function EntriesPage({
     () => Math.max(Number(entryList.total_amount) - Number(entryList.paid_amount), 0).toFixed(2),
     [entryList.paid_amount, entryList.total_amount],
   );
+  const openEntriesCount = useMemo(
+    () =>
+      visibleEntries.filter((entry) => entry.status === "open" || entry.status === "planned" || entry.status === "partial")
+        .length,
+    [visibleEntries],
+  );
+  const selectedEntriesAmount = useMemo(
+    () => selectedEntries.reduce((total, entry) => total + Number(entry.total_amount), 0),
+    [selectedEntries],
+  );
   const entryPreviewTotal = useMemo(() => {
     const principal = Number(normalizePtBrMoneyInput(form.principal_amount) || "0");
     const interest = Number(normalizePtBrMoneyInput(form.interest_amount) || "0");
@@ -1192,6 +1202,10 @@ export function EntriesPage({
     setShowTransferModal(true);
   }
 
+  const entriesPeriodLabel = formatRangeLabel(String(filters.date_from ?? ""), String(filters.date_to ?? ""));
+  const entriesContextLabel =
+    entriesPeriodLabel === "Selecionar perÃ­odo" ? "LANÃ‡AMENTOS" : `LANÃ‡AMENTOS Â· ${entriesPeriodLabel}`;
+
   return (
     <div className="page-layout">
       {!embedded && (
@@ -1199,6 +1213,50 @@ export function EntriesPage({
           title="Lançamentos"
         />
       )}
+
+      <section className="entries-overview-toolbar">
+        <div className="entries-overview-copy">
+          <span className="entries-overview-eyebrow">{entriesContextLabel}</span>
+          <h2>
+            Controle de <span>lanÃ§amentos</span>.
+          </h2>
+          <p>
+            {entryList.total} registros encontrados, {openEntriesCount} em aberto nesta pÃ¡gina e{" "}
+            {selectedEntryIds.length} selecionado(s) para aÃ§Ã£o.
+          </p>
+        </div>
+        <div className="entries-overview-actions">
+          <Button type="button" variant="secondary" onClick={openTransferModal}>
+            Transferir
+          </Button>
+          <Button type="button" onClick={openEntryModal}>
+            Novo lanÃ§amento
+          </Button>
+        </div>
+      </section>
+
+      <section className="entries-kpi-strip">
+        <article className="entries-kpi-card">
+          <span>Total filtrado</span>
+          <strong>{formatMoney(entryList.total_amount)}</strong>
+          <small>{entryList.total} registros na consulta</small>
+        </article>
+        <article className="entries-kpi-card">
+          <span>Baixado</span>
+          <strong>{formatMoney(entryList.paid_amount)}</strong>
+          <small>{formatMoney(openAmount)} ainda em aberto</small>
+        </article>
+        <article className="entries-kpi-card">
+          <span>PÃ¡gina atual</span>
+          <strong>{formatMoney(visibleTotalAmount)}</strong>
+          <small>{formatMoney(visibleOpenAmount)} aberto na pÃ¡gina</small>
+        </article>
+        <article className="entries-kpi-card entries-kpi-card-hero">
+          <span>Selecionado</span>
+          <strong>{formatMoney(selectedEntriesAmount)}</strong>
+          <small>{selectedEntryIds.length ? `${selectedEntryIds.length} item(ns) marcados` : "Nenhum item marcado"}</small>
+        </article>
+      </section>
 
       <section className="section-toolbar-panel entries-top-panel">
         <div className="entries-toolbar-bar">
