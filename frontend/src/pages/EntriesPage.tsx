@@ -199,6 +199,62 @@ function MoreVerticalIcon() {
   );
 }
 
+function ArrowDownCircleIcon() {
+  return (
+    <svg aria-hidden="true" className="badge-icon" viewBox="0 0 16 16">
+      <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM8.75 4.75a.75.75 0 0 0-1.5 0v4.69L5.78 7.97a.75.75 0 1 0-1.06 1.06l2.75 2.75a.75.75 0 0 0 1.06 0l2.75-2.75a.75.75 0 1 0-1.06-1.06L8.75 9.44V4.75Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ArrowUpCircleIcon() {
+  return (
+    <svg aria-hidden="true" className="badge-icon" viewBox="0 0 16 16">
+      <path d="M8 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13ZM7.25 11.25a.75.75 0 0 0 1.5 0V6.56l1.47 1.47a.75.75 0 1 0 1.06-1.06L8.53 4.22a.75.75 0 0 0-1.06 0L4.72 6.97a.75.75 0 1 0 1.06 1.06l1.47-1.47v4.69Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ArrowsExchangeCircleIcon() {
+  return (
+    <svg aria-hidden="true" className="badge-icon" viewBox="0 0 16 16">
+      <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM4.22 6.22a.75.75 0 0 1 0-1.06l1.5-1.5a.75.75 0 0 1 1.06 1.06l-.22.22h4.19a.75.75 0 0 1 0 1.5H6.56l.22.22a.75.75 0 0 1-1.06 1.06l-1.5-1.5Zm7.56 3.56a.75.75 0 0 1 0 1.06l-1.5 1.5a.75.75 0 0 1-1.06-1.06l.22-.22H5.25a.75.75 0 0 1 0-1.5h4.19l-.22-.22a.75.75 0 1 1 1.06-1.06l1.5 1.5Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function CheckCircleIcon() {
+  return (
+    <svg aria-hidden="true" className="badge-icon" viewBox="0 0 16 16">
+      <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm3.28 4.97a.75.75 0 0 1 0 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0L4.72 9.03a.75.75 0 1 1 1.06-1.06l1.47 1.47 2.97-2.97a.75.75 0 0 1 1.06 0Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function ClockCircleIcon() {
+  return (
+    <svg aria-hidden="true" className="badge-icon" viewBox="0 0 16 16">
+      <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM8.75 4.75a.75.75 0 0 0-1.5 0V8c0 .2.08.39.22.53l2 2a.75.75 0 1 0 1.06-1.06L8.75 7.69V4.75Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function XCircleIcon() {
+  return (
+    <svg aria-hidden="true" className="badge-icon" viewBox="0 0 16 16">
+      <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM5.78 5.78a.75.75 0 0 1 1.06 0L8 6.94l1.16-1.16a.75.75 0 1 1 1.06 1.06L9.06 8l1.16 1.16a.75.75 0 1 1-1.06 1.06L8 9.06 6.84 10.22a.75.75 0 1 1-1.06-1.06L6.94 8 5.78 6.84a.75.75 0 0 1 0-1.06Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function HalfCircleIcon() {
+  return (
+    <svg aria-hidden="true" className="badge-icon" viewBox="0 0 16 16">
+      <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm0 1.5v10a5 5 0 0 0 0-10Z" fill="currentColor" />
+    </svg>
+  );
+}
+
 function SortDirectionIcon({ direction }: { direction: "asc" | "desc" | null }) {
   if (direction === "asc") {
     return (
@@ -268,45 +324,68 @@ function getEntrySortValue(entry: FinancialEntry, column: EntryTableColumnKey) {
 function renderFlowBadge(entry: FinancialEntry) {
   let label = "Transferência";
   let tone: "info" | "danger" | "neutral" = "info";
+  let Icon = ArrowsExchangeCircleIcon;
 
   if (entry.transfer_id) {
     if (entry.transfer_direction === "outflow") {
       label = "Saída";
       tone = "danger";
+      Icon = ArrowDownCircleIcon;
     } else if (entry.transfer_direction === "inflow") {
       label = "Entrada";
       tone = "info";
+      Icon = ArrowUpCircleIcon;
     }
   } else if (entry.entry_type === "expense") {
     label = "Pagar";
     tone = "danger";
+    Icon = ArrowDownCircleIcon;
   } else if (entry.entry_type === "income") {
     label = "Receber";
     tone = "info";
+    Icon = ArrowUpCircleIcon;
   }
 
-  return <span className={`badge badge-${tone}`}>{label}</span>;
+  return (
+    <span className={`badge badge-${tone}`} title={label}>
+      <Icon />
+      <span className="badge-label">{label}</span>
+    </span>
+  );
 }
 
 function renderStatusBadge(status: string) {
   const label = formatEntryStatus(status);
   let tone: "success" | "warning" | "danger" | "neutral" = "neutral";
+  let Icon = ClockCircleIcon;
 
   switch (status) {
     case "settled":
     case "confirmed":
       tone = "success";
+      Icon = CheckCircleIcon;
       break;
     case "planned":
     case "open":
       tone = "warning";
+      Icon = ClockCircleIcon;
+      break;
+    case "partial":
+      tone = "warning";
+      Icon = HalfCircleIcon;
       break;
     case "cancelled":
       tone = "danger";
+      Icon = XCircleIcon;
       break;
   }
 
-  return <span className={`badge badge-${tone}`}>{label}</span>;
+  return (
+    <span className={`badge badge-${tone}`} title={label}>
+      <Icon />
+      <span className="badge-label">{label}</span>
+    </span>
+  );
 }
 
 export function EntriesPage({

@@ -4617,15 +4617,29 @@ textarea {
   }
 
   .entries-list-table .badge {
-    padding: 1px 3px;
-    font-size: 0.55rem;
-    letter-spacing: 0;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: inline-block;
-    vertical-align: middle;
+    padding: 2px;
+    gap: 0;
+    border-radius: 999px;
+    background: transparent;
+    border: 0;
+    color: inherit;
   }
+
+  .entries-list-table .badge .badge-icon {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+  }
+
+  .entries-list-table .badge .badge-label {
+    display: none;
+  }
+
+  .entries-list-table .badge-success { color: #16a34a; }
+  .entries-list-table .badge-danger { color: #dc2626; }
+  .entries-list-table .badge-warning { color: #d97706; }
+  .entries-list-table .badge-info { color: #2563eb; }
+  .entries-list-table .badge-neutral { color: #64748b; }
 
   .entries-list-table .cell-stack strong {
     font-size: 0.7rem;
