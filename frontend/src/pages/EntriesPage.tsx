@@ -1801,7 +1801,7 @@ export function EntriesPage({
             {selectedSettleBlockedCount} item(ns) selecionado(s) não podem ser baixados em lote porque não possuem conta definida.
           </p>
         )}
-        <div className="table-shell table-shell--scroll entries-table-shell">
+        <div className={`table-shell table-shell--scroll entries-table-shell entries-table-shell--${entriesDensity}`}>
           <table className={`erp-table erp-table--compact erp-table--responsive entries-list-table entries-list-table--${entriesDensity}`}>
             <colgroup>
               <col className="entries-col-select" />

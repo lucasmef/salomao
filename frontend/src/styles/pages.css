@@ -5354,10 +5354,8 @@ textarea {
   }
 
   .entries-list-table--compact {
-    --entries-compact-fixed-width: 106px;
-    --entries-compact-fluid-width: calc(100% - var(--entries-compact-fixed-width));
     width: 100%;
-    min-width: 360px;
+    min-width: 0;
     table-layout: fixed;
   }
 
@@ -5365,31 +5363,38 @@ textarea {
     scrollbar-gutter: auto;
   }
 
+  .entries-table-shell--compact {
+    overflow-x: hidden;
+  }
+
   .entries-list-table--compact .entries-col-select {
-    width: 24px;
+    width: 7%;
   }
 
   .entries-list-table--compact .entries-col-title {
-    width: calc(var(--entries-compact-fluid-width) * 0.5);
+    width: 30%;
   }
 
   .entries-list-table--compact .entries-col-flow,
-  .entries-list-table--compact .entries-col-account,
   .entries-list-table--compact .entries-col-category,
   .entries-list-table--compact .entries-col-status {
-    width: 20px;
+    width: 7%;
+  }
+
+  .entries-list-table--compact .entries-col-account {
+    width: 0;
   }
 
   .entries-list-table--compact .entries-col-due-date {
-    width: calc(var(--entries-compact-fluid-width) * 0.22);
+    width: 14%;
   }
 
   .entries-list-table--compact .entries-col-total {
-    width: calc(var(--entries-compact-fluid-width) * 0.28);
+    width: 17%;
   }
 
   .entries-list-table--compact .entries-col-actions {
-    width: 22px;
+    width: 11%;
   }
 
   .entries-list-table--compact th,
@@ -5992,6 +5997,10 @@ textarea {
 
   .entries-page-layout .table-shell {
     overflow-x: auto;
+  }
+
+  .entries-page-layout .entries-table-shell--compact {
+    overflow-x: hidden;
   }
 
   .entries-list-table--compact {
