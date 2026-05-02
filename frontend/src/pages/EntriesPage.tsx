@@ -148,6 +148,7 @@ type EntryCategoryFilterOption = {
 };
 type EntriesDensity = "compact" | "comfortable";
 type EntryDueState = "overdue" | "today" | "upcoming" | "none";
+type EntryVisualKind = "expense" | "income" | "transfer";
 
 function CalendarRangeIcon() {
   return (
@@ -369,8 +370,42 @@ function renderStatusBadge(status: string) {
   );
 }
 
+function WalletIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
+      <path d="M2.75 3.25h9.5A1.75 1.75 0 0 1 14 5v6a1.75 1.75 0 0 1-1.75 1.75h-9.5A1.75 1.75 0 0 1 1 11V5a1.75 1.75 0 0 1 1.75-1.75Zm0 1.5A.25.25 0 0 0 2.5 5v6c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V8.5h-2.25a2 2 0 0 1 0-4h2A.25.25 0 0 0 12 4.75h-9.25Zm7.5 1.25a.5.5 0 0 0 0 1H12.5V6h-2.25Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function TagIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
+      <path d="M2.5 3.75A1.25 1.25 0 0 1 3.75 2.5h3.6c.332 0 .65.132.884.366l5.15 5.15a1.25 1.25 0 0 1 0 1.768l-3.6 3.6a1.25 1.25 0 0 1-1.768 0l-5.15-5.15A1.25 1.25 0 0 1 2.5 7.35v-3.6Zm2.75.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function DocumentIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
+      <path d="M4.25 1.75h4.7c.332 0 .65.132.884.366l2.05 2.05c.234.234.366.552.366.884v7.7a1.5 1.5 0 0 1-1.5 1.5h-6.5a1.5 1.5 0 0 1-1.5-1.5v-9.5a1.5 1.5 0 0 1 1.5-1.5Zm4.5 1.5v2a.75.75 0 0 0 .75.75h2l-2.75-2.75ZM5 8a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5H5Zm0 3a.75.75 0 0 0 0 1.5h3.5a.75.75 0 0 0 0-1.5H5Z" fill="currentColor" />
+    </svg>
+  );
+}
+
 function isOpenEntryStatus(status: string) {
   return status === "open" || status === "planned" || status === "partial";
+}
+
+function getEntryVisualKind(entry: FinancialEntry): EntryVisualKind {
+  if (entry.transfer_id || entry.entry_type === "transfer") {
+    return "transfer";
+  }
+  if (entry.entry_type === "income" || entry.entry_type === "historical_receipt" || entry.entry_type === "historical_purchase_return") {
+    return "income";
+  }
+  return "expense";
 }
 
 export function EntriesPage({
@@ -956,6 +991,70 @@ export function EntriesPage({
         {dueState === "today" ? <small>Hoje</small> : null}
       </span>
     );
+  }
+
+  function getEntryRowClass(entry: FinancialEntry, index: number) {
+    const classes = [
+      index === focusedRowIndex ? "is-keyboard-focused" : "",
+      selectedEntryIds.includes(entry.id) ? "is-selected" : "",
+      `entries-row--${getEntryVisualKind(entry)}`,
+      `entries-row--due-${getEntryDueState(entry)}`,
+      entry.status === "settled" ? "entries-row--settled" : "",
+    ];
+    return classes.filter(Boolean).join(" ");
+  }
+
+  function renderTitleCell(entry: FinancialEntry) {
+    const kind = getEntryVisualKind(entry);
+    const metaItems = [
+      entry.counterparty_name,
+      entry.document_number ? `Doc. ${entry.document_number}` : "",
+      entry.account_name,
+      entry.source_system,
+    ].filter(Boolean);
+
+    return (
+      <div className="entries-title-cluster">
+        <span className={`entries-ledger-mark entries-ledger-mark--${kind}`}>
+          {kind === "expense" ? <FlowArrowIcon direction="up" /> : kind === "income" ? <FlowArrowIcon direction="down" /> : <TransferIcon />}
+        </span>
+        <div className="entries-title-copy">
+          <strong>{entry.title}</strong>
+          <span>{metaItems.length ? metaItems.join(" Â· ") : "-"}</span>
+        </div>
+      </div>
+    );
+  }
+
+  function renderAccountCell(entry: FinancialEntry) {
+    return (
+      <span className="entries-icon-cell">
+        <span className="entries-cell-icon">
+          <WalletIcon />
+        </span>
+        <span>{entry.account_name ?? "-"}</span>
+      </span>
+    );
+  }
+
+  function renderCategoryCell(entry: FinancialEntry) {
+    return (
+      <span className="entries-icon-cell entries-icon-cell--stacked">
+        <span className="entries-cell-icon">
+          <TagIcon />
+        </span>
+        <span>
+          <strong>{entry.category_name ?? "-"}</strong>
+          {entry.category_group ? <small>{entry.category_group}</small> : null}
+        </span>
+      </span>
+    );
+  }
+
+  function renderEntryAmount(entry: FinancialEntry) {
+    const kind = getEntryVisualKind(entry);
+    const prefix = kind === "income" ? "+" : kind === "expense" ? "-" : "";
+    return <span className={`entries-amount entries-amount--${kind}`}>{prefix}{formatEntryTableAmount(entry.total_amount)}</span>;
   }
 
   async function handleDeleteTransfer(entry: FinancialEntry) {
@@ -1708,7 +1807,7 @@ export function EntriesPage({
             </thead>
             <tbody>
               {visibleEntries.map((entry, index) => (
-                <tr className={index === focusedRowIndex ? "is-keyboard-focused" : ""} key={entry.id}>
+                <tr className={getEntryRowClass(entry, index)} key={entry.id}>
                   <td className="checkbox-cell">
                     <input
                       checked={selectedEntryIds.includes(entry.id)}
@@ -1716,22 +1815,13 @@ export function EntriesPage({
                       type="checkbox"
                     />
                   </td>
-                  <td className="entries-cell-title">
-                    <div className="cell-stack">
-                      <strong>{entry.title}</strong>
-                      <span>{entry.counterparty_name ?? entry.document_number ?? entry.source_system ?? "-"}</span>
-                    </div>
-                  </td>
+                  <td className="entries-cell-title">{renderTitleCell(entry)}</td>
                   <td>{renderFlowBadge(entry)}</td>
-                  {showComfortColumns ? <td className="entries-td-account col-hide-md">{entry.account_name ?? "-"}</td> : null}
-                  <td className="entries-cell-category">
-                    <div className="cell-stack">
-                      <strong>{entry.category_name ?? "-"}</strong>
-                    </div>
-                  </td>
+                  {showComfortColumns ? <td className="entries-td-account col-hide-md">{renderAccountCell(entry)}</td> : null}
+                  <td className="entries-cell-category">{renderCategoryCell(entry)}</td>
                   {showComfortColumns ? <td>{renderStatusBadge(entry.status)}</td> : null}
                   <td>{renderDueDate(entry)}</td>
-                  <td className="numeric-cell">{formatEntryTableAmount(entry.total_amount)}</td>
+                  <td className="numeric-cell">{renderEntryAmount(entry)}</td>
                   <td className="entries-row-actions-cell">
                     {!isTransferEntry(entry) ? (
                       <div className="entries-row-action-group">

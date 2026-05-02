@@ -1794,7 +1794,7 @@ textarea {
   background: #f8fafc;
   color: var(--color-text-muted);
   font-size: var(--text-xxs);
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -1803,6 +1803,7 @@ textarea {
   height: 42px;
   border-bottom: 1px solid rgba(215, 225, 239, 0.72);
   color: var(--color-text);
+  transition: background var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .entries-list-table tbody tr:hover td {
@@ -1813,8 +1814,46 @@ textarea {
   background: var(--color-primary-soft);
 }
 
+.entries-list-table tbody tr.is-selected td {
+  background: #f5f8ff;
+}
+
+.entries-list-table tbody tr.entries-row--due-overdue td {
+  background: #fffafa;
+}
+
+.entries-list-table tbody tr.entries-row--due-today td {
+  background: #fffdf7;
+}
+
+.entries-list-table tbody tr.entries-row--settled td {
+  color: #66758c;
+}
+
+.entries-list-table tbody tr.entries-row--settled .entries-title-copy strong {
+  color: #526173;
+}
+
+.entries-list-table tbody tr.entries-row--income:hover td {
+  background: #f7fcf9;
+}
+
+.entries-list-table tbody tr.entries-row--expense:hover td {
+  background: #fffaf5;
+}
+
 .entries-list-table--comfortable tbody td {
   height: 54px;
+}
+
+.entries-list-table--compact .entries-title-cluster {
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.entries-list-table--compact .entries-ledger-mark {
+  width: 24px;
+  height: 24px;
 }
 
 .entries-flow-badge-icon {
@@ -1871,13 +1910,13 @@ textarea {
   padding: 0 7px;
   border-radius: var(--radius-pill);
   font-size: 0.66rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1;
 }
 
 .entries-due-date--overdue {
   color: #b42318;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .entries-due-date--overdue small {
@@ -1887,7 +1926,7 @@ textarea {
 
 .entries-due-date--today {
   color: #b7791f;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .entries-due-date--today small {
@@ -2016,6 +2055,7 @@ textarea {
 }
 
 .entries-column-filter-popover {
+  z-index: 100;
   width: min(280px, calc(100vw - 48px));
 }
 
@@ -2067,6 +2107,7 @@ textarea {
 
 .entries-category-filter-text strong {
   font-size: 0.76rem;
+  font-weight: 600;
 }
 
 .entries-category-filter-text small {
@@ -2099,6 +2140,150 @@ textarea {
 .entries-list-table .cell-stack span {
   color: #6b7a90;
   font-size: 0.72rem;
+}
+
+.entries-list-table .cell-stack strong {
+  font-weight: 600;
+}
+
+.entries-title-cluster {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.entries-ledger-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--color-text-muted);
+}
+
+.entries-ledger-mark svg {
+  width: 15px;
+  height: 15px;
+}
+
+.entries-ledger-mark--income {
+  border-color: #cfead8;
+  background: #edf9f0;
+  color: #1f8a46;
+}
+
+.entries-ledger-mark--expense {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #b45309;
+}
+
+.entries-ledger-mark--transfer {
+  border-color: #d9e1ec;
+  background: #f8fafc;
+  color: #607087;
+}
+
+.entries-title-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.entries-title-copy strong,
+.entries-title-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entries-title-copy strong {
+  color: var(--color-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.entries-title-copy span {
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
+.entries-icon-cell {
+  display: inline-grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.entries-cell-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: #f2f6fc;
+  color: #607087;
+}
+
+.entries-cell-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.entries-icon-cell > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entries-icon-cell--stacked > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.entries-icon-cell--stacked strong,
+.entries-icon-cell--stacked small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entries-icon-cell--stacked strong {
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.entries-icon-cell--stacked small {
+  color: var(--color-text-muted);
+  font-size: 0.66rem;
+}
+
+.entries-amount {
+  display: inline-flex;
+  justify-content: flex-end;
+  min-width: 82px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.entries-amount--income {
+  color: #1f8a46;
+}
+
+.entries-amount--expense {
+  color: #b45309;
+}
+
+.entries-amount--transfer {
+  color: var(--color-text);
 }
 
 .entries-cell-title .cell-stack strong {
@@ -2153,7 +2338,7 @@ textarea {
   border-radius: 8px;
   background: var(--color-panel);
   color: var(--color-text);
-  font-weight: 600;
+  font-weight: 500;
   text-align: left;
 }
 
@@ -2205,7 +2390,7 @@ textarea {
   background: var(--color-panel);
   color: var(--color-text-muted);
   font-size: 0.74rem;
-  font-weight: 800;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -2281,7 +2466,7 @@ textarea {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  z-index: 20;
+  z-index: 80;
   padding: 12px;
   border: 1px solid #d7e1ef;
   border-radius: 14px;
@@ -2314,6 +2499,7 @@ textarea {
 }
 
 .entries-icon-menu {
+  z-index: 90;
   min-width: 180px;
   padding: 6px;
   display: grid;
@@ -2338,6 +2524,7 @@ textarea {
 }
 
 .entries-bulk-panel {
+  z-index: 90;
   left: auto;
   right: 0;
   width: min(520px, calc(100vw - 48px));
@@ -2398,7 +2585,7 @@ textarea {
   background: transparent;
   color: var(--color-text-muted);
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .entries-density-toggle button.is-active {
@@ -2427,12 +2614,13 @@ textarea {
 .entries-selection-copy strong {
   color: var(--color-text);
   font-size: 0.82rem;
+  font-weight: 600;
 }
 
 .entries-selection-copy span {
   color: var(--color-text-muted);
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .entries-selection-actions {
@@ -2497,7 +2685,7 @@ textarea {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  z-index: 15;
+  z-index: 90;
   min-width: 150px;
   padding: 6px;
   display: grid;
