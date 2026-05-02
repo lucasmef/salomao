@@ -5364,46 +5364,68 @@ textarea {
   }
 
   .entries-list-table--compact .entries-col-select {
-    width: 7%;
+    width: 6%;
   }
 
   .entries-list-table--compact .entries-col-title {
-    width: 31%;
+    width: 30%;
   }
 
   .entries-list-table--compact .entries-col-flow,
   .entries-list-table--compact .entries-col-account,
   .entries-list-table--compact .entries-col-category,
   .entries-list-table--compact .entries-col-status {
-    width: 7%;
+    width: 6%;
   }
 
   .entries-list-table--compact .entries-col-due-date {
-    width: 12%;
+    width: 13%;
   }
 
   .entries-list-table--compact .entries-col-total {
-    width: 15%;
+    width: 17%;
   }
 
   .entries-list-table--compact .entries-col-actions {
-    width: 9%;
+    width: 10%;
   }
 
   .entries-list-table--compact th,
   .entries-list-table--compact td {
     padding-right: 1px;
     padding-left: 1px;
+    overflow: hidden;
   }
 
   .entries-list-table--compact .entries-title-copy strong {
-    font-size: 0.64rem;
+    font-size: 0.62rem;
     font-weight: 500;
   }
 
   .entries-list-table--compact .entries-amount {
     min-width: 0;
-    font-size: 0.64rem;
+    font-size: 0.62rem;
+  }
+
+  .entries-list-table--compact .entries-flow-badge,
+  .entries-list-table--compact .entries-status-badge {
+    width: 18px;
+    min-width: 18px;
+    min-height: 18px;
+    padding: 0;
+  }
+
+  .entries-list-table--compact .entries-cell-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+  }
+
+  .entries-list-table--compact .entries-cell-icon svg,
+  .entries-list-table--compact .entries-flow-badge-icon .button-icon,
+  .entries-list-table--compact .entries-status-badge-icon .button-icon {
+    width: 11px;
+    height: 11px;
   }
 
   .entries-list-table--compact .entries-actions-column {
@@ -5411,9 +5433,9 @@ textarea {
   }
 
   .entries-list-table--compact .entries-row-menu-trigger {
-    width: 20px;
-    min-width: 20px;
-    min-height: 22px;
+    width: 18px;
+    min-width: 18px;
+    min-height: 20px;
   }
 
   .entries-list-table--compact .checkbox-cell input {
@@ -5942,6 +5964,60 @@ textarea {
 }
 
 @media (max-width: 520px) {
+  .entries-page-layout {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .entries-page-layout .entries-top-panel,
+  .entries-page-layout .compact-panel-card {
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+    padding-right: 4px;
+    padding-left: 4px;
+  }
+
+  .entries-page-layout .entries-table-shell {
+    margin-right: -4px;
+    margin-left: -4px;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .entries-page-layout .table-shell {
+    overflow-x: hidden;
+  }
+
+  .entries-list-table--compact {
+    font-size: 10px;
+  }
+
+  .entries-list-table--compact .table-sort-button strong {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: clip;
+  }
+
+  .entries-list-table--compact th:nth-child(7) .table-sort-button strong {
+    font-size: 0;
+  }
+
+  .entries-list-table--compact th:nth-child(7) .table-sort-button strong::before {
+    content: "Venc.";
+    font-size: 0.56rem;
+  }
+
+  .entries-list-table--compact th:nth-child(8) .table-sort-button strong {
+    font-size: 0;
+  }
+
+  .entries-list-table--compact th:nth-child(8) .table-sort-button strong::before {
+    content: "Valor";
+    font-size: 0.56rem;
+  }
+
   .entries-toolbar-icon-group,
   .entries-total-summary {
     grid-template-columns: 1fr;

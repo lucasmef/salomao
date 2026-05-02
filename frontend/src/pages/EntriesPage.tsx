@@ -1457,7 +1457,7 @@ export function EntriesPage({
     setShowTransferModal(true);
   }
   return (
-    <div className="page-layout">
+    <div className="page-layout entries-page-layout">
       {!embedded && (
         <PageHeader
           title="Lançamentos"
