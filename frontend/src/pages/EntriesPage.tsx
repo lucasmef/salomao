@@ -5,6 +5,7 @@ import { MoneyInput } from "../components/MoneyInput";
 import { PageHeader } from "../components/PageHeader";
 import { TablePagination } from "../components/TablePagination";
 import { Button, DropdownMenu, Input, Modal, Select as UiSelect } from "../components/ui";
+import { usePersistentState } from "../hooks/usePersistentState";
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
 import { formatPtBrMoneyInput, normalizePtBrMoneyInput } from "../lib/money";
 import type { Account, Category, FinancialEntry, FinancialEntryListResponse, Supplier } from "../types";
@@ -145,6 +146,8 @@ type EntryCategoryFilterOption = {
   label: string;
   group: string;
 };
+type EntriesDensity = "compact" | "comfortable";
+type EntryDueState = "overdue" | "today" | "upcoming" | "none";
 
 function CalendarRangeIcon() {
   return (
@@ -295,6 +298,10 @@ function formatMobileShortDate(value: string | null | undefined) {
   return formatted;
 }
 
+function toIsoInput(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
 function formatEntryTableAmount(value: string | number | null | undefined) {
   return formatMoney(value).replace(/^R\$\s?/, "");
 }
@@ -362,6 +369,10 @@ function renderStatusBadge(status: string) {
   );
 }
 
+function isOpenEntryStatus(status: string) {
+  return status === "open" || status === "planned" || status === "partial";
+}
+
 export function EntriesPage({
   accounts,
   categories,
@@ -415,6 +426,10 @@ export function EntriesPage({
   const [showCategoryFilter, setShowCategoryFilter] = useState(false);
   const [selectedCategoryFilterKeys, setSelectedCategoryFilterKeys] = useState<string[]>([]);
   const [bulkCategoryId, setBulkCategoryId] = useState("");
+  const [entriesDensity, setEntriesDensity] = usePersistentState<EntriesDensity>(
+    "entries-table-density",
+    "compact",
+  );
   const portalTarget = typeof document !== "undefined" ? document.body : null;
 
   const availableCategories = useMemo(
@@ -631,6 +646,20 @@ export function EntriesPage({
     () => Math.max(visibleTotalAmount - visiblePaidAmount, 0).toFixed(2),
     [visiblePaidAmount, visibleTotalAmount],
   );
+  const todayIso = toIsoInput(new Date());
+  const yesterdayIso = toIsoInput(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 1));
+  const nextWeekIso = toIsoInput(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 7));
+  const visibleOverdueEntries = useMemo(
+    () =>
+      visibleEntries.filter(
+        (entry) => isOpenEntryStatus(entry.status) && Boolean(entry.due_date) && String(entry.due_date) < todayIso,
+      ),
+    [todayIso, visibleEntries],
+  );
+  const selectedEntriesAmount = useMemo(
+    () => selectedEntries.reduce((total, entry) => total + Number(entry.total_amount), 0),
+    [selectedEntries],
+  );
   const activeEntryTypes = useMemo(
     () =>
       String(filters.entry_types ?? filters.entry_type ?? "")
@@ -789,6 +818,24 @@ export function EntriesPage({
     });
   }
 
+  function applyDueQuickFilter(kind: "overdue" | "today" | "next_7d") {
+    const range =
+      kind === "overdue"
+        ? { date_from: "", date_to: yesterdayIso }
+        : kind === "today"
+          ? { date_from: todayIso, date_to: todayIso }
+          : { date_from: todayIso, date_to: nextWeekIso };
+
+    onChangeFilters({
+      ...filters,
+      ...range,
+      page: "1",
+      date_field: "due_date",
+      status: "",
+      statuses: "open,planned,partial",
+    });
+  }
+
   function applyPresetRange(kind: "today" | "current_month" | "previous_month" | "current_year") {
     const today = new Date();
     const year = today.getFullYear();
@@ -882,6 +929,31 @@ export function EntriesPage({
 
   function isTransferEntry(entry: FinancialEntry) {
     return Boolean(entry.transfer_id);
+  }
+
+  function getEntryDueState(entry: FinancialEntry): EntryDueState {
+    if (!entry.due_date || !isOpenEntryStatus(entry.status)) {
+      return "none";
+    }
+    if (entry.due_date < todayIso) {
+      return "overdue";
+    }
+    if (entry.due_date === todayIso) {
+      return "today";
+    }
+    return "upcoming";
+  }
+
+  function renderDueDate(entry: FinancialEntry) {
+    const dueState = getEntryDueState(entry);
+    return (
+      <span className={`entries-due-date entries-due-date--${dueState}`}>
+        <span className="entries-date-desktop">{formatDate(entry.due_date)}</span>
+        <span className="entries-date-mobile">{formatMobileShortDate(entry.due_date)}</span>
+        {dueState === "overdue" ? <small>Vencido</small> : null}
+        {dueState === "today" ? <small>Hoje</small> : null}
+      </span>
+    );
   }
 
   async function handleDeleteTransfer(entry: FinancialEntry) {
@@ -1340,6 +1412,18 @@ export function EntriesPage({
             />
           </div>
 
+          <div className="entries-due-chip-row" aria-label="Atalhos de vencimento">
+            <button className="entries-due-chip is-urgent" onClick={() => applyDueQuickFilter("overdue")} type="button">
+              {visibleOverdueEntries.length} vencidos
+            </button>
+            <button className="entries-due-chip" onClick={() => applyDueQuickFilter("today")} type="button">
+              Hoje
+            </button>
+            <button className="entries-due-chip" onClick={() => applyDueQuickFilter("next_7d")} type="button">
+              7 dias
+            </button>
+          </div>
+
           <div className="entries-toolbar-icon-group">
             <button
               aria-label={showFilters ? "Ocultar filtros avançados" : "Mostrar filtros avançados"}
@@ -1495,17 +1579,84 @@ export function EntriesPage({
             <h3>Lançamentos</h3>
             <p className="panel-subtitle">Consulta paginada com ordenação e filtro por categoria nos registros carregados na página.</p>
           </div>
-          <TablePagination
-            loading={submitting}
-            onPageChange={onChangePage}
-            onPageSizeChange={onChangePageSize}
-            page={entryList.page}
-            pageSize={entryList.page_size}
-            pageSizeOptions={entryPageSizeOptions}
-            totalItems={entryList.total}
-            totalPages={totalPages}
-          />
+          <div className="entries-title-actions">
+            <div className="entries-density-toggle" aria-label="Densidade da tabela">
+              <button
+                className={entriesDensity === "compact" ? "is-active" : ""}
+                onClick={() => setEntriesDensity("compact")}
+                type="button"
+              >
+                Compacto
+              </button>
+              <button
+                className={entriesDensity === "comfortable" ? "is-active" : ""}
+                onClick={() => setEntriesDensity("comfortable")}
+                type="button"
+              >
+                Conforto
+              </button>
+            </div>
+            <TablePagination
+              loading={submitting}
+              onPageChange={onChangePage}
+              onPageSizeChange={onChangePageSize}
+              page={entryList.page}
+              pageSize={entryList.page_size}
+              pageSizeOptions={entryPageSizeOptions}
+              totalItems={entryList.total}
+              totalPages={totalPages}
+            />
+          </div>
         </div>
+        {selectedEntryIds.length > 0 && (
+          <div className="entries-selection-bar">
+            <div className="entries-selection-copy">
+              <strong>{selectedEntryIds.length} selecionado(s)</strong>
+              <span>{formatMoney(selectedEntriesAmount)} no total selecionado</span>
+            </div>
+            <UiSelect
+              aria-label="Categoria para alteraÃ§Ã£o em lote"
+              disabled={!selectedEntryKind || submitting}
+              value={bulkCategoryId}
+              onChange={(event) => setBulkCategoryId(event.target.value)}
+            >
+              <option value="">{selectedEntryKind ? "Selecionar categoria" : "Mesma natureza obrigatÃ³ria"}</option>
+              {bulkCategoryOptions.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </UiSelect>
+            <div className="entries-selection-actions">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!selectedDeletableEntries.length || selectedNonDeletableCount > 0 || submitting}
+                onClick={() => void handleBulkDelete()}
+              >
+                Excluir
+              </Button>
+              <Button
+                type="button"
+                disabled={!bulkCategoryId || !selectedEntryKind || submitting}
+                loading={submitting}
+                onClick={() => void handleBulkCategoryUpdate()}
+              >
+                Alterar categoria
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setSelectedEntryIds([]);
+                  setBulkCategoryId("");
+                }}
+              >
+                Limpar
+              </Button>
+            </div>
+          </div>
+        )}
         {selectedEntryIds.length > 0 && !selectedEntryKind && (
           <p className="bulk-entry-warning">
             Selecione apenas lançamentos da mesma natureza. Transferências e combinações de receita/despesa não entram na alteração em massa.
@@ -1517,7 +1668,7 @@ export function EntriesPage({
           </p>
         )}
         <div className="table-shell table-shell--scroll entries-table-shell">
-          <table className="erp-table erp-table--compact erp-table--responsive entries-list-table">
+          <table className={`erp-table erp-table--compact erp-table--responsive entries-list-table entries-list-table--${entriesDensity}`}>
             <colgroup>
               <col className="entries-col-select" />
               <col className="entries-col-title" />
@@ -1573,13 +1724,22 @@ export function EntriesPage({
                     </div>
                   </td>
                   <td>{renderStatusBadge(entry.status)}</td>
-                  <td>
-                    <span className="entries-date-desktop">{formatDate(entry.due_date)}</span>
-                    <span className="entries-date-mobile">{formatMobileShortDate(entry.due_date)}</span>
-                  </td>
+                  <td>{renderDueDate(entry)}</td>
                   <td className="numeric-cell">{formatEntryTableAmount(entry.total_amount)}</td>
                   <td className="entries-row-actions-cell">
                     {!isTransferEntry(entry) ? (
+                      <div className="entries-row-action-group">
+                        {entry.status !== "settled" ? (
+                          <button
+                            aria-label={`Baixar lanÃ§amento ${entry.title}`}
+                            className="entries-row-settle-button"
+                            onClick={() => void requestSettlement(entry)}
+                            title="Baixar"
+                            type="button"
+                          >
+                            <StatusCheckIcon />
+                          </button>
+                        ) : null}
                       <DropdownMenu
                         align="right"
                         ariaLabel={`Ações do lançamento ${entry.title}`}
@@ -1622,6 +1782,7 @@ export function EntriesPage({
                           </button>
                         )}
                       />
+                      </div>
                     ) : (
                       <button
                         className="text-action-button is-danger"
