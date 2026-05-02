@@ -2473,7 +2473,7 @@ textarea {
 
 .entries-toolbar-bar {
   display: grid;
-  grid-template-columns: minmax(420px, 1.4fr) minmax(300px, 1fr) minmax(210px, 0.72fr) auto;
+  grid-template-columns: minmax(420px, 1.4fr) minmax(300px, 1fr) minmax(150px, 0.52fr) auto;
   gap: 10px;
   align-items: center;
 }
@@ -2534,7 +2534,12 @@ textarea {
 }
 
 .entries-quick-select-field {
-  min-width: 220px;
+  min-width: 150px;
+  max-width: 190px;
+}
+
+.entries-toolbar-icon-group > .entries-toolbar-icon-wrap {
+  display: none;
 }
 
 .entries-due-chip-row {
@@ -5354,47 +5359,67 @@ textarea {
     table-layout: fixed;
   }
 
+  .entries-table-shell {
+    scrollbar-gutter: auto;
+  }
+
   .entries-list-table--compact .entries-col-select {
-    width: 28px;
+    width: 7%;
   }
 
   .entries-list-table--compact .entries-col-title {
-    width: auto;
+    width: 31%;
   }
 
   .entries-list-table--compact .entries-col-flow,
   .entries-list-table--compact .entries-col-account,
   .entries-list-table--compact .entries-col-category,
   .entries-list-table--compact .entries-col-status {
-    width: 25px;
+    width: 7%;
   }
 
   .entries-list-table--compact .entries-col-due-date {
-    width: 40px;
+    width: 12%;
   }
 
   .entries-list-table--compact .entries-col-total {
-    width: 58px;
+    width: 15%;
   }
 
   .entries-list-table--compact .entries-col-actions {
-    width: 30px;
+    width: 9%;
   }
 
   .entries-list-table--compact th,
   .entries-list-table--compact td {
-    padding-right: 3px;
-    padding-left: 3px;
+    padding-right: 1px;
+    padding-left: 1px;
   }
 
   .entries-list-table--compact .entries-title-copy strong {
-    font-size: 0.68rem;
+    font-size: 0.64rem;
     font-weight: 500;
   }
 
   .entries-list-table--compact .entries-amount {
     min-width: 0;
-    font-size: 0.68rem;
+    font-size: 0.64rem;
+  }
+
+  .entries-list-table--compact .entries-actions-column {
+    font-size: 0;
+  }
+
+  .entries-list-table--compact .entries-row-menu-trigger {
+    width: 20px;
+    min-width: 20px;
+    min-height: 22px;
+  }
+
+  .entries-list-table--compact .checkbox-cell input {
+    width: 12px;
+    min-width: 12px;
+    height: 12px;
   }
 
   .erp-table th {

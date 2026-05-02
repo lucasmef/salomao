@@ -566,7 +566,8 @@
   }
 
   .table-pagination {
-    gap: 10px;
+    gap: 6px;
+    justify-content: center;
   }
 
   .table-pagination-meta {
@@ -576,28 +577,36 @@
 
   .table-pagination-actions {
     display: grid;
-    grid-template-columns: 32px 32px minmax(58px, 1fr) 32px 32px;
-    gap: 8px;
+    grid-template-columns: repeat(5, auto);
+    gap: 6px;
     align-items: center;
+    justify-content: center;
   }
 
   .table-pagination-actions > .pagination-size {
     grid-column: 1 / -1;
+    justify-content: center;
+    gap: 8px;
   }
 
   .table-pagination-actions > .table-pagination-page {
     grid-column: auto;
     min-width: 0;
-    width: 100%;
+    width: 54px;
+    padding: 0 4px;
   }
 
   .table-pagination-actions > button {
-    width: 32px;
-    min-width: 32px;
+    width: 30px;
+    min-width: 30px;
   }
 
   .pagination-size {
-    justify-content: space-between;
+    justify-content: center;
+  }
+
+  .pagination-size select {
+    width: 92px;
   }
 
   .section-tabs,

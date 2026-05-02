@@ -10,7 +10,6 @@ import { MoneyInput } from "../components/MoneyInput";
 import { PageHeader } from "../components/PageHeader";
 import { TablePagination } from "../components/TablePagination";
 import { Button, DropdownMenu, Input, Modal, PeriodChips, Select as UiSelect } from "../components/ui";
-import { usePersistentState } from "../hooks/usePersistentState";
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
 import { formatPtBrMoneyInput, normalizePtBrMoneyInput } from "../lib/money";
 import type { Account, Category, FinancialEntry, FinancialEntryListResponse, Supplier } from "../types";
@@ -387,6 +386,13 @@ function getAccountInitials(name: string | null | undefined) {
     .join("");
 }
 
+function getInitialEntriesDensity(): EntriesDensity {
+  if (typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches) {
+    return "compact";
+  }
+  return "comfortable";
+}
+
 function formatEntryTableAmount(value: string | number | null | undefined) {
   return formatMoney(value).replace(/^R\$\s?/, "");
 }
@@ -544,10 +550,7 @@ export function EntriesPage({
   const [selectedCategoryFilterKeys, setSelectedCategoryFilterKeys] = useState<string[]>([]);
   const [bulkCategoryId, setBulkCategoryId] = useState("");
   const [categoryIconVersion, setCategoryIconVersion] = useState(0);
-  const [entriesDensity, setEntriesDensity] = usePersistentState<EntriesDensity>(
-    "entries-table-density",
-    "compact",
-  );
+  const [entriesDensity, setEntriesDensity] = useState<EntriesDensity>(getInitialEntriesDensity);
   const portalTarget = typeof document !== "undefined" ? document.body : null;
   const showComfortColumns = entriesDensity === "comfortable";
   const entriesTableColumnCount = 9;
@@ -678,7 +681,6 @@ export function EntriesPage({
         setShowPeriodPopover(false);
         setShowEntryModal(false);
         setShowTransferModal(false);
-        setShowBulkActions(false);
         setShowCategoryFilter(false);
         return;
       }
@@ -753,6 +755,20 @@ export function EntriesPage({
     () => selectedEntries.filter((entry) => canDeleteEntry(entry)),
     [selectedEntries],
   );
+  const selectedSettleEntries = useMemo(
+    () =>
+      selectedEntries.filter(
+        (entry) =>
+          !isTransferEntry(entry) &&
+          entry.status !== "settled" &&
+          entry.status !== "cancelled" &&
+          Boolean(entry.account_id),
+      ),
+    [selectedEntries],
+  );
+  const selectedSettleBlockedCount = selectedEntries.filter(
+    (entry) => !isTransferEntry(entry) && entry.status !== "settled" && entry.status !== "cancelled" && !entry.account_id,
+  ).length;
   const selectedNonDeletableCount = selectedEntries.length - selectedDeletableEntries.length;
   const allPageSelected = visibleEntries.length > 0 && visibleEntries.every((entry) => selectedEntryIds.includes(entry.id));
   const visibleTotalAmount = useMemo(
@@ -855,6 +871,19 @@ export function EntriesPage({
   }, [filters.date_from, filters.date_to, filters.date_field, filters.entry_types, filters.statuses, filters.reconciled]);
 
   useEffect(() => {
+    if (filters.date_from || filters.date_to || filters.date_field) {
+      return;
+    }
+    const range = getEntryPeriodRange("mtd");
+    onChangeFilters({
+      ...filters,
+      ...range,
+      date_field: "due_date",
+      page: "1",
+    });
+  }, []);
+
+  useEffect(() => {
     if (!hasMountedSearchAutoApplyRef.current) {
       hasMountedSearchAutoApplyRef.current = true;
       return;
@@ -889,14 +918,11 @@ export function EntriesPage({
       if (showCategoryFilter && categoryFilterPopoverRef.current && !categoryFilterPopoverRef.current.contains(target)) {
         setShowCategoryFilter(false);
       }
-      if (showBulkActions && bulkMenuRef.current && !bulkMenuRef.current.contains(target)) {
-        setShowBulkActions(false);
-      }
     }
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showBulkActions, showCategoryFilter, showPeriodPopover]);
+  }, [showCategoryFilter, showPeriodPopover]);
 
   function normalizeText(value: string) {
     return value
@@ -1381,6 +1407,26 @@ export function EntriesPage({
     setBulkCategoryId("");
   }
 
+  async function handleBulkSettle() {
+    if (!selectedSettleEntries.length || selectedSettleBlockedCount > 0) {
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: "Baixar em lote",
+      message: `Deseja baixar ${selectedSettleEntries.length} lançamento(s) selecionado(s)?`,
+      confirmLabel: "Baixar em lote",
+      tone: "info"
+    });
+
+    if (!confirmed) return;
+
+    for (const entry of selectedSettleEntries) {
+      await onSettleEntry(entry.id, { paid_amount: normalizePtBrMoneyInput(quickAmount(entry)) });
+    }
+    setSelectedEntryIds([]);
+  }
+
   async function handleBulkDelete() {
     if (!selectedDeletableEntries.length || selectedNonDeletableCount > 0) {
       return;
@@ -1705,6 +1751,15 @@ export function EntriesPage({
               <Button
                 type="button"
                 variant="secondary"
+                disabled={!selectedSettleEntries.length || selectedSettleBlockedCount > 0 || submitting}
+                loading={submitting}
+                onClick={() => void handleBulkSettle()}
+              >
+                Baixar
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
                 disabled={!selectedDeletableEntries.length || selectedNonDeletableCount > 0 || submitting}
                 onClick={() => void handleBulkDelete()}
               >
@@ -1739,6 +1794,11 @@ export function EntriesPage({
         {selectedNonDeletableCount > 0 && (
           <p className="bulk-entry-warning">
             {selectedNonDeletableCount} item(ns) selecionado(s) não podem ser excluídos em lote porque já foram baixados, conciliados ou estão vinculados a outro processo.
+          </p>
+        )}
+        {selectedSettleBlockedCount > 0 && (
+          <p className="bulk-entry-warning">
+            {selectedSettleBlockedCount} item(ns) selecionado(s) não podem ser baixados em lote porque não possuem conta definida.
           </p>
         )}
         <div className="table-shell table-shell--scroll entries-table-shell">
