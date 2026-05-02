@@ -399,14 +399,6 @@ function StatusCheckIcon() {
   );
 }
 
-function StatusOpenIcon() {
-  return (
-    <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
-      <circle cx="8" cy="8" fill="none" r="4.5" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
-}
-
 function renderFlowBadge(entry: FinancialEntry) {
   let label = "Transferência";
   let kind: "expense" | "income" | "transfer" = "transfer";
@@ -455,7 +447,7 @@ function renderStatusBadge(status: string) {
   return (
     <span className={`entries-status-badge entries-status-badge--${status} badge badge-${tone}`}>
       <span className="entries-status-badge-icon" aria-hidden="true">
-        {status === "settled" || status === "confirmed" ? <StatusCheckIcon /> : <StatusOpenIcon />}
+        <StatusCheckIcon />
       </span>
       <span className="entries-status-badge-label">{label}</span>
     </span>

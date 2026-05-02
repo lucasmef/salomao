@@ -571,21 +571,29 @@
 
   .table-pagination-meta {
     width: 100%;
+    text-align: center;
   }
 
   .table-pagination-actions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 32px 32px minmax(58px, 1fr) 32px 32px;
     gap: 8px;
+    align-items: center;
   }
 
-  .table-pagination-actions > span,
   .table-pagination-actions > .pagination-size {
     grid-column: 1 / -1;
   }
 
-  .table-pagination-actions > button {
+  .table-pagination-actions > .table-pagination-page {
+    grid-column: auto;
+    min-width: 0;
     width: 100%;
+  }
+
+  .table-pagination-actions > button {
+    width: 32px;
+    min-width: 32px;
   }
 
   .pagination-size {

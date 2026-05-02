@@ -5348,6 +5348,55 @@ textarea {
     table-layout: auto;
   }
 
+  .entries-list-table--compact {
+    width: 100%;
+    min-width: 100%;
+    table-layout: fixed;
+  }
+
+  .entries-list-table--compact .entries-col-select {
+    width: 28px;
+  }
+
+  .entries-list-table--compact .entries-col-title {
+    width: auto;
+  }
+
+  .entries-list-table--compact .entries-col-flow,
+  .entries-list-table--compact .entries-col-account,
+  .entries-list-table--compact .entries-col-category,
+  .entries-list-table--compact .entries-col-status {
+    width: 25px;
+  }
+
+  .entries-list-table--compact .entries-col-due-date {
+    width: 40px;
+  }
+
+  .entries-list-table--compact .entries-col-total {
+    width: 58px;
+  }
+
+  .entries-list-table--compact .entries-col-actions {
+    width: 30px;
+  }
+
+  .entries-list-table--compact th,
+  .entries-list-table--compact td {
+    padding-right: 3px;
+    padding-left: 3px;
+  }
+
+  .entries-list-table--compact .entries-title-copy strong {
+    font-size: 0.68rem;
+    font-weight: 500;
+  }
+
+  .entries-list-table--compact .entries-amount {
+    min-width: 0;
+    font-size: 0.68rem;
+  }
+
   .erp-table th {
     font-size: 0.64rem;
     padding: 5px 6px;
