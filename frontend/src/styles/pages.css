@@ -4546,7 +4546,7 @@ textarea {
   }
 
   .entries-table-shell {
-    overflow-x: visible;
+    overflow-x: hidden;
     overflow-y: visible;
     border-radius: 8px;
   }
@@ -4558,7 +4558,7 @@ textarea {
   }
 
   .entries-list-table .entries-col-select {
-    width: 24px;
+    width: 20px;
   }
 
   .entries-list-table .entries-col-title {
@@ -4566,73 +4566,101 @@ textarea {
   }
 
   .entries-list-table .entries-col-flow {
-    width: 38px;
+    width: 28px;
   }
 
   .entries-list-table .entries-col-account {
-    width: 44px;
+    width: 30px;
   }
 
   .entries-list-table .entries-col-category {
-    width: 52px;
+    width: 30px;
   }
 
   .entries-list-table .entries-col-status {
-    width: 44px;
+    width: 26px;
   }
 
   .entries-list-table .entries-col-due-date {
-    width: 46px;
+    width: 38px;
   }
 
   .entries-list-table .entries-col-total {
-    width: 64px;
+    width: 66px;
   }
 
   .entries-list-table .entries-col-actions {
-    width: 26px;
+    width: 22px;
   }
 
   .entries-list-table th,
   .entries-list-table td {
-    padding-left: 2px;
-    padding-right: 2px;
-    font-size: 0.7rem;
+    padding-left: 1px;
+    padding-right: 1px;
+    font-size: 0.68rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .entries-list-table .numeric-cell {
+    font-size: 0.66rem;
   }
 
   .entries-list-table .checkbox-cell {
-    width: 24px;
+    width: 20px;
   }
 
   .entries-list-table .checkbox-cell input {
-    width: 14px;
-    height: 14px;
+    width: 13px;
+    height: 13px;
   }
 
   .entries-list-table .badge {
-    padding: 1px 4px;
-    font-size: 0.58rem;
+    padding: 1px 3px;
+    font-size: 0.55rem;
     letter-spacing: 0;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     display: inline-block;
+    vertical-align: middle;
   }
 
   .entries-list-table .cell-stack strong {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
   }
 
   .entries-list-table .entries-cell-title .cell-stack span {
     display: none;
   }
 
+  .entries-list-table .entries-row-actions-cell {
+    padding: 0;
+    overflow: visible;
+  }
+
+  .entries-list-table .entries-row-menu-wrap {
+    display: inline-flex;
+    justify-content: center;
+  }
+
   .entries-list-table .entries-row-menu-trigger {
-    width: 22px;
-    min-width: 22px;
-    height: 22px;
+    width: 20px;
+    min-width: 20px;
+    height: 20px;
     padding: 0;
     border-radius: 6px;
+  }
+
+  .entries-list-table .entries-row-menu-trigger svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .entries-list-table .entries-row-menu {
+    right: 0;
+    left: auto;
   }
 
   .entries-list-table thead th:not(:nth-child(2)) {
