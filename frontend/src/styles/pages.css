@@ -5364,40 +5364,42 @@ textarea {
   }
 
   .entries-list-table--compact .entries-col-select {
-    width: 6%;
+    width: 24px;
   }
 
   .entries-list-table--compact .entries-col-title {
-    width: 30%;
+    width: 92px;
   }
 
   .entries-list-table--compact .entries-col-flow,
   .entries-list-table--compact .entries-col-account,
   .entries-list-table--compact .entries-col-category,
   .entries-list-table--compact .entries-col-status {
-    width: 6%;
+    width: 20px;
   }
 
   .entries-list-table--compact .entries-col-due-date {
-    width: 13%;
+    width: 38px;
   }
 
   .entries-list-table--compact .entries-col-total {
-    width: 17%;
+    width: 46px;
   }
 
   .entries-list-table--compact .entries-col-actions {
-    width: 10%;
+    width: 22px;
   }
 
   .entries-list-table--compact th,
   .entries-list-table--compact td {
-    padding-right: 1px;
-    padding-left: 1px;
+    padding-right: 0;
+    padding-left: 0;
     overflow: hidden;
   }
 
   .entries-list-table--compact .entries-title-copy strong {
+    display: block;
+    max-width: 86px;
     font-size: 0.62rem;
     font-weight: 500;
   }
@@ -5433,8 +5435,8 @@ textarea {
   }
 
   .entries-list-table--compact .entries-row-menu-trigger {
-    width: 18px;
-    min-width: 18px;
+    width: 16px;
+    min-width: 16px;
     min-height: 20px;
   }
 
@@ -5987,7 +5989,7 @@ textarea {
   }
 
   .entries-page-layout .table-shell {
-    overflow-x: hidden;
+    overflow-x: auto;
   }
 
   .entries-list-table--compact {
