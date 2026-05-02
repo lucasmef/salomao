@@ -5355,7 +5355,7 @@ textarea {
 
   .entries-list-table--compact {
     width: 100%;
-    min-width: 100%;
+    min-width: 360px;
     table-layout: fixed;
   }
 
@@ -5368,7 +5368,7 @@ textarea {
   }
 
   .entries-list-table--compact .entries-col-title {
-    width: auto;
+    width: 92px;
   }
 
   .entries-list-table--compact .entries-col-flow,
@@ -5383,23 +5383,23 @@ textarea {
   }
 
   .entries-list-table--compact .entries-col-total {
-    width: 52px;
+    width: 46px;
   }
 
   .entries-list-table--compact .entries-col-actions {
-    width: 24px;
+    width: 22px;
   }
 
   .entries-list-table--compact th,
   .entries-list-table--compact td {
-    padding-right: 0;
-    padding-left: 0;
+    padding-right: 2px;
+    padding-left: 2px;
     overflow: hidden;
   }
 
   .entries-list-table--compact .entries-title-copy strong {
     display: block;
-    max-width: 100%;
+    max-width: 86px;
     font-size: 0.62rem;
     font-weight: 500;
   }
