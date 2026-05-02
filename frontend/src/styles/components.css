@@ -48,20 +48,53 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .table-pagination-meta {
   color: #607087;
   font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .table-pagination-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   flex-wrap: wrap;
+}
+
+.table-pagination-page {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  min-width: 74px;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid #d7e1ef;
+  border-radius: 8px;
+  background: #fff;
+  color: #607087;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-pagination-page strong {
+  color: #24364f;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.table-pagination-nav-button {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .table-shell--scroll {

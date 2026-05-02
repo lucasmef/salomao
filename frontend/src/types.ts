@@ -94,6 +94,10 @@ export type Account = {
   bank_code: string | null;
   branch_number: string | null;
   account_number: string | null;
+  icon_url?: string | null;
+  image_url?: string | null;
+  logo_url?: string | null;
+  avatar_url?: string | null;
   opening_balance: string;
   is_active?: boolean;
   import_ofx_enabled?: boolean;

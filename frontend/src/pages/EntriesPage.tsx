@@ -4,7 +4,7 @@ import { useConfirm } from "../components/ConfirmContext";
 import { MoneyInput } from "../components/MoneyInput";
 import { PageHeader } from "../components/PageHeader";
 import { TablePagination } from "../components/TablePagination";
-import { Button, DropdownMenu, Input, Modal, Select as UiSelect } from "../components/ui";
+import { Button, DropdownMenu, Input, Modal, PeriodChips, Select as UiSelect } from "../components/ui";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { formatDate, formatEntryStatus, formatMoney } from "../lib/format";
 import { formatPtBrMoneyInput, normalizePtBrMoneyInput } from "../lib/money";
@@ -149,14 +149,16 @@ type EntryCategoryFilterOption = {
 type EntriesDensity = "compact" | "comfortable";
 type EntryDueState = "overdue" | "today" | "upcoming" | "none";
 type EntryVisualKind = "expense" | "income" | "transfer";
+type EntryPeriodKey = "overdue" | "today" | "7d" | "30d" | "mtd" | "ytd";
 
-function CalendarRangeIcon() {
-  return (
-    <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
-      <path d="M4 1.75a.75.75 0 0 1 1.5 0V3h5V1.75a.75.75 0 0 1 1.5 0V3h.75A2.25 2.25 0 0 1 15 5.25v7.5A2.25 2.25 0 0 1 12.75 15h-9.5A2.25 2.25 0 0 1 1 12.75v-7.5A2.25 2.25 0 0 1 3.25 3H4V1.75ZM2.5 6.5v6.25c0 .414.336.75.75.75h9.5a.75.75 0 0 0 .75-.75V6.5h-11Zm11-1.5v-.75a.75.75 0 0 0-.75-.75h-.75v.5a.75.75 0 0 1-1.5 0v-.5h-5v.5a.75.75 0 0 1-1.5 0v-.5h-.75a.75.75 0 0 0-.75.75V5h11Z" fill="currentColor" />
-    </svg>
-  );
-}
+const entryPeriodOptions: { key: EntryPeriodKey; label: string }[] = [
+  { key: "overdue", label: "Vencidos" },
+  { key: "today", label: "Hoje" },
+  { key: "7d", label: "7d" },
+  { key: "30d", label: "30d" },
+  { key: "mtd", label: "MTD" },
+  { key: "ytd", label: "YTD" },
+];
 
 function FilterFunnelIcon() {
   return (
@@ -303,6 +305,70 @@ function toIsoInput(value: Date) {
   return value.toISOString().slice(0, 10);
 }
 
+function addDays(value: Date, days: number) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate() + days);
+}
+
+function getEntryPeriodRange(key: EntryPeriodKey) {
+  const today = new Date();
+  const todayIso = toIsoInput(today);
+
+  if (key === "overdue") {
+    return { date_from: "", date_to: toIsoInput(addDays(today, -1)) };
+  }
+  if (key === "today") {
+    return { date_from: todayIso, date_to: todayIso };
+  }
+  if (key === "7d") {
+    return { date_from: todayIso, date_to: toIsoInput(addDays(today, 7)) };
+  }
+  if (key === "30d") {
+    return { date_from: todayIso, date_to: toIsoInput(addDays(today, 30)) };
+  }
+  if (key === "mtd") {
+    return { date_from: toIsoInput(new Date(today.getFullYear(), today.getMonth(), 1)), date_to: todayIso };
+  }
+  return { date_from: toIsoInput(new Date(today.getFullYear(), 0, 1)), date_to: todayIso };
+}
+
+function detectEntryPeriod(filters: Record<string, string | boolean>) {
+  const dateFrom = String(filters.date_from ?? "");
+  const dateTo = String(filters.date_to ?? "");
+  const dateField = String(filters.date_field ?? "");
+
+  if (dateField && dateField !== "due_date") {
+    return "";
+  }
+
+  const matchedOption = entryPeriodOptions.find((option) => {
+    const range = getEntryPeriodRange(option.key);
+    return range.date_from === dateFrom && range.date_to === dateTo;
+  });
+
+  return matchedOption?.key ?? "";
+}
+
+function getAccountImageUrl(account: Account | undefined) {
+  if (!account) {
+    return "";
+  }
+  return account.icon_url ?? account.image_url ?? account.logo_url ?? account.avatar_url ?? "";
+}
+
+function getAccountInitials(name: string | null | undefined) {
+  const words = String(name ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!words.length) {
+    return "--";
+  }
+  return words
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
 function formatEntryTableAmount(value: string | number | null | undefined) {
   return formatMoney(value).replace(/^R\$\s?/, "");
 }
@@ -441,7 +507,6 @@ export function EntriesPage({
   const periodPopoverRef = useRef<HTMLDivElement | null>(null);
   const categoryFilterPopoverRef = useRef<HTMLDivElement | null>(null);
   const selectAllCategoryCheckboxRef = useRef<HTMLInputElement | null>(null);
-  const presetMenuRef = useRef<HTMLDivElement | null>(null);
   const bulkMenuRef = useRef<HTMLDivElement | null>(null);
   const [focusedRowIndex, setFocusedRowIndex] = useState<number>(-1);
   const [form, setForm] = useState(emptyForm);
@@ -449,7 +514,6 @@ export function EntriesPage({
   const [quickPaidAmounts, setQuickPaidAmounts] = useState<Record<string, string>>({});
   const [showFilters, setShowFilters] = useState(false);
   const [showPeriodPopover, setShowPeriodPopover] = useState(false);
-  const [showPresetMenu, setShowPresetMenu] = useState(false);
   const [showBulkActions, setShowBulkActions] = useState(false);
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -481,6 +545,7 @@ export function EntriesPage({
     [categories],
   );
   const totalPages = Math.max(1, Math.ceil(entryList.total / entryList.page_size));
+  const accountsById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
   const entryPageSizeOptions = useMemo(() => {
     const baseOptions = [
       { value: 50, label: "50" },
@@ -591,7 +656,6 @@ export function EntriesPage({
       
       if (e.key === "Escape") {
         setShowPeriodPopover(false);
-        setShowPresetMenu(false);
         setShowEntryModal(false);
         setShowTransferModal(false);
         setShowBulkActions(false);
@@ -684,15 +748,7 @@ export function EntriesPage({
     [visiblePaidAmount, visibleTotalAmount],
   );
   const todayIso = toIsoInput(new Date());
-  const yesterdayIso = toIsoInput(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 1));
-  const nextWeekIso = toIsoInput(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 7));
-  const visibleOverdueEntries = useMemo(
-    () =>
-      visibleEntries.filter(
-        (entry) => isOpenEntryStatus(entry.status) && Boolean(entry.due_date) && String(entry.due_date) < todayIso,
-      ),
-    [todayIso, visibleEntries],
-  );
+  const activeEntryPeriod = useMemo(() => detectEntryPeriod(filters), [filters]);
   const selectedEntriesAmount = useMemo(
     () => selectedEntries.reduce((total, entry) => total + Number(entry.total_amount), 0),
     [selectedEntries],
@@ -805,9 +861,6 @@ export function EntriesPage({
       if (showCategoryFilter && categoryFilterPopoverRef.current && !categoryFilterPopoverRef.current.contains(target)) {
         setShowCategoryFilter(false);
       }
-      if (showPresetMenu && presetMenuRef.current && !presetMenuRef.current.contains(target)) {
-        setShowPresetMenu(false);
-      }
       if (showBulkActions && bulkMenuRef.current && !bulkMenuRef.current.contains(target)) {
         setShowBulkActions(false);
       }
@@ -815,7 +868,7 @@ export function EntriesPage({
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showBulkActions, showCategoryFilter, showPeriodPopover, showPresetMenu]);
+  }, [showBulkActions, showCategoryFilter, showPeriodPopover]);
 
   function normalizeText(value: string) {
     return value
@@ -836,72 +889,31 @@ export function EntriesPage({
       .join("\n\n");
   }
 
-  function formatRangeLabel(start: string, end: string) {
-    if (!start && !end) {
-      return "Selecionar período";
-    }
-    if (start && end) {
-      return `${formatDate(start)} - ${formatDate(end)}`;
-    }
-    return start ? `${formatDate(start)} - ...` : `... - ${formatDate(end)}`;
-  }
-
   function setDateRange(dateFrom: string, dateTo: string) {
     onChangeFilters({
       ...filters,
       date_from: dateFrom,
       date_to: dateTo,
+      date_field: "due_date",
       page: "1",
     });
   }
 
-  function applyDueQuickFilter(kind: "overdue" | "today" | "next_7d") {
-    const range =
-      kind === "overdue"
-        ? { date_from: "", date_to: yesterdayIso }
-        : kind === "today"
-          ? { date_from: todayIso, date_to: todayIso }
-          : { date_from: todayIso, date_to: nextWeekIso };
-
+  function applyEntryPeriod(key: string) {
+    if (!entryPeriodOptions.some((option) => option.key === key)) {
+      return;
+    }
+    const periodKey = key as EntryPeriodKey;
+    const range = getEntryPeriodRange(periodKey);
     onChangeFilters({
       ...filters,
       ...range,
       page: "1",
       date_field: "due_date",
       status: "",
-      statuses: "open,planned,partial",
+      statuses: periodKey === "overdue" ? "open,planned,partial" : "",
     });
-  }
-
-  function applyPresetRange(kind: "today" | "current_month" | "previous_month" | "current_year") {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth();
-    const formatValue = (value: Date) => value.toISOString().slice(0, 10);
-
-    if (kind === "today") {
-      const current = formatValue(today);
-      setDateRange(current, current);
-      return;
-    }
-
-    if (kind === "current_month") {
-      const start = new Date(year, month, 1);
-      const end = new Date(year, month + 1, 0);
-      setDateRange(formatValue(start), formatValue(end));
-      return;
-    }
-
-    if (kind === "previous_month") {
-      const start = new Date(year, month - 1, 1);
-      const end = new Date(year, month, 0);
-      setDateRange(formatValue(start), formatValue(end));
-      return;
-    }
-
-    const start = new Date(year, 0, 1);
-    const end = new Date(year, 11, 31);
-    setDateRange(formatValue(start), formatValue(end));
+    setShowPeriodPopover(false);
   }
 
   function normalizeQuickFilters(values: string[]) {
@@ -1027,12 +1039,22 @@ export function EntriesPage({
   }
 
   function renderAccountCell(entry: FinancialEntry) {
+    const account = entry.account_id ? accountsById.get(entry.account_id) : undefined;
+    const accountImageUrl = getAccountImageUrl(account);
+    const accountLabel = entry.account_name ?? account?.name ?? "-";
+
     return (
       <span className="entries-icon-cell">
-        <span className="entries-cell-icon">
-          <WalletIcon />
+        <span className={`entries-cell-icon entries-account-icon ${accountImageUrl ? "has-image" : ""}`}>
+          {accountImageUrl ? (
+            <img alt="" src={accountImageUrl} />
+          ) : accountLabel !== "-" ? (
+            <span>{getAccountInitials(accountLabel)}</span>
+          ) : (
+            <WalletIcon />
+          )}
         </span>
-        <span>{entry.account_name ?? "-"}</span>
+        <span>{accountLabel}</span>
       </span>
     );
   }
@@ -1369,20 +1391,14 @@ export function EntriesPage({
       )}
       <section className="section-toolbar-panel entries-top-panel">
         <div className="entries-toolbar-bar">
-          <div className="entries-period-group" ref={periodPopoverRef}>
-            <button
-              aria-expanded={showPeriodPopover}
-              aria-label="Selecionar período"
-              className={`entries-period-trigger ${showPeriodPopover ? "is-active" : ""}`}
-              onClick={() => {
-                setShowPresetMenu(false);
-                setShowPeriodPopover((current) => !current);
-              }}
-              type="button"
-            >
-              <CalendarRangeIcon />
-              <span>{formatRangeLabel(String(filters.date_from ?? ""), String(filters.date_to ?? ""))}</span>
-            </button>
+          <div className="entries-period-group entries-period-chip-wrap" ref={periodPopoverRef}>
+            <PeriodChips
+              customLabel="Personalizado"
+              onChange={applyEntryPeriod}
+              onCustomClick={() => setShowPeriodPopover((current) => !current)}
+              options={entryPeriodOptions}
+              value={activeEntryPeriod}
+            />
             {showPeriodPopover && (
               <div className="entries-floating-panel entries-period-popover">
                 <div className="entries-period-fields">
@@ -1428,66 +1444,6 @@ export function EntriesPage({
             )}
           </div>
 
-          <div className="entries-toolbar-icon-wrap" ref={presetMenuRef}>
-            <button
-              aria-expanded={showPresetMenu}
-              aria-label="Filtros pré-definidos de data"
-              className={`entries-toolbar-icon ${showPresetMenu ? "is-active" : ""}`}
-              onClick={() => {
-                setShowPeriodPopover(false);
-                setShowPresetMenu((current) => !current);
-              }}
-              title="Períodos pré-definidos"
-              type="button"
-            >
-              <FilterFunnelIcon />
-            </button>
-            {showPresetMenu && (
-              <div className="entries-floating-panel entries-icon-menu">
-                <button
-                  className="entries-icon-menu-item"
-                  onClick={() => {
-                    applyPresetRange("today");
-                    setShowPresetMenu(false);
-                  }}
-                  type="button"
-                >
-                  Hoje
-                </button>
-                <button
-                  className="entries-icon-menu-item"
-                  onClick={() => {
-                    applyPresetRange("current_month");
-                    setShowPresetMenu(false);
-                  }}
-                  type="button"
-                >
-                  Mês atual
-                </button>
-                <button
-                  className="entries-icon-menu-item"
-                  onClick={() => {
-                    applyPresetRange("previous_month");
-                    setShowPresetMenu(false);
-                  }}
-                  type="button"
-                >
-                  Mês anterior
-                </button>
-                <button
-                  className="entries-icon-menu-item"
-                  onClick={() => {
-                    applyPresetRange("current_year");
-                    setShowPresetMenu(false);
-                  }}
-                  type="button"
-                >
-                  Ano atual
-                </button>
-              </div>
-            )}
-          </div>
-
           <label className="entries-toolbar-search">
             <Input
               aria-label="Busca textual"
@@ -1511,18 +1467,6 @@ export function EntriesPage({
               styles={entryFilterSelectStyles}
               value={selectedQuickFilterOptions}
             />
-          </div>
-
-          <div className="entries-due-chip-row" aria-label="Atalhos de vencimento">
-            <button className="entries-due-chip is-urgent" onClick={() => applyDueQuickFilter("overdue")} type="button">
-              {visibleOverdueEntries.length} vencidos
-            </button>
-            <button className="entries-due-chip" onClick={() => applyDueQuickFilter("today")} type="button">
-              Hoje
-            </button>
-            <button className="entries-due-chip" onClick={() => applyDueQuickFilter("next_7d")} type="button">
-              7 dias
-            </button>
           </div>
 
           <div className="entries-toolbar-icon-group">
@@ -1678,7 +1622,6 @@ export function EntriesPage({
         <div className="panel-title is-column-mobile compact-title-row">
           <div>
             <h3>Lançamentos</h3>
-            <p className="panel-subtitle">Consulta paginada com ordenação e filtro por categoria nos registros carregados na página.</p>
           </div>
           <div className="entries-title-actions">
             <div className="entries-density-toggle" aria-label="Densidade da tabela">

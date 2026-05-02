@@ -2237,6 +2237,24 @@ textarea {
   height: 13px;
 }
 
+.entries-account-icon {
+  overflow: hidden;
+  font-size: 0.56rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.entries-account-icon.has-image {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.entries-account-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .entries-icon-cell > span:last-child {
   min-width: 0;
   overflow: hidden;
@@ -2316,7 +2334,7 @@ textarea {
 
 .entries-toolbar-bar {
   display: grid;
-  grid-template-columns: minmax(190px, 0.78fr) auto minmax(300px, 1.25fr) minmax(190px, 0.78fr) auto auto;
+  grid-template-columns: minmax(420px, 1.4fr) minmax(300px, 1fr) minmax(210px, 0.72fr) auto;
   gap: 10px;
   align-items: center;
 }
@@ -2325,6 +2343,14 @@ textarea {
 .entries-toolbar-icon-wrap,
 .entries-row-menu-wrap {
   position: relative;
+}
+
+.entries-period-chip-wrap {
+  min-width: 0;
+}
+
+.entries-period-chip-wrap > div:first-child {
+  width: 100%;
 }
 
 .entries-period-trigger {
@@ -5418,15 +5444,9 @@ textarea {
 
   .entries-toolbar-search,
   .entries-quick-select-field,
-  .entries-due-chip-row,
   .entries-period-group,
   .entries-toolbar-icon-wrap {
     width: 100%;
-  }
-
-  .entries-due-chip-row {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .entries-toolbar-icon-group {

@@ -21,10 +21,19 @@ export function TablePagination({
   onPageChange,
   onPageSizeChange,
 }: Props) {
+  const hasPrevious = page > 1 && !loading;
+  const hasNext = page < totalPages && !loading;
+  const firstItem = typeof totalItems === "number" && totalItems > 0 ? (page - 1) * pageSize + 1 : 0;
+  const lastItem = typeof totalItems === "number" ? Math.min(page * pageSize, totalItems) : 0;
+
   return (
     <div className="table-pagination">
       <div className="table-pagination-meta">
-        {typeof totalItems === "number" ? <span>{totalItems} registro(s)</span> : null}
+        {typeof totalItems === "number" ? (
+          <span>
+            {firstItem}-{lastItem} de {totalItems} registros
+          </span>
+        ) : null}
       </div>
       <div className="table-pagination-actions">
         {onPageSizeChange ? (
@@ -46,23 +55,44 @@ export function TablePagination({
           </label>
         ) : null}
         <button
-          className="table-button"
-          disabled={page <= 1 || loading}
+          aria-label="Primeira pagina"
+          className="table-button table-pagination-nav-button"
+          disabled={!hasPrevious}
+          onClick={() => void onPageChange(1)}
+          type="button"
+        >
+          «
+        </button>
+        <button
+          aria-label="Pagina anterior"
+          className="table-button table-pagination-nav-button"
+          disabled={!hasPrevious}
           onClick={() => void onPageChange(page - 1)}
           type="button"
         >
-          Anterior
+          ‹
         </button>
-        <span>
-          Pagina {page} de {totalPages}
+        <span className="table-pagination-page">
+          <strong>{page}</strong>
+          <span>de {totalPages}</span>
         </span>
         <button
-          className="table-button"
-          disabled={page >= totalPages || loading}
+          aria-label="Proxima pagina"
+          className="table-button table-pagination-nav-button"
+          disabled={!hasNext}
           onClick={() => void onPageChange(page + 1)}
           type="button"
         >
-          Proxima
+          ›
+        </button>
+        <button
+          aria-label="Ultima pagina"
+          className="table-button table-pagination-nav-button"
+          disabled={!hasNext}
+          onClick={() => void onPageChange(totalPages)}
+          type="button"
+        >
+          »
         </button>
       </div>
     </div>
