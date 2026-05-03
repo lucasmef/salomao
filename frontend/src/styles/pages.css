@@ -1970,6 +1970,7 @@ textarea {
   align-items: center;
   justify-content: center;
   width: 14px;
+  min-width: 14px;
   height: 14px;
   color: inherit;
 }
@@ -1990,6 +1991,8 @@ textarea {
   min-width: 24px;
   justify-content: center;
   gap: 0;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .entries-list-table--compact .entries-status-badge-label {
@@ -6071,7 +6074,7 @@ textarea {
   }
 
   .entries-list-table .entries-col-select {
-    width: 20px;
+    width: 24px;
   }
 
   .entries-list-table .entries-col-title {
@@ -6091,11 +6094,11 @@ textarea {
   }
 
   .entries-list-table .entries-col-status {
-    width: 26px;
+    width: 24px;
   }
 
   .entries-list-table .entries-col-due-date {
-    width: 38px;
+    width: 46px;
   }
 
   .entries-list-table .entries-col-total {
@@ -6121,12 +6124,17 @@ textarea {
   }
 
   .entries-list-table .checkbox-cell {
-    width: 20px;
+    width: 24px;
+    text-align: center;
+    overflow: visible;
   }
 
   .entries-list-table .checkbox-cell input {
-    width: 13px;
-    height: 13px;
+    display: block;
+    width: 14px;
+    min-width: 14px;
+    height: 14px;
+    margin: 0 auto;
   }
 
   .entries-list-table .badge {
@@ -6138,6 +6146,42 @@ textarea {
     text-overflow: ellipsis;
     display: inline-block;
     vertical-align: middle;
+  }
+
+  .entries-list-table .entries-status-badge {
+    display: inline-flex;
+    width: 20px;
+    min-width: 20px;
+    min-height: 20px;
+    padding: 0;
+    justify-content: center;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .entries-list-table .entries-status-badge-icon {
+    width: 13px;
+    min-width: 13px;
+    height: 13px;
+  }
+
+  .entries-list-table .entries-status-badge-icon .button-icon {
+    width: 13px;
+    height: 13px;
+  }
+
+  .entries-list-table .entries-due-date-cell {
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .entries-list-table .entries-due-date {
+    display: inline-flex;
+    width: 100%;
+    justify-content: center;
+    gap: 0;
+    overflow: visible;
+    font-variant-numeric: tabular-nums;
   }
 
   .entries-list-table .cell-stack strong {
@@ -6176,7 +6220,7 @@ textarea {
     left: auto;
   }
 
-  .entries-list-table thead th:not(:nth-child(2)) {
+  .entries-list-table thead th:not(:nth-child(1)):not(:nth-child(2)) {
     height: 0;
     padding: 0;
     border: 0;
@@ -6185,8 +6229,14 @@ textarea {
     overflow: hidden;
   }
 
-  .entries-list-table thead th:not(:nth-child(2)) > * {
+  .entries-list-table thead th:not(:nth-child(1)):not(:nth-child(2)) > * {
     display: none;
+  }
+
+  .entries-list-table thead th:nth-child(1) {
+    height: 24px;
+    padding: 0;
+    overflow: visible;
   }
 
   .entries-list-table thead th:nth-child(2) {

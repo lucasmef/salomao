@@ -298,12 +298,19 @@ function getEntrySortValue(entry: FinancialEntry, column: EntryTableColumnKey) {
 }
 
 function formatMobileShortDate(value: string | null | undefined) {
+  if (!value) {
+    return "--/--";
+  }
+  const [, month, day] = value.slice(0, 10).split("-");
+  if (month && day) {
+    return `${day}/${month}`;
+  }
   const formatted = formatDate(value);
   const parts = formatted.split("/");
   if (parts.length >= 2) {
     return `${parts[0]}/${parts[1]}`;
   }
-  return formatted;
+  return "--/--";
 }
 
 function toIsoInput(value: Date) {
@@ -405,6 +412,23 @@ function StatusCheckIcon() {
   );
 }
 
+function StatusOpenIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
+      <circle cx="8" cy="8" fill="none" r="5.25" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M8 4.9v3.25l2.1 1.25" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function StatusCancelledIcon() {
+  return (
+    <svg aria-hidden="true" className="button-icon" viewBox="0 0 16 16">
+      <path d="m5 5 6 6M11 5l-6 6" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
 function renderFlowBadge(entry: FinancialEntry) {
   let label = "Transferência";
   let kind: "expense" | "income" | "transfer" = "transfer";
@@ -436,24 +460,27 @@ function renderFlowBadge(entry: FinancialEntry) {
 function renderStatusBadge(status: string) {
   const label = formatEntryStatus(status);
   let tone: "success" | "warning" | "danger" | "neutral" = "neutral";
+  let icon = <StatusOpenIcon />;
 
   switch (status) {
     case "settled":
     case "confirmed":
       tone = "success";
+      icon = <StatusCheckIcon />;
       break;
     case "open":
       tone = "warning";
       break;
     case "cancelled":
       tone = "danger";
+      icon = <StatusCancelledIcon />;
       break;
   }
 
   return (
-    <span className={`entries-status-badge entries-status-badge--${status} badge badge-${tone}`}>
+    <span className={`entries-status-badge entries-status-badge--${status} badge badge-${tone}`} title={label}>
       <span className="entries-status-badge-icon" aria-hidden="true">
-        <StatusCheckIcon />
+        {icon}
       </span>
       <span className="entries-status-badge-label">{label}</span>
     </span>
@@ -1848,7 +1875,7 @@ export function EntriesPage({
                   <td>{renderFlowBadge(entry)}</td>
                   <td className="entries-td-account col-hide-md">{renderAccountCell(entry)}</td>
                   <td className="entries-cell-category">{renderCategoryCell(entry)}</td>
-                  <td>{renderDueDate(entry)}</td>
+                  <td className="entries-due-date-cell">{renderDueDate(entry)}</td>
                   <td>{renderStatusBadge(entry.status)}</td>
                   <td className="numeric-cell">{renderEntryAmount(entry)}</td>
                   <td className="entries-row-actions-cell">
