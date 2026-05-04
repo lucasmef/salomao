@@ -252,19 +252,39 @@ def list_linx_movements(
         select(
             func.count(LinxMovement.id),
             func.coalesce(
-                func.sum(case((LinxMovement.movement_type == "sale", LinxMovement.total_amount), else_=0)),
+                func.sum(
+                    case((LinxMovement.movement_type == "sale", LinxMovement.total_amount), else_=0)
+                ),
                 0,
             ),
             func.coalesce(
-                func.sum(case((LinxMovement.movement_type == "sale_return", LinxMovement.total_amount), else_=0)),
+                func.sum(
+                    case(
+                        (LinxMovement.movement_type == "sale_return", LinxMovement.total_amount),
+                        else_=0,
+                    )
+                ),
                 0,
             ),
             func.coalesce(
-                func.sum(case((LinxMovement.movement_type == "purchase", LinxMovement.total_amount), else_=0)),
+                func.sum(
+                    case(
+                        (LinxMovement.movement_type == "purchase", LinxMovement.total_amount),
+                        else_=0,
+                    )
+                ),
                 0,
             ),
             func.coalesce(
-                func.sum(case((LinxMovement.movement_type == "purchase_return", LinxMovement.total_amount), else_=0)),
+                func.sum(
+                    case(
+                        (
+                            LinxMovement.movement_type == "purchase_return",
+                            LinxMovement.total_amount,
+                        ),
+                        else_=0,
+                    )
+                ),
                 0,
             ),
         ).where(*base_filters)
@@ -368,10 +388,12 @@ def list_linx_sales_report(
         0,
     )
     quantity_expr = func.coalesce(func.sum(LinxMovement.quantity), 0)
+    document_number_expr = func.coalesce(LinxMovement.document_number, "")
+    document_series_expr = func.coalesce(LinxMovement.document_series, "")
     grouped = (
         select(
-            func.coalesce(LinxMovement.document_number, "").label("document_number"),
-            func.coalesce(LinxMovement.document_series, "").label("document_series"),
+            document_number_expr.label("document_number"),
+            document_series_expr.label("document_series"),
             LinxMovement.customer_code.label("customer_code"),
             func.min(LinxMovement.issue_date).label("issue_date"),
             func.min(LinxMovement.launch_date).label("launch_date"),
@@ -388,8 +410,8 @@ def list_linx_sales_report(
         .outerjoin(LinxCustomer, customer_join)
         .where(*base_filters)
         .group_by(
-            func.coalesce(LinxMovement.document_number, ""),
-            func.coalesce(LinxMovement.document_series, ""),
+            document_number_expr,
+            document_series_expr,
             LinxMovement.customer_code,
         )
     ).subquery()
@@ -476,9 +498,18 @@ def _build_sync_plan(
         )
 
     latest_timestamp = int(
-        db.scalar(select(func.max(LinxMovement.linx_row_timestamp)).where(LinxMovement.company_id == company_id)) or 0
+        db.scalar(
+            select(func.max(LinxMovement.linx_row_timestamp)).where(
+                LinxMovement.company_id == company_id
+            )
+        )
+        or 0
     )
-    return LinxMovementsSyncPlan(mode="incremental", timestamp=latest_timestamp, clear_existing=False)
+    return LinxMovementsSyncPlan(
+        mode="incremental",
+        timestamp=latest_timestamp,
+        clear_existing=False,
+    )
 
 
 def _collect_rows(
@@ -504,7 +535,9 @@ def _collect_rows(
         if not page_rows:
             break
         rows.extend(page_rows)
-        max_timestamp = max(_parse_int(row.get("timestamp")) or current_timestamp for row in page_rows)
+        max_timestamp = max(
+            _parse_int(row.get("timestamp")) or current_timestamp for row in page_rows
+        )
         if max_timestamp <= current_timestamp:
             break
         current_timestamp = max_timestamp
@@ -649,20 +682,35 @@ def _find_existing_batch(
     )
 
 
-def _build_error_summary(*, duplicate_rows: int, ignored: int, removed: int, cleared: bool) -> str | None:
+def _build_error_summary(
+    *,
+    duplicate_rows: int,
+    ignored: int,
+    removed: int,
+    cleared: bool,
+) -> str | None:
     parts: list[str] = []
     if cleared:
         parts.append("A base local de movimentos foi recriada no full refresh.")
     if duplicate_rows:
-        parts.append(f"{duplicate_rows} linha(s) duplicadas foram consolidadas pelo maior timestamp.")
+        parts.append(
+            f"{duplicate_rows} linha(s) duplicadas foram consolidadas pelo maior timestamp."
+        )
     if ignored:
         parts.append(f"{ignored} linha(s) nao se enquadraram nas naturezas monitoradas.")
     if removed:
-        parts.append(f"{removed} linha(s) deixaram de se enquadrar e foram removidas da base espelho.")
+        parts.append(
+            f"{removed} linha(s) deixaram de se enquadrar e foram removidas da base espelho."
+        )
     return " ".join(parts) or None
 
 
-def _update_fingerprint(hasher: Any, method_name: str, parameters: dict[str, str], response_bytes: bytes) -> None:
+def _update_fingerprint(
+    hasher: Any,
+    method_name: str,
+    parameters: dict[str, str],
+    response_bytes: bytes,
+) -> None:
     hasher.update(method_name.encode("utf-8"))
     hasher.update(b"\n")
     hasher.update(json.dumps(parameters, sort_keys=True, ensure_ascii=True).encode("utf-8"))
@@ -705,7 +753,12 @@ def _build_request_xml(
     command = ET.SubElement(root, "Command")
     ET.SubElement(command, "Name").text = method_name
     parameter_root = ET.SubElement(command, "Parameters")
-    for parameter_name, parameter_value in {"chave": settings.api_key, "cnpjEmp": settings.cnpj, **parameters}.items():
+    request_parameters = {
+        "chave": settings.api_key,
+        "cnpjEmp": settings.cnpj,
+        **parameters,
+    }
+    for parameter_name, parameter_value in request_parameters.items():
         node = ET.SubElement(parameter_root, "Parameter", {"id": parameter_name})
         node.text = str(parameter_value)
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)

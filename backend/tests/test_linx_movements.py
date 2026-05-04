@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
+from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
@@ -22,7 +24,12 @@ from app.schemas.linx_movements import (
     LinxMovementDirectorySummaryRead,
     LinxMovementListItemRead,
 )
-from app.services.linx_movements import _collect_rows, list_linx_movements, sync_linx_movements
+from app.services.linx_movements import (
+    _collect_rows,
+    list_linx_movements,
+    list_linx_sales_report,
+    sync_linx_movements,
+)
 
 
 def _build_session() -> tuple[Session, Company, User]:
@@ -298,7 +305,12 @@ def test_sync_linx_movements_accepts_historical_inactive_natures(monkeypatch) ->
     try:
         result = sync_linx_movements(session, company)
         assert "2 novo(s)" in result.message
-        saved = session.query(LinxMovement).filter_by(company_id=company.id).order_by(LinxMovement.linx_transaction).all()
+        saved = (
+            session.query(LinxMovement)
+            .filter_by(company_id=company.id)
+            .order_by(LinxMovement.linx_transaction)
+            .all()
+        )
         assert len(saved) == 2
         assert saved[0].movement_type == "sale"
         assert saved[1].movement_type == "sale_return"
@@ -393,7 +405,15 @@ def test_collect_rows_continues_after_short_page(monkeypatch) -> None:
     monkeypatch.setattr("app.services.linx_movements._fetch_linx_rows", fake_fetch)
 
     rows = _collect_rows(
-        type("Settings", (), {"base_url": "https://example.com", "cnpj": "13092113000106", "api_key": "teste"})(),
+        type(
+            "Settings",
+            (),
+            {
+                "base_url": "https://example.com",
+                "cnpj": "13092113000106",
+                "api_key": "teste",
+            },
+        )(),
         start_timestamp=0,
         hasher=hashlib.sha256(),
     )
@@ -467,6 +487,33 @@ def test_list_linx_movements_paginates_and_joins_products() -> None:
         session.close()
 
 
+def test_linx_sales_report_reuses_grouped_coalesce_expressions_for_postgres() -> None:
+    class CaptureDb:
+        statement = None
+
+        def scalar(self, statement):
+            self.statement = statement
+            raise RuntimeError("captured")
+
+    db = CaptureDb()
+    company = SimpleNamespace(id="company-1")
+
+    try:
+        list_linx_sales_report(
+            db,  # type: ignore[arg-type]
+            company,  # type: ignore[arg-type]
+            start_date=date(2026, 5, 1),
+            end_date=date(2026, 5, 31),
+        )
+    except RuntimeError as error:
+        assert str(error) == "captured"
+
+    compiled = str(db.statement.compile(dialect=postgresql.dialect()))
+    assert "GROUP BY coalesce(linx_movements.document_number, %(coalesce_1)s)" in compiled
+    assert "coalesce_6" not in compiled
+    assert "coalesce_7" not in compiled
+
+
 def test_linx_movements_endpoints_smoke(monkeypatch) -> None:
     session, company, user = _build_session()
     captured: dict[str, object] = {}
@@ -487,7 +534,16 @@ def test_linx_movements_endpoints_smoke(monkeypatch) -> None:
         session.refresh(batch)
         return ImportResult(batch=batch, message="movements ok")
 
-    def fake_list(db, current_company, *, page=1, page_size=50, search=None, group="all", movement_type="all"):
+    def fake_list(
+        db,
+        current_company,
+        *,
+        page=1,
+        page_size=50,
+        search=None,
+        group="all",
+        movement_type="all",
+    ):
         captured["list"] = (db, current_company.id, page, page_size, search, group, movement_type)
         return LinxMovementDirectoryRead(
             generated_at=datetime.now(timezone.utc),
@@ -528,8 +584,14 @@ def test_linx_movements_endpoints_smoke(monkeypatch) -> None:
     client = TestClient(app)
 
     try:
-        sync_response = client.post("/api/v1/imports/linx-movements/sync", json={"full_refresh": True})
-        list_response = client.get("/api/v1/linx-movements?page=2&page_size=25&search=calca&group=sale&movement_type=sale")
+        sync_response = client.post(
+            "/api/v1/imports/linx-movements/sync",
+            json={"full_refresh": True},
+        )
+        list_response = client.get(
+            "/api/v1/linx-movements"
+            "?page=2&page_size=25&search=calca&group=sale&movement_type=sale"
+        )
 
         assert sync_response.status_code == 201
         assert sync_response.json()["message"] == "movements ok"
