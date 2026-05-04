@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from collections.abc import Iterable
 from datetime import date, datetime, timedelta, timezone
 from threading import Lock
@@ -28,6 +29,7 @@ DEFAULT_ANALYTICS_KINDS = (
     ANALYTICS_DASHBOARD_OVERVIEW,
 )
 DEFAULT_LIVE_INDEX_TTL_SECONDS = 86400
+logger = logging.getLogger(__name__)
 
 
 def utc_now() -> datetime:
@@ -102,7 +104,12 @@ class _RedisLiveCache:
         pipeline.expire(index_key, max(ttl_seconds, DEFAULT_LIVE_INDEX_TTL_SECONDS))
         pipeline.execute()
 
-    def clear_company(self, prefix: str, company_id: str, kinds: Iterable[str] | None = None) -> None:
+    def clear_company(
+        self,
+        prefix: str,
+        company_id: str,
+        kinds: Iterable[str] | None = None,
+    ) -> None:
         target_kinds = tuple(kinds or DEFAULT_ANALYTICS_KINDS)
         for kind in target_kinds:
             index_key = f"{prefix}:index:{company_id}:{kind}"
@@ -149,14 +156,25 @@ def _live_cache_key(
     end: date,
     params_key: str,
 ) -> str:
-    return f"{_live_cache_prefix()}:payload:{company_id}:{kind}:{start.isoformat()}:{end.isoformat()}:{params_key or 'default'}"
+    return (
+        f"{_live_cache_prefix()}:payload:{company_id}:{kind}:"
+        f"{start.isoformat()}:{end.isoformat()}:{params_key or 'default'}"
+    )
 
 
 def _live_cache_index_key(*, kind: str, company_id: str) -> str:
     return f"{_live_cache_prefix()}:index:{company_id}:{kind}"
 
 
-def read_live_cache(model_cls, *, kind: str, company_id: str, start: date, end: date, params: dict[str, object] | None = None):
+def read_live_cache(
+    model_cls,
+    *,
+    kind: str,
+    company_id: str,
+    start: date,
+    end: date,
+    params: dict[str, object] | None = None,
+):
     key = _live_cache_key(
         kind=kind,
         company_id=company_id,
@@ -164,7 +182,11 @@ def read_live_cache(model_cls, *, kind: str, company_id: str, start: date, end: 
         end=end,
         params_key=params_key_for(params),
     )
-    cached = _get_live_cache_backend().get(key)
+    try:
+        cached = _get_live_cache_backend().get(key)
+    except (RedisError, RuntimeError) as error:
+        logger.warning("Live analytics cache read skipped: %s", error)
+        return None
     if not cached:
         return None
     return model_cls.model_validate_json(cached)
@@ -187,12 +209,15 @@ def write_live_cache(
         end=end,
         params_key=params_key_for(params),
     )
-    _get_live_cache_backend().set(
-        key,
-        payload.model_dump_json(),
-        ttl_seconds,
-        _live_cache_index_key(kind=kind, company_id=company_id),
-    )
+    try:
+        _get_live_cache_backend().set(
+            key,
+            payload.model_dump_json(),
+            ttl_seconds,
+            _live_cache_index_key(kind=kind, company_id=company_id),
+        )
+    except (RedisError, RuntimeError) as error:
+        logger.warning("Live analytics cache write skipped: %s", error)
 
 
 def read_live_json_cache(
@@ -210,7 +235,11 @@ def read_live_json_cache(
         end=end,
         params_key=params_key_for(params),
     )
-    cached = _get_live_cache_backend().get(key)
+    try:
+        cached = _get_live_cache_backend().get(key)
+    except (RedisError, RuntimeError) as error:
+        logger.warning("Live analytics JSON cache read skipped: %s", error)
+        return None
     if not cached:
         return None
     return json.loads(cached)
@@ -233,19 +262,25 @@ def write_live_json_cache(
         end=end,
         params_key=params_key_for(params),
     )
-    _get_live_cache_backend().set(
-        key,
-        json.dumps(payload, sort_keys=True, separators=(",", ":")),
-        ttl_seconds,
-        _live_cache_index_key(kind=kind, company_id=company_id),
-    )
+    try:
+        _get_live_cache_backend().set(
+            key,
+            json.dumps(payload, sort_keys=True, separators=(",", ":")),
+            ttl_seconds,
+            _live_cache_index_key(kind=kind, company_id=company_id),
+        )
+    except (RedisError, RuntimeError) as error:
+        logger.warning("Live analytics JSON cache write skipped: %s", error)
 
 
 def clear_live_cache(company_id: str | None = None, *, kinds: Iterable[str] | None = None) -> None:
     if company_id is None:
         reset_live_cache_backend_for_tests()
         return
-    _get_live_cache_backend().clear_company(_live_cache_prefix(), company_id, kinds)
+    try:
+        _get_live_cache_backend().clear_company(_live_cache_prefix(), company_id, kinds)
+    except (RedisError, RuntimeError) as error:
+        logger.warning("Live analytics cache clear skipped: %s", error)
 
 
 def read_monthly_snapshot(
@@ -478,7 +513,12 @@ def queue_historical_rebuilds(
     return months
 
 
-def process_snapshot_rebuild_queue(db: Session, company: Company, *, limit: int = 12) -> list[tuple[str, date]]:
+def process_snapshot_rebuild_queue(
+    db: Session,
+    company: Company,
+    *,
+    limit: int = 12,
+) -> list[tuple[str, date]]:
     tasks = list(
         db.scalars(
             select(AnalyticsSnapshotRebuildTask)
@@ -513,12 +553,19 @@ def process_snapshot_rebuild_queue(db: Session, company: Company, *, limit: int 
                     end_date=segment_end,
                     account_id=params.get("account_id") or None,
                     include_purchase_planning=bool(params.get("include_purchase_planning", True)),
-                    include_crediario_receivables=bool(params.get("include_crediario_receivables", True)),
+                    include_crediario_receivables=bool(
+                        params.get("include_crediario_receivables", True)
+                    ),
                 )
             elif task.analytics_kind == ANALYTICS_DASHBOARD_OVERVIEW:
                 from app.services.dashboard import build_dashboard_overview
 
-                payload = build_dashboard_overview(db, company, start=segment_start, end=segment_end)
+                payload = build_dashboard_overview(
+                    db,
+                    company,
+                    start=segment_start,
+                    end=segment_end,
+                )
             else:
                 raise ValueError(f"Analytics kind nao suportado: {task.analytics_kind}")
             upsert_monthly_snapshot(
@@ -537,7 +584,11 @@ def process_snapshot_rebuild_queue(db: Session, company: Company, *, limit: int 
     return rebuilt
 
 
-def invalidate_live_analytics(company_id: str | None, *, include_sales_history: bool = False) -> None:
+def invalidate_live_analytics(
+    company_id: str | None,
+    *,
+    include_sales_history: bool = False,
+) -> None:
     if company_id is None:
         clear_live_cache(None)
         return
