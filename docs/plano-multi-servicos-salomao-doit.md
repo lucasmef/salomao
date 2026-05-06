@@ -28,7 +28,7 @@ Levantamento feito por SSH via Tailscale, sem alterar o servidor.
 | `salomao-dev.service` | Ativo em `127.0.0.1:8101`, healthcheck `200` |
 | `salomao-inter-dev.service` | Ativo em `127.0.0.1:8102`, mas healthcheck nao respondeu |
 | Nginx publico atual | `raquel-talita.vps-kinghost.net` -> `127.0.0.1:8100` |
-| Nginx dev atual | `salomao-vps.tail2033b8.ts.net` -> `127.0.0.1:8101` |
+| Nginx dev atual | `salomao-vps.tail2033b8.ts.net` -> `127.0.0.1:8101` na configuracao atual; plano novo usa portas Tailscale dedicadas |
 | Diretorio Doit | `/srv/doit` ainda nao existe |
 | Servicos Doit | `doit.service` e `doit-dev.service` ainda nao existem |
 | Instalacao Doit no VPS | Ainda nao configurada; sera uma instalacao nova |
@@ -51,7 +51,7 @@ Levantamento feito na pasta local `C:\Users\lucas\OneDrive\Documentos\doit.md`, 
 | Portas atuais no Doit | prod `3000`, dev `3001` |
 | Caminhos atuais no Doit | `/var/www/doit` e `/var/www/doit-dev` |
 | Docker Compose | Sobe MongoDB, app e Nginx proprio nas portas `80/443` |
-| Worktree Doit | Possui alteracoes locais nao commitadas |
+| Worktree Doit | Implementacao de deploy iniciada em arquivos de infra/workflow |
 
 Conclusao inicial: o Doit precisa de ajustes de deploy para conviver com o Salomao no mesmo VPS. O `docker-compose.yml` atual nao deve ser usado como esta, porque tenta ocupar `80/443` com outro Nginx. A opcao de menor conflito e rodar o Next.js por systemd em portas locais e usar o Nginx host ja existente como proxy compartilhado.
 
@@ -63,25 +63,26 @@ Conclusao inicial: o Doit precisa de ajustes de deploy para conviver com o Salom
 | Dominio publico exato do Doit | `pendente` | Precisa ser FQDN, exemplo `doit.raqueltalita-vps.com.br` |
 | Manter ou renomear `salomao-prod.service` | `recomendado manter` | Manter reduz risco e evita troca desnecessaria no Salomao |
 | Destino de `salomao-inter-dev.service` | `pendente` | Decidir se sera removido, reaproveitado ou mantido fora do plano |
-| Banco de dados do Doit | `pendente` | Sugerido: `doit_prod` e `doit_dev` |
-| Branch/repositorio do Doit | `pendente` | Confirmar se e o mesmo repositorio com configuracao distinta ou outro repo |
+| Banco de dados do Doit | `pendente` | Confirmar MongoDB Atlas vs local; usar databases separados |
+| Branch/repositorio do Doit | `parcial` | Repositorio local inspecionado em `C:\Users\lucas\OneDrive\Documentos\doit.md` |
 
 ## Topologia alvo proposta
 
 | Aplicacao | Ambiente | Service | Porta local | Checkout | Exposicao |
 | --- | --- | --- | --- | --- | --- |
 | Salomao | prod | `salomao-prod.service` | `8100` | `/srv/salomao/prod/app` | publico via dominio novo |
-| Salomao | dev | `salomao-dev.service` | `8101` | `/srv/salomao/dev/app` | privado via Tailscale |
+| Salomao | dev | `salomao-dev.service` | `8101` | `/srv/salomao/dev/app` | Tailscale `:8443` |
 | Doit | prod | `doit.service` | `8110` | `/srv/doit/prod/app` | publico via dominio novo |
-| Doit | dev | `doit-dev.service` | `8111` | `/srv/doit/dev/app` | somente Tailscale |
+| Doit | dev | `doit-dev.service` | `8111` | `/srv/doit/dev/app` | Tailscale `:8444` |
 
-Portas `8100` e `8101` permanecem intactas para minimizar risco no Salomao. A porta `8102` fica reservada ate decidir o destino do `salomao-inter-dev.service`.
+Portas internas `8100` e `8101` permanecem intactas. A porta `8102` fica reservada ate decidir o destino do `salomao-inter-dev.service`. O acesso externo aos ambientes dev deve ser feito por portas HTTPS privadas no Tailscale, nao por dominio publico.
 
 ## Principios de downtime minimo
 
 - Nao parar `salomao-prod.service` durante a preparacao.
 - Nao editar o site Nginx publico atual antes de o novo dominio do Salomao estar validado.
 - Nao criar DNS, server block ou certificado publico para ambientes `dev`.
+- Liberar portas `8443` e `8444` somente na interface `tailscale0`, se UFW estiver ativo.
 - Criar novos arquivos Nginx em `sites-available` e testar com `nginx -t` antes de habilitar.
 - Preferir `nginx reload` em vez de restart quando a configuracao estiver valida.
 - Fazer a troca publica do Salomao em uma unica janela curta: DNS ja apontado, certificado emitido, upstream local validado, reload do Nginx.
@@ -131,16 +132,17 @@ Status: `pendente`
 
 - Criar `/srv/doit/prod/app` e `/srv/doit/dev/app`.
 - Criar arquivos de ambiente fora do repo:
-  - `/srv/doit/prod/doit-config/backend.env`
-  - `/srv/doit/dev/doit-config/backend.env`
+  - `/srv/doit/prod/doit-config/web.env`
+  - `/srv/doit/dev/doit-config/web.env`
 - Criar bancos MongoDB separados para Doit ou databases separados no Atlas.
 - Criar `doit.service` na porta `8110`.
 - Criar `doit-dev.service` na porta `8111`.
+- Preparar Nginx dev privado em `8444` e UFW somente em `tailscale0`.
 - Validar healthchecks locais:
 
 ```bash
-curl --fail http://127.0.0.1:8110/api/v1/health
-curl --fail http://127.0.0.1:8111/api/v1/health
+curl --fail http://127.0.0.1:8110/api/health
+curl --fail http://127.0.0.1:8111/api/health
 ```
 
 Rollback da fase:
@@ -149,6 +151,23 @@ Rollback da fase:
 - Remover somente configs Nginx/units criadas para Doit, se existirem.
 - Nao alterar `salomao-prod.service` nem `salomao-dev.service`.
 
+### Fase 2b: Corrigir acesso Tailscale do Salomao dev
+
+Status: `em andamento`
+
+- Atualizar `setup-tailscale-nginx.sh` para expor Salomao dev em `https://salomao-vps.tail2033b8.ts.net:8443`.
+- Manter backend interno do Salomao dev em `127.0.0.1:8101`.
+- Nao criar host publico de dev.
+- Liberar `8443/tcp` somente em `tailscale0`, se UFW estiver ativo.
+- Rodar `nginx -t`.
+- Aplicar `systemctl reload nginx`.
+
+Rollback:
+
+- Restaurar configuracao anterior de `salomao-dev-tailscale`.
+- Rodar `nginx -t`.
+- Aplicar `systemctl reload nginx`.
+
 ### Fase 3: Configurar Nginx para Doit
 
 Status: `pendente`
@@ -156,7 +175,7 @@ Status: `pendente`
 - Validar DNS do dominio publico Doit apontando para o VPS.
 - Emitir certificado TLS do Doit.
 - Criar site Nginx do Doit apontando para `127.0.0.1:8110`.
-- Criar acesso dev do Doit somente via Tailscale apontando para `127.0.0.1:8111`.
+- Criar acesso dev do Doit somente via Tailscale em `https://salomao-vps.tail2033b8.ts.net:8444`, apontando para `127.0.0.1:8111`.
 - Nao criar `dev.dominio-publico` para Doit.
 - Rodar `nginx -t`.
 - Aplicar `systemctl reload nginx`.
@@ -164,7 +183,7 @@ Status: `pendente`
 
 ```bash
 curl --fail https://<dominio-doit>/api/health
-curl --fail https://<host-tailscale-doit-dev>/api/health
+curl --fail https://salomao-vps.tail2033b8.ts.net:8444/api/health
 ```
 
 Rollback da fase:
@@ -227,6 +246,20 @@ Rollback:
 | 2026-05-06 | Codex | Levantamento local Doit | `feito` | Next.js 15, MongoDB/Mongoose, Clerk, Google OAuth, pnpm |
 | 2026-05-06 | Lucas | Regra dev somente Tailscale | `feito` | Nenhum ambiente dev deve existir publicamente |
 | 2026-05-06 | Lucas | Doit no VPS | `feito` | Confirmado que ainda nao foi configurado no VPS |
+| 2026-05-06 | Lucas | Salomao dev pode cair | `feito` | Permite corrigir a topologia dev sem restricao de downtime no dev |
+| 2026-05-06 | Codex | Implementar deploy local Doit | `em andamento` | Scripts, workflows, systemd e Nginx templates em edicao |
+| 2026-05-06 | Codex | Separar dev Tailscale por porta | `em andamento` | Salomao dev `:8443`; Doit dev `:8444` |
+| 2026-05-06 | Codex | Staging no VPS | `feito` | Arquivos preparados em `/srv/salomao/shared/doit-vps-staging` |
+| 2026-05-06 | Lucas | Aplicacao root no VPS | `feito` | `/srv/doit`, Nginx dev Tailscale, UFW e units criados |
+| 2026-05-06 | Codex | Validar Salomao dev Tailscale | `feito` | `https://salomao-vps.tail2033b8.ts.net:8443/api/v1/health` retornou `200` |
+| 2026-05-06 | Codex | Preparar Doit dev app | `parcial` | Codigo copiado para `/srv/doit/dev/app`; install passou; build bloqueado por env placeholder Clerk |
+| 2026-05-06 | Lucas | Corrigir pnpm no systemd Doit | `feito` | Units instaladas usam `/usr/bin/corepack pnpm` |
+| 2026-05-06 | Codex | Validar env Doit dev | `bloqueado` | `web.env` ainda tem placeholders em Clerk e Google; Doit dev fica `502` ate o app subir |
+| 2026-05-06 | Codex | Configurar env Doit dev | `feito` | `web.env` preenchido no VPS sem placeholders; values nao registrados no repo |
+| 2026-05-06 | Codex | MongoDB local Doit dev | `pendente root` | `localhost:27017` fechado; script root preparado em `/srv/salomao/shared/doit-vps-staging/install-mongodb-root.sh` |
+| 2026-05-06 | Codex | Deploy Doit dev root helper | `pendente root` | Script preparado em `/srv/salomao/shared/doit-vps-staging/deploy-doit-dev-root.sh` |
+| 2026-05-06 | Lucas | Novo dominio Salomao prod | `feito` | `https://salomao.raquel-talita.vps-kinghost.net/api/v1/health` retornou `200` |
+| 2026-05-06 | Codex | Auditoria prod apos dominio | `feito` | `/srv/salomao/prod/app/scripts/check-prod.sh` passou com `FAIL=0` |
 |  |  | Confirmar dominios finais | `pendente` |  |
 |  |  | Confirmar origem do codigo Doit | `pendente` |  |
 |  |  | Confirmar MongoDB Atlas vs local | `pendente` |  |
