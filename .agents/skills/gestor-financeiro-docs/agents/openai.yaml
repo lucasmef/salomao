@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gestor Financeiro Docs"
+  short_description: "README e docs profissionais sem dados sensiveis"
+  default_prompt: "Use $gestor-financeiro-docs para criar ou revisar README e documentacao tecnica do Gestor Financeiro com checagem de informacoes sensiveis."

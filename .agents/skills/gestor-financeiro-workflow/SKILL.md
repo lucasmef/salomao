@@ -8,10 +8,11 @@ description: Project workflow for the Gestor Financeiro repository. Use when Cod
 ## Core Workflow
 
 1. Start from repo truth: read `AGENTS.md`, then inspect the touched backend, frontend, docs, workflow, or script files before deciding.
-2. For sensitive work, read `PLANS.md` and produce a compact plan before editing.
-3. Keep changes scoped to the requested behavior and preserve existing operational policy: `dev` is the normal work branch, production remains manual, and Codex does not deploy directly to the VPS by default.
-4. Add or update tests when changing financial behavior, security, cache/analytics, Banco Inter flows, reconciliation, purchases, reports, or backend services.
-5. Run the smallest relevant validation commands and report skipped checks explicitly.
+2. If `DOIT.md` exists and the task concerns backlog, priorities, status, or next work, read it after `AGENTS.md` and keep it as the project-local task queue for Sistema Salomao only.
+3. For sensitive work, read `PLANS.md` and produce a compact plan before editing.
+4. Keep changes scoped to the requested behavior and preserve existing operational policy: `dev` is the normal work branch, production remains manual, and Codex does not deploy directly to the VPS by default.
+5. Add or update tests when changing financial behavior, security, cache/analytics, Banco Inter flows, reconciliation, purchases, reports, or backend services.
+6. Run the smallest relevant validation commands and report skipped checks explicitly.
 
 ## Task Guidance
 
@@ -21,6 +22,7 @@ description: Project workflow for the Gestor Financeiro repository. Use when Cod
 - Report/cache/analytics change: account for Redis live cache, persisted monthly snapshots, invalidation, and rebuild behavior.
 - Banco Inter change: handle sandbox/production differences, mTLS credentials, pagination, deduplication, idempotency, and API errors.
 - Security/deploy change: keep secrets out of git, keep production manual, and run the security scan.
+- `DOIT.md` update: keep entries specific to Sistema Salomao, include goal, scope, acceptance criteria, validation, and risk/sensitivity notes, and do not copy generic doit.md app workflow rules into this repository.
 
 ## Validation Commands
 
