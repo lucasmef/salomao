@@ -401,6 +401,10 @@
   gap: 10px;
 }
 
+.sales-report-filter-layout {
+  grid-template-columns: repeat(3, minmax(0, 180px)) repeat(2, minmax(116px, auto));
+}
+
 .compact-filter-layout label {
   display: grid;
   gap: 4px;

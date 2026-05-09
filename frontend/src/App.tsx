@@ -2058,7 +2058,7 @@ function AppRuntime() {
         body: JSON.stringify({}),
       });
       setFeedback({ tone: "success", message: result.message });
-    }, "Movimentos do Linx atualizados.", { sections: ["cadastros", "relatorios", "overview", "importacoes"] });
+    }, "Movimentos do Linx atualizados.", { sections: ["cadastros", "caixa", "relatorios", "overview", "importacoes"] });
   }
 
   async function applyLinxOpenReceivableFilters(filters: { search: string }) {
@@ -3232,6 +3232,7 @@ function AppRuntime() {
                 onApplyFilters={applyLinxSalesReportFilters}
                 onChangePage={changeLinxSalesReportPage}
                 onChangePageSize={changeLinxSalesReportPageSize}
+                onSyncLinxSales={syncLinxMovementsImport}
                 report={linxSalesReport}
               />
             </SectionChrome>

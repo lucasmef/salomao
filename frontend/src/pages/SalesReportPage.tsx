@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { RefreshIcon } from "../components/RefreshIcon";
 import { TablePagination } from "../components/TablePagination";
 import { Button } from "../components/ui";
 import { formatDate, formatMoney } from "../lib/format";
@@ -18,6 +19,7 @@ type Props = {
   onApplyFilters: (filters: { search: string; start: string; end: string }) => Promise<void>;
   onChangePage: (page: number) => Promise<void>;
   onChangePageSize: (pageSize: number) => Promise<void>;
+  onSyncLinxSales: () => Promise<void>;
 };
 
 export function SalesReportPage({
@@ -27,6 +29,7 @@ export function SalesReportPage({
   onApplyFilters,
   onChangePage,
   onChangePageSize,
+  onSyncLinxSales,
 }: Props) {
   const [search, setSearch] = useState(filters.search);
   const [start, setStart] = useState(filters.start);
@@ -42,7 +45,7 @@ export function SalesReportPage({
   return (
     <>
       <section className="section-toolbar-panel">
-        <div className="section-toolbar-content compact-filter-layout">
+        <div className="section-toolbar-content compact-filter-layout sales-report-filter-layout">
           <label>
             Início
             <input type="date" value={start} onChange={(event) => setStart(event.target.value)} />
@@ -66,6 +69,15 @@ export function SalesReportPage({
             onClick={() => void onApplyFilters({ search, start, end })}
           >
             Buscar
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            loading={loading}
+            iconLeft={<RefreshIcon />}
+            onClick={() => void onSyncLinxSales()}
+          >
+            Atualizar
           </Button>
         </div>
       </section>
