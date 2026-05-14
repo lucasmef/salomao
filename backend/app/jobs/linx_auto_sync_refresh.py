@@ -5,35 +5,20 @@ import sys
 
 from app.db.models.security import Company
 from app.db.session import SessionLocal
-from app.services.auto_sync_refresh import finalize_auto_sync_refresh
+from app.services.auto_sync_refresh import finalize_auto_sync_refresh, run_has_refreshable_changes
 from app.services.linx_auto_sync import run_linx_auto_sync_cycle
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Executa a sincronizacao automatica do Linx com refresh central.")
+    parser = argparse.ArgumentParser(
+        description="Executa a sincronizacao automatica do Linx com refresh central."
+    )
     parser.add_argument(
         "--force",
         action="store_true",
         help="Executa imediatamente sem respeitar a janela automatica das 06h as 22h.",
     )
     return parser
-
-
-
-def _run_has_refreshable_changes(run) -> bool:
-    return any(
-        message
-        for message in (
-            run.inter_statement_message,
-            run.inter_charges_message,
-            run.customers_message,
-            run.receivables_message,
-            run.movements_message,
-            run.products_message,
-            run.purchase_payables_message,
-        )
-    )
-
 
 
 def _optional_run_message(run, field_name: str):
@@ -49,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             if run.status not in {"success", "partial_failure"}:
                 continue
-            if not _run_has_refreshable_changes(run):
+            if not run_has_refreshable_changes(run):
                 continue
             company = db.get(Company, run.company_id)
             if company is None:

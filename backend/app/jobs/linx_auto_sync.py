@@ -3,12 +3,16 @@ from __future__ import annotations
 import argparse
 import sys
 
+from app.db.models.security import Company
 from app.db.session import SessionLocal
+from app.services.auto_sync_refresh import finalize_auto_sync_refresh, run_has_refreshable_changes
 from app.services.linx_auto_sync import run_linx_auto_sync_cycle
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Executa a sincronizacao automatica do Linx via API.")
+    parser = argparse.ArgumentParser(
+        description="Executa a sincronizacao automatica do Linx via API."
+    )
     parser.add_argument(
         "--force",
         action="store_true",
@@ -21,6 +25,17 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     with SessionLocal() as db:
         runs = run_linx_auto_sync_cycle(db, force=args.force)
+        for run in runs:
+            if not run.attempted:
+                continue
+            if run.status not in {"success", "partial_failure"}:
+                continue
+            if not run_has_refreshable_changes(run):
+                continue
+            company = db.get(Company, run.company_id)
+            if company is None:
+                continue
+            finalize_auto_sync_refresh(db, company)
 
     if not runs:
         print("Nenhuma empresa habilitada para sincronizacao automatica do Linx.")

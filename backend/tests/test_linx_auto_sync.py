@@ -9,11 +9,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import get_settings
-from app.jobs import linx_auto_sync as linx_auto_sync_job
 from app.db.base import Base
 from app.db.models.boleto import StandaloneBoletoRecord
 from app.db.models.imports import ImportBatch
 from app.db.models.security import Company
+from app.jobs import linx_auto_sync as linx_auto_sync_job
 from app.services.linx_auto_sync import (
     AUTO_SYNC_TIMEZONE,
     LINX_PRODUCTS_SOURCE,
@@ -594,12 +594,20 @@ def test_linx_auto_sync_still_skips_second_run_in_same_hour(monkeypatch) -> None
 
 
 def test_linx_auto_sync_job_returns_zero_for_partial_failure(monkeypatch) -> None:
+    company = SimpleNamespace(id="company-1")
+    refresh_calls: list[tuple[object, object]] = []
+
     class _DummySession:
         def __enter__(self):
-            return object()
+            return self
 
         def __exit__(self, exc_type, exc, tb):
             return False
+
+        def get(self, model, company_id):
+            if company_id == company.id:
+                return company
+            return None
 
     monkeypatch.setattr(linx_auto_sync_job, "SessionLocal", lambda: _DummySession())
     monkeypatch.setattr(
@@ -616,8 +624,15 @@ def test_linx_auto_sync_job_returns_zero_for_partial_failure(monkeypatch) -> Non
             )
         ],
     )
+    monkeypatch.setattr(
+        linx_auto_sync_job,
+        "finalize_auto_sync_refresh",
+        lambda db, current_company: refresh_calls.append((db, current_company)),
+    )
 
     assert linx_auto_sync_job.main([]) == 0
+    assert len(refresh_calls) == 1
+    assert refresh_calls[0][1] is company
 
 
 def test_linx_auto_sync_job_returns_nonzero_for_full_failure(monkeypatch) -> None:
@@ -644,6 +659,44 @@ def test_linx_auto_sync_job_returns_nonzero_for_full_failure(monkeypatch) -> Non
     )
 
     assert linx_auto_sync_job.main([]) == 1
+
+
+def test_linx_auto_sync_job_finalizes_refresh_for_successful_runs(monkeypatch) -> None:
+    company = SimpleNamespace(id="company-1")
+    refresh_calls: list[tuple[object, object]] = []
+    session = SimpleNamespace(
+        get=lambda model, company_id: company if company_id == company.id else None
+    )
+
+    class _DummySession:
+        def __enter__(self):
+            return session
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(linx_auto_sync_job, "SessionLocal", lambda: _DummySession())
+    monkeypatch.setattr(
+        linx_auto_sync_job,
+        "run_linx_auto_sync_cycle",
+        lambda db, force=False: [
+            LinxAutoSyncRun(
+                company_id="company-1",
+                company_name="Salomao",
+                status="success",
+                attempted=True,
+                movements_message="Movimentos sincronizados.",
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        linx_auto_sync_job,
+        "finalize_auto_sync_refresh",
+        lambda db, current_company: refresh_calls.append((db, current_company)),
+    )
+
+    assert linx_auto_sync_job.main([]) == 0
+    assert refresh_calls == [(session, company)]
 
 
 def test_linx_auto_sync_runs_inter_before_settlement_and_disables_charge_inline_settlement(monkeypatch) -> None:
