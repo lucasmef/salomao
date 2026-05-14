@@ -70,7 +70,9 @@ const emptySettlementPrompt = {
   entryId: "",
   account_id: "",
   paid_amount: "",
+  return_credit_amount: zeroMoneyInput,
   title: "",
+  is_purchase_invoice: false,
 };
 
 const emptyTransferForm = {
@@ -1390,24 +1392,28 @@ export function EntriesPage({
 
   async function requestSettlement(entry: FinancialEntry) {
     const amount = quickAmount(entry);
-    if (entry.account_id) {
-      await onSettleEntry(entry.id, { paid_amount: normalizePtBrMoneyInput(amount) });
-      return;
-    }
     setSettlementPrompt({
       entryId: entry.id,
-      account_id: "",
+      account_id: entry.account_id ?? "",
       paid_amount: amount,
+      return_credit_amount: zeroMoneyInput,
       title: entry.title,
+      is_purchase_invoice: isPurchaseInvoiceEntry(entry),
     });
     setShowSettlementPrompt(true);
   }
 
   async function confirmSettlementWithAccount() {
-    await onSettleEntry(settlementPrompt.entryId, {
+    const returnCreditAmount = normalizePtBrMoneyInput(settlementPrompt.return_credit_amount);
+    const payload: Record<string, unknown> = {
       paid_amount: normalizePtBrMoneyInput(settlementPrompt.paid_amount),
       account_id: settlementPrompt.account_id,
-    });
+    };
+    if (settlementPrompt.is_purchase_invoice && Number(returnCreditAmount) > 0) {
+      payload.penalty_amount = returnCreditAmount;
+      payload.penalty_mode = "return_credit";
+    }
+    await onSettleEntry(settlementPrompt.entryId, payload);
     setShowSettlementPrompt(false);
     setSettlementPrompt(emptySettlementPrompt);
   }
@@ -2258,9 +2264,21 @@ export function EntriesPage({
                 <input value={settlementPrompt.title} disabled />
               </label>
               <label>
-                Valor
-                <input value={formatMoney(settlementPrompt.paid_amount)} disabled />
+                Valor pago
+                <MoneyInput
+                  value={settlementPrompt.paid_amount}
+                  onValueChange={(value) => setSettlementPrompt((current) => ({ ...current, paid_amount: value }))}
+                />
               </label>
+              {settlementPrompt.is_purchase_invoice && (
+                <label>
+                  Crédito devolução
+                  <MoneyInput
+                    value={settlementPrompt.return_credit_amount}
+                    onValueChange={(value) => setSettlementPrompt((current) => ({ ...current, return_credit_amount: value }))}
+                  />
+                </label>
+              )}
               <label>
                 Conta *
                 <UiSelect

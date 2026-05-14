@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timezone
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
@@ -14,6 +14,7 @@ from app.core.statuses import (
     expand_status_filter_values,
     normalize_open_alias,
 )
+from app.db.models.banking import Reconciliation, ReconciliationLine
 from app.db.models.finance import (
     Account,
     Category,
@@ -23,8 +24,12 @@ from app.db.models.finance import (
     RecurrenceRule,
     Transfer,
 )
-from app.db.models.banking import Reconciliation, ReconciliationLine
-from app.db.models.purchasing import CollectionSeason, PurchaseInvoice, PurchaseInstallment, Supplier
+from app.db.models.purchasing import (
+    CollectionSeason,
+    PurchaseInstallment,
+    PurchaseInvoice,
+    Supplier,
+)
 from app.db.models.security import Company, User
 from app.schemas.financial_entry import (
     EntrySettlementRequest,
@@ -44,7 +49,6 @@ from app.services.audit import write_audit_log
 from app.services.bootstrap import ensure_default_financial_category
 from app.services.category_catalog import ensure_category_catalog
 from app.services.import_parsers import normalize_label
-
 
 TWO_PLACES = Decimal("0.01")
 SETTLEMENT_ADJUSTMENT_SOURCE = "settlement_adjustment"
@@ -784,12 +788,16 @@ def settle_entry(
         penalty_amount=payload.penalty_amount,
         discount_amount=payload.discount_amount,
         settled_at=payload.settled_at,
+        penalty_mode=payload.penalty_mode,
     )
     paid_amount = _money(payload.paid_amount if payload.paid_amount is not None else cash_total)
     if paid_amount != cash_total:
         raise HTTPException(
             status_code=400,
-            detail="A baixa exige valor exato. Ajuste principal, juros, multa ou desconto antes de confirmar.",
+            detail=(
+                "A baixa exige valor exato. Ajuste principal, juros, multa, credito "
+                "devolucao ou desconto antes de confirmar."
+            ),
         )
     entry.paid_amount = Decimal(entry.total_amount)
     entry.notes = payload.notes or entry.notes

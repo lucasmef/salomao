@@ -79,6 +79,7 @@ class EntrySettlementRequest(BaseModel):
     interest_amount: Decimal | None = None
     penalty_amount: Decimal | None = None
     discount_amount: Decimal | None = None
+    penalty_mode: Literal["penalty", "return_credit"] = "penalty"
     notes: str | None = None
 
 
