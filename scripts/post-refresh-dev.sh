@@ -15,6 +15,7 @@ source "$SCRIPT_DIR/resolve-env.sh"
 DEV_APP_DIR="${DEV_APP_DIR:-/srv/salomao/dev/app}"
 DEV_ENV_FILE="${DEV_ENV_FILE:-$(resolve_backend_env_file "$DEV_APP_DIR")}"
 DEV_SERVICE="salomao-dev.service"
+STANDBY_DEV="${SALOMAO_DEV_STANDBY:-0}"
 
 require_command() {
   local command_name="$1"
@@ -105,7 +106,12 @@ if grep -q '^SECURITY_ALERT_EMAIL_ENABLED=' "$DEV_ENV_FILE"; then
   sed -i 's/^SECURITY_ALERT_EMAIL_ENABLED=.*/SECURITY_ALERT_EMAIL_ENABLED=false/' "$DEV_ENV_FILE"
 fi
 
-echo "==> [pos-refresh] Reiniciando servico dev"
-sudo systemctl restart "$DEV_SERVICE"
+if [[ "$STANDBY_DEV" == "1" ]]; then
+  echo "==> [pos-refresh] Standby dev solicitado; mantendo $DEV_SERVICE parado"
+  sudo systemctl stop "$DEV_SERVICE" || true
+else
+  echo "==> [pos-refresh] Reiniciando servico dev"
+  sudo systemctl restart "$DEV_SERVICE"
+fi
 
 echo "==> [pos-refresh] Modo seguro aplicado ao ambiente dev"

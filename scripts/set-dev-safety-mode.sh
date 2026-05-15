@@ -24,6 +24,7 @@ source "$SCRIPT_DIR/resolve-env.sh"
 DEV_APP_DIR="${DEV_APP_DIR:-/srv/salomao/dev/app}"
 DEV_ENV_FILE="${DEV_ENV_FILE:-$(resolve_backend_env_file "$DEV_APP_DIR")}"
 DEV_SERVICE="salomao-dev.service"
+STANDBY_DEV="${SALOMAO_DEV_STANDBY:-0}"
 
 require_command() {
   local command_name="$1"
@@ -109,13 +110,18 @@ case "$MODE" in
     echo "  -> Desabilitando alertas de email"
     set_env_value "$DEV_ENV_FILE" SECURITY_ALERT_EMAIL_ENABLED false
 
-    echo "  -> Reiniciando servico dev"
-    sudo systemctl restart "$DEV_SERVICE"
+    if [[ "$STANDBY_DEV" == "1" ]]; then
+      echo "  -> Standby dev solicitado; mantendo $DEV_SERVICE parado"
+      sudo systemctl stop "$DEV_SERVICE" || true
+    else
+      echo "  -> Reiniciando servico dev"
+      sudo systemctl restart "$DEV_SERVICE"
+    fi
 
     echo "==> Modo SEGURO aplicado"
     echo "  - inter_api_enabled = false em todas as contas"
     echo "  - SECURITY_ALERT_EMAIL_ENABLED = false"
-    echo "  - Servico dev reiniciado"
+    echo "  - Servico dev em standby: $STANDBY_DEV"
     ;;
 
   validate)
@@ -129,11 +135,16 @@ case "$MODE" in
     echo "  pela interface do sistema, conta a conta."
     echo ""
 
-    echo "  -> Reiniciando servico dev"
-    sudo systemctl restart "$DEV_SERVICE"
+    if [[ "$STANDBY_DEV" == "1" ]]; then
+      echo "  -> Standby dev solicitado; mantendo $DEV_SERVICE parado"
+      sudo systemctl stop "$DEV_SERVICE" || true
+    else
+      echo "  -> Reiniciando servico dev"
+      sudo systemctl restart "$DEV_SERVICE"
+    fi
 
     echo "==> Modo VALIDACAO aplicado"
-    echo "  - Servico dev reiniciado"
+    echo "  - Servico dev em standby: $STANDBY_DEV"
     echo "  - Inter NAO foi reativado (seguranca)"
     echo "  - Reative manualmente se necessario"
     ;;

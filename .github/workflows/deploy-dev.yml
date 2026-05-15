@@ -28,13 +28,21 @@ jobs:
           SYNC_CHECKOUT_DIRTY_POLICY=reset bash scripts/sync-checkout-to-ref.sh /srv/salomao/dev/app dev
 
       - name: Deploy dev
+        env:
+          SALOMAO_DEV_STANDBY: "1"
         run: |
           bash /srv/salomao/dev/app/scripts/deploy-dev.sh
 
-      - name: Healthcheck
+      - name: Confirmar standby dev
         run: |
-          sleep 3
-          curl --fail --silent --show-error http://127.0.0.1:8101/api/v1/health
-          echo
-          echo "Deploy dev concluido com sucesso"
+          sudo systemctl stop salomao-inter-dev.service || true
+          if systemctl is-active --quiet salomao-dev.service; then
+            echo "salomao-dev.service deveria estar parado em standby."
+            exit 1
+          fi
+          if systemctl is-active --quiet salomao-inter-dev.service; then
+            echo "salomao-inter-dev.service deveria estar parado em standby."
+            exit 1
+          fi
+          echo "Deploy dev preparado; servicos dev do Salomao permanecem em standby."
 

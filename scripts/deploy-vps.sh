@@ -7,6 +7,7 @@ if [[ $# -lt 1 ]]; then
 fi
 
 TARGET="$1"
+STANDBY_DEV="${SALOMAO_DEV_STANDBY:-0}"
 case "$TARGET" in
   dev)
     SERVICE_NAME="salomao-dev.service"
@@ -220,6 +221,14 @@ cd "$BACKEND_DIR"
 "$PYTHON_BIN" -m alembic upgrade head
 
 
+if [[ "$TARGET" == "dev" && "$STANDBY_DEV" == "1" ]]; then
+  echo "==> Standby dev solicitado; parando $SERVICE_NAME e pulando restart/healthcheck"
+  cleanup_orphan_listener "$SERVICE_PORT"
+  sudo systemctl daemon-reload
+  sudo systemctl stop "$SERVICE_NAME" || true
+  echo "==> Deploy dev preparado em disco; $SERVICE_NAME esta parado para economizar RAM"
+  exit 0
+fi
 
 echo "==> Reiniciando servico $SERVICE_NAME"
 cleanup_orphan_listener "$SERVICE_PORT"

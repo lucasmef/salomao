@@ -26,13 +26,19 @@ jobs:
         run: |
           bash /srv/salomao/dev/app/scripts/sanitize-dev-db.sh
 
-      - name: Reiniciar servico dev
+      - name: Manter servico dev em standby
         run: |
-          sudo systemctl restart salomao-dev.service
+          sudo systemctl stop salomao-dev.service || true
+          sudo systemctl stop salomao-inter-dev.service || true
 
-      - name: Healthcheck
+      - name: Confirmar standby dev
         run: |
-          sleep 3
-          curl --fail --silent --show-error http://127.0.0.1:8101/api/v1/health
-          echo
-          echo "Sanitizacao do banco dev concluida com sucesso"
+          if systemctl is-active --quiet salomao-dev.service; then
+            echo "salomao-dev.service deveria estar parado em standby."
+            exit 1
+          fi
+          if systemctl is-active --quiet salomao-inter-dev.service; then
+            echo "salomao-inter-dev.service deveria estar parado em standby."
+            exit 1
+          fi
+          echo "Sanitizacao do banco dev concluida; servicos dev do Salomao permanecem em standby."
