@@ -108,7 +108,9 @@ fi
 
 if [[ "$STANDBY_DEV" == "1" ]]; then
   echo "==> [pos-refresh] Standby dev solicitado; mantendo $DEV_SERVICE parado"
-  sudo systemctl stop "$DEV_SERVICE" || true
+  if ! sudo -n systemctl stop "$DEV_SERVICE" 2>/dev/null; then
+    echo "==> [pos-refresh] Aviso: sem permissao para parar $DEV_SERVICE neste runner; use docs/dev-standby.md"
+  fi
 else
   echo "==> [pos-refresh] Reiniciando servico dev"
   sudo systemctl restart "$DEV_SERVICE"

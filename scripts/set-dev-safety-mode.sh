@@ -112,7 +112,9 @@ case "$MODE" in
 
     if [[ "$STANDBY_DEV" == "1" ]]; then
       echo "  -> Standby dev solicitado; mantendo $DEV_SERVICE parado"
-      sudo systemctl stop "$DEV_SERVICE" || true
+      if ! sudo -n systemctl stop "$DEV_SERVICE" 2>/dev/null; then
+        echo "  -> Aviso: sem permissao para parar $DEV_SERVICE neste runner; use docs/dev-standby.md"
+      fi
     else
       echo "  -> Reiniciando servico dev"
       sudo systemctl restart "$DEV_SERVICE"
@@ -137,7 +139,9 @@ case "$MODE" in
 
     if [[ "$STANDBY_DEV" == "1" ]]; then
       echo "  -> Standby dev solicitado; mantendo $DEV_SERVICE parado"
-      sudo systemctl stop "$DEV_SERVICE" || true
+      if ! sudo -n systemctl stop "$DEV_SERVICE" 2>/dev/null; then
+        echo "  -> Aviso: sem permissao para parar $DEV_SERVICE neste runner; use docs/dev-standby.md"
+      fi
     else
       echo "  -> Reiniciando servico dev"
       sudo systemctl restart "$DEV_SERVICE"

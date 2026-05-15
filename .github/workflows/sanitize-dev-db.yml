@@ -26,19 +26,16 @@ jobs:
         run: |
           bash /srv/salomao/dev/app/scripts/sanitize-dev-db.sh
 
-      - name: Manter servico dev em standby
-        run: |
-          sudo systemctl stop salomao-dev.service || true
-          sudo systemctl stop salomao-inter-dev.service || true
-
       - name: Confirmar standby dev
         run: |
           if systemctl is-active --quiet salomao-dev.service; then
-            echo "salomao-dev.service deveria estar parado em standby."
-            exit 1
+            echo "::warning::salomao-dev.service ainda esta ativo. Este workflow nao reinicia o dev; pare com os comandos em docs/dev-standby.md."
+          else
+            echo "salomao-dev.service esta parado."
           fi
           if systemctl is-active --quiet salomao-inter-dev.service; then
-            echo "salomao-inter-dev.service deveria estar parado em standby."
-            exit 1
+            echo "::warning::salomao-inter-dev.service ainda esta ativo. Pare com os comandos em docs/dev-standby.md."
+          else
+            echo "salomao-inter-dev.service esta parado."
           fi
-          echo "Sanitizacao do banco dev concluida; servicos dev do Salomao permanecem em standby."
+          echo "Sanitizacao do banco dev concluida sem reiniciar os servicos dev do Salomao."

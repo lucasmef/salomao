@@ -38,14 +38,14 @@ jobs:
 
       - name: Confirmar standby dev
         run: |
-          sudo systemctl stop salomao-dev.service || true
-          sudo systemctl stop salomao-inter-dev.service || true
           if systemctl is-active --quiet salomao-dev.service; then
-            echo "salomao-dev.service deveria estar parado em standby."
-            exit 1
+            echo "::warning::salomao-dev.service ainda esta ativo. O workflow nao reiniciou o dev; pare com os comandos em docs/dev-standby.md."
+          else
+            echo "salomao-dev.service esta parado."
           fi
           if systemctl is-active --quiet salomao-inter-dev.service; then
-            echo "salomao-inter-dev.service deveria estar parado em standby."
-            exit 1
+            echo "::warning::salomao-inter-dev.service ainda esta ativo. Pare com os comandos em docs/dev-standby.md."
+          else
+            echo "salomao-inter-dev.service esta parado."
           fi
-          echo "Modo ${{ inputs.mode }} aplicado; servicos dev do Salomao permanecem em standby."
+          echo "Modo ${{ inputs.mode }} aplicado sem reiniciar os servicos dev do Salomao."

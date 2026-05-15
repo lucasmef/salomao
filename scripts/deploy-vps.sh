@@ -224,9 +224,13 @@ cd "$BACKEND_DIR"
 if [[ "$TARGET" == "dev" && "$STANDBY_DEV" == "1" ]]; then
   echo "==> Standby dev solicitado; parando $SERVICE_NAME e pulando restart/healthcheck"
   cleanup_orphan_listener "$SERVICE_PORT"
-  sudo systemctl daemon-reload
-  sudo systemctl stop "$SERVICE_NAME" || true
-  echo "==> Deploy dev preparado em disco; $SERVICE_NAME esta parado para economizar RAM"
+  if ! sudo -n systemctl daemon-reload 2>/dev/null; then
+    echo "==> Aviso: sem sudo nao-interativo para daemon-reload; seguindo sem reiniciar dev"
+  fi
+  if ! sudo -n systemctl stop "$SERVICE_NAME" 2>/dev/null; then
+    echo "==> Aviso: sem permissao para parar $SERVICE_NAME neste runner; use docs/dev-standby.md para parar manualmente"
+  fi
+  echo "==> Deploy dev preparado em disco sem reiniciar $SERVICE_NAME"
   exit 0
 fi
 
