@@ -32,7 +32,9 @@ from app.db.models.security import Company
 from app.schemas.imports import ImportResult
 from app.services.boletos import (
     _build_export_charge_code,
+    _build_linx_customer_lookup,
     _digits_only,
+    _resolve_customer_data,
     _resolve_export_due_date,
     _truncate_text,
     _validate_export_client_config,
@@ -1574,7 +1576,7 @@ def _resolve_standalone_customer(db: Session, *, company_id: str, client_name: s
 
 def _build_inter_charge_payload(
     item: Any,
-    config: BoletoCustomerConfig,
+    config: Any,
     *,
     today: date,
 ) -> dict[str, Any]:
@@ -1935,17 +1937,28 @@ def issue_inter_charges(
         raise ValueError("Alguns boletos selecionados nao estao mais disponiveis para emissao.")
 
     config_map = _load_boleto_config_map(db, company.id)
-    validation_errors: list[str] = []
+    customer_lookup = _build_linx_customer_lookup(db, company.id)
+    validation_errors: set[str] = set()
     prepared_payloads: list[tuple[Any, dict[str, Any]]] = []
     today = date.today()
 
     for item in selected_items:
-        customer_config = config_map.get(item.client_key)
+        config_item = config_map.get(item.client_key)
+        receivable_client_code = item.receivables[0].client_code if item.receivables else None
+        customer_config = _resolve_customer_data(
+            client_key=item.client_key,
+            client_name=item.client_name,
+            client_code=(
+                receivable_client_code or (config_item.client_code if config_item else None)
+            ),
+            config=config_item,
+            customer_lookup=customer_lookup,
+            auto_uses_boleto=bool(config_item.uses_boleto) if config_item else False,
+        )
         missing_fields = _validate_export_client_config(customer_config, item.client_name)
         if missing_fields:
-            validation_errors.append(f"{item.client_name}: {', '.join(missing_fields)}")
+            validation_errors.add(f"{item.client_name}: {', '.join(missing_fields)}")
             continue
-        assert customer_config is not None
         prepared_payloads.append(
             (
                 item,
