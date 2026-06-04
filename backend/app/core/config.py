@@ -6,7 +6,6 @@ from urllib.parse import urlsplit
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 LEGACY_BACKEND_ENV_FILE = PROJECT_ROOT / "backend" / ".env"
 DEFAULT_EXTERNAL_ENV_FILE = PROJECT_ROOT.parent / "salomao-config" / "backend.env"
@@ -128,8 +127,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_security_requirements(self) -> "Settings":
-        if self.app_mode not in {"desktop", "server"}:
-            raise ValueError("APP_MODE deve ser 'desktop' ou 'server'")
+        if self.app_mode not in {"desktop", "local", "server"}:
+            raise ValueError("APP_MODE deve ser 'desktop', 'local' ou 'server'")
         bootstrap_fields = {
             "BOOTSTRAP_ADMIN_EMAIL": self.bootstrap_admin_email,
             "BOOTSTRAP_ADMIN_PASSWORD": self.bootstrap_admin_password,

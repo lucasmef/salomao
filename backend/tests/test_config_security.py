@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings, get_settings
+from app.db.sqlite import ensure_sqlite_database_parent, sqlite_database_path
 
 
 def _set_server_env(monkeypatch) -> None:
@@ -29,6 +30,26 @@ def test_server_mode_rejects_short_field_encryption_key(monkeypatch) -> None:
 
     with pytest.raises(ValueError, match="FIELD_ENCRYPTION_KEY"):
         Settings()
+
+
+def test_local_mode_accepts_sqlite_database_url(monkeypatch) -> None:
+    monkeypatch.setenv("APP_MODE", "local")
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///./.runtime/gestor_financeiro.dev.sqlite3")
+
+    settings = Settings()
+
+    assert settings.app_mode == "local"
+    assert settings.is_sqlite is True
+    assert settings.is_server_mode is False
+
+
+def test_ensure_sqlite_database_parent_creates_local_runtime_dir(tmp_path) -> None:
+    database_path = tmp_path / "nested" / "gestor_financeiro.dev.sqlite3"
+
+    ensure_sqlite_database_parent(f"sqlite:///{database_path.as_posix()}")
+
+    assert database_path.parent.is_dir()
+    assert sqlite_database_path("sqlite:///:memory:") is None
 
 
 def test_server_mode_disables_api_docs_by_default(monkeypatch) -> None:

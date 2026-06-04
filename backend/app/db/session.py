@@ -4,12 +4,14 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
+from app.db.sqlite import ensure_sqlite_database_parent
 
 settings = get_settings()
 
 connect_args: dict[str, object] = {}
 if settings.database_url.startswith("sqlite"):
     connect_args["check_same_thread"] = False
+    ensure_sqlite_database_parent(settings.database_url)
 
 engine = create_engine(settings.database_url, connect_args=connect_args, pool_pre_ping=True)
 

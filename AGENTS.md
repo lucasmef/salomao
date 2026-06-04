@@ -43,3 +43,37 @@ Run the smallest relevant checks during development. Before handing off broad ch
 - Relevant validation commands were run and their result is reported.
 - Any skipped validation is called out with the reason.
 - Operational or security-sensitive changes include rollback or failure considerations.
+
+---
+
+## BuilderFlow
+
+This repository uses BuilderFlow for AI-assisted development.
+
+When the user says `Use BuilderFlow`, Codex must use the `builderflow` skill.
+
+BuilderFlow is the primary process for planning and executing tasks. It owns task classification, Grill Gate questions, living specs, ADR handling, validation reporting, and final summaries.
+
+Project-specific skills, if present, are companion skills for domain-specific rules only. Use them when a task touches product data, sensitive modules, architecture, security, integrations, or repository-specific conventions.
+
+Default workflow:
+
+1. Read repository context before acting.
+2. Work one feature or task at a time.
+3. Create or update one living spec in `specs/`.
+4. Ask questions only after reading docs and code.
+5. Prefer small, reversible, verifiable changes.
+6. Register ADRs only for architectural or hard-to-reverse decisions.
+7. Update the living spec before ending the task.
+8. For frontend-impacting work, complete local browser validation and save screenshots in `specs/artifacts/<spec-slug>/` before marking the task done. When a fix has visual impact, also save a proof copy in the global folder `G:\Meu Drive\.agentes`, named `gestor-financeiro-<screen>-<YYYY-MM-DD>[-n].png`.
+
+Important files:
+
+- `docs/CONTEXT.md` - current project context
+- `docs/ADR.md` - durable architectural decisions
+- `.claude/skills/builderflow/SKILL.md` - BuilderFlow skill (Claude Code)
+- `.agents/skills/builderflow/SKILL.md` - BuilderFlow skill (Codex / other agents)
+- `specs/` - one living spec per task or feature
+- `specs/artifacts/` - screenshots and visual validation evidence grouped by spec slug
+
+Do not create separate PRD, TASKS, STATUS, HANDOFF, or NOTES files unless the user explicitly asks.

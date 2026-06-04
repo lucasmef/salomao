@@ -201,6 +201,7 @@ Arquivos versionados de referencia:
 
 - `backend/.env.example`
 - `backend/.env.dev.example`
+- `backend/.env.local.example`
 - `backend/.env.prod.example`
 
 Configuracao minima:
@@ -220,6 +221,12 @@ PUBLIC_ORIGIN=https://salomao.example.invalid
 Na primeira inicializacao com banco vazio, defina `BOOTSTRAP_ADMIN_EMAIL` e `BOOTSTRAP_ADMIN_PASSWORD` para criar o administrador inicial. Depois do bootstrap, troque a senha pela interface e remova a senha inicial do arquivo de ambiente.
 
 ## Desenvolvimento local
+
+Para desenvolvimento leve sem Docker ou PostgreSQL local, use SQLite apenas na maquina do desenvolvedor. O dev no VPS e o prod no VPS continuam usando PostgreSQL e nao fazem parte desse fluxo local.
+
+Runbook: [Desenvolvimento local com SQLite](docs/local-sqlite-dev.md)
+
+Dados ficticios locais podem ser criados com `cd backend; uv run python scripts/seed_local_demo.py` depois de inicializar o SQLite.
 
 Backend:
 
@@ -290,6 +297,7 @@ A suite backend cobre os pontos mais sensiveis do produto:
 ## Documentos importantes
 
 - [Arquitetura](docs/architecture.md)
+- [Desenvolvimento local com SQLite](docs/local-sqlite-dev.md)
 - [Deploy no VPS](docs/deploy-vps.md)
 - [Acesso SSH via Tailscale](docs/ssh-acesso-vps.md)
 - [Checklist PostgreSQL](docs/postgres-cutover-checklist.md)
