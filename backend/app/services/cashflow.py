@@ -622,8 +622,6 @@ def build_cashflow_overview(
 
         if not is_ignored:
             current_balance += balance
-        elif account_id is None:
-            continue
 
         account_balances.append(
             AccountBalance(
