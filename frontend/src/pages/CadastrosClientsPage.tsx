@@ -139,8 +139,8 @@ export function CadastrosClientsPage({
       </section>
 
       <section className="panel">
-        <div className="table-shell tall">
-          <table className="erp-table">
+        <div className="table-shell tall table-shell--mobile-compact">
+          <table className="erp-table mobile-compact-table">
             <thead>
               <tr>
                 <th>Tipo</th>
@@ -159,19 +159,19 @@ export function CadastrosClientsPage({
             <tbody>
               {filteredItems.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.registration_type_label}</td>
-                  <td>{item.linx_code}</td>
-                  <td>{item.legal_name}</td>
-                  <td>{item.display_name ?? "-"}</td>
-                  <td>{item.document_number ?? "-"}</td>
-                  <td>{item.city || item.state ? `${item.city ?? "-"} / ${item.state ?? "-"}` : "-"}</td>
-                  <td>
+                  <td className="mobile-compact-hidden" data-label="Tipo">{item.registration_type_label}</td>
+                  <td className="mobile-compact-hidden" data-label="Codigo">{item.linx_code}</td>
+                  <td className="mobile-compact-primary" data-label="Nome">{item.legal_name}</td>
+                  <td className="mobile-compact-hidden" data-label="Fantasia">{item.display_name ?? "-"}</td>
+                  <td data-label="Documento">{item.document_number ?? "-"}</td>
+                  <td data-label="Cidade/UF">{item.city || item.state ? `${item.city ?? "-"} / ${item.state ?? "-"}` : "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Boleto">
                     {item.supports_boleto_config ? (item.uses_boleto ? "Sim" : "Não") : "-"}
                   </td>
-                  <td>{item.supports_boleto_config ? displayMode(item.mode) : "-"}</td>
-                  <td>{item.supports_boleto_config ? item.boleto_due_day ?? "-" : "-"}</td>
-                  <td>{item.supports_boleto_config ? (item.include_interest ? "Sim" : "Não") : "-"}</td>
-                  <td>{item.linx_updated_at ? formatDate(item.linx_updated_at) : "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Modo">{item.supports_boleto_config ? displayMode(item.mode) : "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Dia">{item.supports_boleto_config ? item.boleto_due_day ?? "-" : "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Multa/juros">{item.supports_boleto_config ? (item.include_interest ? "Sim" : "Não") : "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Atualizado">{item.linx_updated_at ? formatDate(item.linx_updated_at) : "-"}</td>
                 </tr>
               ))}
               {!filteredItems.length && (

@@ -109,7 +109,7 @@ export function CadastrosProductsPage({
       </section>
 
       <section className="panel">
-        <div className="table-shell tall">
+        <div className="table-shell tall table-shell--mobile-compact">
           <TablePagination
             loading={loading}
             onPageChange={onChangePage}
@@ -120,7 +120,7 @@ export function CadastrosProductsPage({
             totalItems={directory.total}
             totalPages={totalPages}
           />
-          <table className="erp-table">
+          <table className="erp-table mobile-compact-table">
             <thead>
               <tr>
                 <th>Codigo</th>
@@ -138,16 +138,16 @@ export function CadastrosProductsPage({
             <tbody>
               {directory.items.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.linx_code}</td>
-                  <td>{item.description}</td>
-                  <td>{item.reference ?? "-"}</td>
-                  <td>{item.price_cost != null ? formatMoney(item.price_cost) : "-"}</td>
-                  <td>{item.price_sale != null ? formatMoney(item.price_sale) : "-"}</td>
-                  <td>{item.stock_quantity ?? "-"}</td>
-                  <td>{item.supplier_name ?? (item.supplier_code != null ? `Fornecedor ${item.supplier_code}` : "-")}</td>
-                  <td>{item.collection_name ?? "-"}</td>
-                  <td>{item.is_active ? "Ativo" : "Inativo"}</td>
-                  <td>{item.linx_updated_at ? formatDate(item.linx_updated_at) : "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Codigo">{item.linx_code}</td>
+                  <td className="mobile-compact-primary" data-label="Descricao">{item.description}</td>
+                  <td className="mobile-compact-hidden" data-label="Referencia">{item.reference ?? "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Custo">{item.price_cost != null ? formatMoney(item.price_cost) : "-"}</td>
+                  <td className="mobile-compact-amount" data-label="Venda">{item.price_sale != null ? formatMoney(item.price_sale) : "-"}</td>
+                  <td data-label="Saldo">{item.stock_quantity ?? "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Fornecedor">{item.supplier_name ?? (item.supplier_code != null ? `Fornecedor ${item.supplier_code}` : "-")}</td>
+                  <td className="mobile-compact-hidden" data-label="Colecao">{item.collection_name ?? "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Status">{item.is_active ? "Ativo" : "Inativo"}</td>
+                  <td className="mobile-compact-hidden" data-label="Atualizado">{item.linx_updated_at ? formatDate(item.linx_updated_at) : "-"}</td>
                 </tr>
               ))}
               {!directory.items.length && (

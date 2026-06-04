@@ -108,7 +108,7 @@ export function CadastrosOpenReceivablesPage({
       </section>
 
       <section className="panel">
-        <div className="table-shell tall">
+        <div className="table-shell tall table-shell--mobile-compact">
           <TablePagination
             loading={loading}
             onPageChange={onChangePage}
@@ -119,7 +119,7 @@ export function CadastrosOpenReceivablesPage({
             totalItems={directory.total}
             totalPages={totalPages}
           />
-          <table className="erp-table">
+          <table className="erp-table mobile-compact-table">
             <thead>
               <tr>
                 <th>Fatura</th>
@@ -135,18 +135,18 @@ export function CadastrosOpenReceivablesPage({
             <tbody>
               {directory.items.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.linx_code}</td>
-                  <td>{item.customer_name}</td>
-                  <td>{item.issue_date ? formatDate(item.issue_date) : "-"}</td>
-                  <td>{item.due_date ? formatDate(item.due_date) : "-"}</td>
-                  <td>{installmentLabel(item)}</td>
-                  <td>{item.amount != null ? formatMoney(item.amount) : "-"}</td>
-                  <td>
+                  <td data-label="Fatura">{item.linx_code}</td>
+                  <td className="mobile-compact-primary" data-label="Cliente">{item.customer_name}</td>
+                  <td className="mobile-compact-hidden" data-label="Emissao">{item.issue_date ? formatDate(item.issue_date) : "-"}</td>
+                  <td data-label="Vencimento">{item.due_date ? formatDate(item.due_date) : "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Parcela">{installmentLabel(item)}</td>
+                  <td className="mobile-compact-amount" data-label="Valor">{item.amount != null ? formatMoney(item.amount) : "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Documento">
                     {item.document_number
                       ? `${item.document_number}${item.document_series ? ` / ${item.document_series}` : ""}`
                       : "-"}
                   </td>
-                  <td>{item.identifier ?? "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Identificador">{item.identifier ?? "-"}</td>
                 </tr>
               ))}
               {!directory.items.length && (

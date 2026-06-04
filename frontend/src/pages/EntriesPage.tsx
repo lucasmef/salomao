@@ -571,7 +571,9 @@ export function EntriesPage({
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showSettlementPrompt, setShowSettlementPrompt] = useState(false);
+  const [showBulkSettlementPrompt, setShowBulkSettlementPrompt] = useState(false);
   const [settlementPrompt, setSettlementPrompt] = useState(emptySettlementPrompt);
+  const [bulkSettlementAccountId, setBulkSettlementAccountId] = useState("");
   const [transferForm, setTransferForm] = useState(emptyTransferForm);
   const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
   const [tableSort, setTableSort] = useState<EntryTableSortState | null>(null);
@@ -790,14 +792,25 @@ export function EntriesPage({
         (entry) =>
           !isTransferEntry(entry) &&
           entry.status !== "settled" &&
-          entry.status !== "cancelled" &&
-          Boolean(entry.account_id),
+          entry.status !== "cancelled",
       ),
     [selectedEntries],
   );
   const selectedSettleBlockedCount = selectedEntries.filter(
-    (entry) => !isTransferEntry(entry) && entry.status !== "settled" && entry.status !== "cancelled" && !entry.account_id,
+    (entry) => isTransferEntry(entry) || entry.status === "settled" || entry.status === "cancelled",
   ).length;
+  const selectedSettleMissingAccountCount = selectedSettleEntries.filter((entry) => !entry.account_id).length;
+  const selectedSettleAmount = useMemo(
+    () => selectedSettleEntries.reduce((total, entry) => total + Number(entry.total_amount), 0),
+    [selectedSettleEntries],
+  );
+  const selectedSettleWithoutAccountAmount = useMemo(
+    () =>
+      selectedSettleEntries
+        .filter((entry) => !entry.account_id)
+        .reduce((total, entry) => total + Number(entry.total_amount), 0),
+    [selectedSettleEntries],
+  );
   const selectedNonDeletableCount = selectedEntries.length - selectedDeletableEntries.length;
   const allPageSelected = visibleEntries.length > 0 && visibleEntries.every((entry) => selectedEntryIds.includes(entry.id));
   const visibleTotalAmount = useMemo(
@@ -1445,19 +1458,29 @@ export function EntriesPage({
       return;
     }
 
-    const confirmed = await confirm({
-      title: "Baixar em lote",
-      message: `Deseja baixar ${selectedSettleEntries.length} lançamento(s) selecionado(s)?`,
-      confirmLabel: "Baixar em lote",
-      tone: "info"
-    });
+    setBulkSettlementAccountId("");
+    setShowBulkSettlementPrompt(true);
+  }
 
-    if (!confirmed) return;
-
+  async function confirmBulkSettlement() {
+    if (!selectedSettleEntries.length || selectedSettleBlockedCount > 0) {
+      return;
+    }
+    if (selectedSettleMissingAccountCount > 0 && !bulkSettlementAccountId) {
+      return;
+    }
     for (const entry of selectedSettleEntries) {
-      await onSettleEntry(entry.id, { paid_amount: normalizePtBrMoneyInput(quickAmount(entry)) });
+      const payload: Record<string, unknown> = {
+        paid_amount: normalizePtBrMoneyInput(quickAmount(entry)),
+      };
+      if (!entry.account_id) {
+        payload.account_id = bulkSettlementAccountId;
+      }
+      await onSettleEntry(entry.id, payload);
     }
     setSelectedEntryIds([]);
+    setBulkSettlementAccountId("");
+    setShowBulkSettlementPrompt(false);
   }
 
   async function handleBulkDelete() {
@@ -1831,7 +1854,12 @@ export function EntriesPage({
         )}
         {selectedSettleBlockedCount > 0 && (
           <p className="bulk-entry-warning">
-            {selectedSettleBlockedCount} item(ns) selecionado(s) não podem ser baixados em lote porque não possuem conta definida.
+            {selectedSettleBlockedCount} item(ns) selecionado(s) nao entram na baixa em lote por status ou tipo.
+          </p>
+        )}
+        {selectedSettleMissingAccountCount > 0 && selectedSettleBlockedCount === 0 && (
+          <p className="bulk-entry-warning">
+            {selectedSettleMissingAccountCount} item(ns) sem conta serao revisados no modal antes da baixa.
           </p>
         )}
         <div className={`table-shell table-shell--scroll entries-table-shell entries-table-shell--${entriesDensity}`}>
@@ -2235,6 +2263,86 @@ export function EntriesPage({
                   onClick={() => {
                     setShowTransferModal(false);
                     setTransferForm(emptyTransferForm);
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </form>
+      </Modal>
+
+      <Modal
+        open={showBulkSettlementPrompt}
+        size="md"
+        title="Revisar baixa em lote"
+        onClose={() => {
+          setShowBulkSettlementPrompt(false);
+          setBulkSettlementAccountId("");
+        }}
+      >
+            <form
+              className="form-grid dense"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void confirmBulkSettlement();
+              }}
+            >
+              <label>
+                Lancamentos
+                <input value={`${selectedSettleEntries.length} item(ns)`} disabled />
+              </label>
+              <label>
+                Valor total
+                <input value={formatMoney(selectedSettleAmount)} disabled />
+              </label>
+              <label>
+                Sem conta
+                <input value={`${selectedSettleMissingAccountCount} item(ns) - ${formatMoney(selectedSettleWithoutAccountAmount)}`} disabled />
+              </label>
+              {selectedSettleMissingAccountCount > 0 && (
+                <label>
+                  Conta para itens sem conta *
+                  <UiSelect
+                    required
+                    value={bulkSettlementAccountId}
+                    onChange={(event) => setBulkSettlementAccountId(event.target.value)}
+                  >
+                    <option value="">Selecionar</option>
+                    {accounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name}
+                      </option>
+                    ))}
+                  </UiSelect>
+                </label>
+              )}
+              <div className="span-two settlement-review-list">
+                {selectedSettleEntries.slice(0, 6).map((entry) => (
+                  <div key={entry.id} className="settlement-review-row">
+                    <span>{entry.title}</span>
+                    <strong>{formatMoney(normalizePtBrMoneyInput(quickAmount(entry)))}</strong>
+                    <small>{entry.account_id ? accountsById.get(entry.account_id)?.name ?? "Conta definida" : "Conta pendente"}</small>
+                  </div>
+                ))}
+                {selectedSettleEntries.length > 6 && (
+                  <small className="compact-muted">Mais {selectedSettleEntries.length - 6} item(ns) serao baixados com os mesmos criterios.</small>
+                )}
+              </div>
+              <div className="action-row span-two">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  loading={submitting}
+                  disabled={submitting || (selectedSettleMissingAccountCount > 0 && !bulkSettlementAccountId)}
+                >
+                  Confirmar baixa em lote
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setShowBulkSettlementPrompt(false);
+                    setBulkSettlementAccountId("");
                   }}
                 >
                   Cancelar

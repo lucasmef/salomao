@@ -617,8 +617,8 @@ export function MasterDataPage({
             <h3>Contas cadastradas</h3>
             <span>{accounts.length}</span>
           </div>
-          <div className="table-shell tall">
-            <table className="erp-table">
+          <div className="table-shell tall table-shell--mobile-compact">
+            <table className="erp-table mobile-compact-table">
               <thead>
                 <tr>
                   <th>Conta</th>
@@ -634,20 +634,20 @@ export function MasterDataPage({
               <tbody>
                 {accounts.map((account) => (
                   <tr key={account.id}>
-                    <td>{account.name}</td>
-                    <td>{account.account_type}</td>
-                    <td>{formatMoney(account.opening_balance)}</td>
-                    <td>{account.import_ofx_enabled ? "Habilitado" : "Bloqueado"}</td>
-                    <td>{account.exclude_from_balance ? "Ignorado" : "Considerado"}</td>
-                    <td>
+                    <td className="mobile-compact-primary" data-label="Conta">{account.name}</td>
+                    <td className="mobile-compact-hidden" data-label="Tipo">{account.account_type}</td>
+                    <td className="mobile-compact-amount" data-label="Saldo inicial">{formatMoney(account.opening_balance)}</td>
+                    <td className="mobile-compact-hidden" data-label="OFX">{account.import_ofx_enabled ? "Habilitado" : "Bloqueado"}</td>
+                    <td data-label="Saldo">{account.exclude_from_balance ? "Ignorado" : "Considerado"}</td>
+                    <td className="mobile-compact-hidden" data-label="Inter">
                       {account.inter_api_enabled
                         ? account.has_inter_client_secret && account.has_inter_certificate && account.has_inter_private_key
                           ? "Configurado"
                           : "Pendente"
                         : "Desligado"}
                     </td>
-                    <td>{account.is_active ? "Ativa" : "Inativa"}</td>
-                    <td className="row-actions">
+                    <td className="mobile-compact-hidden" data-label="Status">{account.is_active ? "Ativa" : "Inativa"}</td>
+                    <td className="row-actions mobile-compact-actions" data-label="Acoes">
                       <button
                         className="table-button"
                         type="button"
@@ -732,8 +732,8 @@ export function MasterDataPage({
               </select>
             </label>
           </div>
-          <div className="table-shell tall">
-            <table className="erp-table">
+          <div className="table-shell tall table-shell--mobile-compact">
+            <table className="erp-table mobile-compact-table">
               <thead>
                 <tr>
                   <th>
@@ -782,10 +782,10 @@ export function MasterDataPage({
               <tbody>
                 {sortedCategories.map((category) => (
                   <tr key={category.id}>
-                    <td>{category.code ?? "-"}</td>
-                    <td>{category.name}</td>
-                    <td>{getCategoryKindLabel(category.entry_kind)}</td>
-                    <td>
+                    <td className="mobile-compact-hidden" data-label="Codigo">{category.code ?? "-"}</td>
+                    <td className="mobile-compact-primary" data-label="Categoria">{category.name}</td>
+                    <td data-label="Natureza">{getCategoryKindLabel(category.entry_kind)}</td>
+                    <td className="mobile-compact-hidden" data-label="Grupo">
                       <span className="category-group-cell">
                         <span className="entries-cell-icon entries-category-group-icon">
                           <CategoryGroupIcon
@@ -796,9 +796,9 @@ export function MasterDataPage({
                         <span>{category.report_group ?? "-"}</span>
                       </span>
                     </td>
-                    <td>{category.report_subgroup ?? "-"}</td>
-                    <td className="numeric-cell">{category.entry_count}</td>
-                    <td className="row-actions">
+                    <td className="mobile-compact-hidden" data-label="Subgrupo">{category.report_subgroup ?? "-"}</td>
+                    <td className="numeric-cell mobile-compact-amount" data-label="Lancamentos">{category.entry_count}</td>
+                    <td className="row-actions mobile-compact-actions" data-label="Acoes">
                       <button
                         className="table-button"
                         type="button"

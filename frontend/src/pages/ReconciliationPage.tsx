@@ -1260,8 +1260,8 @@ export function ReconciliationPage({
               </button>
             </div>
           </div>
-          <div className="table-shell table-shell--scroll reconciliation-table-shell">
-            <table className="erp-table erp-table--compact erp-table--responsive compact-table reconciliation-bank-table reconciliation-bank-table--mobile-friendly">
+          <div className="table-shell table-shell--scroll table-shell--mobile-compact reconciliation-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive compact-table reconciliation-bank-table reconciliation-bank-table--mobile-friendly mobile-compact-table">
               <thead>
                 <tr>
                   <th className="checkbox-cell">
@@ -1286,7 +1286,7 @@ export function ReconciliationPage({
                   const statementCell = buildStatementCell(item);
                   return (
                     <tr key={item.bank_transaction_id}>
-                      <td className="checkbox-cell">
+                      <td className="checkbox-cell" data-label="Selecionar">
                         <input
                           type="checkbox"
                           checked={selectedBankIds.includes(item.bank_transaction_id)}
@@ -1294,18 +1294,18 @@ export function ReconciliationPage({
                           onChange={() => toggleBankSelection(item.bank_transaction_id)}
                         />
                       </td>
-                      <td>
+                      <td data-label="Data">
                         <span className="reconciliation-date-desktop">{formatDate(item.posted_at)}</span>
                         <span className="reconciliation-date-mobile">{formatReconciliationShortDate(item.posted_at)}</span>
                       </td>
-                      <td title={statementCell.tooltip}>
+                      <td className="mobile-compact-primary" data-label="Extrato" title={statementCell.tooltip}>
                         <div className="reconciliation-cell-stack">
                           <span className="single-line-cell">{statementCell.description}</span>
                           {statementCell.details ? <span className="compact-detail-line reconciliation-statement-detail">{statementCell.details}</span> : null}
                         </div>
                       </td>
-                      <td className="numeric-cell compact-amount-cell">{formatReconciliationAmount(item.amount)}</td>
-                      <td>
+                      <td className="numeric-cell compact-amount-cell mobile-compact-amount" data-label="Valor">{formatReconciliationAmount(item.amount)}</td>
+                      <td data-label="Situacao">
                         <div className="reconciliation-inline-status">
                           <MatchStatusBadge matched={isMatched} />
                           {isMatched && (
@@ -1438,8 +1438,8 @@ export function ReconciliationPage({
             </div>
           )}
 
-          <div className="table-shell table-shell--scroll reconciliation-table-shell">
-            <table className="erp-table erp-table--compact erp-table--responsive compact-table reconciliation-entry-table reconciliation-entry-table--mobile-friendly">
+          <div className="table-shell table-shell--scroll table-shell--mobile-compact reconciliation-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive compact-table reconciliation-entry-table reconciliation-entry-table--mobile-friendly mobile-compact-table">
               <thead>
                 <tr>
                   <th className="checkbox-cell">
@@ -1461,7 +1461,7 @@ export function ReconciliationPage({
               <tbody>
                 {entryRows.map((entry) => (
                   <tr key={entry.id}>
-                    <td className="checkbox-cell">
+                    <td className="checkbox-cell" data-label="Selecionar">
                       <input
                         type="checkbox"
                         checked={selectedEntryIds.includes(entry.id)}
@@ -1469,14 +1469,14 @@ export function ReconciliationPage({
                         onChange={() => toggleEntrySelection(entry.id)}
                       />
                     </td>
-                    <td>
+                    <td data-label="Vencimento">
                       <span className="reconciliation-date-desktop">{formatDate(entry.due_date)}</span>
                       <span className="reconciliation-date-mobile">{formatReconciliationShortDate(entry.due_date)}</span>
                     </td>
-                    <td title={compactSingleLine(entry.title)}><span className="single-line-cell">{compactSingleLine(entry.title)}</span></td>
-                    <td title={compactSingleLine(entry.category_name ?? "-")}><span className="single-line-cell">{compactSingleLine(entry.category_name ?? "-")}</span></td>
-                    <td className="numeric-cell compact-amount-cell">{formatReconciliationAmount(entry.total_amount)}</td>
-                    <td><PaidStatusBadge active={entry.status === "settled"} /></td>
+                    <td className="mobile-compact-primary" data-label="Lancamento" title={compactSingleLine(entry.title)}><span className="single-line-cell">{compactSingleLine(entry.title)}</span></td>
+                    <td data-label="Categoria" title={compactSingleLine(entry.category_name ?? "-")}><span className="single-line-cell">{compactSingleLine(entry.category_name ?? "-")}</span></td>
+                    <td className="numeric-cell compact-amount-cell mobile-compact-amount" data-label="Valor">{formatReconciliationAmount(entry.total_amount)}</td>
+                    <td data-label="Pago"><PaidStatusBadge active={entry.status === "settled"} /></td>
                   </tr>
                 ))}
                 {!entryRows.length && (

@@ -859,7 +859,7 @@ class FinancialCalculationsTestCase(unittest.TestCase):
         self.assertEqual(credit_entry.total_amount, Decimal("500.00"))
         self.assertEqual(credit_entry.paid_amount, Decimal("500.00"))
         self.assertEqual(credit_entry.settled_at.date(), date(2026, 4, 20))
-        self.assertIsNone(credit_entry.account_id)
+        self.assertEqual(credit_entry.account_id, account.id)
 
     def test_settle_entry_generates_purchase_return_credit_entry(self) -> None:
         account = self._add_account("Inter", "0.00")
@@ -926,7 +926,123 @@ class FinancialCalculationsTestCase(unittest.TestCase):
         self.assertEqual(credit_entry.document_number, "NF-501")
         self.assertEqual(credit_entry.total_amount, Decimal("500.00"))
         self.assertEqual(credit_entry.paid_amount, Decimal("500.00"))
-        self.assertIsNone(credit_entry.account_id)
+        self.assertEqual(credit_entry.account_id, account.id)
+
+        overview = build_cashflow_overview(self.db, self.company, account_id=account.id)
+        self.assertEqual(overview.current_balance, Decimal("-1000.00"))
+
+    def test_settle_entry_allows_total_purchase_return_credit_without_cash_movement(self) -> None:
+        account = self._add_account("Inter Total", "0.00")
+        purchase_category = self._add_category(
+            name="Compras",
+            code="3.3.1",
+            report_group="Compras",
+            report_subgroup="Compras",
+        )
+        supplier = Supplier(
+            company_id=self.company.id,
+            name="Fornecedor Credito Total",
+            default_payment_term="1x",
+            payment_basis="delivery",
+            has_purchase_invoices=False,
+            is_active=True,
+        )
+        self.db.add(supplier)
+        self.db.commit()
+
+        entry = self._add_entry(
+            account=account,
+            category=purchase_category,
+            entry_type="expense",
+            status="planned",
+            total_amount="1000.00",
+            due_date=date(2026, 4, 20),
+            title="NF credito total",
+        )
+        entry.supplier_id = supplier.id
+        entry.counterparty_name = supplier.name
+        entry.document_number = "NF-1000"
+        self.db.commit()
+
+        settle_entry(
+            self.db,
+            self.company,
+            entry.id,
+            EntrySettlementRequest(
+                account_id=account.id,
+                paid_amount=Decimal("0.00"),
+                penalty_amount=Decimal("1000.00"),
+                penalty_mode="return_credit",
+            ),
+            self.user,
+        )
+        self.db.commit()
+        self.db.refresh(entry)
+
+        credit_entry = self.db.query(FinancialEntry).filter(
+            FinancialEntry.source_system == "settlement_adjustment",
+            FinancialEntry.source_reference == f"settlement-adjustment:{entry.id}:return_credit",
+            FinancialEntry.is_deleted.is_(False),
+        ).one()
+        overview = build_cashflow_overview(self.db, self.company, account_id=account.id)
+
+        self.assertEqual(entry.status, "settled")
+        self.assertEqual(entry.paid_amount, Decimal("1000.00"))
+        self.assertEqual(credit_entry.total_amount, Decimal("1000.00"))
+        self.assertEqual(credit_entry.paid_amount, Decimal("1000.00"))
+        self.assertEqual(credit_entry.account_id, account.id)
+        self.assertEqual(overview.current_balance, Decimal("0.00"))
+
+    def test_settle_entry_rejects_purchase_return_credit_greater_than_invoice(self) -> None:
+        account = self._add_account("Inter Excesso", "0.00")
+        purchase_category = self._add_category(
+            name="Compras",
+            code="3.3.1",
+            report_group="Compras",
+            report_subgroup="Compras",
+        )
+        supplier = Supplier(
+            company_id=self.company.id,
+            name="Fornecedor Credito Excesso",
+            default_payment_term="1x",
+            payment_basis="delivery",
+            has_purchase_invoices=False,
+            is_active=True,
+        )
+        self.db.add(supplier)
+        self.db.commit()
+
+        entry = self._add_entry(
+            account=account,
+            category=purchase_category,
+            entry_type="expense",
+            status="planned",
+            total_amount="1000.00",
+            due_date=date(2026, 4, 20),
+            title="NF credito excesso",
+        )
+        entry.supplier_id = supplier.id
+        self.db.commit()
+
+        with self.assertRaises(HTTPException) as context:
+            settle_entry(
+                self.db,
+                self.company,
+                entry.id,
+                EntrySettlementRequest(
+                    account_id=account.id,
+                    paid_amount=Decimal("0.00"),
+                    penalty_amount=Decimal("1000.01"),
+                    penalty_mode="return_credit",
+                ),
+                self.user,
+            )
+
+        self.assertEqual(context.exception.status_code, 400)
+        self.assertEqual(
+            context.exception.detail,
+            "Credito devolucao nao pode ser maior que o valor da fatura",
+        )
 
     def test_settle_entry_requires_due_date(self) -> None:
         account = self._add_account("Caixa Loja", "0.00")

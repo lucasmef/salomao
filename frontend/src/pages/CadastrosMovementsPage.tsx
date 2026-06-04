@@ -149,7 +149,7 @@ export function CadastrosMovementsPage({
       </section>
 
       <section className="panel">
-        <div className="table-shell tall">
+        <div className="table-shell tall table-shell--mobile-compact">
           <TablePagination
             loading={loading}
             onPageChange={onChangePage}
@@ -160,7 +160,7 @@ export function CadastrosMovementsPage({
             totalItems={directory.total}
             totalPages={totalPages}
           />
-          <table className="erp-table">
+          <table className="erp-table mobile-compact-table">
             <thead>
               <tr>
                 <th>Lançamento</th>
@@ -179,19 +179,19 @@ export function CadastrosMovementsPage({
             <tbody>
               {directory.items.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.linx_transaction}</td>
-                  <td>{movementTypeLabel(item.movement_type)}</td>
-                  <td>{item.document_number ?? "-"}</td>
-                  <td>
+                  <td className="mobile-compact-hidden" data-label="Lancamento">{item.linx_transaction}</td>
+                  <td className="mobile-compact-hidden" data-label="Tipo">{movementTypeLabel(item.movement_type)}</td>
+                  <td data-label="Documento">{item.document_number ?? "-"}</td>
+                  <td className="mobile-compact-primary" data-label="Produto">
                     {item.product_description ?? (item.product_code != null ? `Produto ${item.product_code}` : "-")}
                   </td>
-                  <td>{item.collection_name ?? "-"}</td>
-                  <td>{item.quantity ?? "-"}</td>
-                  <td>{item.unit_price != null ? formatMoney(item.unit_price) : "-"}</td>
-                  <td>{item.total_amount != null ? formatMoney(item.total_amount) : "-"}</td>
-                  <td>{item.cost_price != null ? formatMoney(item.cost_price) : "-"}</td>
-                  <td>{item.nature_description ?? item.nature_code ?? "-"}</td>
-                  <td>{item.launch_date ? formatDate(item.launch_date) : "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Colecao">{item.collection_name ?? "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Quantidade">{item.quantity ?? "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Vlr. unit.">{item.unit_price != null ? formatMoney(item.unit_price) : "-"}</td>
+                  <td className="mobile-compact-amount" data-label="Vlr. total">{item.total_amount != null ? formatMoney(item.total_amount) : "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Custo">{item.cost_price != null ? formatMoney(item.cost_price) : "-"}</td>
+                  <td className="mobile-compact-hidden" data-label="Natureza">{item.nature_description ?? item.nature_code ?? "-"}</td>
+                  <td data-label="Data">{item.launch_date ? formatDate(item.launch_date) : "-"}</td>
                 </tr>
               ))}
               {!directory.items.length && (

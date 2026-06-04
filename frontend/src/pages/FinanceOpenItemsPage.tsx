@@ -394,8 +394,8 @@ export function FinanceOpenItemsPage({
       <section className="content-grid two-columns">
         <article className="panel">
           <div className="panel-title"><h3>Titulos em aberto</h3></div>
-          <div className="table-shell table-shell--scroll entries-table-shell finance-open-items-table-shell">
-            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table finance-open-items-table" data-mobile-width="compact">
+          <div className="table-shell table-shell--scroll table-shell--mobile-compact entries-table-shell finance-open-items-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table finance-open-items-table mobile-compact-table" data-mobile-width="compact">
               <colgroup>
                 <col className="finance-open-items-col-title" />
                 <col className="finance-open-items-col-counterparty col-hide-md" />
@@ -413,14 +413,14 @@ export function FinanceOpenItemsPage({
               <tbody>
                 {visibleRows.slice(0, 25).map((entry) => (
                   <tr key={entry.id}>
-                    <td className="finance-open-items-cell-title">
+                    <td className="finance-open-items-cell-title mobile-compact-primary" data-label="Titulo">
                       <strong title={entry.title}>{entry.title}</strong>
                     </td>
-                    <td className="finance-open-items-cell-counterparty col-hide-md">
+                    <td className="finance-open-items-cell-counterparty col-hide-md mobile-compact-hidden" data-label="Cliente/Fornecedor">
                       <span title={entry.counterparty_name ?? "-"}>{entry.counterparty_name ?? "-"}</span>
                     </td>
-                    <td>{formatDate(entry.due_date)}</td>
-                    <td className="numeric-cell">{formatMoney(String(openBalance(entry)))}</td>
+                    <td data-label="Vencimento">{formatDate(entry.due_date)}</td>
+                    <td className="numeric-cell mobile-compact-amount" data-label="Saldo">{formatMoney(String(openBalance(entry)))}</td>
                   </tr>
                 ))}
                 {!visibleRows.length ? (

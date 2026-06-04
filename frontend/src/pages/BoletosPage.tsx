@@ -1165,8 +1165,8 @@ export function BoletosPage({
               <span>{openReceivables.length}</span>
             </div>
           </div>
-          <div className="table-shell table-shell--scroll billing-table-shell billing-table-shell--expanded entries-table-shell">
-            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-open-receivables-table">
+          <div className="table-shell table-shell--scroll table-shell--mobile-compact billing-table-shell billing-table-shell--expanded entries-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-open-receivables-table mobile-compact-table">
               <thead>
                 <tr>
                   <th>{renderSortButton("Vencimento", "due_date", openReceivableSort, openReceivableSortDirection, () => toggleOpenReceivableSort("due_date"))}</th>
@@ -1179,11 +1179,11 @@ export function BoletosPage({
               <tbody>
                 {openReceivables.map((item) => (
                   <tr key={`${item.client_name}-${item.invoice_number}-${item.installment}`}>
-                    <td>{formatDate(item.due_date)}</td>
-                    <td className="billing-open-receivables-client-cell">{item.client_name}</td>
-                    <td>{`${item.invoice_number || "Sem numero"}/${item.installment || "-"}`}</td>
-                    <td>{renderStatusBadge(item.status)}</td>
-                    <td className="numeric-cell">{formatMoney(item.corrected_amount || item.amount)}</td>
+                    <td data-label="Vencimento">{formatDate(item.due_date)}</td>
+                    <td className="billing-open-receivables-client-cell mobile-compact-primary" data-label="Cliente">{item.client_name}</td>
+                    <td data-label="Titulo">{`${item.invoice_number || "Sem numero"}/${item.installment || "-"}`}</td>
+                    <td data-label="Status">{renderStatusBadge(item.status)}</td>
+                    <td className="numeric-cell mobile-compact-amount" data-label="Saldo">{formatMoney(item.corrected_amount || item.amount)}</td>
                   </tr>
                 ))}
                 {!openReceivables.length && (
@@ -1974,8 +1974,8 @@ export function BoletosPage({
                 <span>{visibleStandaloneBoletos.length}</span>
               </div>
             </div>
-            <div className="table-shell table-shell--scroll billing-table-shell billing-table-shell--expanded entries-table-shell">
-              <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table">
+            <div className="table-shell table-shell--scroll table-shell--mobile-compact billing-table-shell billing-table-shell--expanded entries-table-shell">
+              <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table mobile-compact-table">
                 <colgroup>
                   <col className="billing-alert-col-client" />
                   <col className="billing-alert-col-document" />
@@ -2001,14 +2001,14 @@ export function BoletosPage({
                 <tbody>
                   {visibleStandaloneBoletos.map((item) => (
                     <tr key={item.id}>
-                      <td>{item.client_name}</td>
-                      <td>{item.document_id}</td>
-                      <td>{formatDate(item.issue_date)}</td>
-                      <td>{formatDate(item.due_date)}</td>
-                      <td className="numeric-cell">{formatMoney(item.amount)}</td>
-                      <td>{item.bank}</td>
-                      <td>{renderStatusBadge(item.status)}</td>
-                      <td className="billing-open-boletos-actions-cell">
+                      <td className="mobile-compact-primary" data-label="Cliente">{item.client_name}</td>
+                      <td data-label="Documento">{item.document_id}</td>
+                      <td className="mobile-compact-hidden" data-label="Emissao">{formatDate(item.issue_date)}</td>
+                      <td data-label="Vencimento">{formatDate(item.due_date)}</td>
+                      <td className="numeric-cell mobile-compact-amount" data-label="Valor">{formatMoney(item.amount)}</td>
+                      <td className="mobile-compact-hidden" data-label="Banco">{item.bank}</td>
+                      <td data-label="Status">{renderStatusBadge(item.status)}</td>
+                      <td className="billing-open-boletos-actions-cell mobile-compact-actions" data-label="Acoes">
                         <div className="billing-boleto-row-actions billing-boleto-row-actions--compact">
                           {item.pdf_available ? (
                             <button

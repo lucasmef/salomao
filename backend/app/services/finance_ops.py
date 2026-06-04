@@ -272,7 +272,12 @@ def apply_settlement_breakdown(
 
     if principal <= Decimal("0.00"):
         raise HTTPException(status_code=400, detail="O principal deve ser maior que zero")
-    if cash_total <= Decimal("0.00"):
+    if cash_total < Decimal("0.00"):
+        raise HTTPException(
+            status_code=400,
+            detail="Credito devolucao nao pode ser maior que o valor da fatura",
+        )
+    if cash_total <= Decimal("0.00") and penalty_mode != "return_credit":
         raise HTTPException(status_code=400, detail="O valor final da baixa deve ser maior que zero")
     if Decimal(entry.paid_amount or 0) > principal:
         raise HTTPException(status_code=400, detail="O valor ja pago nao pode ficar maior que o principal final")
@@ -356,7 +361,6 @@ def apply_settlement_breakdown(
             status="settled",
             paid_amount=penalty,
             settled_at_override=settled_at_value,
-            account_id=None,
             description=f"Fatura recebida gerada automaticamente na baixa de {entry.title}",
         )
     elif penalty > Decimal("0.00"):
