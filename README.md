@@ -201,7 +201,7 @@ Arquivos versionados de referencia:
 
 - `backend/.env.example`
 - `backend/.env.dev.example`
-- `backend/.env.local.example`
+- `backend/env.local.example`
 - `backend/.env.prod.example`
 
 Configuracao minima:

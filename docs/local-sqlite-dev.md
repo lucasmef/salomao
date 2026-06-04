@@ -15,7 +15,7 @@ O SQLite local serve para abrir a aplicacao, testar fluxos de interface, desenvo
 Copie o exemplo versionado e ajuste os valores locais:
 
 ```powershell
-Copy-Item -LiteralPath "backend/.env.local.example" -Destination "backend/.env.local"
+Copy-Item -LiteralPath "backend/env.local.example" -Destination "backend/.env.local"
 ```
 
 O arquivo `backend/.env.local` nao e versionado. Ele deve conter apenas valores ficticios ou segredos gerados localmente:
