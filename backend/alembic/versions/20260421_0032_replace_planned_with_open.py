@@ -8,8 +8,6 @@ Create Date: 2026-04-21 11:50:00.000000
 from __future__ import annotations
 
 from alembic import op
-
-
 revision = "20260421_0032"
 down_revision = "20260420_0031"
 branch_labels = None
