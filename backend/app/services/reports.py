@@ -5,20 +5,13 @@ from dataclasses import dataclass
 from datetime import date, datetime, time
 from decimal import Decimal
 from threading import Lock
-from time import monotonic
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.statuses import OPEN_STATUS, UNSETTLED_STATUS_QUERY_VALUES
 from app.db.models.finance import Category, FinancialEntry
 from app.db.models.linx import LinxMovement
-from app.db.models.reporting import (
-    ReportLayout,
-    ReportLayoutFormulaItem,
-    ReportLayoutLine,
-    ReportLayoutLineGroup,
-)
 from app.db.models.security import Company
 from app.schemas.reports import (
     DreReport,
@@ -647,7 +640,6 @@ def _entry_items_in_period(
             continue
         effective_components: list[dict[str, object]] = []
         for component in _entry_component_items(entry, use_paid_amount=use_paid_amount):
-            component_kind = str(component.get("component_kind") or "principal")
             effective_date = _entry_effective_date(entry, date_basis=date_basis)
             if not effective_date or effective_date < start or effective_date > end:
                 continue

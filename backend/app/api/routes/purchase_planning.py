@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, File, Query, UploadFile, status
 from fastapi.responses import Response
 
@@ -314,7 +316,9 @@ def post_purchase_invoice_import_text(payload: PurchaseInvoiceImportTextRequest)
 
 
 @router.post("/purchase-invoices/import-xml", response_model=PurchaseInvoiceDraft)
-async def post_purchase_invoice_import_xml(file: UploadFile = File(...)) -> PurchaseInvoiceDraft:
+async def post_purchase_invoice_import_xml(
+    file: Annotated[UploadFile, File()],
+) -> PurchaseInvoiceDraft:
     content = await file.read()
     return parse_purchase_invoice_xml(content)
 

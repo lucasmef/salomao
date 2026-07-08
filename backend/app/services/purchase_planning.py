@@ -3496,7 +3496,7 @@ def _build_linx_faturas_rows(response_bytes: bytes) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for row_node in root.findall("./ResponseData/R"):
         values = [(node.text or "").strip() for node in row_node.findall("./D")]
-        rows.append(dict(zip(header, values)))
+        rows.append(dict(zip(header, values, strict=False)))
     return rows
 
 
