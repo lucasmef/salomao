@@ -15,12 +15,15 @@ from sqlalchemy.orm import Session
 
 from app.db.models.imports import ImportBatch
 from app.db.models.linx import LinxCustomer, LinxMovement, LinxProduct
+from app.db.models.purchasing import PurchaseReturn
 from app.db.models.security import Company
 from app.schemas.imports import ImportResult
 from app.schemas.linx_movements import (
     LinxMovementDirectoryRead,
     LinxMovementDirectorySummaryRead,
     LinxMovementListItemRead,
+    LinxMovementReversalDiagnosticItemRead,
+    LinxMovementReversalDiagnosticRead,
     LinxSalesReportItemRead,
     LinxSalesReportRead,
     LinxSalesReportSummaryRead,
@@ -53,7 +56,21 @@ NATURE_DESCRIPTION_CLASSIFICATION: dict[str, tuple[str, str]] = {
     "E - COMPRA DE MERCADORIAS": ("purchase", "purchase"),
     "D - DEVOLUCAO DE COMPRA": ("purchase", "purchase_return"),
     "D - DEVOLUCAO DE COMPRA SEM DESTAQUE": ("purchase", "purchase_return"),
+    "ESTORNO DA FATURA": ("purchase", "purchase_return_reversal"),
+    "ESTORNO DE DEVOLUCAO DE COMPRA": ("purchase", "purchase_return_reversal"),
+    "ESTORNO DEVOLUCAO DE COMPRA": ("purchase", "purchase_return_reversal"),
 }
+
+PURCHASE_MOVEMENT_TYPES = {"purchase", "purchase_return", "purchase_return_reversal"}
+LISTABLE_MOVEMENT_TYPES = {
+    "sale",
+    "sale_return",
+    "purchase",
+    "purchase_return",
+    "purchase_return_reversal",
+}
+PURCHASE_RETURN_REVERSAL_MARKERS = ("estorno",)
+PURCHASE_RETURN_REVERSAL_CONTEXT_MARKERS = ("devolucao", "fatura", "compra")
 
 
 @dataclass(frozen=True)
@@ -200,7 +217,7 @@ def list_linx_movements(
         filtered_filters.append(LinxMovement.movement_group == normalized_group)
 
     normalized_type = (movement_type or "all").strip().lower()
-    if normalized_type in {"sale", "sale_return", "purchase", "purchase_return"}:
+    if normalized_type in LISTABLE_MOVEMENT_TYPES:
         filtered_filters.append(LinxMovement.movement_type == normalized_type)
 
     join_condition = and_(
@@ -248,47 +265,32 @@ def list_linx_movements(
         .limit(page_size)
     ).all()
 
+    def sum_amount_for_type(movement_type: str):
+        return func.coalesce(
+            func.sum(
+                case(
+                    (
+                        LinxMovement.movement_type == movement_type,
+                        LinxMovement.total_amount,
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        )
+
     summary_row = db.execute(
         select(
             func.count(LinxMovement.id),
-            func.coalesce(
-                func.sum(
-                    case((LinxMovement.movement_type == "sale", LinxMovement.total_amount), else_=0)
-                ),
-                0,
-            ),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (LinxMovement.movement_type == "sale_return", LinxMovement.total_amount),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (LinxMovement.movement_type == "purchase", LinxMovement.total_amount),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (
-                            LinxMovement.movement_type == "purchase_return",
-                            LinxMovement.total_amount,
-                        ),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
+            sum_amount_for_type("sale"),
+            sum_amount_for_type("sale_return"),
+            sum_amount_for_type("purchase"),
+            sum_amount_for_type("purchase_return"),
+            sum_amount_for_type("purchase_return_reversal"),
         ).where(*base_filters)
     ).one()
+    purchase_returns_total = Decimal(summary_row[4] or 0)
+    purchase_return_reversals_total = Decimal(summary_row[5] or 0)
 
     return LinxMovementDirectoryRead(
         generated_at=datetime.now(timezone.utc),
@@ -297,7 +299,12 @@ def list_linx_movements(
             sales_total_amount=Decimal(summary_row[1] or 0),
             sales_return_total_amount=Decimal(summary_row[2] or 0),
             purchases_total_amount=Decimal(summary_row[3] or 0),
-            purchase_returns_total_amount=Decimal(summary_row[4] or 0),
+            purchase_returns_total_amount=purchase_returns_total,
+            purchase_return_reversals_total_amount=purchase_return_reversals_total,
+            purchase_returns_net_amount=max(
+                purchase_returns_total - purchase_return_reversals_total,
+                Decimal("0.00"),
+            ),
         ),
         items=[
             LinxMovementListItemRead(
@@ -333,7 +340,6 @@ def list_linx_movements(
         page=page,
         page_size=page_size,
     )
-
 
 def list_linx_sales_report(
     db: Session,
@@ -481,6 +487,164 @@ def list_linx_sales_report(
     )
 
 
+def diagnose_purchase_return_reversal_candidates(
+    db: Session,
+    company: Company,
+    *,
+    limit: int = 2000,
+) -> LinxMovementReversalDiagnosticRead:
+    rows = db.execute(
+        select(
+            LinxMovement.movement_type,
+            LinxMovement.document_number,
+            LinxMovement.product_code,
+            LinxMovement.nature_code,
+            LinxMovement.nature_description,
+            LinxMovement.operation_code,
+            LinxMovement.transaction_type_code,
+            LinxMovement.cfop_description,
+            LinxMovement.note,
+            LinxMovement.total_amount,
+            LinxMovement.net_amount,
+            LinxMovement.linx_transaction,
+            LinxMovement.launch_date,
+        )
+        .where(
+            LinxMovement.company_id == company.id,
+            LinxMovement.movement_group == "purchase",
+        )
+        .order_by(LinxMovement.launch_date.desc().nullslast(), LinxMovement.linx_transaction.desc())
+        .limit(limit)
+    ).all()
+
+    legacy_return_keys = {
+        (
+            _normalize_reversal_probe_text(purchase_return.invoice_number),
+            Decimal(purchase_return.amount or 0).quantize(Decimal("0.01")),
+        )
+        for purchase_return in db.scalars(
+            select(PurchaseReturn).where(PurchaseReturn.company_id == company.id)
+        )
+        if purchase_return.invoice_number
+    }
+    grouped: dict[
+        tuple[str, str | None, str | None, str | None, str | None, str | None, str | None],
+        dict[str, object],
+    ] = {}
+    for (
+        movement_type,
+        document_number,
+        product_code,
+        nature_code,
+        nature_description,
+        operation_code,
+        transaction_type_code,
+        cfop_description,
+        note,
+        total_amount,
+        net_amount,
+        linx_transaction,
+        _launch_date,
+    ) in rows:
+        probe_text = " ".join(
+            _normalize_reversal_probe_text(value)
+            for value in (
+                nature_code,
+                nature_description,
+                operation_code,
+                transaction_type_code,
+                cfop_description,
+                note,
+            )
+        )
+        is_candidate = (
+            movement_type in {"purchase_return", "purchase_return_reversal"}
+            or any(marker in probe_text for marker in PURCHASE_RETURN_REVERSAL_MARKERS)
+            or any(marker in probe_text for marker in ("devolucao", "fatura"))
+        )
+        if not is_candidate:
+            continue
+        key = (
+            str(movement_type),
+            str(nature_code) if nature_code else None,
+            str(nature_description) if nature_description else None,
+            str(operation_code) if operation_code else None,
+            str(transaction_type_code) if transaction_type_code else None,
+            str(cfop_description) if cfop_description else None,
+            str(note) if note else None,
+        )
+        amount = Decimal(
+            total_amount if total_amount is not None else (net_amount or 0)
+        ).quantize(Decimal("0.01"))
+        bucket = grouped.setdefault(
+            key,
+            {
+                "count": 0,
+                "total_amount": Decimal("0.00"),
+                "sample_transactions": [],
+                "sample_documents": [],
+                "sample_product_codes": [],
+                "legacy_purchase_return_match_count": 0,
+            },
+        )
+        bucket["count"] = int(bucket["count"]) + 1
+        bucket["total_amount"] = Decimal(bucket["total_amount"]) + amount
+        samples = bucket["sample_transactions"]
+        assert isinstance(samples, list)
+        if len(samples) < 5 and linx_transaction is not None:
+            samples.append(int(linx_transaction))
+        document_samples = bucket["sample_documents"]
+        assert isinstance(document_samples, list)
+        if (
+            len(document_samples) < 5
+            and document_number
+            and str(document_number) not in document_samples
+        ):
+            document_samples.append(str(document_number))
+        product_samples = bucket["sample_product_codes"]
+        assert isinstance(product_samples, list)
+        if (
+            len(product_samples) < 5
+            and product_code is not None
+            and int(product_code) not in product_samples
+        ):
+            product_samples.append(int(product_code))
+        if (_normalize_reversal_probe_text(document_number), amount) in legacy_return_keys:
+            bucket["legacy_purchase_return_match_count"] = (
+                int(bucket["legacy_purchase_return_match_count"]) + 1
+            )
+
+    items = [
+        LinxMovementReversalDiagnosticItemRead(
+            movement_type=key[0],
+            nature_code=key[1],
+            nature_description=key[2],
+            operation_code=key[3],
+            transaction_type_code=key[4],
+            cfop_description=key[5],
+            note=key[6],
+            count=int(bucket["count"]),
+            total_amount=Decimal(bucket["total_amount"]),
+            sample_transactions=list(bucket["sample_transactions"]),
+            sample_documents=list(bucket["sample_documents"]),
+            sample_product_codes=list(bucket["sample_product_codes"]),
+            legacy_purchase_return_match_count=int(bucket["legacy_purchase_return_match_count"]),
+        )
+        for key, bucket in grouped.items()
+    ]
+    items.sort(
+        key=lambda item: (
+            item.movement_type != "purchase_return_reversal",
+            -item.count,
+            item.nature_code or "",
+        )
+    )
+    return LinxMovementReversalDiagnosticRead(
+        generated_at=datetime.now(timezone.utc),
+        items=items,
+    )
+
+
 def _build_sync_plan(
     db: Session,
     *,
@@ -622,6 +786,9 @@ def _normalize_row_payload(row: dict[str, str]) -> dict[str, object]:
 
 
 def _classify_nature(row: dict[str, str]) -> tuple[str, str]:
+    if _has_purchase_return_reversal_signal(row):
+        return ("purchase", "purchase_return_reversal")
+
     nature_code = (_clean_text(row.get("cod_natureza_operacao")) or "").strip()
     if nature_code in NATURE_CLASSIFICATION:
         return NATURE_CLASSIFICATION[nature_code]
@@ -631,6 +798,32 @@ def _classify_nature(row: dict[str, str]) -> tuple[str, str]:
         return NATURE_DESCRIPTION_CLASSIFICATION[normalized_description]
 
     return ("other", "other")
+
+
+def _normalize_reversal_probe_text(value: str | None) -> str:
+    cleaned = _clean_text(value) or ""
+    if not cleaned:
+        return ""
+    normalized = unicodedata.normalize("NFKD", cleaned)
+    ascii_only = "".join(char for char in normalized if not unicodedata.combining(char))
+    return " ".join(ascii_only.lower().replace("-", " ").split())
+
+
+def _has_purchase_return_reversal_signal(row: dict[str, str]) -> bool:
+    probe_text = " ".join(
+        _normalize_reversal_probe_text(row.get(field_name))
+        for field_name in (
+            "cod_natureza_operacao",
+            "natureza_operacao",
+            "operacao",
+            "tipo_transacao",
+            "desc_cfop",
+            "obs",
+        )
+    )
+    if not any(marker in probe_text for marker in PURCHASE_RETURN_REVERSAL_MARKERS):
+        return False
+    return any(marker in probe_text for marker in PURCHASE_RETURN_REVERSAL_CONTEXT_MARKERS)
 
 
 def _normalize_nature_description(value: str | None) -> str:

@@ -4,9 +4,17 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from app.api.deps import DbSession
-from app.schemas.linx_movements import LinxMovementDirectoryRead, LinxSalesReportRead
+from app.schemas.linx_movements import (
+    LinxMovementDirectoryRead,
+    LinxMovementReversalDiagnosticRead,
+    LinxSalesReportRead,
+)
 from app.services.company_context import get_current_company
-from app.services.linx_movements import list_linx_movements, list_linx_sales_report
+from app.services.linx_movements import (
+    diagnose_purchase_return_reversal_candidates,
+    list_linx_movements,
+    list_linx_sales_report,
+)
 
 router = APIRouter()
 
@@ -31,7 +39,6 @@ def get_linx_movements(
         movement_type=movement_type,
     )
 
-
 @router.get("/sales-report", response_model=LinxSalesReportRead)
 def get_linx_sales_report(
     db: DbSession,
@@ -51,3 +58,15 @@ def get_linx_sales_report(
         end_date=end,
         search=search,
     )
+
+
+@router.get(
+    "/purchase-return-reversal-diagnostics",
+    response_model=LinxMovementReversalDiagnosticRead,
+)
+def get_purchase_return_reversal_diagnostics(
+    db: DbSession,
+    limit: int = Query(default=2000, ge=100, le=10000),
+) -> LinxMovementReversalDiagnosticRead:
+    company = get_current_company(db)
+    return diagnose_purchase_return_reversal_candidates(db, company, limit=limit)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import re
@@ -7,6 +8,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
+from io import StringIO
 from threading import Lock
 from time import monotonic
 from xml.etree import ElementTree
@@ -136,6 +138,7 @@ PURCHASE_RETURN_STATUS_ALIASES = {
     "reembolsado": "refunded",
 }
 PURCHASE_RETURN_APPROVAL_STATUS = "refund_approved"
+PURCHASE_RETURN_CUTOVER_DATE = date(2026, 1, 1)
 
 
 @dataclass(slots=True)
@@ -2116,12 +2119,76 @@ def list_purchase_returns(
     return [_serialize_purchase_return(item) for item in returns]
 
 
+def export_purchase_returns_csv(
+    db: Session,
+    company: Company,
+    *,
+    year: int | None = None,
+) -> tuple[bytes, str]:
+    stmt = select(PurchaseReturn).where(PurchaseReturn.company_id == company.id)
+    if year:
+        stmt = stmt.where(
+            PurchaseReturn.return_date >= date(year, 1, 1),
+            PurchaseReturn.return_date <= date(year, 12, 31),
+        )
+    returns = (
+        db.execute(
+            stmt.order_by(PurchaseReturn.return_date.asc(), PurchaseReturn.created_at.asc())
+            .options(joinedload(PurchaseReturn.supplier))
+        )
+        .scalars()
+        .all()
+    )
+    buffer = StringIO()
+    writer = csv.writer(buffer, delimiter=";")
+    writer.writerow(
+        [
+            "id",
+            "data",
+            "fornecedor",
+            "nota_fiscal",
+            "status",
+            "valor",
+            "observacao",
+            "refund_entry_id",
+        ]
+    )
+    for purchase_return in returns:
+        writer.writerow(
+            [
+                purchase_return.id,
+                purchase_return.return_date.isoformat(),
+                purchase_return.supplier.name if purchase_return.supplier else "",
+                purchase_return.invoice_number or "",
+                _purchase_return_status_label(_normalize_purchase_return_status(purchase_return.status)),
+                f"{_money(purchase_return.amount):.2f}",
+                purchase_return.notes or "",
+                purchase_return.refund_entry_id or "",
+            ]
+        )
+    suffix = f"-{year}" if year else ""
+    filename = f"devolucoes-compra-legado{suffix}.csv"
+    return ("\ufeff" + buffer.getvalue()).encode("utf-8"), filename
+
+
+def _raise_purchase_return_manual_control_disabled() -> None:
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "O controle manual de devolucoes de compra foi inativado. "
+            "Use a exportacao para backup; a partir de 2026-01-01 "
+            "os valores validos vem dos movimentos Linx."
+        ),
+    )
+
+
 def create_purchase_return(
     db: Session,
     company: Company,
     payload: PurchaseReturnCreate,
     actor_user: User,
 ) -> PurchaseReturnRead:
+    _raise_purchase_return_manual_control_disabled()
     supplier = _validate_supplier(db, company.id, payload.supplier_id)
     if supplier is None:
         raise HTTPException(status_code=422, detail="Fornecedor obrigatorio")
@@ -2170,6 +2237,7 @@ def update_purchase_return(
     payload: PurchaseReturnUpdate,
     actor_user: User,
 ) -> PurchaseReturnRead:
+    _raise_purchase_return_manual_control_disabled()
     purchase_return = db.scalar(
         select(PurchaseReturn)
         .where(PurchaseReturn.id == purchase_return_id, PurchaseReturn.company_id == company.id)
@@ -2211,6 +2279,7 @@ def delete_purchase_return(
     purchase_return_id: str,
     actor_user: User,
 ) -> None:
+    _raise_purchase_return_manual_control_disabled()
     purchase_return = db.scalar(
         select(PurchaseReturn)
         .where(PurchaseReturn.id == purchase_return_id, PurchaseReturn.company_id == company.id)
@@ -4975,10 +5044,21 @@ def _build_purchase_cost_totals(
                 "purchase_return_cost_total": Decimal("0.00"),
             },
         )
+        reference_day = (
+            reference_date.date()
+            if isinstance(reference_date, datetime)
+            else reference_date
+        )
         if movement_type == "purchase":
             bucket["purchase_cost_total"] += amount
         elif movement_type == "purchase_return":
+            if reference_day is not None and reference_day < PURCHASE_RETURN_CUTOVER_DATE:
+                continue
             bucket["purchase_return_cost_total"] += amount
+        elif movement_type == "purchase_return_reversal":
+            if reference_day is not None and reference_day < PURCHASE_RETURN_CUTOVER_DATE:
+                continue
+            bucket["purchase_return_cost_total"] -= amount
 
     rows: list[PurchasePlanningCostRow] = []
     for (collection_name, brand_id, brand_name, supplier_id, supplier_name), totals in sorted(
@@ -4990,7 +5070,9 @@ def _build_purchase_cost_totals(
         ),
     ):
         purchase_amount = _money(totals["purchase_cost_total"])
-        purchase_return_amount = _money(totals["purchase_return_cost_total"])
+        purchase_return_amount = _money(
+            max(totals["purchase_return_cost_total"], Decimal("0.00"))
+        )
         if purchase_amount <= 0 and purchase_return_amount <= 0:
             continue
         rows.append(

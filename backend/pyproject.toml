@@ -5,17 +5,17 @@ description = "Backend do gestor financeiro offline"
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.18.0,<2.0.0",
-  "cryptography>=46.0.0,<47.0.0",
+  "cryptography>=48.0.1,<49.0.0",
   "fastapi>=0.135.0,<1.0.0",
   "httpx>=0.28.0,<1.0.0",
   "playwright>=1.58.0,<2.0.0",
   "psycopg[binary]>=3.3.0,<4.0.0",
   "uvicorn[standard]>=0.44.0,<1.0.0",
   "sqlalchemy>=2.0.40,<3.0.0",
-  "pydantic-settings>=2.13.0,<3.0.0",
-  "python-multipart>=0.0.27,<1.0.0",
+  "pydantic-settings>=2.14.2,<3.0.0",
+  "python-multipart>=0.0.31,<1.0.0",
   "redis>=7.4.0,<8.0.0",
-  "pypdf>=6.10.2",
+  "pypdf>=6.13.3",
 ]
 
 [project.optional-dependencies]

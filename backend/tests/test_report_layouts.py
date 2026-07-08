@@ -355,39 +355,9 @@ class ReportLayoutTestCase(unittest.TestCase):
         self.assertNotIn("(-) DEDUCOES", {item.label for item in dashboard.dre_chart})
 
     def test_dashboard_groups_revenue_comparison_by_month_for_current_and_previous_year(self) -> None:
-        self._add_snapshot(gross_revenue="1000.00")
-        previous_year_snapshot = SalesSnapshot(
-            company_id=self.company.id,
-            snapshot_date=date(2025, 3, 15),
-            gross_revenue=Decimal("250.00"),
-            cash_revenue=Decimal("0.00"),
-            check_sight_revenue=Decimal("0.00"),
-            check_term_revenue=Decimal("0.00"),
-            inhouse_credit_revenue=Decimal("0.00"),
-            card_revenue=Decimal("0.00"),
-            convenio_revenue=Decimal("0.00"),
-            pix_revenue=Decimal("0.00"),
-            financing_revenue=Decimal("0.00"),
-            markup=Decimal("100.00"),
-            discount_or_surcharge=Decimal("0.00"),
-        )
-        current_year_extra_snapshot = SalesSnapshot(
-            company_id=self.company.id,
-            snapshot_date=date(2026, 3, 20),
-            gross_revenue=Decimal("300.00"),
-            cash_revenue=Decimal("0.00"),
-            check_sight_revenue=Decimal("0.00"),
-            check_term_revenue=Decimal("0.00"),
-            inhouse_credit_revenue=Decimal("0.00"),
-            card_revenue=Decimal("0.00"),
-            convenio_revenue=Decimal("0.00"),
-            pix_revenue=Decimal("0.00"),
-            financing_revenue=Decimal("0.00"),
-            markup=Decimal("100.00"),
-            discount_or_surcharge=Decimal("0.00"),
-        )
-        self.db.add_all([previous_year_snapshot, current_year_extra_snapshot])
-        self.db.commit()
+        self._add_movement(movement_date=date(2026, 3, 10), movement_type="sale", total_amount="1000.00")
+        self._add_movement(movement_date=date(2026, 3, 20), movement_type="sale", total_amount="300.00")
+        self._add_movement(movement_date=date(2025, 3, 15), movement_type="sale", total_amount="250.00")
 
         dashboard = build_dashboard_overview(self.db, self.company, start=date(2026, 3, 1), end=date(2026, 3, 31))
 
@@ -604,6 +574,53 @@ class ReportLayoutTestCase(unittest.TestCase):
         config = get_or_create_report_config(self.db, self.company, "dro")
         self.assertEqual(config.special_source_options, [])
         self.assertTrue(any(option.scope == "subgroup" for option in config.available_groups))
+
+    def test_purchase_return_workflow_entries_respect_cutover_date(self) -> None:
+        account = self._add_account("Banco")
+        purchase_category = self._add_category(
+            name="Compra paga",
+            code="3.3.1.1",
+            entry_kind="expense",
+            report_group="Compras Pagas",
+            report_subgroup="Compras Pagas",
+        )
+        purchase_return_category = self._add_category(
+            name="Devolucao de compra",
+            code="HX.5",
+            entry_kind="income",
+            report_group="Compras Pagas",
+            report_subgroup="Compras Historicas",
+        )
+        self._add_entry(account=account, category=purchase_category, entry_type="expense", total_amount="120.00")
+        ignored_return = self._add_entry_custom_dates(
+            account=account,
+            category=purchase_return_category,
+            entry_type="historical_purchase_return",
+            total_amount="50.00",
+            issue_date=date(2026, 3, 10),
+            competence_date=date(2026, 3, 10),
+            due_date=date(2026, 3, 10),
+            status="planned",
+        )
+        ignored_return.source_system = "purchase_return_workflow"
+        legacy_return = self._add_entry_custom_dates(
+            account=account,
+            category=purchase_return_category,
+            entry_type="historical_purchase_return",
+            total_amount="30.00",
+            issue_date=date(2025, 12, 20),
+            competence_date=date(2025, 12, 20),
+            due_date=date(2025, 12, 20),
+            status="planned",
+        )
+        legacy_return.source_system = "purchase_return_workflow"
+        self.db.commit()
+
+        overview_after_cutover = build_reports_overview(self.db, self.company, start=date(2026, 3, 1), end=date(2026, 3, 31))
+        overview_before_cutover = build_reports_overview(self.db, self.company, start=date(2025, 12, 1), end=date(2025, 12, 31))
+
+        self.assertEqual(overview_after_cutover.dro.purchases_paid, Decimal("120.00"))
+        self.assertEqual(overview_before_cutover.dro.purchases_paid, Decimal("30.00"))
 
     def test_dre_uses_competence_and_dro_uses_due_date(self) -> None:
         account = self._add_account("Banco")

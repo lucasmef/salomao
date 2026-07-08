@@ -8,23 +8,34 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.db.models.boleto import StandaloneBoletoRecord
 from app.db.models.imports import ImportBatch
 from app.db.models.linx import LinxMovement
-from app.db.models.boleto import StandaloneBoletoRecord
 from app.db.models.security import Company
 from app.services.audit import write_audit_log
 from app.services.backup import ensure_pre_import_backup
-from app.services.inter import sync_inter_charges, sync_inter_statement, sync_standalone_inter_charges
+from app.services.cache_invalidation import clear_dashboard_revenue_comparison_cache
+from app.services.inter import (
+    sync_inter_charges,
+    sync_inter_statement,
+    sync_standalone_inter_charges,
+)
 from app.services.linx_customer_birthdays import send_linx_customer_birthday_alert
-from app.services.linx_receivable_settlement import settle_paid_pending_inter_receivables
 from app.services.linx_customers import sync_linx_customers
-from app.services.linx_movements import sync_linx_movements
+from app.services.linx_movements import PURCHASE_MOVEMENT_TYPES, sync_linx_movements
 from app.services.linx_open_receivables import sync_linx_open_receivables
 from app.services.linx_products import LINX_PRODUCTS_SOURCE, sync_linx_products
-from app.services.linx_sales_snapshot import _affected_dates_from_batch, rebuild_sales_snapshots_from_movements
-from app.services.purchase_planning import LINX_PURCHASE_PAYABLES_API_SOURCE, sync_linx_purchase_payables
+from app.services.linx_receivable_settlement import settle_paid_pending_inter_receivables
+from app.services.linx_sales_snapshot import (
+    _affected_dates_from_batch,
+    rebuild_sales_snapshots_from_movements,
+)
+from app.services.purchase_planning import (
+    LINX_PURCHASE_PAYABLES_API_SOURCE,
+    clear_purchase_planning_overview_cache,
+    sync_linx_purchase_payables,
+)
 from app.services.security_alerts import ensure_email_transport_configured, send_email
-from app.services.cache_invalidation import clear_dashboard_revenue_comparison_cache
 
 AUTO_SYNC_TIMEZONE = ZoneInfo("America/Sao_Paulo")
 AUTO_SYNC_WINDOW_START_TIME = time(hour=6, minute=0)
@@ -168,7 +179,7 @@ def _count_touched_purchase_movements(db: Session, *, company_id: str, batch_id:
             .where(
                 LinxMovement.company_id == company_id,
                 LinxMovement.last_seen_batch_id == batch_id,
-                LinxMovement.movement_type == "purchase",
+                LinxMovement.movement_type.in_(PURCHASE_MOVEMENT_TYPES),
             )
         )
         or 0
@@ -336,7 +347,6 @@ def run_linx_auto_sync_for_company(
         db.rollback()
         errors.append(f"Preparacao do backup: {error}")
     else:
-        inter_statement_ok = False
         inter_charges_ok = False
         customers_ok = False
         movements_ok = False
@@ -352,7 +362,6 @@ def run_linx_auto_sync_for_company(
                 end_date=statement_end_date,
             )
             inter_statement_message = inter_statement_result.message
-            inter_statement_ok = True
         except Exception as error:  # pragma: no cover
             db.rollback()
             errors.append(f"Extrato Inter: {error}")
@@ -413,6 +422,8 @@ def run_linx_auto_sync_for_company(
                 batch_id=batch_id,
             ) > 0
             movements_ok = True
+            if purchase_activity_found:
+                clear_purchase_planning_overview_cache(company.id)
         except Exception as error:  # pragma: no cover
             db.rollback()
             errors.append(f"Movimentos/Snapshots: {error}")

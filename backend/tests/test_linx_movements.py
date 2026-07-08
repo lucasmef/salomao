@@ -318,6 +318,65 @@ def test_sync_linx_movements_accepts_historical_inactive_natures(monkeypatch) ->
         session.close()
 
 
+def test_sync_linx_movements_classifies_purchase_return_reversal_from_estorno_text(monkeypatch) -> None:
+    session, company, _ = _build_session()
+
+    monkeypatch.setattr(
+        "app.services.linx_movements.load_linx_api_settings",
+        lambda current_company: type(
+            "Settings",
+            (),
+            {"base_url": "https://example.com", "cnpj": "13092113000106", "api_key": "teste"},
+        )(),
+    )
+    monkeypatch.setattr(
+        "app.services.linx_movements._collect_rows",
+        lambda settings, *, start_timestamp, hasher: [
+            {
+                "portal": "10994",
+                "empresa": "1",
+                "transacao": "4001",
+                "documento": "9201",
+                "serie": "1",
+                "data_documento": "2026-04-05T00:00:00",
+                "data_lancamento": "2026-04-05T00:00:00",
+                "codigo_cliente": "1549",
+                "id_cfop": "1949",
+                "desc_cfop": "Estorno da fatura",
+                "cod_vendedor": "1",
+                "quantidade": "1",
+                "preco_custo": "120.0000",
+                "valor_liquido": "120.0000",
+                "valor_total": "120.0000",
+                "desconto": "0.0000",
+                "operacao": "E",
+                "tipo_transacao": "",
+                "cod_produto": "26529",
+                "cod_barra": "123",
+                "cancelado": "N",
+                "excluido": "N",
+                "identificador": "purchase-return-reversal-1",
+                "obs": "",
+                "preco_unitario": "120.0000",
+                "natureza_operacao": "ESTORNO DA FATURA",
+                "cod_natureza_operacao": "33",
+                "dt_update": "2026-04-05T10:51:00",
+                "ordem": "1",
+                "timestamp": "16060001",
+            },
+        ],
+    )
+
+    try:
+        result = sync_linx_movements(session, company)
+        saved = session.query(LinxMovement).filter_by(company_id=company.id).one()
+        assert "1 novo(s)" in result.message
+        assert saved.movement_group == "purchase"
+        assert saved.movement_type == "purchase_return_reversal"
+    finally:
+        session.close()
+
+
 def test_sync_linx_movements_initial_load_skips_existing_lookup(monkeypatch) -> None:
     session, company, _ = _build_session()
 
@@ -469,6 +528,28 @@ def test_list_linx_movements_paginates_and_joins_products() -> None:
                     nature_code="1.102",
                     nature_description="E - COMPRA DE MERCADORIAS",
                 ),
+                LinxMovement(
+                    company_id=company.id,
+                    linx_transaction=4,
+                    movement_group="purchase",
+                    movement_type="purchase_return",
+                    product_code=99999,
+                    total_amount=Decimal("30.00"),
+                    launch_date=datetime(2026, 4, 4),
+                    nature_code="33",
+                    nature_description="D - DEVOLUCAO DE COMPRA",
+                ),
+                LinxMovement(
+                    company_id=company.id,
+                    linx_transaction=5,
+                    movement_group="purchase",
+                    movement_type="purchase_return_reversal",
+                    product_code=99999,
+                    total_amount=Decimal("10.00"),
+                    launch_date=datetime(2026, 4, 3),
+                    nature_code="33",
+                    nature_description="ESTORNO DA FATURA",
+                ),
             ]
         )
         session.commit()
@@ -480,9 +561,22 @@ def test_list_linx_movements_paginates_and_joins_products() -> None:
         assert response.summary.sales_total_amount == Decimal("100.00")
         assert response.summary.sales_return_total_amount == Decimal("20.00")
         assert response.summary.purchases_total_amount == Decimal("80.00")
+        assert response.summary.purchase_returns_total_amount == Decimal("30.00")
+        assert response.summary.purchase_return_reversals_total_amount == Decimal("10.00")
+        assert response.summary.purchase_returns_net_amount == Decimal("20.00")
         assert len(response.items) == 2
         assert response.items[0].product_description == "CALCA TESTE"
         assert response.items[0].collection_name == "Inverno 2026"
+
+        reversal_response = list_linx_movements(
+            session,
+            company,
+            page=1,
+            page_size=10,
+            movement_type="purchase_return_reversal",
+        )
+        assert reversal_response.total == 1
+        assert reversal_response.items[0].movement_type == "purchase_return_reversal"
     finally:
         session.close()
 

@@ -87,6 +87,7 @@ type Props = {
     payload: Record<string, unknown>,
   ) => Promise<void>;
   onDeletePurchaseReturn: (purchaseReturnId: string) => Promise<void>;
+  onExportPurchaseReturns: () => Promise<void>;
   onImportText: (rawText: string) => Promise<PurchaseInvoiceDraft>;
   onImportXml: (file: File) => Promise<PurchaseInvoiceDraft>;
   onSaveInvoice: (payload: Record<string, unknown>) => Promise<void>;
@@ -865,6 +866,7 @@ export function PurchasePlanningPage({
   onCreatePurchaseReturn,
   onUpdatePurchaseReturn,
   onDeletePurchaseReturn,
+  onExportPurchaseReturns,
   onImportText,
   onImportXml,
   onSaveInvoice,
@@ -3956,9 +3958,13 @@ export function PurchasePlanningPage({
               />
             </div>
             <div className="action-row">
-              <Button type="button" variant="secondary" onClick={() => openPurchaseReturnModal()}>
-                Nova devolução
-              </Button>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => void onExportPurchaseReturns()}
+              >
+                Exportar CSV
+              </button>
             </div>
           </div>
         </section>
@@ -3976,7 +3982,6 @@ export function PurchasePlanningPage({
                   <th>Nota fiscal</th>
                   <th className="centered-cell">Status</th>
                   <th className="numeric-cell">Valor</th>
-                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -3999,39 +4004,11 @@ export function PurchasePlanningPage({
                       <td className="numeric-cell tabular-nums purchase-returns-col-amount">
                         {formatPurchaseDisplayAmount(purchaseReturn.amount)}
                       </td>
-                      <td>
-                        <div className="action-row">
-                          <button
-                            aria-label={`Editar devolução de ${purchaseReturn.supplier_name || "fornecedor"}`}
-                            className="table-button icon-button"
-                            title="Editar devolução"
-                            type="button"
-                            onClick={() =>
-                              openPurchaseReturnModal(purchaseReturn)
-                            }
-                          >
-                            <EditIcon />
-                          </button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="icon-button danger-text-action"
-                            aria-label={`Excluir devolução de ${purchaseReturn.supplier_name || "fornecedor"}`}
-                            title="Excluir devolução"
-                            onClick={() =>
-                              void handleDeletePurchaseReturn(purchaseReturn.id)
-                            }
-                          >
-                            <DeleteIcon />
-                          </Button>
-                        </div>
-                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6}>Nenhuma devolução de compra encontrada.</td>
+                    <td colSpan={5}>Nenhuma devolução de compra encontrada.</td>
                   </tr>
                 )}
               </tbody>
