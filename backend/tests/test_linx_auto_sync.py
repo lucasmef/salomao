@@ -8,10 +8,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.jobs import linx_auto_sync as linx_auto_sync_job
 from app.db.base import Base
 from app.db.models.imports import ImportBatch
 from app.db.models.security import Company
+from app.jobs import linx_auto_sync as linx_auto_sync_job
 from app.services.linx_auto_sync import (
     AUTO_SYNC_TIMEZONE,
     LINX_PRODUCTS_SOURCE,

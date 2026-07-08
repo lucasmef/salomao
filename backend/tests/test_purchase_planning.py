@@ -14,6 +14,7 @@ from app.db.models import purchasing as purchasing_models  # noqa: F401
 from app.db.models.base import Base
 from app.db.models.purchasing import Supplier
 from app.db.models.security import Company, User
+from app.schemas.financial_entry import FinancialEntryCreate
 from app.schemas.purchase_planning import (
     PurchaseInstallmentDraft,
     PurchaseInvoiceCreate,
@@ -24,28 +25,32 @@ from app.schemas.purchase_planning import (
     SupplierCreate,
     SupplierUpdate,
 )
-from app.schemas.financial_entry import FinancialEntryCreate
+from app.services.bootstrap import ensure_company_catalog, run_company_data_maintenance
 from app.services.finance_ops import create_entry
 from app.services.purchase_planning import (
     PurchasePlanningFilters,
     build_purchase_planning_overview,
-    create_purchase_return,
-    create_supplier as create_supplier_service,
     create_purchase_invoice,
     create_purchase_plan,
-    delete_purchase_return,
+    create_purchase_return,
     delete_purchase_plan,
+    delete_purchase_return,
     ensure_purchase_installment_financial_entries,
+    export_purchase_returns_csv,
     list_purchase_invoice_suppliers,
-    list_purchase_returns,
     list_purchase_plans,
+    list_purchase_returns,
     parse_purchase_invoice_text,
     reconcile_purchase_invoice_links,
-    update_purchase_return,
-    update_supplier as update_supplier_service,
     update_purchase_plan,
+    update_purchase_return,
 )
-from app.services.bootstrap import ensure_company_catalog, run_company_data_maintenance
+from app.services.purchase_planning import (
+    create_supplier as create_supplier_service,
+)
+from app.services.purchase_planning import (
+    update_supplier as update_supplier_service,
+)
 
 
 @pytest.fixture()
@@ -274,62 +279,33 @@ def test_update_purchase_plan_allows_reusing_supplier_from_other_plan(db_session
     assert second_plan.supplier_ids == [supplier_b.id]
 
 
-def test_purchase_return_crud_flow(db_session: Session) -> None:
+def test_purchase_return_legacy_list_and_export_stay_available(db_session: Session) -> None:
     company, user = create_company_context(db_session)
     supplier = create_supplier(db_session, company.id, "Fornecedor Devolucao")
-
-    created = create_purchase_return(
-        db_session,
-        company,
-        PurchaseReturnCreate(
-            supplier_id=supplier.id,
-            return_date=date(2026, 3, 31),
-            amount=Decimal("245.90"),
-            invoice_number="NF-100",
-            status="request_open",
-            notes="Devolucao parcial",
-        ),
-        user,
+    purchase_return = purchasing_models.PurchaseReturn(
+        company_id=company.id,
+        supplier_id=supplier.id,
+        return_date=date(2025, 12, 31),
+        amount=Decimal("245.90"),
+        invoice_number="NF-100",
+        status="request_open",
+        notes="Devolucao parcial",
     )
+    db_session.add(purchase_return)
     db_session.commit()
 
-    assert created.supplier_id == supplier.id
-    assert created.amount == Decimal("245.90")
-    assert created.invoice_number == "NF-100"
-    assert created.status == "request_open"
-
-    listed = list_purchase_returns(db_session, company, year=2026, limit=20)
+    listed = list_purchase_returns(db_session, company, year=2025, limit=20)
     assert len(listed) == 1
     assert listed[0].supplier_name == supplier.name
 
-    updated = update_purchase_return(
-        db_session,
-        company,
-        created.id,
-        PurchaseReturnUpdate(
-            supplier_id=supplier.id,
-            return_date=date(2026, 4, 1),
-            amount=Decimal("300.00"),
-            invoice_number="NF-101",
-            status="factory_pending",
-            notes="Devolucao ajustada",
-        ),
-        user,
-    )
-    db_session.commit()
+    content, filename = export_purchase_returns_csv(db_session, company, year=2025)
 
-    assert updated.return_date == date(2026, 4, 1)
-    assert updated.amount == Decimal("300.00")
-    assert updated.invoice_number == "NF-101"
-    assert updated.status == "factory_pending"
-
-    delete_purchase_return(db_session, company, created.id, user)
-    db_session.commit()
-
-    assert list_purchase_returns(db_session, company, year=2026, limit=20) == []
+    assert filename == "devolucoes-compra-legado-2025.csv"
+    assert "Fornecedor Devolucao" in content.decode("utf-8-sig")
+    assert "245.90" in content.decode("utf-8-sig")
 
 
-def test_purchase_return_workflow_generates_single_refund_entry_on_approval(
+def test_purchase_return_manual_mutations_are_disabled(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -337,102 +313,51 @@ def test_purchase_return_workflow_generates_single_refund_entry_on_approval(
     company, user = create_company_context(db_session)
     supplier = create_supplier(db_session, company.id, "Fornecedor Workflow")
 
-    created = create_purchase_return(
-        db_session,
-        company,
-        PurchaseReturnCreate(
-            supplier_id=supplier.id,
-            return_date=date(2026, 4, 1),
-            amount=Decimal("180.50"),
-            invoice_number="NF-200",
-            status="request_open",
-            notes="Aguardando retorno da fabrica",
-        ),
-        user,
+    purchase_return = purchasing_models.PurchaseReturn(
+        company_id=company.id,
+        supplier_id=supplier.id,
+        return_date=date(2026, 4, 1),
+        amount=Decimal("180.50"),
+        invoice_number="NF-200",
+        status="request_open",
+        notes="Aguardando retorno da fabrica",
     )
+    db_session.add(purchase_return)
     db_session.flush()
 
-    update_purchase_return(
-        db_session,
-        company,
-        created.id,
-        PurchaseReturnUpdate(
-            supplier_id=supplier.id,
-            return_date=date(2026, 4, 1),
-            amount=Decimal("180.50"),
-            invoice_number="NF-200",
-            status="refund_approved",
-            notes="Salto direto permitido",
-        ),
-        user,
-    )
-    db_session.flush()
+    with pytest.raises(HTTPException) as create_error:
+        create_purchase_return(
+            db_session,
+            company,
+            PurchaseReturnCreate(
+                supplier_id=supplier.id,
+                return_date=date(2026, 4, 1),
+                amount=Decimal("180.50"),
+                invoice_number="NF-201",
+                status="request_open",
+            ),
+            user,
+        )
+    with pytest.raises(HTTPException) as update_error:
+        update_purchase_return(
+            db_session,
+            company,
+            purchase_return.id,
+            PurchaseReturnUpdate(
+                supplier_id=supplier.id,
+                return_date=date(2026, 4, 1),
+                amount=Decimal("180.50"),
+                invoice_number="NF-200",
+                status="refund_approved",
+            ),
+            user,
+        )
+    with pytest.raises(HTTPException) as delete_error:
+        delete_purchase_return(db_session, company, purchase_return.id, user)
 
-    purchase_return = db_session.get(purchasing_models.PurchaseReturn, created.id)
-    assert purchase_return is not None
-    assert purchase_return.refund_entry_id is not None
-
-    refund_entry = db_session.get(finance_models.FinancialEntry, purchase_return.refund_entry_id)
-    assert refund_entry is not None
-    assert refund_entry.entry_type == "historical_purchase_return"
-    assert refund_entry.status == "planned"
-    assert refund_entry.supplier_id == supplier.id
-    assert refund_entry.document_number == "NF-200"
-    assert refund_entry.due_date == date(2026, 4, 15)
-    assert refund_entry.issue_date == date(2026, 4, 15)
-    assert refund_entry.total_amount == Decimal("180.50")
-
-    update_purchase_return(
-        db_session,
-        company,
-        created.id,
-        PurchaseReturnUpdate(
-            supplier_id=supplier.id,
-            return_date=date(2026, 4, 1),
-            amount=Decimal("180.50"),
-            invoice_number="NF-200",
-            status="refunded",
-            notes="Recebivel ja gerado",
-        ),
-        user,
-    )
-    db_session.flush()
-
-    update_purchase_return(
-        db_session,
-        company,
-        created.id,
-        PurchaseReturnUpdate(
-            supplier_id=supplier.id,
-            return_date=date(2026, 4, 1),
-            amount=Decimal("180.50"),
-            invoice_number="NF-200",
-            status="refund_approved",
-            notes="Volta um passo",
-        ),
-        user,
-    )
-    db_session.flush()
-
-    update_purchase_return(
-        db_session,
-        company,
-        created.id,
-        PurchaseReturnUpdate(
-            supplier_id=supplier.id,
-            return_date=date(2026, 4, 1),
-            amount=Decimal("180.50"),
-            invoice_number="NF-200",
-            status="factory_pending",
-            notes="Retrocesso livre permitido",
-        ),
-        user,
-    )
-    db_session.flush()
-
-    purchase_return = db_session.get(purchasing_models.PurchaseReturn, created.id)
-    assert purchase_return is not None
-    assert purchase_return.refund_entry_id is None
+    assert create_error.value.status_code == 410
+    assert update_error.value.status_code == 410
+    assert delete_error.value.status_code == 410
 
     active_refund_entries = list(
         db_session.scalars(
@@ -677,15 +602,14 @@ def test_update_purchase_plan_with_purchase_return_does_not_reduce_current_or_fu
         ),
         user,
     )
-    create_purchase_return(
-        db_session,
-        company,
-        PurchaseReturnCreate(
+    db_session.add(
+        purchasing_models.PurchaseReturn(
+            company_id=company.id,
             supplier_id=supplier.id,
             return_date=date(2026, 2, 20),
             amount=Decimal("20.00"),
-        ),
-        user,
+            status="request_open",
+        )
     )
     db_session.commit()
 
@@ -765,15 +689,14 @@ def test_update_purchase_plan_with_purchase_return_reduces_past_collection(
         ),
         user,
     )
-    create_purchase_return(
-        db_session,
-        company,
-        PurchaseReturnCreate(
+    db_session.add(
+        purchasing_models.PurchaseReturn(
+            company_id=company.id,
             supplier_id=supplier.id,
             return_date=date(2026, 2, 20),
             amount=Decimal("20.00"),
-        ),
-        user,
+            status="request_open",
+        )
     )
     db_session.commit()
 
@@ -2626,7 +2549,11 @@ def test_plan_season_metrics_use_previous_year_same_season_as_reference(db_sessi
     assert listed_plan.suggested_remaining_amount == Decimal("600.00")
 
 
-def test_build_purchase_planning_overview_planning_mode_omits_summary_heavy_sections(db_session: Session) -> None:
+def test_build_purchase_planning_overview_planning_mode_omits_summary_heavy_sections(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(purchase_planning_service, "_today", lambda: date(2026, 2, 20))
     company, user = create_company_context(db_session)
     supplier = create_supplier(db_session, company.id, "Fornecedor Planejamento")
     collection = create_collection(
@@ -2987,6 +2914,102 @@ def test_overview_assigns_purchase_returns_to_current_collection_without_changin
     assert overview.cost_totals[0].supplier_name == supplier.name
     assert overview.cost_totals[0].collection_name == "Inverno 2026"
     assert "Verao 2026" not in row_by_collection
+
+
+def test_overview_subtracts_linx_purchase_return_reversal_after_cutover(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(purchase_planning_service, "_today", lambda: date(2026, 3, 31))
+    company, user = create_company_context(db_session)
+    supplier = create_supplier(db_session, company.id, "Fornecedor Estorno")
+    collection = create_collection(
+        db_session,
+        company,
+        "Inverno 2026",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 7, 1),
+    )
+    brand = purchasing_models.PurchaseBrand(
+        company_id=company.id,
+        name="Marca Estorno",
+        default_payment_term="1x",
+        is_active=True,
+    )
+    db_session.add(brand)
+    db_session.flush()
+    db_session.add(
+        purchasing_models.PurchaseBrandSupplier(
+            company_id=company.id,
+            brand_id=brand.id,
+            supplier_id=supplier.id,
+        )
+    )
+    create_purchase_invoice(
+        db_session,
+        company,
+        PurchaseInvoiceCreate(
+            supplier_id=supplier.id,
+            supplier_name=supplier.name,
+            collection_id=collection.id,
+            create_plan=False,
+            invoice_number="7310",
+            series="1",
+            issue_date=date(2026, 3, 10),
+            entry_date=date(2026, 3, 10),
+            total_amount=Decimal("320.00"),
+            payment_term="1x",
+            installments=[
+                PurchaseInstallmentDraft(
+                    installment_number=1,
+                    installment_label="1/1",
+                    due_date=date(2026, 4, 10),
+                    amount=Decimal("320.00"),
+                ),
+            ],
+        ),
+        user,
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=7310001,
+        supplier_name=supplier.name,
+        collection_name="Inverno 2026",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=7310001,
+        product_code=7310001,
+        document_number="7310",
+        movement_type="purchase_return",
+        total_amount=Decimal("120.00"),
+        launch_date=date(2026, 3, 20),
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=7310002,
+        product_code=7310001,
+        document_number="7310",
+        movement_type="purchase_return_reversal",
+        total_amount=Decimal("50.00"),
+        launch_date=date(2026, 3, 22),
+    )
+    db_session.commit()
+
+    overview = build_purchase_planning_overview(db_session, company, PurchasePlanningFilters(), mode="planning")
+
+    row_by_collection = {row.collection_name: row for row in overview.rows if row.brand_name == "Marca Estorno"}
+    assert row_by_collection["Inverno 2026"].returns_total == Decimal("70.00")
+    assert any(
+        cost_total.collection_name == "Inverno 2026"
+        and cost_total.supplier_name == supplier.name
+        and cost_total.purchase_return_cost_total == Decimal("70.00")
+        and cost_total.net_cost_total == Decimal("-70.00")
+        for cost_total in overview.cost_totals
+    )
 
 
 def test_overview_assigns_purchase_returns_to_past_collection_without_changing_received_total(

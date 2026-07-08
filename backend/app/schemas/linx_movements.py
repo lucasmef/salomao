@@ -10,6 +10,29 @@ class LinxMovementDirectorySummaryRead(BaseModel):
     sales_return_total_amount: Decimal
     purchases_total_amount: Decimal
     purchase_returns_total_amount: Decimal
+    purchase_return_reversals_total_amount: Decimal = Decimal("0.00")
+    purchase_returns_net_amount: Decimal = Decimal("0.00")
+
+
+class LinxMovementReversalDiagnosticItemRead(BaseModel):
+    movement_type: str
+    nature_code: str | None = None
+    nature_description: str | None = None
+    operation_code: str | None = None
+    transaction_type_code: str | None = None
+    cfop_description: str | None = None
+    note: str | None = None
+    count: int
+    total_amount: Decimal
+    sample_transactions: list[int] = []
+    sample_documents: list[str] = []
+    sample_product_codes: list[int] = []
+    legacy_purchase_return_match_count: int = 0
+
+
+class LinxMovementReversalDiagnosticRead(BaseModel):
+    generated_at: datetime
+    items: list[LinxMovementReversalDiagnosticItemRead]
 
 
 class LinxMovementListItemRead(BaseModel):

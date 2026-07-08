@@ -1163,6 +1163,8 @@ export type LinxMovementDirectorySummary = {
   sales_return_total_amount: string;
   purchases_total_amount: string;
   purchase_returns_total_amount: string;
+  purchase_return_reversals_total_amount: string;
+  purchase_returns_net_amount: string;
 };
 
 export type LinxMovementListItem = {

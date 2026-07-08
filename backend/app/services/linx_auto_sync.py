@@ -13,16 +13,23 @@ from app.db.models.linx import LinxMovement
 from app.db.models.security import Company
 from app.services.audit import write_audit_log
 from app.services.backup import ensure_pre_import_backup
+from app.services.cache_invalidation import clear_dashboard_revenue_comparison_cache
 from app.services.inter import sync_inter_charges, sync_inter_statement
-from app.services.linx_receivable_settlement import settle_paid_pending_inter_receivables
 from app.services.linx_customers import sync_linx_customers
-from app.services.linx_movements import sync_linx_movements
+from app.services.linx_movements import PURCHASE_MOVEMENT_TYPES, sync_linx_movements
 from app.services.linx_open_receivables import sync_linx_open_receivables
 from app.services.linx_products import LINX_PRODUCTS_SOURCE, sync_linx_products
-from app.services.linx_sales_snapshot import _affected_dates_from_batch, rebuild_sales_snapshots_from_movements
-from app.services.purchase_planning import LINX_PURCHASE_PAYABLES_API_SOURCE, sync_linx_purchase_payables
+from app.services.linx_receivable_settlement import settle_paid_pending_inter_receivables
+from app.services.linx_sales_snapshot import (
+    _affected_dates_from_batch,
+    rebuild_sales_snapshots_from_movements,
+)
+from app.services.purchase_planning import (
+    LINX_PURCHASE_PAYABLES_API_SOURCE,
+    clear_purchase_planning_overview_cache,
+    sync_linx_purchase_payables,
+)
 from app.services.security_alerts import send_email
-from app.services.cache_invalidation import clear_dashboard_revenue_comparison_cache
 
 AUTO_SYNC_TIMEZONE = ZoneInfo("America/Sao_Paulo")
 AUTO_SYNC_WINDOW_START_TIME = time(hour=6, minute=0)
@@ -165,7 +172,7 @@ def _count_touched_purchase_movements(db: Session, *, company_id: str, batch_id:
             .where(
                 LinxMovement.company_id == company_id,
                 LinxMovement.last_seen_batch_id == batch_id,
-                LinxMovement.movement_type == "purchase",
+                LinxMovement.movement_type.in_(PURCHASE_MOVEMENT_TYPES),
             )
         )
         or 0
@@ -376,6 +383,8 @@ def run_linx_auto_sync_for_company(
                 company_id=company.id,
                 batch_id=batch_id,
             ) > 0
+            if purchase_activity_found:
+                clear_purchase_planning_overview_cache(company.id)
         except Exception as error:  # pragma: no cover
             db.rollback()
             errors.append(f"Movimentos/Snapshots: {error}")

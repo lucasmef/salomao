@@ -34,13 +34,13 @@ from app.services.analytics_hybrid import (
     is_full_month_period,
     is_historical_period,
     iter_month_segments,
-    upsert_monthly_snapshot,
     read_live_cache,
     read_snapshot_or_rebuild,
+    upsert_monthly_snapshot,
     write_live_cache,
 )
+from app.services.purchase_planning import PURCHASE_RETURN_CUTOVER_DATE
 from app.services.report_layouts import get_or_create_report_config
-
 
 ZERO = Decimal("0.00")
 
@@ -642,21 +642,33 @@ def _entry_items_in_period(
     for entry in entries:
         if entry.source_system == CONTROL_RECEIVABLE_SOURCE or entry.entry_type == "transfer":
             continue
+        if _should_ignore_cutover_purchase_return(entry, date_basis=date_basis):
+            continue
         effective_components: list[dict[str, object]] = []
         for component in _entry_component_items(entry, use_paid_amount=use_paid_amount):
             component_kind = str(component.get("component_kind") or "principal")
-            if date_basis == "cash":
-                effective_date = _cash_date(entry)
-            elif date_basis == "due":
-                effective_date = _dro_date(entry)
-            else:
-                effective_date = _competence_date(entry)
+            effective_date = _entry_effective_date(entry, date_basis=date_basis)
             if not effective_date or effective_date < start or effective_date > end:
                 continue
             effective_components.append(component)
         if effective_components:
             output.append((entry, effective_components))
     return output
+
+
+def _entry_effective_date(entry: FinancialEntry, *, date_basis: str) -> date | None:
+    if date_basis == "cash":
+        return _cash_date(entry)
+    if date_basis == "due":
+        return _dro_date(entry)
+    return _competence_date(entry)
+
+
+def _should_ignore_cutover_purchase_return(entry: FinancialEntry, *, date_basis: str) -> bool:
+    if entry.entry_type not in PURCHASE_RETURN_ENTRY_TYPES:
+        return False
+    effective_date = _entry_effective_date(entry, date_basis=date_basis)
+    return effective_date is not None and effective_date >= PURCHASE_RETURN_CUTOVER_DATE
 
 
 def _clone_item(item: dict[str, object]) -> dict[str, object]:

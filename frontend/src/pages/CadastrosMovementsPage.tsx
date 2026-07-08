@@ -36,6 +36,8 @@ function movementTypeLabel(value: string) {
       return "Compra";
     case "purchase_return":
       return "Devolução compra";
+    case "purchase_return_reversal":
+      return "Estorno devolução compra";
     default:
       return value;
   }
@@ -99,6 +101,7 @@ export function CadastrosMovementsPage({
               <option value="sale_return">Devolução de venda</option>
               <option value="purchase">Compra</option>
               <option value="purchase_return">Devolução de compra</option>
+              <option value="purchase_return_reversal">Estorno de devolução de compra</option>
             </select>
           </label>
           <button
@@ -141,8 +144,16 @@ export function CadastrosMovementsPage({
           <strong>{formatMoney(directory.summary.purchases_total_amount)}</strong>
         </article>
         <article className="kpi-card">
-          <span>Devoluções compra</span>
+          <span>Devoluções compra brutas</span>
           <strong>{formatMoney(directory.summary.purchase_returns_total_amount)}</strong>
+        </article>
+        <article className="kpi-card">
+          <span>Estornos devolução</span>
+          <strong>{formatMoney(directory.summary.purchase_return_reversals_total_amount)}</strong>
+        </article>
+        <article className="kpi-card">
+          <span>Devoluções compra líquidas</span>
+          <strong>{formatMoney(directory.summary.purchase_returns_net_amount)}</strong>
         </article>
       </section>
 

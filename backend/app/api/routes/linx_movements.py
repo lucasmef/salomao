@@ -1,9 +1,15 @@
 from fastapi import APIRouter, Query
 
 from app.api.deps import DbSession
-from app.schemas.linx_movements import LinxMovementDirectoryRead
+from app.schemas.linx_movements import (
+    LinxMovementDirectoryRead,
+    LinxMovementReversalDiagnosticRead,
+)
 from app.services.company_context import get_current_company
-from app.services.linx_movements import list_linx_movements
+from app.services.linx_movements import (
+    diagnose_purchase_return_reversal_candidates,
+    list_linx_movements,
+)
 
 router = APIRouter()
 
@@ -27,3 +33,15 @@ def get_linx_movements(
         group=group,
         movement_type=movement_type,
     )
+
+
+@router.get(
+    "/purchase-return-reversal-diagnostics",
+    response_model=LinxMovementReversalDiagnosticRead,
+)
+def get_purchase_return_reversal_diagnostics(
+    db: DbSession,
+    limit: int = Query(default=2000, ge=100, le=10000),
+) -> LinxMovementReversalDiagnosticRead:
+    company = get_current_company(db)
+    return diagnose_purchase_return_reversal_candidates(db, company, limit=limit)

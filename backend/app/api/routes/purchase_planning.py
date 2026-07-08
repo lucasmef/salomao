@@ -1,4 +1,5 @@
 from fastapi import APIRouter, File, Query, UploadFile, status
+from fastapi.responses import Response
 
 from app.api.deps import CurrentUser, DbSession
 from app.schemas.imports import ImportResult
@@ -32,19 +33,19 @@ from app.services.data_refresh import build_data_refresh_request, finalize_data_
 from app.services.purchase_planning import (
     PurchasePlanningFilters,
     build_purchase_planning_cashflow,
-    clear_purchase_planning_overview_cache,
     create_brand,
     create_collection,
     create_purchase_invoice,
     create_purchase_plan,
     create_purchase_return,
-    get_cached_purchase_planning_overview,
     create_supplier,
     delete_brand,
     delete_collection,
     delete_purchase_plan,
     delete_purchase_return,
     delete_supplier,
+    export_purchase_returns_csv,
+    get_cached_purchase_planning_overview,
     link_installment_to_entry,
     list_brands,
     list_collections,
@@ -254,6 +255,20 @@ def get_purchase_returns(
     return list_purchase_returns(db, company, year=year, limit=limit)
 
 
+@router.get("/purchase-returns/export")
+def export_purchase_returns(
+    db: DbSession,
+    year: int | None = Query(default=None, ge=2000, le=2100),
+) -> Response:
+    company = get_current_company(db)
+    content, filename = export_purchase_returns_csv(db, company, year=year)
+    return Response(
+        content=content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post("/purchase-returns", response_model=PurchaseReturnRead, status_code=status.HTTP_201_CREATED)
 def post_purchase_return(
     payload: PurchaseReturnCreate,
@@ -331,7 +346,8 @@ def post_purchase_invoice_linx_sync(
 ) -> ImportResult:
     company = get_current_company(db)
     result = sync_linx_purchase_payables(db, company, current_user)
-    _invalidate_purchase_related_caches(db, company)
+    _finalize_purchase_refresh(db, company)
+    db.commit()
     return result
 
 

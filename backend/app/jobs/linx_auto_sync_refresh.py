@@ -74,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  movimentos: {run.movements_message}")
         if run.products_message:
             print(f"  produtos: {run.products_message}")
-        if run.error_message and run.status == "failed":
+        if run.error_message and run.status in {"failed", "partial_failure"}:
             hard_failure_found = True
             print(f"  erro: {run.error_message}")
 

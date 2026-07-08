@@ -450,6 +450,8 @@ const emptyLinxMovementDirectory: LinxMovementDirectory = {
     sales_return_total_amount: "0.00",
     purchases_total_amount: "0.00",
     purchase_returns_total_amount: "0.00",
+    purchase_return_reversals_total_amount: "0.00",
+    purchase_returns_net_amount: "0.00",
   },
   items: [],
   total: 0,
@@ -2382,6 +2384,18 @@ function AppRuntime() {
     }, "Devolução de compra excluída.", { sections: ["planejamento"] });
   }
 
+  async function exportPurchaseReturns() {
+    if (!session) return;
+    try {
+      await downloadFile("/purchase-returns/export", {
+        token: session.token,
+        filename: "devolucoes-compra-legado.csv",
+      });
+    } catch (error) {
+      setFeedback({ tone: "error", message: parseApiError(error) });
+    }
+  }
+
   async function linkPurchaseInstallment(installmentId: string, financialEntryId: string | null) {
     if (!session) return;
     await runMutation(async () => {
@@ -2630,6 +2644,7 @@ function AppRuntime() {
     onDeletePlan: deletePurchasePlan,
     onDeletePurchaseReturn: deletePurchaseReturn,
     onDeleteSupplier: deleteSupplier,
+    onExportPurchaseReturns: exportPurchaseReturns,
     onCreatePlan: createPurchasePlan,
     onCreatePurchaseReturn: createPurchaseReturn,
     onCreateSupplier: createSupplier,
