@@ -45,7 +45,6 @@ import type {
   PurchaseBrand,
   PurchaseInvoiceDraft,
   PurchasePlanningOverview,
-  PurchaseReturn,
   ReportConfig,
   RecurrenceRule,
   ReportsOverview,
@@ -655,20 +654,17 @@ function normalizePath(pathname: string) {
   return normalized || "/";
 }
 
-function getPurchasePlanningMode(pathname: string): "summary" | "planning" | "returns" {
+function getPurchasePlanningMode(pathname: string): "summary" | "planning" {
   const normalizedPath = normalizePath(pathname);
   if (normalizedPath === "/compras/resumo") {
     return "summary";
-  }
-  if (normalizedPath === "/compras/devolucoes") {
-    return "returns";
   }
   return "planning";
 }
 
 function getPurchasePlanningRequestFilters(
   filters: ReturnType<typeof getDefaultPurchasePlanningFilters>,
-  mode: "summary" | "planning" | "returns",
+  mode: "summary" | "planning",
 ) {
   if (mode !== "planning") {
     return filters;
@@ -829,7 +825,6 @@ function AppRuntime() {
   const [dashboard, setDashboard] = useState<DashboardOverview>(emptyDashboard);
   const [cashflow, setCashflow] = useState<CashflowOverview>(emptyCashflow);
   const [purchasePlanning, setPurchasePlanning] = useState<PurchasePlanningOverview>(emptyPurchasePlanning);
-  const [purchaseReturns, setPurchaseReturns] = useState<PurchaseReturn[]>([]);
   const [linxBrandNames, setLinxBrandNames] = useState<string[]>([]);
   const [reconciliation, setReconciliation] = useState<ReconciliationWorklist>(emptyReconciliation);
   const [reports, setReports] = useState<ReportsOverview>(emptyReports);
@@ -839,7 +834,7 @@ function AppRuntime() {
   const [linxSettings, setLinxSettings] = useState<LinxSettings | null>(null);
   const [mfaStatus, setMfaStatus] = useState<MfaStatus | null>(null);
   const [activeMfaSetup, setActiveMfaSetup] = useState<MfaSetup | null>(null);
-  const [purchasePlanningLoadedMode, setPurchasePlanningLoadedMode] = useState<"summary" | "planning" | "returns" | null>(null);
+  const [purchasePlanningLoadedMode, setPurchasePlanningLoadedMode] = useState<"summary" | "planning" | null>(null);
   const [cadastrosLoadedPath, setCadastrosLoadedPath] = useState<string | null>(null);
 
   const [overviewFilters, setOverviewFilters] = useState(() => getCurrentMonthRange());
@@ -1194,11 +1189,8 @@ function AppRuntime() {
             ...getPurchasePlanningRequestFilters(effectivePurchaseFilters, planningMode),
             mode: planningMode,
           });
-          const [planningData, returnsData, linxBrandData] = await Promise.all([
+          const [planningData, linxBrandData] = await Promise.all([
             fetchJson<PurchasePlanningOverview>(`/purchase-planning/overview?${planningQuery}`, {
-              token: activeSession.token,
-            }),
-            fetchJson<PurchaseReturn[]>("/purchase-returns?limit=500", {
               token: activeSession.token,
             }),
             fetchJson<string[]>("/linx-products/brands", {
@@ -1206,7 +1198,6 @@ function AppRuntime() {
             }),
           ]);
           setPurchasePlanning(planningData);
-          setPurchaseReturns(returnsData);
           setLinxBrandNames(linxBrandData);
           setPurchasePlanningLoadedMode(planningMode);
           break;
@@ -1716,23 +1707,17 @@ function AppRuntime() {
     try {
       const nextFilters = { ...purchasePlanningFilters, ...overrides };
       const planningMode = getPurchasePlanningMode(location.pathname);
-      const [planningData, returnsData] = await Promise.all([
-        fetchJson<PurchasePlanningOverview>(
-          `/purchase-planning/overview?${buildQuery({
-            ...getPurchasePlanningRequestFilters(nextFilters, planningMode),
-            mode: planningMode,
-          })}`,
-          { token: session.token }
-        ),
-        fetchJson<PurchaseReturn[]>("/purchase-returns?limit=500", {
-          token: session.token,
-        })
-      ]);
+      const planningData = await fetchJson<PurchasePlanningOverview>(
+        `/purchase-planning/overview?${buildQuery({
+          ...getPurchasePlanningRequestFilters(nextFilters, planningMode),
+          mode: planningMode,
+        })}`,
+        { token: session.token }
+      );
       if (overrides) {
         setPurchasePlanningFilters(nextFilters);
       }
       setPurchasePlanning(planningData);
-      setPurchaseReturns(returnsData);
       setPurchasePlanningLoadedMode(planningMode);
     } catch (error) {
       setFeedback({ tone: "error", message: parseApiError(error) });
@@ -2644,50 +2629,6 @@ function AppRuntime() {
     setLoadedSections((current) => ({ ...current, caixa: false }));
   }
 
-  async function createPurchaseReturn(payload: Record<string, unknown>) {
-    if (!session) return;
-    await runMutation(async () => {
-      await fetchJson("/purchase-returns", {
-        method: "POST",
-        token: session.token,
-        body: JSON.stringify(payload),
-      });
-    }, "Devolução de compra criada.", { sections: ["planejamento"] });
-  }
-
-  async function updatePurchaseReturn(purchaseReturnId: string, payload: Record<string, unknown>) {
-    if (!session) return;
-    await runMutation(async () => {
-      await fetchJson(`/purchase-returns/${purchaseReturnId}`, {
-        method: "PUT",
-        token: session.token,
-        body: JSON.stringify(payload),
-      });
-    }, "Devolução de compra atualizada.", { sections: ["planejamento"] });
-  }
-
-  async function deletePurchaseReturn(purchaseReturnId: string) {
-    if (!session) return;
-    await runMutation(async () => {
-      await fetchJson(`/purchase-returns/${purchaseReturnId}`, {
-        method: "DELETE",
-        token: session.token,
-      });
-    }, "Devolução de compra excluída.", { sections: ["planejamento"] });
-  }
-
-  async function exportPurchaseReturns() {
-    if (!session) return;
-    try {
-      await downloadFile("/purchase-returns/export", {
-        token: session.token,
-        filename: "devolucoes-compra-legado.csv",
-      });
-    } catch (error) {
-      setFeedback({ tone: "error", message: parseApiError(error) });
-    }
-  }
-
   async function linkPurchaseInstallment(installmentId: string, financialEntryId: string | null) {
     if (!session) return;
     await runMutation(async () => {
@@ -2935,24 +2876,19 @@ function AppRuntime() {
     onDeleteBrand: deleteBrand,
     onDeleteCollection: deleteCollection,
     onDeletePlan: deletePurchasePlan,
-    onDeletePurchaseReturn: deletePurchaseReturn,
     onDeleteSupplier: deleteSupplier,
-    onExportPurchaseReturns: exportPurchaseReturns,
     onCreatePlan: createPurchasePlan,
-    onCreatePurchaseReturn: createPurchaseReturn,
     onCreateSupplier: createSupplier,
     onImportText: importPurchaseInvoiceText,
     onImportXml: importPurchaseInvoiceXml,
     onLinkInstallment: linkPurchaseInstallment,
     onSyncLinxPurchaseInvoices: syncLinxPurchaseInvoices,
-    onUpdatePurchaseReturn: updatePurchaseReturn,
     onSaveInvoice: savePurchaseInvoice,
     onUpdateCollection: updateCollection,
     onUpdateBrand: updateBrand,
     onUpdatePlan: updatePurchasePlan,
     onUpdateSupplier: updateSupplier,
     overview: purchasePlanning,
-    purchaseReturns,
     suppliers,
   };
 

@@ -18,15 +18,13 @@ import type {
   PurchaseInstallment,
   PurchasePlan,
   PurchasePlanningOverview,
-  PurchaseReturn,
   Supplier,
 } from "../types";
 
 type PurchasePlanningView =
   | "resumo"
   | "planejamento"
-  | "fornecedores"
-  | "devolucoes";
+  | "fornecedores";
 const zeroMoneyInput = formatPtBrMoneyInput(0);
 
 type PurchaseFilters = {
@@ -48,7 +46,6 @@ type Props = {
   filters: PurchaseFilters;
   loading?: boolean;
   overview: PurchasePlanningOverview;
-  purchaseReturns: PurchaseReturn[];
   onApplyFilters: (
     overrides?: Partial<PurchaseFilters>,
   ) => Promise<void> | void;
@@ -81,13 +78,6 @@ type Props = {
     payload: Record<string, unknown>,
   ) => Promise<void>;
   onDeletePlan: (planId: string) => Promise<void>;
-  onCreatePurchaseReturn: (payload: Record<string, unknown>) => Promise<void>;
-  onUpdatePurchaseReturn: (
-    purchaseReturnId: string,
-    payload: Record<string, unknown>,
-  ) => Promise<void>;
-  onDeletePurchaseReturn: (purchaseReturnId: string) => Promise<void>;
-  onExportPurchaseReturns: () => Promise<void>;
   onImportText: (rawText: string) => Promise<PurchaseInvoiceDraft>;
   onImportXml: (file: File) => Promise<PurchaseInvoiceDraft>;
   onSaveInvoice: (payload: Record<string, unknown>) => Promise<void>;
@@ -128,16 +118,6 @@ type CollectionModalState = {
   end_date: string;
   notes: string;
   is_active: boolean;
-};
-
-type PurchaseReturnModalState = {
-  id: string | null;
-  supplier_id: string;
-  return_date: string;
-  amount: string;
-  invoice_number: string;
-  status: string;
-  notes: string;
 };
 
 type CollectionObservationModalState = {
@@ -299,25 +279,6 @@ const SEASON_PHASE_OPTIONS = [
   { value: "main", label: "Principal" },
   { value: "high", label: "Alto" },
 ] as const;
-const PURCHASE_RETURN_STATUS_OPTIONS: SelectOption[] = [
-  { value: "request_open", label: "Abrir solicitação" },
-  { value: "factory_pending", label: "Aguardando fábrica" },
-  { value: "send", label: "Enviar" },
-  { value: "sent_waiting_analysis", label: "Enviado/Aguardando Análise" },
-  { value: "refund_approved", label: "Reembolso aprovado" },
-  { value: "refunded", label: "Reembolsado" },
-];
-const ALL_PURCHASE_RETURN_STATUSES = PURCHASE_RETURN_STATUS_OPTIONS.map(
-  (option) => option.value,
-);
-const DEFAULT_VISIBLE_PURCHASE_RETURN_STATUSES =
-  PURCHASE_RETURN_STATUS_OPTIONS.filter(
-    (option) => option.value !== "refunded",
-  ).map((option) => option.value);
-const PURCHASE_RETURN_STATUS_LABELS = Object.fromEntries(
-  PURCHASE_RETURN_STATUS_OPTIONS.map((option) => [option.value, option.label]),
-) as Record<string, string>;
-
 const emptySupplierModal = (): SupplierModalState => ({
   id: null,
   name: "",
@@ -345,16 +306,6 @@ const emptyCollectionModal = (): CollectionModalState => ({
   end_date: "",
   notes: "",
   is_active: true,
-});
-
-const emptyPurchaseReturnModal = (today: string): PurchaseReturnModalState => ({
-  id: null,
-  supplier_id: "",
-  return_date: today,
-  amount: zeroMoneyInput,
-  invoice_number: "",
-  status: "request_open",
-  notes: "",
 });
 
 const emptyInvoiceDraft = (): PurchaseInvoiceDraft => ({
@@ -552,23 +503,6 @@ function labelizeStatus(value: string | null | undefined) {
   return labels[normalized] ?? formatEntryStatus(value);
 }
 
-function labelizePurchaseReturnStatus(value: string | null | undefined) {
-  if (!value) return "-";
-  return PURCHASE_RETURN_STATUS_LABELS[value] ?? value;
-}
-
-function isPurchaseReturnActionRequired(status: string | null | undefined) {
-  return status === "request_open" || status === "send";
-}
-
-function getPurchaseReturnStatusOptions(currentStatus: string | null) {
-  return PURCHASE_RETURN_STATUS_OPTIONS;
-}
-
-function normalizePurchaseReturnVisibleStatuses(values: string[]) {
-  return values.length ? values : DEFAULT_VISIBLE_PURCHASE_RETURN_STATUSES;
-}
-
 function parseInstallmentsCount(paymentTerm: string | null | undefined) {
   const match = paymentTerm?.match(/(\d+)/);
   return match ? match[1] : "1";
@@ -594,13 +528,6 @@ function normalizeBrandLookupKey(value: string | null | undefined) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "");
-}
-
-function normalizeSearchText(value: string | null | undefined) {
-  return normalizeDisplayText(value)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
 }
 
 function getYearFromDate(value: string | null | undefined) {
@@ -802,25 +729,6 @@ function InvoiceIcon() {
   );
 }
 
-function ReturnsIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="button-icon"
-      fill="none"
-      viewBox="0 0 16 16"
-    >
-      <path
-        d="M13.25 8a5.25 5.25 0 1 1-10.5 0M2.75 8l-1.5 1.5M2.75 8l1.5 1.5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.2"
-      />
-    </svg>
-  );
-}
-
 function EyeIcon() {
   return (
     <svg
@@ -848,7 +756,6 @@ export function PurchasePlanningPage({
   filters,
   loading = false,
   overview,
-  purchaseReturns,
   onApplyFilters,
   onChangeFilters,
   onCreateBrand,
@@ -863,10 +770,6 @@ export function PurchasePlanningPage({
   onCreatePlan,
   onUpdatePlan,
   onDeletePlan,
-  onCreatePurchaseReturn,
-  onUpdatePurchaseReturn,
-  onDeletePurchaseReturn,
-  onExportPurchaseReturns,
   onImportText,
   onImportXml,
   onSaveInvoice,
@@ -895,9 +798,6 @@ export function PurchasePlanningPage({
     useState(false);
   const [supplierModalOpen, setSupplierModalOpen] = useState(false);
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
-  const [purchaseReturnModalOpen, setPurchaseReturnModalOpen] = useState(false);
-  const [purchaseReturnsPanelOpen, setPurchaseReturnsPanelOpen] =
-    useState(false);
   const [brandModal, setBrandModal] =
     useState<BrandModalState>(emptyBrandModal());
   const [brandModalDetailed, setBrandModalDetailed] = useState(false);
@@ -910,13 +810,6 @@ export function PurchasePlanningPage({
     useState<CollectionObservationModalState | null>(null);
   const [collectionOrdersModal, setCollectionOrdersModal] =
     useState<CollectionOrdersModalState | null>(null);
-  const [purchaseReturnModal, setPurchaseReturnModal] =
-    useState<PurchaseReturnModalState>(emptyPurchaseReturnModal(today));
-  const [purchaseReturnFilter, setPurchaseReturnFilter] = useState("");
-  const [purchaseReturnDateFrom, setPurchaseReturnDateFrom] = useState("");
-  const [purchaseReturnDateTo, setPurchaseReturnDateTo] = useState("");
-  const [purchaseReturnVisibleStatuses, setPurchaseReturnVisibleStatuses] =
-    useState<string[]>(DEFAULT_VISIBLE_PURCHASE_RETURN_STATUSES);
   const [planningCollectionId, setPlanningCollectionId] = useState("");
   const [compareCollectionIds, setCompareCollectionIds] = useState<string[]>(
     [],
@@ -1216,74 +1109,6 @@ export function PurchasePlanningPage({
     paymentTermOptions.find(
       (option) => option.value === supplierModal.default_payment_term,
     ) ?? null;
-  const selectedPurchaseReturnSupplierOption =
-    supplierOptions.find(
-      (option) => option.value === purchaseReturnModal.supplier_id,
-    ) ?? null;
-  const purchaseReturnStatusOptions = getPurchaseReturnStatusOptions(
-    purchaseReturnModal.id ? purchaseReturnModal.status : null,
-  );
-  const normalizedPurchaseReturnVisibleStatuses =
-    normalizePurchaseReturnVisibleStatuses(purchaseReturnVisibleStatuses);
-  const selectedPurchaseReturnVisibleStatusOptions =
-    PURCHASE_RETURN_STATUS_OPTIONS.filter((option) =>
-      normalizedPurchaseReturnVisibleStatuses.includes(option.value),
-    );
-  const purchaseReturnStatusPlaceholder =
-    normalizedPurchaseReturnVisibleStatuses.length ===
-    PURCHASE_RETURN_STATUS_OPTIONS.length
-      ? "Todos os status"
-      : normalizedPurchaseReturnVisibleStatuses.length === 1
-        ? `${selectedPurchaseReturnVisibleStatusOptions[0]?.label ?? "1 status"}`
-        : `${normalizedPurchaseReturnVisibleStatuses.length} status selecionados`;
-  const filteredPurchaseReturns = useMemo(() => {
-    const normalizedFilter = normalizeSearchText(purchaseReturnFilter).trim();
-    return purchaseReturns.filter((purchaseReturn) => {
-      if (
-        !normalizedPurchaseReturnVisibleStatuses.includes(purchaseReturn.status)
-      ) {
-        return false;
-      }
-      if (
-        purchaseReturnDateFrom &&
-        purchaseReturn.return_date < purchaseReturnDateFrom
-      ) {
-        return false;
-      }
-      if (
-        purchaseReturnDateTo &&
-        purchaseReturn.return_date > purchaseReturnDateTo
-      ) {
-        return false;
-      }
-      if (!normalizedFilter) {
-        return true;
-      }
-      const formattedDate = formatDate(purchaseReturn.return_date);
-      const formattedAmount = formatPurchaseDisplayAmount(
-        purchaseReturn.amount,
-      );
-      const haystack = normalizeSearchText(
-        [
-          purchaseReturn.supplier_name,
-          formattedDate,
-          formattedAmount,
-          purchaseReturn.invoice_number,
-          labelizePurchaseReturnStatus(purchaseReturn.status),
-          purchaseReturn.notes,
-        ]
-          .filter(Boolean)
-          .join(" "),
-      );
-      return haystack.includes(normalizedFilter);
-    });
-  }, [
-    normalizedPurchaseReturnVisibleStatuses,
-    purchaseReturnDateFrom,
-    purchaseReturnDateTo,
-    purchaseReturnFilter,
-    purchaseReturns,
-  ]);
   const purchaseCostTotal = useMemo(
     () =>
       overview.cost_totals.reduce(
@@ -1917,23 +1742,6 @@ export function PurchasePlanningPage({
     setCollectionModalOpen(true);
   }
 
-  function openPurchaseReturnModal(purchaseReturn?: PurchaseReturn) {
-    setPurchaseReturnModal(
-      purchaseReturn
-        ? {
-            id: purchaseReturn.id,
-            supplier_id: purchaseReturn.supplier_id,
-            return_date: purchaseReturn.return_date,
-            amount: toInputAmount(purchaseReturn.amount),
-            invoice_number: purchaseReturn.invoice_number ?? "",
-            status: purchaseReturn.status,
-            notes: purchaseReturn.notes ?? "",
-          }
-        : emptyPurchaseReturnModal(today),
-    );
-    setPurchaseReturnModalOpen(true);
-  }
-
   async function handleApplySummaryFilters() {
     await onApplyFilters({
       year: filters.year,
@@ -2134,26 +1942,6 @@ export function PurchasePlanningPage({
     setCollectionModal(emptyCollectionModal());
   }
 
-  async function handleSavePurchaseReturn() {
-    if (!purchaseReturnModal.supplier_id || !purchaseReturnModal.return_date)
-      return;
-    const payload = {
-      supplier_id: purchaseReturnModal.supplier_id,
-      return_date: purchaseReturnModal.return_date,
-      amount: normalizePtBrMoneyInput(purchaseReturnModal.amount),
-      invoice_number: purchaseReturnModal.invoice_number.trim() || null,
-      status: purchaseReturnModal.status,
-      notes: purchaseReturnModal.notes.trim() || null,
-    };
-    if (purchaseReturnModal.id) {
-      await onUpdatePurchaseReturn(purchaseReturnModal.id, payload);
-    } else {
-      await onCreatePurchaseReturn(payload);
-    }
-    setPurchaseReturnModalOpen(false);
-    setPurchaseReturnModal(emptyPurchaseReturnModal(today));
-  }
-
   async function handleDeleteSupplier(supplierId: string) {
     if (!window.confirm("Excluir este fornecedor?")) return;
     await onDeleteSupplier(supplierId);
@@ -2167,11 +1955,6 @@ export function PurchasePlanningPage({
   async function handleDeleteCollection(collectionId: string) {
     if (!window.confirm("Excluir esta coleção?")) return;
     await onDeleteCollection(collectionId);
-  }
-
-  async function handleDeletePurchaseReturn(purchaseReturnId: string) {
-    if (!window.confirm("Excluir esta devolução de compra?")) return;
-    await onDeletePurchaseReturn(purchaseReturnId);
   }
 
   async function handleInstallmentLink(installmentId: string, value: string) {
@@ -2761,14 +2544,6 @@ export function PurchasePlanningPage({
               title="Nova marca"
             >
               <TagIcon />
-            </button>
-            <button
-              className="icon-action-button"
-              type="button"
-              onClick={() => setPurchaseReturnsPanelOpen(true)}
-              title="Gerenciar devoluções"
-            >
-              <ReturnsIcon />
             </button>
           </div>
         </div>
@@ -3891,124 +3666,6 @@ export function PurchasePlanningPage({
                 ) : (
                   <tr>
                     <td colSpan={4}>Nenhum fornecedor encontrado.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </article>
-      </div>
-    );
-  }
-
-  function renderDevolucoes() {
-    return (
-      <div className="content-grid">
-        <section className="panel">
-          <div className="purchase-filter-bar purchase-return-filter-bar">
-            <label className="purchase-return-filter-field">
-              Filtro
-              <input
-                value={purchaseReturnFilter}
-                onChange={(event) =>
-                  setPurchaseReturnFilter(event.target.value)
-                }
-                placeholder="Buscar por data, fornecedor, NF, status, observação ou valor"
-              />
-            </label>
-            <label className="purchase-return-filter-field">
-              Data inicial
-              <input
-                type="date"
-                value={purchaseReturnDateFrom}
-                onChange={(event) =>
-                  setPurchaseReturnDateFrom(event.target.value)
-                }
-              />
-            </label>
-            <label className="purchase-return-filter-field">
-              Data final
-              <input
-                type="date"
-                value={purchaseReturnDateTo}
-                onChange={(event) =>
-                  setPurchaseReturnDateTo(event.target.value)
-                }
-              />
-            </label>
-            <div className="purchase-return-filter-field purchase-return-status-inline">
-              <span className="purchase-return-inline-label">Status</span>
-              <Select
-                options={PURCHASE_RETURN_STATUS_OPTIONS}
-                value={selectedPurchaseReturnVisibleStatusOptions}
-                onChange={(options) =>
-                  setPurchaseReturnVisibleStatuses(
-                    normalizePurchaseReturnVisibleStatuses(
-                      asMultiValue(options),
-                    ),
-                  )
-                }
-                isMulti
-                closeMenuOnSelect={false}
-                hideSelectedOptions={false}
-                controlShouldRenderValue={false}
-                placeholder={purchaseReturnStatusPlaceholder}
-                styles={purchaseSelectStyles}
-                menuPortalTarget={portalTarget}
-              />
-            </div>
-            <div className="action-row">
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => void onExportPurchaseReturns()}
-              >
-                Exportar CSV
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <article className="panel-card">
-          <div className="purchase-panel-heading">
-            <h3>Devolução de compras</h3>
-          </div>
-          <div className="table-shell tall">
-            <table className="erp-table compact-table purchase-returns-table">
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Fornecedor</th>
-                  <th>Nota fiscal</th>
-                  <th className="centered-cell">Status</th>
-                  <th className="numeric-cell">Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPurchaseReturns.length ? (
-                  filteredPurchaseReturns.map((purchaseReturn) => (
-                    <tr
-                      key={purchaseReturn.id}
-                      className={
-                        isPurchaseReturnActionRequired(purchaseReturn.status)
-                          ? "purchase-return-row--action-needed"
-                          : undefined
-                      }
-                    >
-                      <td className="purchase-returns-col-date">{renderResponsivePurchaseDate(purchaseReturn.return_date)}</td>
-                      <td className="purchase-returns-col-supplier">{purchaseReturn.supplier_name || "-"}</td>
-                      <td className="purchase-returns-col-invoice">{purchaseReturn.invoice_number || "-"}</td>
-                      <td className="centered-cell purchase-returns-col-status">
-                        {renderPurchaseStatusBadge(purchaseReturn.status, labelizePurchaseReturnStatus(purchaseReturn.status))}
-                      </td>
-                      <td className="numeric-cell tabular-nums purchase-returns-col-amount">
-                        {formatPurchaseDisplayAmount(purchaseReturn.amount)}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5}>Nenhuma devolução de compra encontrada.</td>
                   </tr>
                 )}
               </tbody>
@@ -5243,159 +4900,6 @@ export function PurchasePlanningPage({
     );
   }
 
-  function renderPurchaseReturnModal() {
-    if (!purchaseReturnModalOpen) return null;
-
-    return (
-      <div
-        className="modal-backdrop"
-        role="presentation"
-        style={{ zIndex: 1200 }}
-      >
-        <div className="modal-card purchase-modal-card">
-          <div className="purchase-panel-heading">
-            <h3>
-              {purchaseReturnModal.id
-                ? "Editar devolução de compra"
-                : "Nova devolução de compra"}
-            </h3>
-            <ModalCloseButton
-              onClick={() => {
-                setPurchaseReturnModalOpen(false);
-                setPurchaseReturnModal(emptyPurchaseReturnModal(today));
-              }}
-            />
-          </div>
-          <div className="form-grid">
-            <label>
-              Data
-              <input
-                type="date"
-                value={purchaseReturnModal.return_date}
-                onChange={(event) =>
-                  setPurchaseReturnModal((current) => ({
-                    ...current,
-                    return_date: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label>
-              Fornecedor
-              <Select
-                options={supplierOptions}
-                value={selectedPurchaseReturnSupplierOption}
-                onChange={(option) =>
-                  setPurchaseReturnModal((current) => ({
-                    ...current,
-                    supplier_id: asSingleValue(option),
-                  }))
-                }
-                isClearable
-                placeholder="Selecione o fornecedor"
-                styles={purchaseSelectStyles}
-                menuPortalTarget={portalTarget}
-              />
-            </label>
-            <label>
-              Nota fiscal
-              <input
-                value={purchaseReturnModal.invoice_number}
-                onChange={(event) =>
-                  setPurchaseReturnModal((current) => ({
-                    ...current,
-                    invoice_number: event.target.value,
-                  }))
-                }
-                placeholder="Número da nota fiscal"
-              />
-            </label>
-            <label>
-              Status
-              <select
-                value={purchaseReturnModal.status}
-                onChange={(event) =>
-                  setPurchaseReturnModal((current) => ({
-                    ...current,
-                    status: event.target.value,
-                  }))
-                }
-              >
-                {purchaseReturnStatusOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="full-width">
-              Valor
-              <MoneyInput
-                value={purchaseReturnModal.amount}
-                onValueChange={(value) =>
-                  setPurchaseReturnModal((current) => ({
-                    ...current,
-                    amount: value,
-                  }))
-                }
-              />
-            </label>
-            <label className="full-width">
-              Observação
-              <textarea
-                rows={3}
-                value={purchaseReturnModal.notes}
-                onChange={(event) =>
-                  setPurchaseReturnModal((current) => ({
-                    ...current,
-                    notes: event.target.value,
-                  }))
-                }
-              />
-            </label>
-          </div>
-          <div className="action-row">
-            <Button
-              variant="primary"
-              type="button"
-              onClick={() => void handleSavePurchaseReturn()}
-            >
-              Salvar devolução
-            </Button>
-            <Button
-              variant="ghost"
-              type="button"
-              onClick={() => {
-                setPurchaseReturnModalOpen(false);
-                setPurchaseReturnModal(emptyPurchaseReturnModal(today));
-              }}
-            >
-              Cancelar
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  function renderPurchaseReturnsPanelModal() {
-    if (!purchaseReturnsPanelOpen) return null;
-
-    return (
-      <div className="modal-backdrop" role="presentation">
-        <div className="modal-card purchase-modal-card purchase-returns-panel-modal">
-          <div className="purchase-panel-heading">
-            <h3>Devoluções de compras</h3>
-            <ModalCloseButton
-              onClick={() => setPurchaseReturnsPanelOpen(false)}
-            />
-          </div>
-          {renderDevolucoes()}
-        </div>
-      </div>
-    );
-  }
-
   function renderCollectionModal() {
     if (!collectionModalOpen) return null;
 
@@ -5531,8 +5035,6 @@ export function PurchasePlanningPage({
       {renderInactiveBrandsModal()}
       {renderUnassignedSuppliersModal()}
       {renderSupplierModal()}
-      {renderPurchaseReturnsPanelModal()}
-      {renderPurchaseReturnModal()}
       {renderCollectionModal()}
     </>
   );
