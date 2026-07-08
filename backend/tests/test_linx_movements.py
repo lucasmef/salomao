@@ -25,6 +25,7 @@ from app.schemas.linx_movements import (
     LinxMovementListItemRead,
 )
 from app.services.linx_movements import (
+    _classify_nature,
     _collect_rows,
     list_linx_movements,
     list_linx_sales_report,
@@ -375,6 +376,45 @@ def test_sync_linx_movements_classifies_purchase_return_reversal_from_estorno_te
         assert saved.movement_type == "purchase_return_reversal"
     finally:
         session.close()
+
+
+def test_classify_linx_sale_return_with_estorno_note_does_not_reverse_purchase_return() -> None:
+    assert _classify_nature(
+        {
+            "cod_natureza_operacao": "1.201",
+            "natureza_operacao": "D- DEVOLUÇÃO DE VENDA DE MERCADORIA",
+            "operacao": "DS",
+            "tipo_transacao": "",
+            "desc_cfop": "Devolução de venda de mercadoria adquirida ou recebida de terceiros",
+            "obs": "Devolução/Estorno de nota fiscal emitida com valor equivocado.",
+        }
+    ) == ("sale", "sale_return")
+
+
+def test_classify_linx_refused_returned_goods_as_purchase_return_reversal() -> None:
+    assert _classify_nature(
+        {
+            "cod_natureza_operacao": "62",
+            "natureza_operacao": "RECUSA DE MERCADORIA DEVOLVIDA",
+            "operacao": "DS",
+            "tipo_transacao": "",
+            "desc_cfop": "Outra entrada de mercadoria ou prestação de serviço não especificado",
+            "obs": "Nota(s) Fiscal(is) Referenciada(s): 4311/1.",
+        }
+    ) == ("purchase", "purchase_return_reversal")
+
+
+def test_classify_linx_estorno_with_mojibake_devolucao_note_as_purchase_return_reversal() -> None:
+    assert _classify_nature(
+        {
+            "cod_natureza_operacao": "61",
+            "natureza_operacao": "999 - ESTORNO DE NF-E",
+            "operacao": "DS",
+            "tipo_transacao": "I",
+            "desc_cfop": "Outra entrada de mercadoria ou prestação de serviço não especificada",
+            "obs": "EmissÃo indevida de nota fiscal de devoluÃÃo. OperaÃÃo nÃo foi realizada",
+        }
+    ) == ("purchase", "purchase_return_reversal")
 
 
 def test_sync_linx_movements_initial_load_skips_existing_lookup(monkeypatch) -> None:

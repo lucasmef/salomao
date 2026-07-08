@@ -59,6 +59,7 @@ NATURE_DESCRIPTION_CLASSIFICATION: dict[str, tuple[str, str]] = {
     "ESTORNO DA FATURA": ("purchase", "purchase_return_reversal"),
     "ESTORNO DE DEVOLUCAO DE COMPRA": ("purchase", "purchase_return_reversal"),
     "ESTORNO DEVOLUCAO DE COMPRA": ("purchase", "purchase_return_reversal"),
+    "RECUSA DE MERCADORIA DEVOLVIDA": ("purchase", "purchase_return_reversal"),
 }
 
 PURCHASE_MOVEMENT_TYPES = {"purchase", "purchase_return", "purchase_return_reversal"}
@@ -70,7 +71,7 @@ LISTABLE_MOVEMENT_TYPES = {
     "purchase_return_reversal",
 }
 PURCHASE_RETURN_REVERSAL_MARKERS = ("estorno",)
-PURCHASE_RETURN_REVERSAL_CONTEXT_MARKERS = ("devolucao", "fatura", "compra")
+PURCHASE_RETURN_REVERSAL_CONTEXT_MARKERS = ("devolu", "fatura", "compra")
 
 
 @dataclass(frozen=True)
@@ -786,16 +787,20 @@ def _normalize_row_payload(row: dict[str, str]) -> dict[str, object]:
 
 
 def _classify_nature(row: dict[str, str]) -> tuple[str, str]:
-    if _has_purchase_return_reversal_signal(row):
-        return ("purchase", "purchase_return_reversal")
+    normalized_description = _normalize_nature_description(row.get("natureza_operacao"))
+    description_classification = NATURE_DESCRIPTION_CLASSIFICATION.get(normalized_description)
+    if description_classification == ("purchase", "purchase_return_reversal"):
+        return description_classification
 
     nature_code = (_clean_text(row.get("cod_natureza_operacao")) or "").strip()
     if nature_code in NATURE_CLASSIFICATION:
         return NATURE_CLASSIFICATION[nature_code]
 
-    normalized_description = _normalize_nature_description(row.get("natureza_operacao"))
-    if normalized_description in NATURE_DESCRIPTION_CLASSIFICATION:
-        return NATURE_DESCRIPTION_CLASSIFICATION[normalized_description]
+    if description_classification is not None:
+        return description_classification
+
+    if _has_purchase_return_reversal_signal(row):
+        return ("purchase", "purchase_return_reversal")
 
     return ("other", "other")
 
