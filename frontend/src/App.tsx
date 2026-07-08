@@ -2063,6 +2063,25 @@ function AppRuntime() {
     }, "Movimentos do Linx atualizados.", { sections: ["cadastros", "caixa", "relatorios", "overview", "importacoes"] });
   }
 
+  async function fullRefreshLinxMovementsImport() {
+    if (!session) return;
+    if (
+      !window.confirm(
+        "Recriar a base local de movimentos Linx desde 2020? Isso pode levar alguns minutos.",
+      )
+    ) {
+      return;
+    }
+    await runMutation(async () => {
+      const result = await fetchJson<ImportResult>("/imports/linx-movements/sync", {
+        method: "POST",
+        token: session.token,
+        body: JSON.stringify({ full_refresh: true }),
+      });
+      setFeedback({ tone: "success", message: result.message });
+    }, "Base de movimentos Linx recriada.", { sections: ["cadastros", "caixa", "relatorios", "overview", "importacoes"] });
+  }
+
   async function applyLinxOpenReceivableFilters(filters: { search: string }) {
     if (!session) return;
     setSubmitting(true);
@@ -3439,6 +3458,7 @@ function AppRuntime() {
               onApplyFilters={applyLinxMovementFilters}
               onChangePage={changeLinxMovementPage}
               onChangePageSize={changeLinxMovementPageSize}
+              onFullRefreshLinxMovements={fullRefreshLinxMovementsImport}
               onSyncLinxMovements={syncLinxMovementsImport}
               tabs={systemTabs}
             />

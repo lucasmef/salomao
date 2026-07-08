@@ -21,6 +21,7 @@ type Props = {
   onChangePage: (page: number) => Promise<void>;
   onChangePageSize: (pageSize: number) => Promise<void>;
   onSyncLinxMovements: () => Promise<void>;
+  onFullRefreshLinxMovements: () => Promise<void>;
 };
 
 function latestBatchFor(importSummary: ImportSummary, sourceType: string) {
@@ -54,6 +55,7 @@ export function CadastrosMovementsPage({
   onChangePage,
   onChangePageSize,
   onSyncLinxMovements,
+  onFullRefreshLinxMovements,
 }: Props) {
   const currentTab = findNavChildByKey(tabs, "movimentos") ?? tabs[0];
   const latestBatch = useMemo(() => latestBatchFor(importSummary, "linx_movements"), [importSummary]);
@@ -121,6 +123,15 @@ export function CadastrosMovementsPage({
             onClick={() => void onSyncLinxMovements()}
           >
             {loading ? "Atualizando..." : "Atualizar Linx"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={loading}
+            title="Recria a base local de movimentos Linx desde 2020"
+            onClick={() => void onFullRefreshLinxMovements()}
+          >
+            Recriar base Linx
           </Button>
         </div>
         <div className="section-toolbar-content">
