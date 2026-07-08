@@ -138,7 +138,7 @@ PURCHASE_RETURN_STATUS_ALIASES = {
     "reembolsado": "refunded",
 }
 PURCHASE_RETURN_APPROVAL_STATUS = "refund_approved"
-PURCHASE_RETURN_CUTOVER_DATE = date(2026, 1, 1)
+PURCHASE_RETURN_CUTOVER_DATE = date(2020, 1, 1)
 
 
 @dataclass(slots=True)

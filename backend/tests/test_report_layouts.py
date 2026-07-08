@@ -603,23 +603,51 @@ class ReportLayoutTestCase(unittest.TestCase):
             status="planned",
         )
         ignored_return.source_system = "purchase_return_workflow"
+        ignored_cutover_return = self._add_entry_custom_dates(
+            account=account,
+            category=purchase_return_category,
+            entry_type="historical_purchase_return",
+            total_amount="40.00",
+            issue_date=date(2020, 1, 15),
+            competence_date=date(2020, 1, 15),
+            due_date=date(2020, 1, 15),
+            status="planned",
+        )
+        ignored_cutover_return.source_system = "purchase_return_workflow"
         legacy_return = self._add_entry_custom_dates(
             account=account,
             category=purchase_return_category,
             entry_type="historical_purchase_return",
             total_amount="30.00",
-            issue_date=date(2025, 12, 20),
-            competence_date=date(2025, 12, 20),
-            due_date=date(2025, 12, 20),
+            issue_date=date(2019, 12, 20),
+            competence_date=date(2019, 12, 20),
+            due_date=date(2019, 12, 20),
             status="planned",
         )
         legacy_return.source_system = "purchase_return_workflow"
         self.db.commit()
 
-        overview_after_cutover = build_reports_overview(self.db, self.company, start=date(2026, 3, 1), end=date(2026, 3, 31))
-        overview_before_cutover = build_reports_overview(self.db, self.company, start=date(2025, 12, 1), end=date(2025, 12, 31))
+        overview_after_cutover = build_reports_overview(
+            self.db,
+            self.company,
+            start=date(2026, 3, 1),
+            end=date(2026, 3, 31),
+        )
+        overview_at_cutover = build_reports_overview(
+            self.db,
+            self.company,
+            start=date(2020, 1, 1),
+            end=date(2020, 1, 31),
+        )
+        overview_before_cutover = build_reports_overview(
+            self.db,
+            self.company,
+            start=date(2019, 12, 1),
+            end=date(2019, 12, 31),
+        )
 
         self.assertEqual(overview_after_cutover.dro.purchases_paid, Decimal("120.00"))
+        self.assertEqual(overview_at_cutover.dro.purchases_paid, Decimal("0.00"))
         self.assertEqual(overview_before_cutover.dro.purchases_paid, Decimal("30.00"))
 
     def test_dre_uses_competence_and_dro_uses_due_date(self) -> None:

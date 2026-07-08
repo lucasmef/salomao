@@ -3959,6 +3959,75 @@ def test_overview_assigns_purchase_returns_to_current_collection_without_changin
     assert "Verao 2026" not in row_by_collection
 
 
+def test_overview_counts_linx_purchase_return_net_from_2020_cutover(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(purchase_planning_service, "_today", lambda: date(2020, 3, 31))
+    company, _user = create_company_context(db_session)
+    supplier = create_supplier(db_session, company.id, "Fornecedor Retorno Antigo")
+    create_collection(
+        db_session,
+        company,
+        "Inverno 2020",
+        start_date=date(2020, 1, 1),
+        end_date=date(2020, 7, 1),
+    )
+    create_linx_product(
+        db_session,
+        company,
+        linx_code=2020001,
+        supplier_name=supplier.name,
+        collection_name="Inverno 2020",
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=20191231,
+        product_code=2020001,
+        document_number="2019",
+        movement_type="purchase_return",
+        total_amount=Decimal("999.00"),
+        launch_date=date(2019, 12, 31),
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=20200115,
+        product_code=2020001,
+        document_number="2020",
+        movement_type="purchase_return",
+        total_amount=Decimal("120.00"),
+        launch_date=date(2020, 1, 15),
+    )
+    create_linx_purchase_movement(
+        db_session,
+        company,
+        linx_transaction=20200116,
+        product_code=2020001,
+        document_number="2020",
+        movement_type="purchase_return_reversal",
+        total_amount=Decimal("50.00"),
+        launch_date=date(2020, 1, 16),
+    )
+    db_session.commit()
+
+    overview = build_purchase_planning_overview(
+        db_session,
+        company,
+        PurchasePlanningFilters(),
+        mode="planning",
+    )
+
+    supplier_totals = [
+        item for item in overview.cost_totals if item.supplier_name == supplier.name
+    ]
+    assert [
+        (item.collection_name, item.purchase_return_cost_total, item.net_cost_total)
+        for item in supplier_totals
+    ] == [("Inverno 2020", Decimal("70.00"), Decimal("-70.00"))]
+
+
 def test_overview_subtracts_linx_purchase_return_reversal_after_cutover(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
