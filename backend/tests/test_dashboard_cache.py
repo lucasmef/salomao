@@ -129,17 +129,18 @@ def test_non_month_overview_bypasses_cache(monkeypatch) -> None:
     assert build_calls["count"] == 2
 
 
-def test_revenue_comparison_reuses_historical_cache_but_queries_today_live(monkeypatch) -> None:
+def test_revenue_comparison_reuses_historical_cache_but_queries_current_month_live(
+    monkeypatch,
+) -> None:
     dashboard.clear_dashboard_revenue_comparison_cache()
     query_calls: list[tuple[date, date]] = []
 
     def fake_query(_db, _company_id, *, start_date: date, end_date: date):
         query_calls.append((start_date, end_date))
-        if start_date == date(2026, 4, 10):
+        if start_date == date(2026, 4, 1):
             return {(2026, 4): Decimal("5.00")}
         return {
             (2025, 4): Decimal("80.00"),
-            (2026, 4): Decimal("95.00"),
         }
 
     monkeypatch.setattr(dashboard, "_query_revenue_totals_by_year_month", fake_query)
@@ -149,9 +150,9 @@ def test_revenue_comparison_reuses_historical_cache_but_queries_today_live(monke
 
     assert first == second
     assert query_calls == [
-        (date(2026, 4, 10), date(2026, 4, 10)),
-        (date(2025, 1, 1), date(2026, 4, 9)),
-        (date(2026, 4, 10), date(2026, 4, 10)),
+        (date(2026, 4, 1), date(2026, 4, 10)),
+        (date(2025, 1, 1), date(2026, 3, 31)),
+        (date(2026, 4, 1), date(2026, 4, 10)),
     ]
 
 
