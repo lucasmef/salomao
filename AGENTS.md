@@ -58,20 +58,20 @@ Project-specific skills, if present, are companion skills for domain-specific ru
 
 Default workflow:
 
-1. Read repository context before acting.
-2. Work one feature or task at a time.
-3. Create or update one living spec in `specs/`.
-4. Ask questions only after reading docs and code.
-5. Prefer small, reversible, verifiable changes.
-6. Register ADRs only for architectural or hard-to-reverse decisions.
-7. Update the living spec before ending the task.
-8. For frontend-impacting work, complete local browser validation and save screenshots in `specs/artifacts/<spec-slug>/` before marking the task done. When a fix has visual impact, also save a proof copy in the global folder `G:\Meu Drive\.agentes`, named `gestor-financeiro-<screen>-<YYYY-MM-DD>[-n].png`.
+1. Receive and analyze the complete intake round before changing anything.
+2. Read repository context and run Grill Gate before deciding the technical decomposition.
+3. Decide autonomously how many living specs are necessary. Group or split items by domain, risk, and dependencies; do not impose a fixed number and do not create a second PRD system.
+4. Define the technical order, then execute the resulting specs sequentially.
+5. Preserve individual traceability: `SAL-ID → living spec → change or finding → validation → evidence`.
+6. Ask questions only after reading docs, ADRs, specs, code, tests, patterns, and project skills. Continue with independent items while an answer is pending.
+7. Prefer small, reversible, verifiable changes and register ADRs only for architectural or hard-to-reverse decisions.
+8. Update every affected living spec before ending the task.
+9. For frontend-impacting work, complete local browser validation and save individually identifiable screenshots in `specs/artifacts/<spec-slug>/` before marking the item done. Record route, viewport, scenario and, where applicable, before and mandatory after evidence for desktop and mobile. When the global folder is available, also save `gestor-financeiro-<screen>-<YYYY-MM-DD>[-n].png` in `G:\Meu Drive\.agentes`; otherwise record the limitation.
 
 Important files:
 
 - `docs/CONTEXT.md` - current project context
 - `docs/ADR.md` - durable architectural decisions
-- `.claude/skills/builderflow/SKILL.md` - BuilderFlow skill (Claude Code)
 - `.agents/skills/builderflow/SKILL.md` - BuilderFlow skill (Codex / other agents)
 - `specs/` - one living spec per task or feature
 - `specs/artifacts/` - screenshots and visual validation evidence grouped by spec slug

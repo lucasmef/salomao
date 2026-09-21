@@ -11,14 +11,14 @@ The goal is to preserve context, reduce cognitive load, avoid unnecessary questi
 
 ## Core principles
 
-1. Work one feature or task at a time.
+1. For a multi-intake round, analyze all IDs before changing anything, choose the number of coherent specs autonomously, and execute the resulting specs one at a time in technical order.
 2. Read context before asking questions.
 3. Ask only what cannot be inferred from docs or code.
 4. Prefer small, reversible, verifiable changes.
-5. Maintain one living spec per feature.
+5. Maintain one living spec per coherent feature or task; a round may require one or many specs, grouped or separated by domain, risk, and dependencies.
 6. Register ADRs only for decisions that are architectural, expensive, risky, or hard to reverse.
-7. Do not create separate PRD, TASKS, STATUS, HANDOFF, or NOTES files by default.
-8. The living spec is the source of truth for planning, progress, status, handoff, validation, and next steps.
+7. Do not create separate PRD, TASKS, STATUS, HANDOFF, or NOTES files by default. The living specs remain the only planning and tracking system.
+8. The living spec is the source of truth for planning, progress, status, handoff, validation, and next steps. Preserve `intake ID → spec → change/finding → validation → evidence` for every ID in a round.
 
 ---
 
@@ -417,10 +417,10 @@ If the server cannot be started, the browser cannot be tested, or screenshots ca
 
 This rule applies to any agent (Claude, Codex, Gemini, Antigravity).
 
-When a fix has visual impact and must be proven, save the screenshot in two places:
+When a fix has visual impact and must be proven, save individually identifiable evidence in two places:
 
-1. In the project: `specs/artifacts/<spec-slug>/` (the ordered names above).
-2. In the global proofs folder: `G:\Meu Drive\.agentes` (in its root; create it if it does not exist).
+1. In the project: `specs/artifacts/<spec-slug>/` (the ordered names above, including route, viewport and scenario in the spec). Capture before when applicable and after always; cover desktop and mobile when the change affects both.
+2. In the global proofs folder: `G:\Meu Drive\.agentes` (in its root; create it if it is available). If it is unavailable, record that limitation while retaining the local artifact.
 
 Naming convention for the global copy: `<project>-<screen|area>-<YYYY-MM-DD>[-n].png`
 (e.g. `gestor-financeiro-today-2026-05-29.png`). The name must make clear which

@@ -102,7 +102,7 @@ export function SalesReportPage({
       </section>
 
       <section className="panel">
-        <div className="table-shell tall">
+        <div className="table-shell table-shell--mobile-compact tall">
           <TablePagination
             loading={loading}
             onPageChange={onChangePage}
@@ -113,7 +113,7 @@ export function SalesReportPage({
             totalItems={report.total}
             totalPages={totalPages}
           />
-          <table className="erp-table">
+          <table className="erp-table mobile-compact-table">
             <thead>
               <tr>
                 <th>Nota</th>
@@ -130,15 +130,15 @@ export function SalesReportPage({
             <tbody>
               {report.items.map((item) => (
                 <tr key={item.key}>
-                  <td>{[item.document_number, item.document_series].filter(Boolean).join(" / ") || "-"}</td>
-                  <td>{item.customer_name ?? (item.customer_code ? `Cliente ${item.customer_code}` : "-")}</td>
-                  <td>{item.issue_date ? formatDate(item.issue_date) : "-"}</td>
-                  <td>{item.launch_date ? formatDate(item.launch_date) : "-"}</td>
-                  <td>{item.item_count}</td>
-                  <td>{item.quantity}</td>
-                  <td>{formatMoney(item.gross_amount)}</td>
-                  <td>{formatMoney(item.returns_amount)}</td>
-                  <td>{formatMoney(item.net_amount)}</td>
+                  <td data-label="Nota">{[item.document_number, item.document_series].filter(Boolean).join(" / ") || "-"}</td>
+                  <td className="mobile-compact-primary" data-label="Cliente">{item.customer_name ?? (item.customer_code ? `Cliente ${item.customer_code}` : "-")}</td>
+                  <td data-label="Emissão">{item.issue_date ? formatDate(item.issue_date) : "-"}</td>
+                  <td data-label="Lançamento">{item.launch_date ? formatDate(item.launch_date) : "-"}</td>
+                  <td data-label="Itens">{item.item_count}</td>
+                  <td data-label="Qtd.">{item.quantity}</td>
+                  <td data-label="Venda bruta">{formatMoney(item.gross_amount)}</td>
+                  <td data-label="Devoluções">{formatMoney(item.returns_amount)}</td>
+                  <td className="mobile-compact-amount" data-label="Venda líquida">{formatMoney(item.net_amount)}</td>
                 </tr>
               ))}
               {!report.items.length && (

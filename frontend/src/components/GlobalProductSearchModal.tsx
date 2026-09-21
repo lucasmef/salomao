@@ -454,8 +454,8 @@ export function GlobalProductSearchModal({
           <ModalCloseButton onClick={onClose} />
         </div>
 
-        <div className="table-shell global-product-search-table-shell">
-          <table className="erp-table entries-list-table global-product-search-table">
+        <div className="table-shell table-shell--mobile-compact global-product-search-table-shell">
+          <table className="erp-table entries-list-table global-product-search-table mobile-compact-table">
             <colgroup>
               <col className="global-product-col-code" />
               <col className="global-product-col-description" />
@@ -479,21 +479,21 @@ export function GlobalProductSearchModal({
             <tbody>
               {visibleItems.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.linx_code}</td>
-                  <td className="global-product-cell-description" title={item.description}>
+                  <td data-label="Código">{item.linx_code}</td>
+                  <td className="global-product-cell-description mobile-compact-primary" data-label="Descrição" title={item.description}>
                     {item.description}
                   </td>
-                  <td className="global-product-cell-reference" title={item.reference ?? "-"}>
+                  <td className="global-product-cell-reference" data-label="Referência" title={item.reference ?? "-"}>
                     {item.reference ?? "-"}
                   </td>
-                  <td className="global-product-cell-brand" title={item.brand_name ?? "Sem marca"}>
+                  <td className="global-product-cell-brand" data-label="Marca" title={item.brand_name ?? "Sem marca"}>
                     {item.brand_name ?? "Sem marca"}
                   </td>
-                  <td className="global-product-cell-collection" title={item.collection_name ?? "-"}>
+                  <td className="global-product-cell-collection" data-label="Coleção" title={item.collection_name ?? "-"}>
                     {item.collection_name ?? "-"}
                   </td>
-                  <td className="numeric-cell">{formatStockQuantity(item.stock_quantity)}</td>
-                  <td className="numeric-cell">{item.price_sale != null ? formatMoney(item.price_sale) : "-"}</td>
+                  <td className="numeric-cell" data-label="Saldo">{formatStockQuantity(item.stock_quantity)}</td>
+                  <td className="numeric-cell mobile-compact-amount" data-label="Venda">{item.price_sale != null ? formatMoney(item.price_sale) : "-"}</td>
                 </tr>
               ))}
               {!visibleItems.length && (

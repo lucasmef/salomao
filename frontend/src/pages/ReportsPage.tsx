@@ -110,7 +110,7 @@ function ReportStatementTable({ nodes, expandedKeys, onToggle }: StatementTableP
       const row = (
         <Fragment key={node.key}>
           <tr className={`report-row tone-${node.tone}`}>
-            <td>
+            <td className="mobile-compact-primary" data-label="Conta">
               <div className="report-label-cell" style={{ paddingLeft: `${depth * 18}px` }}>
                 {hasChildren ? (
                   <button className="report-toggle" onClick={() => onToggle(node.key)} type="button">
@@ -125,8 +125,8 @@ function ReportStatementTable({ nodes, expandedKeys, onToggle }: StatementTableP
                 </div>
               </div>
             </td>
-            <td className={`report-value-cell ${valueToneClass}`}>{formatMoneyNumber(node.amount)}</td>
-            <td className={`report-value-cell ${valueToneClass}`}>{node.percent === null ? "" : `${Number(node.percent).toFixed(2)}%`}</td>
+            <td className={`report-value-cell ${valueToneClass} mobile-compact-amount`} data-label="Valor">{formatMoneyNumber(node.amount)}</td>
+            <td className={`report-value-cell ${valueToneClass}`} data-label="Percentual">{node.percent === null ? "" : `${Number(node.percent).toFixed(2)}%`}</td>
           </tr>
           {hasChildren && isExpanded ? renderRows(node.children, depth + 1) : null}
         </Fragment>
@@ -136,8 +136,8 @@ function ReportStatementTable({ nodes, expandedKeys, onToggle }: StatementTableP
   }
 
   return (
-    <div className="table-shell">
-      <table className="erp-table report-table">
+    <div className="table-shell table-shell--mobile-compact">
+      <table className="erp-table report-table mobile-compact-table">
         <thead>
           <tr>
             <th>Contas</th>

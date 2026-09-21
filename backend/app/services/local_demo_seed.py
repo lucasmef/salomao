@@ -394,7 +394,9 @@ def _seed_sales_and_receivables(db: Session, company: Company) -> int:
                 payment_date=None,
                 amount=_money(amount),
                 paid_amount=_money("0.00"),
-                status="EM_ABERTO",
+                # O dashboard classifica boletos Inter pendentes como "A receber".
+                # Usar o mesmo valor do importador mantém os registros demo visíveis.
+                status="A receber",
                 inter_seu_numero=f"DEMO-{index:03d}",
             )
         )

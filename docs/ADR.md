@@ -44,3 +44,36 @@ BuilderFlow uses:
 - Keep one feature per spec.
 - Ask up to 5 decision-oriented questions when ambiguity is material.
 - Treat architectural changes as requiring ADR and confirmation.
+
+---
+
+## ADR-002 - Rodadas multi-intake com decomposição autônoma
+
+Status: active
+Date: 2026-09-21
+
+### Context
+
+Manutenções do Gestor Financeiro podem chegar em uma única rodada com vários IDs de intake, de domínios e riscos diferentes. A regra anterior de uma spec por tarefa não explicava como receber a rodada completa sem criar PRDs paralelos ou perder a rastreabilidade de cada ID.
+
+### Decision
+
+BuilderFlow continua sendo o único processo de planejamento e execução. O executor recebe a rodada completa, carrega o contexto real, executa Grill Gate e define autonomamente quantas living specs são necessárias. Os itens são agrupados ou separados por domínio, risco e dependências, recebem ordem técnica e são executados sequencialmente.
+
+Cada ID preserva o elo `SAL-ID → living spec → alteração ou achado → validação → evidência`. Grill Me permanece reservado a decisões materiais não inferíveis; itens independentes seguem enquanto uma decisão está pendente. Evidências visuais ficam em `specs/artifacts/<spec-slug>/`, com cópia global `gestor-financeiro-*` quando o volume estiver disponível.
+
+### Consequences
+
+- A quantidade de specs deixa de ser fixa e segue o risco real da rodada.
+- A living spec continua substituindo PRD, TASKS, STATUS, HANDOFF e NOTES.
+- Relatórios de auditoria e mudanças visuais podem coexistir sem misturar validações ou evidências.
+
+### Risks
+
+- Decomposição excessiva pode fragmentar contexto; insuficiente pode misturar riscos distintos.
+- Evidência global pode não estar disponível no host de execução.
+
+### Alternatives considered
+
+- Uma única spec obrigatória por rodada: rejeitada porque mistura domínios e riscos independentes.
+- Criar um sistema paralelo de PRDs por ID: rejeitado porque duplica o papel das living specs.

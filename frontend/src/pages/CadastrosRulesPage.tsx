@@ -40,16 +40,16 @@ export function CadastrosRulesPage({ tabs, recurrences, loans }: Props) {
       <section className="content-grid two-columns">
         <article className="panel">
           <div className="panel-title"><h3>Regras recorrentes</h3></div>
-          <div className="table-shell">
-            <table className="erp-table">
+          <div className="table-shell table-shell--mobile-compact">
+            <table className="erp-table mobile-compact-table">
               <thead><tr><th>Regra</th><th>Tipo</th><th>Frequencia</th><th>Proxima execucao</th></tr></thead>
               <tbody>
                 {recurrences.map((rule) => (
                   <tr key={rule.id}>
-                    <td>{rule.name}</td>
-                    <td>{rule.entry_type}</td>
-                    <td>{rule.frequency}</td>
-                    <td>{formatDate(rule.next_run_date)}</td>
+                    <td className="mobile-compact-primary" data-label="Regra">{rule.name}</td>
+                    <td data-label="Tipo">{rule.entry_type}</td>
+                    <td data-label="Frequência">{rule.frequency}</td>
+                    <td data-label="Próxima execução">{formatDate(rule.next_run_date)}</td>
                   </tr>
                 ))}
                 {!recurrences.length && <tr><td className="empty-cell" colSpan={4}>Nenhuma regra cadastrada.</td></tr>}
@@ -59,16 +59,16 @@ export function CadastrosRulesPage({ tabs, recurrences, loans }: Props) {
         </article>
         <article className="panel">
           <div className="panel-title"><h3>Contratos e financiamentos</h3></div>
-          <div className="table-shell">
-            <table className="erp-table">
+          <div className="table-shell table-shell--mobile-compact">
+            <table className="erp-table mobile-compact-table">
               <thead><tr><th>Contrato</th><th>Credor</th><th>Parcelas</th><th>Valor</th></tr></thead>
               <tbody>
                 {loans.map((loan) => (
                   <tr key={loan.id}>
-                    <td>{loan.title}</td>
-                    <td>{loan.lender_name}</td>
-                    <td>{loan.installments_count}</td>
-                    <td>{formatMoney(loan.installment_amount)}</td>
+                    <td className="mobile-compact-primary" data-label="Contrato">{loan.title}</td>
+                    <td data-label="Credor">{loan.lender_name}</td>
+                    <td data-label="Parcelas">{loan.installments_count}</td>
+                    <td className="mobile-compact-amount" data-label="Valor">{formatMoney(loan.installment_amount)}</td>
                   </tr>
                 ))}
                 {!loans.length && <tr><td className="empty-cell" colSpan={4}>Nenhum contrato cadastrado.</td></tr>}

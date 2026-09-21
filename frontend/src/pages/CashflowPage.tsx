@@ -381,19 +381,19 @@ export function CashflowPage({
             <button className={viewMode === "monthly" ? "report-tab active" : "report-tab"} onClick={() => setViewMode("monthly")} type="button">Mensal</button>
           </div>
         </div>
-        <div className="table-shell cashflow-projection-shell">
-          <table className="erp-table cashflow-projection-table">
+        <div className="table-shell table-shell--mobile-compact cashflow-projection-shell">
+          <table className="erp-table cashflow-projection-table mobile-compact-table">
             <thead><tr><th>Periodo</th><th>Saldo inicial</th><th>Crediario</th><th>Cartao</th><th>Despesas lancadas</th><th>Previsao de compras</th><th>Fechamento</th></tr></thead>
             <tbody>
               {projection.map((point) => (
                 <tr key={point.reference}>
-                  <td>{formatProjectionReference(point.reference)}</td>
-                  <td>{formatMoneyNumber(point.opening_balance)}</td>
-                  <td>{formatMoneyNumber(point.crediario_inflows)}</td>
-                  <td>{formatMoneyNumber(point.card_inflows)}</td>
-                  <td>{formatMoneyNumber(point.launched_outflows)}</td>
-                  <td>{formatMoneyNumber(point.planned_purchase_outflows)}</td>
-                  <td>{formatMoneyNumber(point.closing_balance)}</td>
+                  <td className="mobile-compact-primary" data-label="Período">{formatProjectionReference(point.reference)}</td>
+                  <td data-label="Saldo inicial">{formatMoneyNumber(point.opening_balance)}</td>
+                  <td data-label="Crediário">{formatMoneyNumber(point.crediario_inflows)}</td>
+                  <td data-label="Cartão">{formatMoneyNumber(point.card_inflows)}</td>
+                  <td data-label="Despesas lançadas">{formatMoneyNumber(point.launched_outflows)}</td>
+                  <td data-label="Previsão de compras">{formatMoneyNumber(point.planned_purchase_outflows)}</td>
+                  <td className="mobile-compact-amount" data-label="Fechamento">{formatMoneyNumber(point.closing_balance)}</td>
                 </tr>
               ))}
               {!projection.length && <tr><td colSpan={7} className="empty-cell">Sem pontos de projecao para o periodo informado.</td></tr>}

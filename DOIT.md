@@ -19,6 +19,6 @@
 
 ## Notes
 
-- Use `$gestor-financeiro-doit-workflow` para organizar, executar ou atualizar este arquivo.
+- Use `$gestor-financeiro-workflow` para organizar, executar ou atualizar este arquivo.
 - Producao continua manual; Codex nao deve fazer deploy direto no VPS por padrao.
 - Use placeholders como `<SECRET>`, `<ENV_FILE>`, `<SHA>` e `example.invalid` quando uma tarefa depender de valores sensiveis.

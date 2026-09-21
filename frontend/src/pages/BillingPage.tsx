@@ -2306,8 +2306,8 @@ export function BillingPage({
             </div>
           </div>
 
-          <div className="table-shell table-shell--scroll billing-table-shell billing-table-shell--expanded entries-table-shell">
-            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-clients-table">
+          <div className="table-shell table-shell--scroll table-shell--mobile-compact billing-table-shell billing-table-shell--expanded entries-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-clients-table mobile-compact-table">
               <colgroup>
                 <col className="billing-clients-col-client" />
                 <col className="billing-clients-col-count" />
@@ -2398,11 +2398,11 @@ export function BillingPage({
               <tbody>
                 {filteredClients.map((client) => (
                   <tr key={client.client_key}>
-                    <td className="billing-client-name-cell" title={client.client_name}>{client.client_name}</td>
-                    <td className="billing-client-count-cell">{client.receivable_count}</td>
-                    <td className="billing-client-count-cell">{client.open_boleto_count}</td>
-                    <td className="numeric-cell billing-client-value-cell">{formatMoney(client.total_amount)}</td>
-                    <td className="billing-client-bool-cell">
+                    <td className="billing-client-name-cell mobile-compact-primary" data-label="Cliente" title={client.client_name}>{client.client_name}</td>
+                    <td className="billing-client-count-cell" data-label="Faturas">{client.receivable_count}</td>
+                    <td className="billing-client-count-cell" data-label="Boletos">{client.open_boleto_count}</td>
+                    <td className="numeric-cell billing-client-value-cell mobile-compact-amount" data-label="Valor">{formatMoney(client.total_amount)}</td>
+                    <td className="billing-client-bool-cell" data-label="Usa boleto">
                       <input
                         disabled={submitting}
                         type="checkbox"
@@ -2410,7 +2410,7 @@ export function BillingPage({
                         onChange={(event) => updateClientConfig(client.client_key, { uses_boleto: event.target.checked })}
                       />
                     </td>
-                    <td className="billing-client-mode-cell">
+                    <td className="billing-client-mode-cell" data-label="Modo">
                       <select
                         disabled={submitting}
                         value={client.mode}
@@ -2421,7 +2421,7 @@ export function BillingPage({
                         <option value="negociacao">Negociacao</option>
                       </select>
                     </td>
-                    <td className="billing-client-day-cell">
+                    <td className="billing-client-day-cell" data-label="Dia">
                       <input
                         className="mini-input"
                         disabled={submitting}
@@ -2436,7 +2436,7 @@ export function BillingPage({
                         }
                       />
                     </td>
-                    <td className="billing-client-bool-cell">
+                    <td className="billing-client-bool-cell" data-label="Juros">
                       <input
                         disabled={submitting}
                         type="checkbox"

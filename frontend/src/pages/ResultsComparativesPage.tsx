@@ -103,23 +103,23 @@ export function ResultsComparativesPage({ tabs, dashboard }: Props) {
         </article>
         <article className="panel">
           <div className="panel-title"><h3>Comparativo mensal</h3></div>
-          <div className="table-shell">
-            <table className="erp-table results-comparison-table">
+          <div className="table-shell table-shell--mobile-compact">
+            <table className="erp-table results-comparison-table mobile-compact-table">
               <thead><tr><th>Mes</th><th>Atual</th><th>Ano anterior</th></tr></thead>
               <tbody>
                 {(dashboard?.revenue_comparison.points ?? []).slice(0, 6).map((item) => (
                   <tr key={item.label}>
-                    <td className="results-comparison-col-month">
+                    <td className="results-comparison-col-month mobile-compact-primary" data-label="Mês">
                       <span className="results-month-desktop">{item.label}</span>
                       <span className="results-month-mobile">{formatResultsMobileLabel(item.label)}</span>
                     </td>
-                    <td className={`results-comparison-col-current ${item.current_year_value >= item.previous_year_value ? "is-positive" : "is-negative"}`}>
+                    <td className={`results-comparison-col-current mobile-compact-amount ${item.current_year_value >= item.previous_year_value ? "is-positive" : "is-negative"}`} data-label="Atual">
                       <span className="results-trend-icon" aria-hidden="true">
                         <TrendIcon positive={item.current_year_value >= item.previous_year_value} />
                       </span>
                       <span>{formatResultsCompactAmount(item.current_year_value)}</span>
                     </td>
-                    <td className="results-comparison-col-previous">{formatResultsCompactAmount(item.previous_year_value)}</td>
+                    <td className="results-comparison-col-previous" data-label="Ano anterior">{formatResultsCompactAmount(item.previous_year_value)}</td>
                   </tr>
                 ))}
               </tbody>

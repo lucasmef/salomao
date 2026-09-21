@@ -7385,17 +7385,40 @@ textarea {
   }
 }
 
+.import-status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e8f7ef;
+  color: #157347;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
 @media (max-width: 480px) {
   .table-shell--mobile-compact {
     overflow: visible;
   }
 
   .mobile-compact-table {
+    /*
+     * Break out of the browser's table layout before turning rows into cards.
+     * A colgroup from the desktop table otherwise still participates in width
+     * calculation in WebKit and may collapse each card to a single column.
+     */
+    display: block;
     width: 100%;
     min-width: 0 !important;
     border-collapse: separate;
     border-spacing: 0 8px;
     table-layout: fixed;
+  }
+
+  .mobile-compact-table colgroup {
+    display: none;
   }
 
   .mobile-compact-table thead {
@@ -7404,11 +7427,14 @@ textarea {
 
   .mobile-compact-table tbody {
     display: grid;
+    width: 100%;
     gap: 8px;
   }
 
   .mobile-compact-table tr {
     display: grid;
+    width: 100%;
+    box-sizing: border-box;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 6px 10px;
     padding: 10px;
@@ -7419,6 +7445,8 @@ textarea {
 
   .mobile-compact-table td {
     display: grid;
+    width: 100%;
+    box-sizing: border-box;
     grid-template-columns: 86px minmax(0, 1fr);
     grid-column: 1 / -1;
     gap: 8px;

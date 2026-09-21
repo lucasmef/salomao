@@ -414,8 +414,8 @@ export function SystemImportsGeneralPage({
         <div className="panel-title">
           <h3>Historico de importacoes</h3>
         </div>
-        <div className="table-shell">
-          <table className="erp-table">
+        <div className="table-shell table-shell--mobile-compact">
+          <table className="erp-table mobile-compact-table">
             <thead>
               <tr>
                 <th>Data/Hora</th>
@@ -429,14 +429,14 @@ export function SystemImportsGeneralPage({
             <tbody>
               {importSummary.import_batches.map((batch) => (
                 <tr key={batch.id}>
-                  <td>{formatDateTime(batch.created_at)}</td>
-                  <td>{batch.filename}</td>
-                  <td>{batch.source_type}</td>
-                  <td>
+                  <td data-label="Data/Hora">{formatDateTime(batch.created_at)}</td>
+                  <td className="mobile-compact-primary" data-label="Arquivo">{batch.filename}</td>
+                  <td data-label="Tipo">{batch.source_type}</td>
+                  <td data-label="Processo">
                     {batch.records_valid}/{batch.records_total}
                   </td>
-                  <td>{formatEntryStatus(batch.status)}</td>
-                  <td>{batch.error_summary ?? "Processado sem observacoes."}</td>
+                  <td data-label="Status"><span className="import-status-badge">{formatEntryStatus(batch.status)}</span></td>
+                  <td data-label="Observação">{batch.error_summary ?? "Processado sem observacoes."}</td>
                 </tr>
               ))}
               {!importSummary.import_batches.length && (

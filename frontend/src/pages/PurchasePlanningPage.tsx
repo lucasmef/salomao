@@ -2691,17 +2691,17 @@ export function PurchasePlanningPage({
 
     return (
       <tr key={installment.id}>
-        <td className="purchase-installments-col-supplier">{installment.supplier_name || "-"}</td>
-        <td className="purchase-installments-col-invoice">{installment.invoice_number || "-"}</td>
-        <td className="purchase-installments-col-label">
+        <td className="purchase-installments-col-supplier mobile-compact-primary" data-label="Fornecedor">{installment.supplier_name || "-"}</td>
+        <td className="purchase-installments-col-invoice" data-label="Nota">{installment.invoice_number || "-"}</td>
+        <td className="purchase-installments-col-label" data-label="Parcela">
           {installment.installment_label || installment.installment_number}
         </td>
-        <td className="purchase-installments-col-date">{renderResponsivePurchaseDate(installment.due_date)}</td>
-        <td className="numeric-cell purchase-installments-col-amount">
+        <td className="purchase-installments-col-date" data-label="Vencimento">{renderResponsivePurchaseDate(installment.due_date)}</td>
+        <td className="numeric-cell purchase-installments-col-amount mobile-compact-amount" data-label="Valor">
           {formatPurchaseDisplayAmount(installment.amount)}
         </td>
-        <td className="purchase-installments-col-status">{renderPurchaseStatusBadge(installment.status)}</td>
-        <td className="purchase-installments-link-cell">
+        <td className="purchase-installments-col-status" data-label="Status">{renderPurchaseStatusBadge(installment.status)}</td>
+        <td className="purchase-installments-link-cell" data-label="Vínculo">
           <Select
             options={candidateOptions}
             value={selectedCandidate}
@@ -2753,8 +2753,8 @@ export function PurchasePlanningPage({
             <div className="purchase-panel-heading">
               <h3>Fluxo mensal das compras</h3>
             </div>
-            <div className="table-shell purchase-collections-table-shell">
-              <table className="erp-table purchase-collections-table compact-table">
+            <div className="table-shell table-shell--mobile-compact purchase-collections-table-shell">
+              <table className="erp-table purchase-collections-table compact-table mobile-compact-table">
                 <thead>
                   <tr>
                     <th>Periodo</th>
@@ -2766,11 +2766,11 @@ export function PurchasePlanningPage({
                   {overview.monthly_projection.length ? (
                     overview.monthly_projection.map((item) => (
                       <tr key={item.reference}>
-                        <td>{item.reference}</td>
-                        <td className="numeric-cell tabular-nums">
+                        <td className="mobile-compact-primary" data-label="Período">{item.reference}</td>
+                        <td className="numeric-cell tabular-nums" data-label="Previsto">
                           {formatPurchaseDisplayAmount(item.planned_outflows)}
                         </td>
-                        <td className="numeric-cell tabular-nums">
+                        <td className="numeric-cell tabular-nums mobile-compact-amount" data-label="Saldo aberto">
                           {formatPurchaseDisplayAmount(item.open_balance)}
                         </td>
                       </tr>
@@ -2826,8 +2826,8 @@ export function PurchasePlanningPage({
             <div className="purchase-panel-heading">
               <h3>Totalizações por coleção / fornecedor / custo</h3>
             </div>
-            <div className="table-shell tall">
-              <table className="erp-table compact-table">
+            <div className="table-shell table-shell--mobile-compact tall">
+              <table className="erp-table compact-table mobile-compact-table">
                 <thead>
                   <tr>
                     <th>Coleção</th>
@@ -2841,19 +2841,19 @@ export function PurchasePlanningPage({
                   {overview.cost_totals.length ? (
                     overview.cost_totals.map((item) => (
                       <tr key={`${item.collection_name}-${item.supplier_name}`}>
-                        <td>{item.collection_name}</td>
-                        <td>{item.supplier_name}</td>
-                        <td className="numeric-cell tabular-nums">
+                        <td className="mobile-compact-primary" data-label="Coleção">{item.collection_name}</td>
+                        <td data-label="Fornecedor">{item.supplier_name}</td>
+                        <td className="numeric-cell tabular-nums" data-label="Compras">
                           {formatPurchaseDisplayAmount(
                             item.purchase_cost_total,
                           )}
                         </td>
-                        <td className="numeric-cell tabular-nums">
+                        <td className="numeric-cell tabular-nums" data-label="Devoluções">
                           {formatPurchaseDisplayAmount(
                             item.purchase_return_cost_total,
                           )}
                         </td>
-                        <td className="numeric-cell tabular-nums">
+                        <td className="numeric-cell tabular-nums mobile-compact-amount" data-label="Custo líquido">
                           {formatPurchaseDisplayAmount(item.net_cost_total)}
                         </td>
                       </tr>
@@ -2876,8 +2876,8 @@ export function PurchasePlanningPage({
             <div className="purchase-panel-heading">
               <h3>Compras registradas</h3>
             </div>
-            <div className="table-shell tall">
-              <table className="erp-table purchase-summary-invoices-table">
+            <div className="table-shell table-shell--mobile-compact tall">
+              <table className="erp-table purchase-summary-invoices-table mobile-compact-table">
                 <thead>
                   <tr>
                     <th>Fornecedor</th>
@@ -2892,14 +2892,14 @@ export function PurchasePlanningPage({
                   {overview.invoices.length ? (
                     overview.invoices.map((invoice) => (
                       <tr key={invoice.id}>
-                        <td className="purchase-summary-invoices-col-supplier">{invoice.supplier_name || "-"}</td>
-                        <td className="purchase-summary-invoices-col-collection">{invoice.collection_name || "-"}</td>
-                        <td className="purchase-summary-invoices-col-invoice">{invoice.invoice_number || "-"}</td>
-                        <td className="purchase-summary-invoices-col-date">{renderResponsivePurchaseDate(invoice.issue_date)}</td>
-                        <td className="numeric-cell purchase-summary-invoices-col-amount">
+                        <td className="purchase-summary-invoices-col-supplier mobile-compact-primary" data-label="Fornecedor">{invoice.supplier_name || "-"}</td>
+                        <td className="purchase-summary-invoices-col-collection" data-label="Coleção">{invoice.collection_name || "-"}</td>
+                        <td className="purchase-summary-invoices-col-invoice" data-label="Nota">{invoice.invoice_number || "-"}</td>
+                        <td className="purchase-summary-invoices-col-date" data-label="Emissão">{renderResponsivePurchaseDate(invoice.issue_date)}</td>
+                        <td className="numeric-cell purchase-summary-invoices-col-amount mobile-compact-amount" data-label="Valor">
                           {formatPurchaseDisplayAmount(invoice.total_amount)}
                         </td>
-                        <td className="purchase-summary-invoices-col-status">{renderPurchaseStatusBadge(invoice.status)}</td>
+                        <td className="purchase-summary-invoices-col-status" data-label="Status">{renderPurchaseStatusBadge(invoice.status)}</td>
                       </tr>
                     ))
                   ) : (
@@ -2916,8 +2916,8 @@ export function PurchasePlanningPage({
             <div className="purchase-panel-heading">
               <h3>Parcelas previstas</h3>
             </div>
-            <div className="table-shell tall">
-              <table className="erp-table purchase-summary-installments-table">
+            <div className="table-shell table-shell--mobile-compact tall">
+              <table className="erp-table purchase-summary-installments-table mobile-compact-table">
                 <thead>
                   <tr>
                     <th>Fornecedor</th>
@@ -3021,8 +3021,8 @@ export function PurchasePlanningPage({
         {renderPlanningFilters()}
 
         <article className="panel-card">
-          <div className="table-shell purchase-brand-planning-table-shell">
-            <table className="erp-table compact-table">
+          <div className="table-shell table-shell--mobile-compact purchase-brand-planning-table-shell">
+            <table className="erp-table compact-table mobile-compact-table">
               <thead>
                 <tr>
                   <th className="sticky-col">Nome</th>
@@ -3078,7 +3078,7 @@ export function PurchasePlanningPage({
                     );
                     return (
                       <tr key={snapshot.key}>
-                        <td className="sticky-col">
+                        <td className="sticky-col mobile-compact-primary" data-label="Marca">
                           {snapshot.isInactiveGroup ? (
                             <div className="planning-brand-cell">
                               <strong>{snapshot.brandName}</strong>
@@ -3191,6 +3191,7 @@ export function PurchasePlanningPage({
                           return (
                             <td
                               className={`numeric-cell${planningCollection?.id === collection.id ? " planning-current-column" : ""}`}
+                              data-label={collection.season_label || collection.name}
                               key={`cell-${snapshot.key}-${collection.id}`}
                             >
                               <div className="planning-metric-stack">
@@ -3289,7 +3290,7 @@ export function PurchasePlanningPage({
                             </td>
                           );
                         })}
-                        <td>
+                        <td className="mobile-compact-actions" data-label="Ações">
                           <div className="action-row">
                             {snapshot.isInactiveGroup ? (
                               <button
@@ -3367,7 +3368,7 @@ export function PurchasePlanningPage({
                 )}
                 {visibleBrands.length ? (
                   <tr>
-                    <td className="sticky-col">
+                    <td className="sticky-col mobile-compact-primary" data-label="Marca">
                       <div className="planning-brand-cell">
                         <strong>Total</strong>
                         {showPlanningProfit && (
@@ -3403,6 +3404,7 @@ export function PurchasePlanningPage({
                       return (
                         <td
                           className={`numeric-cell${planningCollection?.id === collection.id ? " planning-current-column" : ""}`}
+                          data-label={collection.season_label || collection.name}
                           key={`totals-${collection.id}`}
                         >
                           <div className="planning-metric-stack">
@@ -3477,7 +3479,7 @@ export function PurchasePlanningPage({
                         </td>
                       );
                     })}
-                    <td>
+                    <td className="mobile-compact-actions" data-label="Ações">
                       <span>-</span>
                     </td>
                   </tr>
@@ -3513,8 +3515,8 @@ export function PurchasePlanningPage({
                 Nova coleção
               </Button>
             </div>
-            <div className="table-shell purchase-collections-table-shell">
-              <table className="erp-table purchase-collections-table purchase-collections-mobile-table">
+            <div className="table-shell table-shell--mobile-compact purchase-collections-table-shell">
+              <table className="erp-table purchase-collections-table purchase-collections-mobile-table mobile-compact-table">
                 <thead>
                   <tr>
                     <th>Coleção</th>
@@ -3530,17 +3532,17 @@ export function PurchasePlanningPage({
                   {collections.length ? (
                     collections.map((collection) => (
                       <tr key={collection.id}>
-                        <td className="purchase-collections-col-name">{collection.season_label || collection.name}</td>
-                        <td className="purchase-collections-col-year">{collection.season_year}</td>
-                        <td className="purchase-collections-col-start">{renderResponsivePurchaseDate(collection.start_date)}</td>
-                        <td className="purchase-collections-col-end">{renderResponsivePurchaseDate(collection.end_date)}</td>
-                        <td className="numeric-cell purchase-collections-col-total">
+                        <td className="purchase-collections-col-name mobile-compact-primary" data-label="Coleção">{collection.season_label || collection.name}</td>
+                        <td className="purchase-collections-col-year" data-label="Ano">{collection.season_year}</td>
+                        <td className="purchase-collections-col-start" data-label="Início">{renderResponsivePurchaseDate(collection.start_date)}</td>
+                        <td className="purchase-collections-col-end" data-label="Fim">{renderResponsivePurchaseDate(collection.end_date)}</td>
+                        <td className="numeric-cell purchase-collections-col-total mobile-compact-amount" data-label="Pedidos totais">
                           {formatPurchaseDisplayAmount(
                             collectionTotals.get(collection.id) ?? "0.00",
                           )}
                         </td>
-                        <td className="purchase-collections-col-status">{renderPurchaseStatusBadge(collection.is_active ? "active" : "inactive", collection.is_active ? "Ativa" : "Inativa")}</td>
-                        <td>
+                        <td className="purchase-collections-col-status" data-label="Status">{renderPurchaseStatusBadge(collection.is_active ? "active" : "inactive", collection.is_active ? "Ativa" : "Inativa")}</td>
+                        <td className="mobile-compact-actions" data-label="Ações">
                           <div className="action-row">
                             <button
                               className="table-button"
@@ -3578,8 +3580,8 @@ export function PurchasePlanningPage({
           <div className="purchase-panel-heading">
             <h3>Fluxo de pagamento previsto</h3>
           </div>
-          <div className="table-shell purchase-collections-table-shell">
-            <table className="erp-table purchase-collections-table">
+          <div className="table-shell table-shell--mobile-compact purchase-collections-table-shell">
+            <table className="erp-table purchase-collections-table mobile-compact-table">
               <thead>
                 <tr>
                   <th>Periodo</th>
@@ -3591,11 +3593,11 @@ export function PurchasePlanningPage({
                 {overview.monthly_projection.length ? (
                   overview.monthly_projection.map((item) => (
                     <tr key={item.reference}>
-                      <td>{item.reference}</td>
-                      <td className="numeric-cell">
+                      <td className="mobile-compact-primary" data-label="Período">{item.reference}</td>
+                      <td className="numeric-cell" data-label="Previsto">
                         {formatPurchaseDisplayAmount(item.planned_outflows)}
                       </td>
-                      <td className="numeric-cell">
+                      <td className="numeric-cell mobile-compact-amount" data-label="Saldo aberto">
                         {formatPurchaseDisplayAmount(item.open_balance)}
                       </td>
                     </tr>
@@ -3623,8 +3625,8 @@ export function PurchasePlanningPage({
               Novo fornecedor
             </Button>
           </div>
-          <div className="table-shell tall">
-              <table className="erp-table compact-table purchase-suppliers-table">
+          <div className="table-shell table-shell--mobile-compact tall">
+              <table className="erp-table compact-table purchase-suppliers-table mobile-compact-table">
               <thead>
                 <tr>
                   <th>Fornecedor</th>
@@ -3637,10 +3639,10 @@ export function PurchasePlanningPage({
                 {suppliers.length ? (
                   suppliers.map((supplier) => (
                     <tr key={supplier.id}>
-                      <td className="purchase-suppliers-col-name">{supplier.name}</td>
-                      <td className="purchase-suppliers-col-term">{supplier.default_payment_term || "-"}</td>
-                      <td className="purchase-suppliers-col-status">{renderPurchaseStatusBadge(supplier.is_active ? "active" : "inactive", supplier.is_active ? "Ativo" : "Inativo")}</td>
-                      <td>
+                      <td className="purchase-suppliers-col-name mobile-compact-primary" data-label="Fornecedor">{supplier.name}</td>
+                      <td className="purchase-suppliers-col-term" data-label="Prazo padrão">{supplier.default_payment_term || "-"}</td>
+                      <td className="purchase-suppliers-col-status" data-label="Status">{renderPurchaseStatusBadge(supplier.is_active ? "active" : "inactive", supplier.is_active ? "Ativo" : "Inativo")}</td>
+                      <td className="mobile-compact-actions" data-label="Ações">
                         <div className="action-row">
                           <button
                             className="table-button"
@@ -3894,8 +3896,8 @@ export function PurchasePlanningPage({
               <div className="purchase-panel-heading">
                 <h3>Parcelas da nota</h3>
               </div>
-              <div className="table-shell">
-                <table className="erp-table compact-table">
+              <div className="table-shell table-shell--mobile-compact">
+                <table className="erp-table compact-table mobile-compact-table">
                   <thead>
                     <tr>
                       <th>Parcela</th>
@@ -3909,12 +3911,12 @@ export function PurchasePlanningPage({
                         <tr
                           key={`${installment.installment_number}-${installment.installment_label ?? ""}`}
                         >
-                          <td>
+                          <td className="mobile-compact-primary" data-label="Parcela">
                             {installment.installment_label ||
                               installment.installment_number}
                           </td>
-                          <td>{formatDate(installment.due_date)}</td>
-                          <td className="numeric-cell tabular-nums">
+                          <td data-label="Vencimento">{formatDate(installment.due_date)}</td>
+                          <td className="numeric-cell tabular-nums mobile-compact-amount" data-label="Valor">
                             {formatPurchaseDisplayAmount(installment.amount)}
                           </td>
                         </tr>
@@ -4190,8 +4192,8 @@ export function PurchasePlanningPage({
                   </button>
                 </div>
 
-                <div className="table-shell brand-collection-table-shell">
-                  <table className="erp-table brand-collection-table compact-table">
+                <div className="table-shell table-shell--mobile-compact brand-collection-table-shell">
+                  <table className="erp-table brand-collection-table compact-table mobile-compact-table">
                     <colgroup>
                       <col className="brand-collection-col-name" />
                       <col className="brand-collection-col-pedido" />
@@ -4280,10 +4282,10 @@ export function PurchasePlanningPage({
                               <tr
                                 key={`${brandModal.id ?? brandModal.name}-${collection.id}`}
                               >
-                                <td>
+                                <td className="mobile-compact-primary" data-label="Coleção">
                                   {collection.season_label || collection.name}
                                 </td>
-                                 <td className="numeric-cell">
+                                 <td className="numeric-cell mobile-compact-amount" data-label="Pedido">
                                   {renderInlinePlannedAmount(currentBrandSnapshot, collection, {
                                     compact: true,
                                     showEditButton: true,
@@ -4319,29 +4321,30 @@ export function PurchasePlanningPage({
                                 </td>
                                 {brandModalDetailed && (
                                   <>
-                                    <td className="numeric-cell color-recebido">
+                                    <td className="numeric-cell color-recebido" data-label="Recebido">
                                       {formatPurchaseDisplayAmount(
                                         collectionSnapshot?.receivedAmount || 0,
                                       )}
                                     </td>
-                                    <td className="numeric-cell color-a-receber">
+                                    <td className="numeric-cell color-a-receber" data-label="Falta receber">
                                       {formatPurchaseDisplayAmount(
                                         collectionSnapshot?.outstandingAmount ||
                                           0,
                                       )}
                                     </td>
-                                    <td className="numeric-cell color-devolucao">
+                                    <td className="numeric-cell color-devolucao" data-label="Devolvido">
                                       {formatPurchaseDisplayAmount(
                                         collectionSnapshot?.returnsAmount || 0,
                                       )}
                                     </td>
-                                    <td className="numeric-cell color-venda">
+                                    <td className="numeric-cell color-venda" data-label="Vendido">
                                       {formatPurchaseDisplayAmount(
                                         collectionSnapshot?.soldAmount || 0,
                                       )}
                                     </td>
                                     <td
                                       className="numeric-cell"
+                                      data-label="Lucro"
                                       style={{
                                         color:
                                           profitPercentage >= 0
@@ -4354,7 +4357,7 @@ export function PurchasePlanningPage({
                                     </td>
                                   </>
                                 )}
-                                <td className="centered-cell">
+                                <td className="centered-cell mobile-compact-actions" data-label="Observação">
                                   <button
                                     aria-label={`${hasObservation ? "Editar" : "Adicionar"} observação`}
                                     className={`table-button icon-button cockpit-btn collection-observation-button${hasObservation ? " has-observation" : ""}`}
@@ -4496,8 +4499,8 @@ export function PurchasePlanningPage({
               <strong>{collection.season_label || collection.name}</strong>
             </div>
           </div>
-          <div className="table-shell purchase-orders-table-shell">
-            <table className="erp-table compact-table">
+          <div className="table-shell table-shell--mobile-compact purchase-orders-table-shell">
+            <table className="erp-table compact-table mobile-compact-table">
               <thead>
                 <tr>
                   <th>Pedido</th>
@@ -4509,7 +4512,7 @@ export function PurchasePlanningPage({
               <tbody>
                 {collectionOrdersModal.drafts.map((draft, index) => (
                   <tr key={draft.planId ?? `new-${index}`}>
-                    <td>
+                    <td className="mobile-compact-primary" data-label="Pedido">
                       <input
                         value={draft.title}
                         onChange={(event) =>
@@ -4519,7 +4522,7 @@ export function PurchasePlanningPage({
                         }
                       />
                     </td>
-                    <td>
+                    <td className="mobile-compact-amount" data-label="Valor">
                       <MoneyInput
                         className="planning-inline-input"
                         value={draft.amount}
@@ -4528,7 +4531,7 @@ export function PurchasePlanningPage({
                         }
                       />
                     </td>
-                    <td>
+                    <td data-label="Observação">
                       <textarea
                         value={draft.notes}
                         onChange={(event) =>
@@ -4540,7 +4543,7 @@ export function PurchasePlanningPage({
                         rows={2}
                       />
                     </td>
-                    <td>
+                    <td className="mobile-compact-actions" data-label="Ações">
                       <Button
                         variant="ghost"
                         className="danger-text-action"
@@ -4601,8 +4604,8 @@ export function PurchasePlanningPage({
               <strong>{inactiveBrands.length}</strong>
             </div>
           </div>
-          <div className="table-shell">
-            <table className="erp-table">
+          <div className="table-shell table-shell--mobile-compact">
+            <table className="erp-table mobile-compact-table">
               <thead>
                 <tr>
                   <th>Marca</th>
@@ -4615,14 +4618,14 @@ export function PurchasePlanningPage({
                 {inactiveBrands.length ? (
                   inactiveBrands.map((brand) => (
                     <tr key={brand.id}>
-                      <td>{brand.name}</td>
-                      <td>
+                      <td className="mobile-compact-primary" data-label="Marca">{brand.name}</td>
+                      <td data-label="Fornecedores">
                         {brand.suppliers
                           .map((supplier) => supplier.name)
                           .join(", ") || "-"}
                       </td>
-                      <td>{brand.default_payment_term || "-"}</td>
-                      <td>
+                      <td data-label="Pagamento">{brand.default_payment_term || "-"}</td>
+                      <td className="mobile-compact-actions" data-label="Ações">
                         <div className="action-row">
                           <button
                             aria-label={`Editar marca ${brand.name}`}
@@ -4713,8 +4716,8 @@ export function PurchasePlanningPage({
               </Button>
             </div>
           </div>
-          <div className="table-shell">
-            <table className="erp-table">
+          <div className="table-shell table-shell--mobile-compact">
+            <table className="erp-table mobile-compact-table">
               <thead>
                 <tr>
                   <th className="centered-cell">Selecionar</th>
@@ -4734,7 +4737,7 @@ export function PurchasePlanningPage({
                       ) ?? null;
                     return (
                       <tr key={supplier.id}>
-                        <td className="centered-cell">
+                        <td className="centered-cell" data-label="Selecionar">
                           <input
                             type="checkbox"
                             checked={selectedUnassignedSupplierIds.includes(
@@ -4745,8 +4748,8 @@ export function PurchasePlanningPage({
                             }
                           />
                         </td>
-                        <td>{supplier.name}</td>
-                        <td style={{ minWidth: 260 }}>
+                        <td className="mobile-compact-primary" data-label="Fornecedor">{supplier.name}</td>
+                        <td style={{ minWidth: 260 }} data-label="Agregar a marca">
                           <Select
                             options={activeBrandOptions}
                             value={selectedBrand}
@@ -4762,7 +4765,7 @@ export function PurchasePlanningPage({
                             menuPortalTarget={portalTarget}
                           />
                         </td>
-                        <td>
+                        <td className="mobile-compact-actions" data-label="Ações">
                           <div className="action-row">
                             <button
                               className="table-button"

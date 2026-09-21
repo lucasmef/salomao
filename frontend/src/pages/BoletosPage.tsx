@@ -1205,8 +1205,8 @@ export function BoletosPage({
             <h3>Boletos atrasados</h3>
             <span>{visibleOverdueBoletos.length}</span>
           </div>
-          <div className="table-shell table-shell--scroll billing-table-shell billing-table-shell--expanded entries-table-shell">
-            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table">
+          <div className="table-shell table-shell--scroll table-shell--mobile-compact billing-table-shell billing-table-shell--expanded entries-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table mobile-compact-table">
               <thead>
                 <tr>
                   <th>{renderSortButton("Cliente", "client_name", overdueSort, overdueSortDirection, () => toggleOverdueSort("client_name"))}</th>
@@ -1223,15 +1223,15 @@ export function BoletosPage({
               <tbody>
                 {visibleOverdueBoletos.map((item, index) => (
                   <tr key={index}>
-                    <td>{item.client_name}</td>
-                    <td className="col-hide-md">{item.mode || "-"}</td>
-                    <td className="col-hide-md">{item.bank || "-"}</td>
-                    <td>{formatDate(item.due_date)}</td>
-                    <td className="col-hide-md">{item.days_overdue}</td>
-                    <td className="numeric-cell">{formatMoney(item.amount)}</td>
-                    <td>{renderStatusBadge(item.status)}</td>
-                    <td>{renderReceivableDetails(item)}</td>
-                    <td>{renderBoletoActions(item.boletos)}</td>
+                    <td className="mobile-compact-primary" data-label="Cliente">{item.client_name}</td>
+                    <td className="col-hide-md" data-label="Modo">{item.mode || "-"}</td>
+                    <td className="col-hide-md" data-label="Banco">{item.bank || "-"}</td>
+                    <td data-label="Vencimento">{formatDate(item.due_date)}</td>
+                    <td className="col-hide-md" data-label="Atraso">{item.days_overdue}</td>
+                    <td className="numeric-cell mobile-compact-amount" data-label="Valor">{formatMoney(item.amount)}</td>
+                    <td data-label="Status">{renderStatusBadge(item.status)}</td>
+                    <td data-label="Faturas">{renderReceivableDetails(item)}</td>
+                    <td className="mobile-compact-actions" data-label="Boleto">{renderBoletoActions(item.boletos)}</td>
                   </tr>
                 ))}
                 {!visibleOverdueBoletos.length && (
@@ -1253,8 +1253,8 @@ export function BoletosPage({
             <h3>Pagas sem baixa</h3>
             <span>{visiblePaidPending.length}</span>
           </div>
-          <div className="table-shell table-shell--scroll billing-table-shell billing-table-shell--expanded entries-table-shell">
-            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table">
+          <div className="table-shell table-shell--scroll table-shell--mobile-compact billing-table-shell billing-table-shell--expanded entries-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table mobile-compact-table">
               <colgroup>
                 <col className="billing-alert-col-type" />
                 <col className="billing-alert-col-client" />
@@ -1278,13 +1278,13 @@ export function BoletosPage({
               <tbody>
                 {visiblePaidPending.map((item, index) => (
                   <tr key={`${item.client_name}-${item.competence}-${index}`}>
-                    <td className="col-hide-md">{item.type}</td>
-                    <td>{item.client_name}</td>
-                    <td className="col-hide-md">{item.mode || "-"}</td>
-                    <td>{item.competence || "-"}</td>
-                    <td className="numeric-cell">{formatMoney(item.amount)}</td>
-                    <td>{renderReceivableDetails(item)}</td>
-                    <td>{renderBoletoActions(item.boletos, { showPdfAction: false })}</td>
+                    <td className="col-hide-md" data-label="Tipo">{item.type}</td>
+                    <td className="mobile-compact-primary" data-label="Cliente">{item.client_name}</td>
+                    <td className="col-hide-md" data-label="Modo">{item.mode || "-"}</td>
+                    <td data-label="Competência">{item.competence || "-"}</td>
+                    <td className="numeric-cell mobile-compact-amount" data-label="Valor">{formatMoney(item.amount)}</td>
+                    <td data-label="Faturas">{renderReceivableDetails(item)}</td>
+                    <td className="mobile-compact-actions" data-label="Boleto">{renderBoletoActions(item.boletos, { showPdfAction: false })}</td>
                   </tr>
                 ))}
                 {!visiblePaidPending.length && (
@@ -1306,8 +1306,8 @@ export function BoletosPage({
             <h3>Boletos em excesso</h3>
             <span>{visibleExcessBoletos.length}</span>
           </div>
-          <div className="table-shell table-shell--scroll billing-table-shell billing-table-shell--expanded entries-table-shell">
-            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table">
+          <div className="table-shell table-shell--scroll table-shell--mobile-compact billing-table-shell billing-table-shell--expanded entries-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table mobile-compact-table">
               <colgroup>
                 <col className="billing-alert-col-type" />
                 <col className="billing-alert-col-client" />
@@ -1335,15 +1335,15 @@ export function BoletosPage({
               <tbody>
                 {visibleExcessBoletos.map((item, index) => (
                   <tr key={`${item.client_name}-${item.competence}-${index}`}>
-                    <td className="col-hide-md">{item.type}</td>
-                    <td>{item.client_name}</td>
-                    <td className="col-hide-md">{item.mode || "-"}</td>
-                    <td className="col-hide-md">{item.competence || "-"}</td>
-                    <td>{formatDate(item.due_date)}</td>
-                    <td className="numeric-cell">{formatMoney(item.amount)}</td>
-                    <td>{renderStatusBadge(item.status)}</td>
-                    <td>{renderBoletoActions(item.boletos)}</td>
-                    <td>{item.reason}</td>
+                    <td className="col-hide-md" data-label="Tipo">{item.type}</td>
+                    <td className="mobile-compact-primary" data-label="Cliente">{item.client_name}</td>
+                    <td className="col-hide-md" data-label="Modo">{item.mode || "-"}</td>
+                    <td className="col-hide-md" data-label="Competência">{item.competence || "-"}</td>
+                    <td data-label="Vencimento">{formatDate(item.due_date)}</td>
+                    <td className="numeric-cell mobile-compact-amount" data-label="Valor">{formatMoney(item.amount)}</td>
+                    <td data-label="Status">{renderStatusBadge(item.status)}</td>
+                    <td className="mobile-compact-actions" data-label="Boleto">{renderBoletoActions(item.boletos)}</td>
+                    <td data-label="Motivo">{item.reason}</td>
                   </tr>
                 ))}
                 {!visibleExcessBoletos.length && (
@@ -1458,8 +1458,8 @@ export function BoletosPage({
               <span className="billing-open-boletos-count">{filteredOpenBoletos.length}</span>
             </div>
           </div>
-          <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell billing-open-boletos-table-shell">
-            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-open-boletos-table">
+          <div className="table-shell table-shell--mobile-compact billing-table-shell billing-table-shell--expanded entries-table-shell billing-open-boletos-table-shell">
+            <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-open-boletos-table mobile-compact-table">
               <colgroup>
                 <col className="billing-open-boletos-col-select" />
                 <col className="billing-open-boletos-col-client" />
@@ -1521,7 +1521,7 @@ export function BoletosPage({
               <tbody>
                 {filteredOpenBoletos.map((item) => (
                   <tr key={item.id}>
-                    <td className="billing-open-boletos-select-cell">
+                    <td className="billing-open-boletos-select-cell" data-label="Selecionar">
                       <input
                         checked={selectedOpenBoletoIds.includes(item.id)}
                         disabled={submitting || !item.pdf_available}
@@ -1529,18 +1529,18 @@ export function BoletosPage({
                         type="checkbox"
                       />
                     </td>
-                    <td className="billing-open-boletos-client-cell" title={item.client_name}>
+                    <td className="billing-open-boletos-client-cell mobile-compact-primary" data-label="Cliente" title={item.client_name}>
                       {item.client_name}
                     </td>
-                    <td className="billing-open-boletos-document-cell" title={item.document_id || "-"}>
+                    <td className="billing-open-boletos-document-cell" data-label="Documento" title={item.document_id || "-"}>
                       <strong>{item.document_id || "-"}</strong>
                     </td>
-                    <td>{formatDate(item.issue_date)}</td>
-                    <td>{formatDate(item.due_date)}</td>
-                    <td className="numeric-cell">{formatMoney(item.amount)}</td>
-                    <td>{renderStatusBadge(item.status)}</td>
-                    <td>{item.bank || "-"}</td>
-                    <td className="billing-open-boletos-actions-cell">
+                    <td data-label="Emissão">{formatDate(item.issue_date)}</td>
+                    <td data-label="Vencimento">{formatDate(item.due_date)}</td>
+                    <td className="numeric-cell mobile-compact-amount" data-label="Valor">{formatMoney(item.amount)}</td>
+                    <td data-label="Status">{renderStatusBadge(item.status)}</td>
+                    <td data-label="Banco">{item.bank || "-"}</td>
+                    <td className="billing-open-boletos-actions-cell mobile-compact-actions" data-label="Ações">
                       <div className="billing-boleto-row-actions billing-boleto-row-actions--compact">
                         {item.pdf_available ? (
                           <button
@@ -1641,8 +1641,8 @@ export function BoletosPage({
             <span>{visibleMissingBoletos.length}</span>
           </div>
         </div>
-        <div className="table-shell billing-table-shell billing-table-shell--expanded entries-table-shell">
-          <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table">
+        <div className="table-shell table-shell--mobile-compact billing-table-shell billing-table-shell--expanded entries-table-shell">
+          <table className="erp-table erp-table--compact erp-table--responsive entries-list-table billing-alert-table mobile-compact-table">
             <colgroup>
               <col className="billing-alert-col-select" />
               <col className="billing-alert-col-client" />
@@ -1677,7 +1677,7 @@ export function BoletosPage({
             <tbody>
               {visibleMissingBoletos.map((item) => (
                 <tr key={item.selection_key}>
-                  <td>
+                  <td data-label="Selecionar">
                     <input
                       checked={selectedMissingKeys.includes(item.selection_key)}
                       disabled={submitting}
@@ -1685,13 +1685,13 @@ export function BoletosPage({
                       type="checkbox"
                     />
                   </td>
-                  <td>{item.client_name}</td>
-                  <td>{item.mode || "-"}</td>
-                  <td>{item.competence || "-"}</td>
-                  <td>{formatDate(item.due_date)}</td>
-                  <td className="numeric-cell">{formatMoney(item.amount)}</td>
-                  <td>{renderReceivableDetails(item)}</td>
-                  <td>{item.reason}</td>
+                  <td className="mobile-compact-primary" data-label="Cliente">{item.client_name}</td>
+                  <td data-label="Modo">{item.mode || "-"}</td>
+                  <td data-label="Competência">{item.competence || "-"}</td>
+                  <td data-label="Vencimento">{formatDate(item.due_date)}</td>
+                  <td className="numeric-cell mobile-compact-amount" data-label="Valor">{formatMoney(item.amount)}</td>
+                  <td data-label="Faturas">{renderReceivableDetails(item)}</td>
+                  <td data-label="Motivo">{item.reason}</td>
                 </tr>
               ))}
               {!visibleMissingBoletos.length && (
@@ -1865,8 +1865,8 @@ export function BoletosPage({
             <Button type="button" variant="secondary" onClick={() => setCustomerDataModalOpen(true)}>Importar XLSX</Button>
             <Button type="button" variant="primary" onClick={() => void handleSaveClients()}>Salvar</Button>
           </div>
-          <div className="table-shell billing-modal-table-shell">
-            <table className="erp-table">
+          <div className="table-shell table-shell--mobile-compact billing-modal-table-shell">
+            <table className="erp-table mobile-compact-table">
               <thead>
                 <tr>
                   <th>Cliente</th>
@@ -1880,15 +1880,15 @@ export function BoletosPage({
               <tbody>
                 {clients.map((client) => (
                   <tr key={client.client_key}>
-                    <td>{client.client_name}</td>
-                    <td>
+                    <td className="mobile-compact-primary" data-label="Cliente">{client.client_name}</td>
+                    <td data-label="Usa boleto">
                       <input
                         type="checkbox"
                         checked={client.uses_boleto}
                         onChange={(e) => setClients(current => current.map(item => item.client_key === client.client_key ? { ...item, uses_boleto: e.target.checked, dirty: true } : item))}
                       />
                     </td>
-                    <td>
+                    <td data-label="Modo">
                       <select
                         value={client.mode}
                         onChange={(e) => setClients(current => current.map(item => item.client_key === client.client_key ? { ...item, mode: e.target.value, dirty: true } : item))}
@@ -1898,7 +1898,7 @@ export function BoletosPage({
                         <option value="negociacao">Negociação</option>
                       </select>
                     </td>
-                    <td>
+                    <td data-label="Dia">
                       <input
                         className="mini-input"
                         type="number"
@@ -1908,14 +1908,14 @@ export function BoletosPage({
                         onChange={(e) => setClients(current => current.map(item => item.client_key === client.client_key ? { ...item, boleto_due_day: e.target.value ? Number(e.target.value) : null, dirty: true } : item))}
                       />
                     </td>
-                    <td>
+                    <td data-label="Multa/Juros">
                       <input
                         type="checkbox"
                         checked={client.include_interest}
                         onChange={(e) => setClients(current => current.map(item => item.client_key === client.client_key ? { ...item, include_interest: e.target.checked, dirty: true } : item))}
                       />
                     </td>
-                    <td>
+                    <td data-label="Notas">
                       <input
                         value={client.notes ?? ""}
                         onChange={(e) => setClients(current => current.map(item => item.client_key === client.client_key ? { ...item, notes: e.target.value, dirty: true } : item))}
