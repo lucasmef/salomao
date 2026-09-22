@@ -42,6 +42,8 @@ Reason: trata-se de auditoria read-only explicitamente autorizada; verificaçõe
 - 2026-09-21 - Scanner oficial passou; testes de configuração, primitivas, MFA/sessões e alertas passaram (14 testes).
 - 2026-09-21 - `pip-audit` encontrou vulnerabilidades conhecidas nas versões travadas de AnyIO, Click, Cryptography e pypdf. Nenhum valor sensível foi registrado.
 - 2026-09-21 - Inspecionados autenticação/autorização, sessão/MFA, CORS/headers, upload, logs, isolamento por empresa, dependências, CI/CD e scripts de auditoria de VPS.
+- 2026-09-21 - O gate `npm audit` do GitHub detectou quatro vulnerabilidades altas no lockfile do frontend. O `package-lock.json` foi atualizado pelo mecanismo oficial de audit; instalação limpa e nova auditoria retornaram zero vulnerabilidades.
+- 2026-09-21 - O teste de planejamento que bloqueava Quality era dependente da data corrente: a fixture de julho de 2026 passou a representar uma coleção passada. A data de referência do teste foi fixada, sem alterar a regra de negócio que exclui coleções passadas do forecast.
 
 ## Decisions
 
@@ -57,7 +59,9 @@ Commands run:
 - [x] `cd backend && PYTHONPATH=. uv run --extra dev pytest tests/test_config_security.py tests/test_security_primitives.py tests/test_auth_trusted_devices.py tests/test_security_alerts.py -q`
 - [x] `cd backend && uv export --all-extras --no-hashes --output-file /private/tmp/salomao-audit-requirements.txt && uv run --with pip-audit pip-audit -r /private/tmp/salomao-audit-requirements.txt`
 - [x] Inspeção de manifestos, rotas, serviços, workflows e scripts.
-- [ ] `npm audit --audit-level=high` — não executado: `npm` não está instalado no host. `pnpm audit --prod --json` não é compatível com o único lockfile disponível (`package-lock.json`).
+- [x] `cd frontend && pnpm dlx npm@11 ci && pnpm dlx npm@11 audit --audit-level=high && pnpm run typecheck && pnpm run build`
+- [x] `cd backend && PYTHONPATH=. uv run --extra dev pytest -q`
+- [x] `cd backend && uv run ruff check --ignore E501 tests/test_purchase_planning.py`
 - [ ] Auditoria live da VPS — fora da autorização desta rodada.
 
 Results:
@@ -65,6 +69,8 @@ Results:
 - Scanner oficial: passou.
 - Testes de segurança: 14 passaram; somente avisos de depreciação de dependências/framework.
 - `pip-audit`: 25 entradas de advisory em 4 pacotes; classificação e versões de correção abaixo.
+- Frontend: instalação limpa, audit, typecheck e build passaram; `npm audit` retornou zero vulnerabilidades após a atualização do lockfile.
+- Suíte backend: 306 passaram; o lint reproduziu a configuração do workflow e passou.
 - Nenhuma verificação live foi interpretada como evidência de segurança.
 
 ## Next step
@@ -79,6 +85,10 @@ SAL-003 concluído em revisão; SAL-004 concluído apenas para o perímetro vers
 - **Alta — cryptography 48.0.1 vulnerável.** Há correções disponíveis em 49.0.0 e 50.0.0. Como a aplicação cifra credenciais e usa mTLS, tratar como atualização prioritária e validar cifragem/decifragem, TLS e integração em ambiente seguro.
 - **Média — AnyIO 4.13.0 e Click 8.3.2 vulneráveis.** Correções informadas: AnyIO 4.14.2 e Click 8.3.3. Atualizar lockfile e executar a suíte de backend.
 - **Média — uploads e extração de ZIP são ilimitados.** Rotas autenticadas usam `await file.read()` e serviços leem entradas ZIP em memória sem limites explícitos de tamanho, quantidade ou taxa de expansão. Um usuário autenticado pode provocar exaustão de memória/disco/CPU com arquivo grande ou compactado malicioso. Limitar corpo/arquivo, número/tamanho total descompactado e validar tipo/estrutura antes do parse.
+
+### Achados remediados durante a promoção
+
+- **Alta — dependências transitivas do frontend.** O gate do GitHub reportou Nano ID, PostCSS e React Router em versões vulneráveis. O `package-lock.json` agora trava Nano ID 3.3.19, PostCSS 8.5.28 e React Router/DOM 7.18.4. A nova auditoria retornou zero vulnerabilidades; nenhuma alteração de código da aplicação foi necessária.
 
 ### Configurações de risco
 

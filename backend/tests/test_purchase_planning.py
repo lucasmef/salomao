@@ -982,7 +982,11 @@ def test_delete_purchase_plan_removes_unlinked_plan(db_session: Session) -> None
 
 def test_delete_one_of_multiple_brand_collection_plans_recalculates_overview_and_cashflow(
     db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # The fixture models the July 2026 collection; keep the forecast assertion
+    # independent from the calendar date on which the suite is executed.
+    monkeypatch.setattr(purchase_planning_service, "_today", lambda: date(2026, 3, 31))
     company, user = create_company_context(db_session)
     collection = create_collection(db_session, company, "Inverno 2026")
     supplier = create_supplier(db_session, company.id, "Veste")
