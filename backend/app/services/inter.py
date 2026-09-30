@@ -1885,7 +1885,7 @@ def sync_standalone_inter_charges(
             subject, body, html_body = _build_standalone_paid_email(
                 company, newly_paid_notifications
             )
-            ensure_email_transport_configured()
+            ensure_email_transport_configured(db)
             send_email(
                 subject,
                 body,

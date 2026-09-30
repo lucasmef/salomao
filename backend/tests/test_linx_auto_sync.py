@@ -280,7 +280,7 @@ def test_linx_auto_sync_reports_disabled_email_transport_when_error_email_cannot
         assert result.status == "partial_failure"
         assert result.error_message == (
             "Faturas a receber: chave API expirada\n"
-            "Resumo por email nao enviado: Envio de email desabilitado em SECURITY_ALERT_EMAIL_ENABLED."
+            "Resumo por email nao enviado: Envio de e-mail desativado nas configuracoes do sistema."
         )
         session.refresh(company)
         assert company.linx_auto_sync_last_error == result.error_message

@@ -3434,6 +3434,7 @@ function AppRuntime() {
               title={systemSecurityTab.title}
             >
               <SecurityPage
+                authToken={session.token}
                 embedded
                 view="all"
                 backups={backups}

@@ -21,7 +21,7 @@ class _DummySmtp:
     def __exit__(self, exc_type, exc, tb) -> None:
         return None
 
-    def starttls(self) -> None:
+    def starttls(self, *, context=None) -> None:
         self.started_tls = True
 
     def login(self, username: str, password: str) -> None:
@@ -43,13 +43,18 @@ def _configure_smtp(monkeypatch, *, use_ssl: bool, use_tls: bool) -> None:
     monkeypatch.setenv("SMTP_USE_SSL", "true" if use_ssl else "false")
     monkeypatch.setenv("SMTP_USE_TLS", "true" if use_tls else "false")
     get_settings.cache_clear()
+    from app.services.smtp_settings import environment_configuration
+
+    monkeypatch.setattr(
+        "app.services.security_alerts.runtime_configuration", environment_configuration
+    )
 
 
 def test_send_email_uses_ssl_client_when_requested(monkeypatch) -> None:
     _configure_smtp(monkeypatch, use_ssl=True, use_tls=False)
     instances: list[_DummySmtp] = []
 
-    def _smtp_ssl(host: str, port: int, *, timeout: int) -> _DummySmtp:
+    def _smtp_ssl(host: str, port: int, *, timeout: int, context=None) -> _DummySmtp:
         smtp = _DummySmtp(host, port, timeout=timeout)
         instances.append(smtp)
         return smtp
@@ -71,13 +76,15 @@ def test_send_email_uses_starttls_when_configured(monkeypatch) -> None:
     _configure_smtp(monkeypatch, use_ssl=False, use_tls=True)
     instances: list[_DummySmtp] = []
 
-    def _smtp(host: str, port: int, *, timeout: int) -> _DummySmtp:
+    def _smtp(host: str, port: int, *, timeout: int, context=None) -> _DummySmtp:
         smtp = _DummySmtp(host, port, timeout=timeout)
         instances.append(smtp)
         return smtp
 
     monkeypatch.setattr("app.services.security_alerts.smtplib.SMTP", _smtp)
-    monkeypatch.setattr("app.services.security_alerts.smtplib.SMTP_SSL", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "app.services.security_alerts.smtplib.SMTP_SSL", lambda *args, **kwargs: None
+    )
 
     _send_email("Assunto", "Corpo")
 
@@ -99,13 +106,15 @@ def test_send_email_retries_once_after_timeout(monkeypatch) -> None:
             if len(instances) == 1:
                 raise socket.timeout("timed out")
 
-    def _smtp(host: str, port: int, *, timeout: int) -> _DummySmtp:
+    def _smtp(host: str, port: int, *, timeout: int, context=None) -> _DummySmtp:
         smtp = _FlakySmtp(host, port, timeout=timeout)
         instances.append(smtp)
         return smtp
 
     monkeypatch.setattr("app.services.security_alerts.smtplib.SMTP", _smtp)
-    monkeypatch.setattr("app.services.security_alerts.smtplib.SMTP_SSL", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "app.services.security_alerts.smtplib.SMTP_SSL", lambda *args, **kwargs: None
+    )
 
     _send_email("Assunto", "Corpo")
 

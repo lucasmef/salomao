@@ -562,7 +562,7 @@ def run_linx_auto_sync_for_company(
                 purchase_payables_message=purchase_payables_message,
                 error_message=error_message,
             )
-            ensure_email_transport_configured()
+            ensure_email_transport_configured(db)
             send_email(
                 subject,
                 body,

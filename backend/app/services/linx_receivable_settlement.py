@@ -214,7 +214,7 @@ def settle_paid_pending_inter_receivables(
     if results and not validate_only:
         subject, body, html_body = _build_success_email(company, results)
         try:
-            ensure_email_transport_configured()
+            ensure_email_transport_configured(db)
             send_email(
                 subject,
                 body,

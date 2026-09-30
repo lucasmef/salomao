@@ -1195,7 +1195,7 @@ def test_sync_standalone_inter_charges_updates_downloaded_record_bank_status(mon
             )
         )
         session.commit()
-        monkeypatch.setattr("app.services.inter.ensure_email_transport_configured", lambda: None)
+        monkeypatch.setattr("app.services.inter.ensure_email_transport_configured", lambda *args: None)
         monkeypatch.setattr(
             "app.services.inter.send_email",
             lambda subject, body, *, recipients=None, html_body=None: email_calls.append(

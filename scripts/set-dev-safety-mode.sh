@@ -109,6 +109,14 @@ case "$MODE" in
 
     echo "  -> Desabilitando alertas de email"
     set_env_value "$DEV_ENV_FILE" SECURITY_ALERT_EMAIL_ENABLED false
+    "${PSQL_CMD[@]}" <<'SQL'
+DO $$
+BEGIN
+  IF to_regclass('public.system_email_settings') IS NOT NULL THEN
+    UPDATE system_email_settings SET enabled = false;
+  END IF;
+END $$;
+SQL
 
     if [[ "$STANDBY_DEV" == "1" ]]; then
       echo "  -> Standby dev solicitado; mantendo $DEV_SERVICE parado"
