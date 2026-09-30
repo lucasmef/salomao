@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 
+import { SmtpSettingsCard } from "../components/SmtpSettingsCard";
 import { PageHeader } from "../components/PageHeader";
 import { Button } from "../components/ui";
 import { formatDate } from "../lib/format";
@@ -15,6 +16,7 @@ import type {
 } from "../types";
 
 type Props = {
+  authToken: string | null;
   submitting: boolean;
   currentUser: AuthUser;
   users: AuthUser[];
@@ -37,6 +39,7 @@ type Props = {
 };
 
 export function SecurityPage({
+  authToken,
   submitting,
   currentUser,
   users,
@@ -151,6 +154,9 @@ export function SecurityPage({
         />
       )}
       <section className="interactive-grid">
+        {(view === "all" || view === "security") && currentUser.role === "admin" && (
+          <SmtpSettingsCard token={authToken} userEmail={currentUser.email} />
+        )}
         {(view === "all" || view === "users") && (
           <article className="panel-card">
             <div className="panel-heading">

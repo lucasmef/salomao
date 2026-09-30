@@ -195,7 +195,7 @@ def test_settle_paid_pending_inter_receivables_reports_disabled_email_transport(
 
         assert summary.attempted_invoice_count == 1
         assert summary.settled_invoice_count == 1
-        assert summary.email_error == "Envio de email desabilitado em SECURITY_ALERT_EMAIL_ENABLED."
+        assert summary.email_error == "Envio de e-mail desativado nas configuracoes do sistema."
     finally:
         get_settings.cache_clear()
         session.close()

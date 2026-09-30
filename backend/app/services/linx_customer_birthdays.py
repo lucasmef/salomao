@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.db.models.linx import LinxCustomer, LinxMovement
 from app.db.models.security import Company
 from app.services.audit import write_audit_log
+from app.services.smtp_settings import read_configuration
 from app.services.security_alerts import ensure_email_transport_configured, send_email
 
 BIRTHDAY_ALERT_TIMEZONE = ZoneInfo("America/Sao_Paulo")
@@ -174,12 +175,11 @@ def send_linx_customer_birthday_alert(
     if not customers:
         return None
 
-    settings = get_settings()
     recipients = (
         _split_recipients(company.linx_auto_sync_alert_email)
-        or settings.security_alert_recipients
+        or [item.strip() for item in read_configuration(db).recipients.split(",") if item.strip()]
     )
-    ensure_email_transport_configured()
+    ensure_email_transport_configured(db)
 
     company_name = company.trade_name or company.legal_name or company.id
     subject = f"[Linx] Aniversariantes do dia - {company_name}"

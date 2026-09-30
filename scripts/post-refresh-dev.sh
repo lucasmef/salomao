@@ -79,6 +79,16 @@ export PGPASSWORD="$DB_PASSWORD"
 
 PSQL_CMD=(psql --host="$DB_HOST" --port="$DB_PORT" --username="$DB_USER" --dbname="$DB_NAME" --set=ON_ERROR_STOP=1)
 
+# Nao manter credenciais SMTP de producao na copia de homologacao.
+"${PSQL_CMD[@]}" <<'SQL'
+DO $$
+BEGIN
+  IF to_regclass('public.system_email_settings') IS NOT NULL THEN
+    DELETE FROM system_email_settings;
+  END IF;
+END $$;
+SQL
+
 echo "==> [pos-refresh] Desabilitando API do Inter em todas as contas"
 "${PSQL_CMD[@]}" --command="UPDATE accounts SET inter_api_enabled = false WHERE inter_api_enabled = true;"
 

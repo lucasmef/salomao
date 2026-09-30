@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.models.security import User
 from app.services.audit import write_audit_log
+from app.services.smtp_settings import deliver_message, read_configuration, runtime_configuration
 
 
 class _EventTracker:
@@ -105,17 +106,17 @@ def send_email(
     recipients: list[str] | None = None,
     html_body: str | None = None,
 ) -> None:
-    settings = get_settings()
-    if not settings.security_alert_email_enabled:
+    config = runtime_configuration()
+    if not config.enabled:
         return
     resolved_recipients = [
         item.strip()
-        for item in (recipients or settings.security_alert_recipients)
+        for item in (recipients or config.recipients.split(","))
         if item.strip()
     ]
-    if not settings.smtp_host or not resolved_recipients:
+    if not config.host or not resolved_recipients:
         return
-    sender = settings.security_alert_email_from or settings.smtp_username
+    sender = config.sender
     if not sender:
         return
 
@@ -131,7 +132,7 @@ def send_email(
     last_error: Exception | None = None
     for attempt in range(2):
         try:
-            _deliver_email(message)
+            deliver_message(config, message)
             return
         except retryable_errors as error:
             last_error = error
@@ -141,26 +142,16 @@ def send_email(
         raise last_error
 
 
-def ensure_email_transport_configured() -> None:
-    settings = get_settings()
-    if not settings.security_alert_email_enabled:
-        raise RuntimeError("Envio de email desabilitado em SECURITY_ALERT_EMAIL_ENABLED.")
-    if not settings.smtp_host:
-        raise RuntimeError("SMTP_HOST nao configurado para envio de email.")
-    sender = settings.security_alert_email_from or settings.smtp_username
-    if not sender:
-        raise RuntimeError("SECURITY_ALERT_EMAIL_FROM ou SMTP_USERNAME deve ser configurado para envio de email.")
+def ensure_email_transport_configured(db: Session | None = None) -> None:
+    config = read_configuration(db) if db is not None else runtime_configuration()
+    if not config.enabled:
+        raise RuntimeError("Envio de e-mail desativado nas configuracoes do sistema.")
+    if not config.host or not config.sender:
+        raise RuntimeError("Configure servidor e remetente SMTP nas configuracoes do sistema.")
 
 
 def _deliver_email(message: EmailMessage) -> None:
-    settings = get_settings()
-    smtp_cls = smtplib.SMTP_SSL if settings.smtp_use_ssl else smtplib.SMTP
-    with smtp_cls(settings.smtp_host, settings.smtp_port, timeout=settings.smtp_timeout_seconds) as smtp:
-        if settings.smtp_use_tls and not settings.smtp_use_ssl:
-            smtp.starttls()
-        if settings.smtp_username and settings.smtp_password:
-            smtp.login(settings.smtp_username, settings.smtp_password)
-        smtp.send_message(message)
+    deliver_message(runtime_configuration(), message)
 
 
 def _send_email(subject: str, body: str) -> None:

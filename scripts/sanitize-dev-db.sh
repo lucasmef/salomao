@@ -139,6 +139,16 @@ WHERE id = (SELECT id FROM users WHERE role = 'admin' ORDER BY created_at ASC LI
 "
 
 echo "==> Sanitizando tabela: accounts (credenciais Inter)"
+
+# Nao manter credenciais SMTP de producao na copia de homologacao.
+"${PSQL_CMD[@]}" <<'SQL'
+DO $$
+BEGIN
+  IF to_regclass('public.system_email_settings') IS NOT NULL THEN
+    DELETE FROM system_email_settings;
+  END IF;
+END $$;
+SQL
 "${PSQL_CMD[@]}" --command="
 UPDATE accounts SET
   inter_api_enabled                 = false,
