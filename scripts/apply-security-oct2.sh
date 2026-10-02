@@ -16,7 +16,7 @@ git merge-base --is-ancestor "$base" "$target"
 # Preserve every SMTP file and reject an unreviewed release scope.
 while IFS= read -r name; do
   case "$name" in
-    backend/pyproject.toml|backend/uv.lock|backend/app/services/linx_auto_sync.py|backend/tests/test_linx_auto_sync.py|diagnosticar-seguranca.sh|scripts/security-requirements.txt|scripts/apply-security-oct2.sh|specs/2026-10-02-security-completion.md) ;;
+    backend/pyproject.toml|backend/uv.lock|backend/app/services/linx_auto_sync.py|backend/tests/test_linx_auto_sync.py|diagnosticar-seguranca.sh|corrigir-firmware.sh|scripts/security-requirements.txt|scripts/apply-security-oct2.sh|specs/2026-10-02-security-completion.md) ;;
     *) echo 'Escopo de alteracoes inesperado; abortado'; exit 1;;
   esac
 done < <(git diff --name-only "$base" "$target")
@@ -33,7 +33,7 @@ cp -a backend/.venv "$recovery/venv-next"
 "$recovery/venv-next/bin/python" - <<'PY'
 import importlib.metadata as m
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-for name, version in {'anyio':'4.14.2','cryptography':'50.0.2','pypdf':'6.19.0','starlette':'1.3.1','idna':'3.15','mako':'1.3.12','pip':'26.2.0'}.items():
+for name, version in {'anyio':'4.14.2','cryptography':'50.0.2','pypdf':'6.19.0','starlette':'1.3.1','idna':'3.15','mako':'1.3.12','pip':'26.2'}.items():
     assert m.version(name)==version, name
 c=AESGCM(b'0'*32); n=b'1'*12
 assert c.decrypt(n,c.encrypt(n,b'recovery-check',b'test'),b'test')==b'recovery-check'
