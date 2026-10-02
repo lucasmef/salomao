@@ -44,3 +44,18 @@ Reenvio de e-mails, mudanças nas regras de baixa e sincronização, auditoria i
 - npm audit do frontend de produção: zero vulnerabilidades.
 - Diagnóstico root publicado em 7af3a18 e baixado via Git; aguarda execução no console.
 - Registro email_error persistente usa somente classe da exceção; SMTP e gatilhos de envio preservados.
+
+## Resultado operacional — 02/10, 17:24 São Paulo
+- Main: 284fa2c corrige apenas manifestos; API GitHub confirma 0 alertas abertos.
+- Produção ad4a6bc aplicada sobre SMTP; dev 48c1454 e inter-dev 0310661 aplicados somente com dependências.
+- pip-audit dos ambientes instalados: zero vulnerabilidades conhecidas nos três.
+- Saúde dos três ambientes e HTTPS público aprovados; nginx -t aprovado; SMTP/env preservados por hash.
+- Reversões protegidas em .security-oct2.9yMAqg (prod), .security-oct2.HYKBJ9 (dev), .security-oct2.WVmqPs (inter-dev).
+- Main: 241 passaram/4 falharam; inter-dev: 115 passaram/5 falharam. Mesmas falhas reproduzidas nas respectivas bases originais, não introduzidas nesta rodada. Inter-dev segurança após pydantic-settings: 9 passaram.
+- Firmware: incompatibilidade daemon 1.9.33/lib 1.9.34 confirmada no journal. Script revisado atualiza somente fwupd/libfwupd3; já entregue via Git, aguardando execução sudo.
+- DNS curinga compartilhado preservado: Do IT responde 404 em HTTP/HTTPS.
+- Backup externo automático aguarda escolha de destino; cópia pontual preservada. Acesso temporário ainda em uso, expira 20:18 São Paulo; remover regras centrais no encerramento.
+- Não promover branch dev antiga para produção: ela não contém a funcionalidade SMTP atualmente publicada. Correção de dependências dev precisa ser integrada antes de novo deploy; workflow automático entra em standby e por isso não foi disparado.
+
+## Próxima etapa
+Validar resultado do script de firmware, receber destino do backup automático e concluir revogação do acesso. Não declarar auditoria integral encerrada enquanto faltarem essas etapas.
