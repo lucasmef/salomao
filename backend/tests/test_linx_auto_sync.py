@@ -10,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.config import get_settings
 from app.db.base import Base
+from app.db.models.audit import AuditLog
 from app.db.models.boleto import StandaloneBoletoRecord
 from app.db.models.imports import ImportBatch
 from app.db.models.security import Company
@@ -284,6 +285,29 @@ def test_linx_auto_sync_reports_disabled_email_transport_when_error_email_cannot
         )
         session.refresh(company)
         assert company.linx_auto_sync_last_error == result.error_message
+        failed_audit = session.query(AuditLog).filter_by(action="linx_auto_sync_run").one()
+        failed_audit_id = failed_audit.id
+        assert failed_audit.after_state["email_error"] == "RuntimeError"
+
+        # A later successful run clears the company marker, but not the history.
+        monkeypatch.setattr(
+            "app.services.linx_auto_sync.sync_linx_open_receivables",
+            lambda *args, **kwargs: _result("Faturas sincronizadas com sucesso."),
+        )
+        monkeypatch.setattr(
+            "app.services.linx_auto_sync.settle_paid_pending_inter_receivables",
+            lambda *args, **kwargs: LinxSettlementSummary(
+                attempted_invoice_count=0, settled_invoice_count=0,
+                failed_invoice_count=0, client_count=0,
+            ),
+        )
+        later = run_linx_auto_sync_for_company(
+            session, company, now=datetime(2026, 4, 4, 11, 10, tzinfo=AUTO_SYNC_TIMEZONE),
+        )
+        assert later.status == "success"
+        assert company.linx_auto_sync_last_error is None
+        session.expire_all()
+        assert session.get(AuditLog, failed_audit_id).after_state["email_error"] == "RuntimeError"
     finally:
         get_settings.cache_clear()
         session.close()

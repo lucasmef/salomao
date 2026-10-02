@@ -516,7 +516,7 @@ def run_linx_auto_sync_for_company(
     company.linx_auto_sync_last_status = status
     company.linx_auto_sync_last_error = error_message
     db.flush()
-    write_audit_log(
+    sync_audit = write_audit_log(
         db,
         action="linx_auto_sync_run",
         entity_name="company",
@@ -541,6 +541,7 @@ def run_linx_auto_sync_for_company(
                 "purchase_payables_changed_count": summary.purchase_payables_changed_count,
             },
             "error_message": error_message,
+            "email_error": None,
         },
     )
     db.commit()
@@ -573,6 +574,13 @@ def run_linx_auto_sync_for_company(
             company.linx_auto_sync_last_error = (
                 f"{error_message}\n{email_delivery_error}" if error_message else email_delivery_error
             )
+            # Keep a durable, non-sensitive failure marker on this run. The company's
+            # last error is overwritten by subsequent syncs; raw SMTP errors may
+            # contain credentials or recipients and must not be copied to history.
+            sync_audit.after_state = {
+                **(sync_audit.after_state or {}),
+                "email_error": type(email_error).__name__,
+            }
             db.flush()
             db.commit()
             error_message = company.linx_auto_sync_last_error
