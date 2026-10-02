@@ -1,7 +1,7 @@
 # Conclusão da auditoria Salomão
 
 ## Metadata
-- Status: in_progress
+- Status: review
 - Mode: bugfix
 - Complexity: high
 - Created: 2026-10-02
@@ -59,3 +59,10 @@ Reenvio de e-mails, mudanças nas regras de baixa e sincronização, auditoria i
 
 ## Próxima etapa
 Validar resultado do script de firmware, receber destino do backup automático e concluir revogação do acesso. Não declarar auditoria integral encerrada enquanto faltarem essas etapas.
+
+## Encerramento da manutenção — 02/10, 19:04 São Paulo
+- Firmware executado pelo usuário e validado: daemon e refresh com Result=success, nenhuma unidade em falha, processos e SMTP preservados; recuperação /var/backups/salomao-fwupd-20261002.NbWLi2.
+- Removidas permissões temporárias centrais de TCP 22 e Tailscale SSH. Política recarregada confirma regras removidas e testes negam acesso. Nova conexão SSH expira; HTTPS público permanece OK. Timer local de desligamento da função SSH segue às 20:18, sem autorização central existente.
+- Usuário confirmou snapshots no painel do provedor e escolheu manter armazenamento no servidor. Mantido backup diário de produção (última execução OK) junto aos snapshots informados; nenhuma rotina no Mac criada. Retenção e restauração dos snapshots do provedor não foram verificadas.
+- Suíte da base exata dev com dependências corrigidas: 306 passaram. PR rascunho #32 prepara integração de dependências na branch dev sem disparar automaticamente o modo standby.
+- Manutenção live concluída. Revisão de integração antes do próximo deploy permanece documentada; não promover dev sem incorporar a funcionalidade SMTP atualmente em produção.
