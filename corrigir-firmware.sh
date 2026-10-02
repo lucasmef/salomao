@@ -6,6 +6,11 @@ export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l
 umask 077
 [[ $EUID -eq 0 && $# -eq 0 ]] || exit 2
 [[ $(systemd-detect-virt) == xen ]] || { echo 'Virtualizacao mudou; revisar'; exit 1; }
+# Share the maintenance lock without truncating any user-controlled file.
+if [[ -f /home/salomao/.security-oct2.lock && ! -L /home/salomao/.security-oct2.lock ]]; then
+  exec 9</home/salomao/.security-oct2.lock
+  flock -x 9
+fi
 recovery=$(mktemp -d /var/backups/salomao-fwupd-20261002.XXXXXX)
 export SALOMAO_FWUPD_RECOVERY="$recovery"
 python3 - <<'PY'
